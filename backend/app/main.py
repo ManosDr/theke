@@ -2,7 +2,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import admin, auth, chat, companies, documents, projects
-from app.services.bootstrap import bootstrap_super_admin
+from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
 
 app = FastAPI(title="theke API", version="0.1.0")
 
@@ -26,6 +26,7 @@ app.include_router(projects.router)
 @app.on_event("startup")
 async def on_startup() -> None:
     bootstrap_super_admin()
+    seed_demo_data()
 
 
 @app.get("/health")

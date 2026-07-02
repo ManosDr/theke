@@ -1,0 +1,106 @@
+.layout {
+  display: grid;
+  grid-template-columns: 1fr 320px;
+  gap: var(--space-5);
+  align-items: start;
+  height: calc(100dvh - 140px);
+}
+
+.chatPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  overflow: hidden;
+}
+
+.messages {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.message {
+  max-width: 80%;
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
+  line-height: 1.4;
+}
+
+.messageUser {
+  align-self: flex-end;
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
+.messageAssistant {
+  align-self: flex-start;
+  background: var(--color-surface-alt);
+}
+
+.citations {
+  margin: var(--space-2) 0 0;
+  padding-left: var(--space-4);
+  font-size: 0.85rem;
+}
+
+.composer {
+  display: flex;
+  gap: var(--space-2);
+  padding: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.composer input {
+  flex: 1;
+}
+
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  height: 100%;
+  overflow-y: auto;
+}
+
+.sidebarSection {
+  padding: var(--space-4);
+}
+
+.sidebarSection h3 {
+  margin: 0 0 var(--space-3);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.contextRow {
+  display: flex;
+  justify-content: space-between;
+  padding: var(--space-1) 0;
+  font-size: 0.9rem;
+}
+
+.searchResult {
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.85rem;
+}
+
+.searchResult:last-child {
+  border-bottom: none;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+    height: auto;
+  }
+
+  .chatPanel {
+    height: 60dvh;
+  }
+}

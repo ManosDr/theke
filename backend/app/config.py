@@ -21,5 +21,10 @@ class Settings(BaseSettings):
     super_admin_email: str = ""
     super_admin_password: str = ""
 
+    # Creates 5 fixed demo accounts (one per role) on startup if they don't
+    # exist yet, so the login page's "try a demo account" buttons always
+    # work in dev. Leave false for any real deployment.
+    seed_demo_data: bool = False
+
 
 settings = Settings()

@@ -119,6 +119,7 @@ async def platform_audit_log(
         AuditLogEntry(
             id=e.id,
             actor_user_id=e.actor_user_id,
+            company_id=e.company_id,
             action=e.action,
             resource_type=e.resource_type,
             resource_id=e.resource_id,

@@ -81,6 +81,7 @@ class UserSummary(BaseModel):
 class AuditLogEntry(BaseModel):
     id: int
     actor_user_id: int | None
+    company_id: int | None = None
     action: str
     resource_type: str | None = None
     resource_id: int | None = None

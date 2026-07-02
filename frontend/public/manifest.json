@@ -1,0 +1,16 @@
+{
+  "name": "theke - Greek Construction Compliance Copilot",
+  "short_name": "theke",
+  "description": "Ask permit questions, get instant answers with citations from ΦΕΚ, ΤΕΕ, ΥΠΕΝ and your own knowledge base.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f6f5f2",
+  "theme_color": "#1d3557",
+  "lang": "el",
+  "icons": [
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "maskable" }
+  ]
+}

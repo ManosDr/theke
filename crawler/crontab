@@ -1,0 +1,4 @@
+# Monthly crawl of all configured sources (ΦΕΚ, ΥΠΕΝ, ΤΕΕ, ...).
+# Runs the 3rd of each month at 03:00 UTC — after the National Printing
+# House typically finishes publishing the previous month's issues.
+0 3 3 * * python -m crawler.main

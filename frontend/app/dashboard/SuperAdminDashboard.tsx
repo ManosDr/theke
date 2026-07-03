@@ -5,9 +5,11 @@ import { useEffect, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { AlertIcon, BuildingIcon, FlagIcon, HammerIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type { AuditLogEntry, CompanySummary, DocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
+import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 
 const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
@@ -254,22 +256,10 @@ export function SuperAdminDashboard() {
       <h1>{t("dash.super.title")}</h1>
 
       <div className={styles.grid}>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{companies.length}</span>
-          <span className={styles.statLabel}>{t("dash.super.totalTenants")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{constructionCount}</span>
-          <span className={styles.statLabel}>{t("dash.super.constructionCompanies")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{municipalityCount}</span>
-          <span className={styles.statLabel}>{t("dash.super.municipalities")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{suspendedCount}</span>
-          <span className={styles.statLabel}>{t("dash.super.suspended")}</span>
-        </div>
+        <StatCard tone="primary" icon={<BuildingIcon />} value={companies.length} label={t("dash.super.totalTenants")} />
+        <StatCard tone="info" icon={<HammerIcon />} value={constructionCount} label={t("dash.super.constructionCompanies")} />
+        <StatCard tone="purple" icon={<FlagIcon />} value={municipalityCount} label={t("dash.super.municipalities")} />
+        <StatCard tone="danger" icon={<AlertIcon />} value={suspendedCount} label={t("dash.super.suspended")} />
       </div>
 
       <section className={`card ${styles.section}`}>

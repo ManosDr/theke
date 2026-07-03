@@ -12,6 +12,12 @@ export const translations = {
     "common.next": "Next",
     "common.noMatches": "No matches.",
     "common.paginationRange": "{{from}}–{{to}} of {{total}}",
+    "common.searchPlaceholder": "Search here…",
+
+    // notifications
+    "notifications.title": "Notifications",
+    "notifications.empty": "No notifications yet.",
+    "notifications.markAllRead": "Mark all read",
 
     // nav
     "nav.dashboard": "Dashboard",
@@ -69,6 +75,8 @@ export const translations = {
     "dash.super.municipalities": "Municipalities",
     "dash.super.suspended": "Suspended",
     "dash.super.activity": "Platform activity (last 14 days)",
+    "dash.super.chartLogins": "Logins",
+    "dash.super.chartOtherActivity": "Other activity",
     "dash.super.companies": "Companies",
     "dash.super.noCompanies": "No companies yet.",
     "dash.super.colName": "Name",
@@ -110,6 +118,7 @@ export const translations = {
 
     // dashboard - company admin
     "dash.company.title": "Company dashboard",
+    "dash.company.titleMunicipality": "{{name}} dashboard",
     "dash.company.teamMembers": "Team members",
     "dash.company.activeAccess": "Active access",
     "dash.company.pendingApprovals": "Pending approvals",
@@ -135,11 +144,15 @@ export const translations = {
     "dash.company.inviteRevoked": "revoked",
     "dash.company.invitePending": "pending",
     "dash.company.logo": "Company logo",
+    "dash.company.logoAlt": "{{name}} logo",
+    "dash.company.removeLogo": "Remove logo",
+    "dash.company.logoRemoved": "Logo removed.",
+    "dash.company.logoUpdated": "Logo updated.",
 
     // dashboard - member
     "dash.member.welcome": "Welcome back",
     "dash.member.signedInAsConstruction": "You're signed in as a company member.",
-    "dash.member.signedInAsMunicipality": "You're signed in as a municipality member.",
+    "dash.member.signedInAsMunicipality": "You're signed in as a member of {{name}}.",
     "dash.member.projects": "Projects",
     "dash.member.defaultMunicipalities": "Default municipalities",
     "dash.member.yourProjects": "Your projects",
@@ -209,6 +222,12 @@ export const translations = {
     "common.next": "Επόμενο",
     "common.noMatches": "Δεν βρέθηκαν αποτελέσματα.",
     "common.paginationRange": "{{from}}–{{to}} από {{total}}",
+    "common.searchPlaceholder": "Αναζήτηση…",
+
+    // notifications
+    "notifications.title": "Ειδοποιήσεις",
+    "notifications.empty": "Δεν υπάρχουν ειδοποιήσεις ακόμη.",
+    "notifications.markAllRead": "Σήμανση όλων ως αναγνωσμένων",
 
     // nav
     "nav.dashboard": "Πίνακας",
@@ -266,6 +285,8 @@ export const translations = {
     "dash.super.municipalities": "Δήμοι",
     "dash.super.suspended": "Σε αναστολή",
     "dash.super.activity": "Δραστηριότητα πλατφόρμας (τελευταίες 14 ημέρες)",
+    "dash.super.chartLogins": "Συνδέσεις",
+    "dash.super.chartOtherActivity": "Λοιπή δραστηριότητα",
     "dash.super.companies": "Εταιρείες",
     "dash.super.noCompanies": "Δεν υπάρχουν ακόμη εταιρείες.",
     "dash.super.colName": "Όνομα",
@@ -307,6 +328,7 @@ export const translations = {
 
     // dashboard - company admin
     "dash.company.title": "Πίνακας εταιρείας",
+    "dash.company.titleMunicipality": "Πίνακας {{name}}",
     "dash.company.teamMembers": "Μέλη ομάδας",
     "dash.company.activeAccess": "Ενεργή πρόσβαση",
     "dash.company.pendingApprovals": "Εκκρεμείς εγκρίσεις",
@@ -332,11 +354,15 @@ export const translations = {
     "dash.company.inviteRevoked": "ανακλήθηκε",
     "dash.company.invitePending": "εκκρεμεί",
     "dash.company.logo": "Λογότυπο εταιρείας",
+    "dash.company.logoAlt": "Λογότυπο {{name}}",
+    "dash.company.removeLogo": "Αφαίρεση λογότυπου",
+    "dash.company.logoRemoved": "Το λογότυπο αφαιρέθηκε.",
+    "dash.company.logoUpdated": "Το λογότυπο ενημερώθηκε.",
 
     // dashboard - member
     "dash.member.welcome": "Καλώς ήρθατε",
     "dash.member.signedInAsConstruction": "Είστε συνδεδεμένοι ως μέλος εταιρείας.",
-    "dash.member.signedInAsMunicipality": "Είστε συνδεδεμένοι ως μέλος δήμου.",
+    "dash.member.signedInAsMunicipality": "Είστε συνδεδεμένοι ως μέλος του {{name}}.",
     "dash.member.projects": "Έργα",
     "dash.member.defaultMunicipalities": "Προεπιλεγμένοι δήμοι",
     "dash.member.yourProjects": "Τα έργα σας",

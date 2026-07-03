@@ -10,6 +10,7 @@ from app.models import Company, Invite, User
 from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UpdateLocaleRequest
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
+from app.services.notifications import notify
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -39,6 +40,14 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         role = invite.role
         invite.status = "accepted"
         invite.accepted_at = datetime.utcnow()
+        notify(
+            db,
+            user_id=invite.invited_by,
+            type="invite_accepted",
+            title=f"{payload.email} accepted your invite",
+            body=f"They've joined as {role}.",
+            link="/dashboard",
+        )
     else:
         if db.scalar(select(Company).where(Company.name == payload.company_name)):
             raise HTTPException(

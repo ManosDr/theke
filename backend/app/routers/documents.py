@@ -19,6 +19,7 @@ from app.schemas import (
 from app.services.audit import log_action
 from app.services.authorization import can_approve_removal, require_can_upload_documents
 from app.services.documents import UPLOAD_DIR, content_hash, extract_text
+from app.services.notifications import notify, notify_company_admins, notify_users_by_municipality
 from app.services.sources import group_label, source_names_for_group
 from app.services.visibility import visible_documents_filter
 
@@ -27,11 +28,23 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024  # 25MB
 
 
-def _to_summary(doc: Document, *, with_snippet: bool = True) -> DocumentSummary:
+def _build_snippet(content: str, q: str | None, *, window: int = 280) -> str:
+    """A snippet centered on the first match of `q`, not just the document's
+    opening characters - otherwise a hit deep in a long document would show
+    an excerpt that never contains the term the user searched for."""
+    if q:
+        idx = content.lower().find(q.strip().lower())
+        if idx != -1:
+            start = max(0, idx - 60)
+            return content[start : start + window]
+    return content[:window]
+
+
+def _to_summary(doc: Document, *, with_snippet: bool = True, q: str | None = None) -> DocumentSummary:
     return DocumentSummary(
         id=doc.id,
         title=doc.title,
-        snippet=(doc.content[:280] if with_snippet and doc.content else None),
+        snippet=(_build_snippet(doc.content, q) if with_snippet and doc.content else None),
         source=doc.source,
         doc_type=doc.doc_type,
         municipality=doc.municipality,
@@ -62,7 +75,7 @@ async def search_documents(
         .limit(20)
     )
     results = db.scalars(stmt).all()
-    return [_to_summary(doc) for doc in results]
+    return [_to_summary(doc, q=q) for doc in results]
 
 
 @router.get("/sources", response_model=list[SourceGroupSummary])
@@ -123,7 +136,7 @@ async def browse_documents(
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     results = db.scalars(stmt.order_by(Document.date.desc().nullslast()).limit(limit).offset(offset)).all()
 
-    return BrowseResponse(total=total, items=[_to_summary(doc, with_snippet=bool(q)) for doc in results])
+    return BrowseResponse(total=total, items=[_to_summary(doc, with_snippet=bool(q), q=q) for doc in results])
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
@@ -203,6 +216,17 @@ async def upload_document(
             resource_id=doc.id,
         )
 
+    if municipality:
+        notify_users_by_municipality(
+            db,
+            municipality=municipality,
+            exclude_company_id=user.company_id,
+            type="municipality_content",
+            title=f"New content in {municipality}",
+            body=doc.title,
+            link=f"/documents/{doc.id}",
+        )
+
     db.commit()
     db.refresh(doc)
 
@@ -242,6 +266,15 @@ async def request_removal(
         doc.status = "removed"
 
         request.decided_at = datetime.utcnow()
+    else:
+        notify_company_admins(
+            db,
+            company_id=user.company_id,
+            type="removal_requested",
+            title="Document removal needs your approval",
+            body=doc.title,
+            link="/dashboard",
+        )
 
     log_action(
         db,
@@ -311,6 +344,15 @@ async def approve_removal(
     request.decided_at = datetime.utcnow()
     doc.status = "removed"
 
+    notify(
+        db,
+        user_id=request.requested_by,
+        type="removal_decided",
+        title="Your removal request was approved",
+        body=doc.title,
+        link="/dashboard",
+    )
+
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -340,6 +382,15 @@ async def reject_removal(
     request.status = "rejected"
     request.decided_by = user.user_id
     request.decided_at = datetime.utcnow()
+
+    notify(
+        db,
+        user_id=request.requested_by,
+        type="removal_decided",
+        title="Your removal request was rejected",
+        body=doc.title,
+        link="/dashboard",
+    )
 
     log_action(
         db,

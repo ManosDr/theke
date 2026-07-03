@@ -228,3 +228,20 @@ CREATE TABLE IF NOT EXISTS translation_overrides (
 );
 
 CREATE INDEX IF NOT EXISTS idx_translation_overrides_locale ON translation_overrides(locale);
+
+-- Per-user notifications: new documents after a scheduled crawl, new content
+-- in a municipality tied to one of a construction company's projects, an
+-- invite being accepted, and document-removal request/decision events.
+CREATE TABLE IF NOT EXISTS notifications (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id),
+    type VARCHAR NOT NULL,   -- 'new_documents', 'municipality_content', 'invite_accepted',
+                              -- 'removal_requested', 'removal_decided'
+    title VARCHAR NOT NULL,
+    body TEXT,
+    link VARCHAR,
+    is_read BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);

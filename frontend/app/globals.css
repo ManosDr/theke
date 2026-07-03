@@ -6,39 +6,48 @@
   color-scheme: light;
 
   /* Surfaces */
-  --color-bg: #f6f5f2;
+  --color-bg: #f7f9fc;
   --color-surface: #ffffff;
-  --color-surface-alt: #eeece6;
-  --color-border: #ddd9d0;
+  --color-surface-alt: #eef1f6;
+  --color-border: #e4e9f2;
 
   /* Text */
-  --color-text: #201d18;
-  --color-text-muted: #6b6558;
+  --color-text: #151d48;
+  --color-text-muted: #737791;
   --color-text-on-primary: #ffffff;
-  --color-text-on-accent: #201d18;
+  --color-text-on-accent: #151d48;
 
   /* Brand */
-  --color-primary: #1d3557;
-  --color-primary-hover: #142438;
-  --color-accent: #c17817;
-  --color-accent-hover: #a4650f;
+  --color-primary: #0bb783;
+  --color-primary-hover: #099b6e;
+  --color-accent: #ffa800;
+  --color-accent-hover: #e69500;
 
   /* Feedback */
-  --color-success: #2e7d32;
-  --color-success-bg: #e8f5e9;
-  --color-warning: #9a6b00;
-  --color-warning-bg: #fdf3d9;
-  --color-danger: #b3261e;
-  --color-danger-bg: #fbe9e7;
+  --color-success: #27ae60;
+  --color-success-bg: #dcfce7;
+  --color-warning: #ffa800;
+  --color-warning-bg: #fff4de;
+  --color-danger: #f64e60;
+  --color-danger-bg: #ffe2e5;
+
+  /* Extra tones for stat tiles/badges, taken from the reference's own palette */
+  --color-info: #0095ff;
+  --color-info-bg: #e2f2ff;
+  --color-purple: #8950fc;
+  --color-purple-bg: #f3e8ff;
 
   /* Chrome */
-  --shadow-sm: 0 1px 2px rgba(20, 20, 15, 0.06);
-  --shadow-md: 0 4px 16px rgba(20, 20, 15, 0.10);
-  --radius-sm: 6px;
-  --radius-md: 12px;
-  --radius-lg: 20px;
+  --shadow-sm: 0 1px 2px rgba(21, 29, 72, 0.06);
+  --shadow-md: 0 8px 24px rgba(21, 29, 72, 0.08);
+  --radius-sm: 8px;
+  --radius-md: 16px;
+  --radius-lg: 24px;
 
-  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Sidebar gradient stops taken directly from the reference design's own SVG export */
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 48%, #7dc8ad 100%);
+
+  --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
   --space-1: 4px;
   --space-2: 8px;
@@ -53,60 +62,74 @@
 [data-theme="dark"] {
   color-scheme: dark;
 
-  --color-bg: #15171a;
-  --color-surface: #1e2125;
-  --color-surface-alt: #262a2f;
-  --color-border: #33383e;
+  --color-bg: #0d1b2e;
+  --color-surface: #16213a;
+  --color-surface-alt: #1e2a44;
+  --color-border: #2a3752;
 
-  --color-text: #edece8;
-  --color-text-muted: #a2a099;
+  --color-text: #ececec;
+  --color-text-muted: #7b91b0;
   --color-text-on-primary: #ffffff;
-  --color-text-on-accent: #1a1206;
+  --color-text-on-accent: #151d48;
 
-  --color-primary: #6f9bd1;
-  --color-primary-hover: #8ab0dc;
-  --color-accent: #e0a545;
-  --color-accent-hover: #f0b75c;
+  --color-primary: #0bb783;
+  --color-primary-hover: #00e096;
+  --color-accent: #ffcf00;
+  --color-accent-hover: #ffa800;
 
-  --color-success: #66bb6a;
-  --color-success-bg: #1c2e1d;
-  --color-warning: #ffca50;
-  --color-warning-bg: #332a10;
-  --color-danger: #ef5350;
-  --color-danger-bg: #331b1a;
+  --color-success: #00d08b;
+  --color-success-bg: #123b2c;
+  --color-warning: #ffcf00;
+  --color-warning-bg: #3a2f0a;
+  --color-danger: #f64e60;
+  --color-danger-bg: #3a1620;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+  --color-info: #4079ed;
+  --color-info-bg: #0d2b45;
+  --color-purple: #a855f7;
+  --color-purple-bg: #2a1a45;
+
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+  --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
     color-scheme: dark;
 
-    --color-bg: #15171a;
-    --color-surface: #1e2125;
-    --color-surface-alt: #262a2f;
-    --color-border: #33383e;
+    --color-bg: #0d1b2e;
+    --color-surface: #16213a;
+    --color-surface-alt: #1e2a44;
+    --color-border: #2a3752;
 
-    --color-text: #edece8;
-    --color-text-muted: #a2a099;
+    --color-text: #ececec;
+    --color-text-muted: #7b91b0;
     --color-text-on-primary: #ffffff;
-    --color-text-on-accent: #1a1206;
+    --color-text-on-accent: #151d48;
 
-    --color-primary: #6f9bd1;
-    --color-primary-hover: #8ab0dc;
-    --color-accent: #e0a545;
-    --color-accent-hover: #f0b75c;
+    --color-primary: #0bb783;
+    --color-primary-hover: #00e096;
+    --color-accent: #ffcf00;
+    --color-accent-hover: #ffa800;
 
-    --color-success: #66bb6a;
-    --color-success-bg: #1c2e1d;
-    --color-warning: #ffca50;
-    --color-warning-bg: #332a10;
-    --color-danger: #ef5350;
-    --color-danger-bg: #331b1a;
+    --color-success: #00d08b;
+    --color-success-bg: #123b2c;
+    --color-warning: #ffcf00;
+    --color-warning-bg: #3a2f0a;
+    --color-danger: #f64e60;
+    --color-danger-bg: #3a1620;
 
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.3);
-    --shadow-md: 0 4px 16px rgba(0, 0, 0, 0.4);
+    --color-info: #4079ed;
+    --color-info-bg: #0d2b45;
+    --color-purple: #a855f7;
+    --color-purple-bg: #2a1a45;
+
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+
+    --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
   }
 }
 
@@ -130,6 +153,18 @@ body {
 
 a {
   color: var(--color-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: var(--color-primary-hover);
+}
+
+mark {
+  background: var(--color-warning-bg);
+  color: var(--color-text);
+  padding: 0 2px;
+  border-radius: 3px;
 }
 
 button,
@@ -195,6 +230,7 @@ button {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
+  overflow-x: auto;
 }
 
 .input {

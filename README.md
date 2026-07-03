@@ -4,7 +4,7 @@ AI-powered assistant for Greek construction professionals. Ask permit questions,
 
 ## Project structure
 
-- `backend/` - FastAPI app: auth (JWT/bcrypt), multi-tenant roles & permissions, document upload/versioning/removal workflow, invites, company logos, audit log, locale/translation management
+- `backend/` - FastAPI app: auth (JWT/bcrypt), multi-tenant roles & permissions, document upload/versioning/removal workflow, invites, company logos, audit log, locale/translation management, notifications
 - `frontend/` - Next.js app: login/register, role-aware dashboards, a Sources browser, Search, and the Chat UI - fully bilingual (English/Greek, admin-extensible to more), dark/light mode, installable as a PWA
 - `crawler/` - automated ingestion from 7 Greek government sources, scheduled monthly
 - `db/init.sql` - Postgres + pgvector schema
@@ -57,11 +57,25 @@ Three visibility tiers on the knowledge base: public (crawled, everyone), compan
 
 Construction companies can track **projects** (a name + municipality + address) to scope which municipality's rules apply to a given job site, and mark a default project so chat auto-detects context - this concept doesn't apply to municipality accounts, since a municipality user's context is always their own municipality, so it's hidden from their dashboard.
 
+## Interface
+
+A fixed left sidebar (Dashboard / Sources / Search / Chat) plus a top header (page title, a search bar that works from any page, a notification bell, and the account menu) frame every page. The visual design - color palette, gradients, card/badge styling - is modeled on a reference dashboard design, recreated for both light and dark mode with the same layout in each. Dashboards use color-coded stat tiles (a suspended-tenant count, for instance, renders in red so it's impossible to miss) and a smooth multi-line activity chart (logins vs. everything else, from real audit-log data - no placeholder numbers).
+
 ## Knowledge base UI
 
 - **Sources** (`/sources`): every dataset as a button (ΦΕΚ, ΤΕΕ, ΥΠΕΝ, ...) with a live document count; clicking one drills into a dated, paginated listing with links to the original source or an in-app reader.
-- **Search** (`/search`): combined term + source + type + date-range filtering. Every filter (including the search term, debounced as you type) is reflected in the URL, so any results view is copy-paste shareable; a document's "Read" link remembers exactly which search/sources page you came from, so the back link returns to your filtered, paginated results instead of a generic listing.
+- **Search** (`/search`): combined term + source + type + date-range filtering. Every filter (including the search term, debounced as you type) is reflected in the URL, so any results view is copy-paste shareable. Matches are highlighted directly in the results, and the snippet shown is centered on wherever the term actually matched in the document (not always the first few hundred characters), so it's obvious why a document matched. A document's "Read" link remembers exactly which search/sources page you came from, so the back link returns to your filtered, paginated results instead of a generic listing.
 - **Chat** (`/chat`): natural-language Q&A with a context sidebar (role, account type, default project) and a quick document search - the flagship feature, currently a stub pending an OpenAI API key (see Current status).
+
+## Notifications
+
+A bell in the header (unread badge, dropdown with mark-as-read / mark-all-read) covers:
+
+- A digest after each monthly crawl run ("12 new documents added")
+- New content in a municipality tied to one of a construction company's projects
+- An admin's invite being accepted
+- A document removal request awaiting an admin's decision
+- The requester being told once that removal is approved or rejected
 
 ## Internationalization
 
@@ -73,11 +87,11 @@ English and Greek ship bundled in the frontend, so the app works instantly with 
 
 Untranslated strings in a new language fall back to the English default until an admin fills them in. Each signed-in user's language choice is saved to their account (`users.preferred_locale`) and follows them to any device; logged-out visitors get whatever language was last used on that browser.
 
-The nav bar's user menu (click your email/role in the top right) tucks the language switcher, dark/light mode toggle, and sign out into a single dropdown.
+The account menu (click your email/role in the header) tucks the language switcher, dark/light mode toggle, and sign out into a single dropdown.
 
 ## Current status
 
-Working end-to-end: crawler ingestion, auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable filters), the full i18n system (bundled + admin-managed + per-user persisted), and the whole frontend shell.
+Working end-to-end: crawler ingestion, auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable, highlighted, snippet-aware results), notifications, the full i18n system (bundled + admin-managed + per-user persisted), and the whole frontend shell in both themes.
 
 **Not yet wired up:** the Chat page's actual RAG generation (embeddings + retrieval + GPT calls) - it's still a stub pending an OpenAI API key. Everything else on the Chat page (context sidebar, quick document search) is live.
 

@@ -1,50 +1,55 @@
 "use client";
 
-import { Bar, BarChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { useLocale } from "../lib/i18n";
 import type { AuditLogEntry } from "../lib/types";
 
 function toDayKey(iso: string): string {
   return iso.slice(0, 10); // YYYY-MM-DD
 }
 
-/** Buckets real audit-log entries into a per-day count for the last N days -
- * no synthetic/placeholder data, this is exactly what happened. */
-function buildDailyCounts(entries: AuditLogEntry[], days: number) {
-  const buckets = new Map<string, number>();
+/** Buckets real audit-log entries into per-day counts for the last N days,
+ * split into two honest categories (logins vs. everything else) so the
+ * chart reads as a multi-series line chart - no synthetic data, this is
+ * exactly what happened, just grouped by what kind of action it was. */
+function buildDailySeries(entries: AuditLogEntry[], days: number) {
+  const buckets = new Map<string, { logins: number; activity: number }>();
   const today = new Date();
   for (let i = days - 1; i >= 0; i--) {
     const d = new Date(today);
     d.setDate(d.getDate() - i);
-    buckets.set(d.toISOString().slice(0, 10), 0);
+    buckets.set(d.toISOString().slice(0, 10), { logins: 0, activity: 0 });
   }
 
   for (const entry of entries) {
     const key = toDayKey(entry.created_at);
-    if (buckets.has(key)) {
-      buckets.set(key, (buckets.get(key) ?? 0) + 1);
-    }
+    const bucket = buckets.get(key);
+    if (!bucket) continue;
+    if (entry.action === "login") bucket.logins += 1;
+    else bucket.activity += 1;
   }
 
-  return Array.from(buckets.entries()).map(([date, count]) => ({
+  return Array.from(buckets.entries()).map(([date, counts]) => ({
     date: date.slice(5), // MM-DD
-    events: count,
+    ...counts,
   }));
 }
 
 export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]; days?: number }) {
-  const data = buildDailyCounts(entries, days);
+  const { t } = useLocale();
+  const data = buildDailySeries(entries, days);
 
   if (entries.length === 0) {
-    return <p className="text-muted">No activity recorded yet.</p>;
+    return <p className="text-muted">{t("dash.super.noActivity")}</p>;
   }
 
   return (
-    <ResponsiveContainer width="100%" height={220}>
-      <BarChart data={data}>
-        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" />
-        <XAxis dataKey="date" stroke="var(--color-text-muted)" fontSize={12} />
-        <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} />
+    <ResponsiveContainer width="100%" height={260}>
+      <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+        <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
+        <XAxis dataKey="date" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
+        <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
         <Tooltip
           contentStyle={{
             background: "var(--color-surface)",
@@ -53,8 +58,29 @@ export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]
             color: "var(--color-text)",
           }}
         />
-        <Bar dataKey="events" fill="var(--color-primary)" radius={[4, 4, 0, 0]} />
-      </BarChart>
+        <Legend
+          iconType="circle"
+          formatter={(value) => <span style={{ color: "var(--color-text-muted)" }}>{value}</span>}
+        />
+        <Line
+          type="monotone"
+          dataKey="logins"
+          name={t("dash.super.chartLogins")}
+          stroke="var(--color-info)"
+          strokeWidth={2.5}
+          dot={false}
+          activeDot={{ r: 5 }}
+        />
+        <Line
+          type="monotone"
+          dataKey="activity"
+          name={t("dash.super.chartOtherActivity")}
+          stroke="var(--color-primary)"
+          strokeWidth={2.5}
+          dot={false}
+          activeDot={{ r: 5 }}
+        />
+      </LineChart>
     </ResponsiveContainer>
   );
 }

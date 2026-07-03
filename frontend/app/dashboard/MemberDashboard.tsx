@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { api } from "../lib/api";
+import { API_URL, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { ProjectSummary } from "../lib/types";
+import { BuildingIcon, FlagIcon } from "../components/StatIcons";
+import type { MyCompanySummary, ProjectSummary } from "../lib/types";
+import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 
 export function MemberDashboard() {
@@ -15,6 +17,7 @@ export function MemberDashboard() {
   const token = user?.token ?? null;
   const isConstruction = user?.companyType !== "municipality";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [company, setCompany] = useState<MyCompanySummary | null>(null);
 
   useEffect(() => {
     if (!token || !isConstruction) return;
@@ -24,28 +27,37 @@ export function MemberDashboard() {
       .catch(() => setProjects([]));
   }, [token, isConstruction]);
 
+  useEffect(() => {
+    if (!token) return;
+    api
+      .get<MyCompanySummary>("/companies/me", token)
+      .then(setCompany)
+      .catch(() => setCompany(null));
+  }, [token]);
+
   const defaultProjects = projects.filter((p) => p.is_default);
 
   return (
     <div>
+      {company?.type === "municipality" && company.has_logo && (
+        <img
+          src={`${API_URL}/companies/${company.id}/logo`}
+          alt={t("dash.company.logoAlt", { name: company.name })}
+          className={styles.welcomeLogo}
+        />
+      )}
       <h1>{t("dash.member.welcome")}</h1>
       <p className="text-muted">
         {user?.companyType === "municipality"
-          ? t("dash.member.signedInAsMunicipality")
+          ? t("dash.member.signedInAsMunicipality", { name: company?.name ?? "" })
           : t("dash.member.signedInAsConstruction")}
       </p>
 
       {isConstruction && (
         <>
           <div className={styles.grid}>
-            <div className={`card ${styles.statCard}`}>
-              <span className={styles.statValue}>{projects.length}</span>
-              <span className={styles.statLabel}>{t("dash.member.projects")}</span>
-            </div>
-            <div className={`card ${styles.statCard}`}>
-              <span className={styles.statValue}>{defaultProjects.length}</span>
-              <span className={styles.statLabel}>{t("dash.member.defaultMunicipalities")}</span>
-            </div>
+            <StatCard tone="primary" icon={<BuildingIcon />} value={projects.length} label={t("dash.member.projects")} />
+            <StatCard tone="info" icon={<FlagIcon />} value={defaultProjects.length} label={t("dash.member.defaultMunicipalities")} />
           </div>
 
           <section className={`card ${styles.section}`}>

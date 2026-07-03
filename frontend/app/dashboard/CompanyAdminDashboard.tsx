@@ -2,11 +2,13 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, api } from "../lib/api";
+import { API_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { AuditLogEntry, InviteSummary, RemovalRequestSummary, UserSummary } from "../lib/types";
+import { ClockIcon, MailIcon, ShieldCheckIcon, UsersIcon } from "../components/StatIcons";
+import type { AuditLogEntry, InviteSummary, MyCompanySummary, RemovalRequestSummary, UserSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
+import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 
 export function CompanyAdminDashboard() {
@@ -14,6 +16,7 @@ export function CompanyAdminDashboard() {
   const { t } = useLocale();
   const token = user?.token ?? null;
 
+  const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [invites, setInvites] = useState<InviteSummary[]>([]);
   const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
@@ -27,19 +30,22 @@ export function CompanyAdminDashboard() {
 
   const logoInputRef = useRef<HTMLInputElement>(null);
   const [logoStatus, setLogoStatus] = useState<string | null>(null);
+  const [logoVersion, setLogoVersion] = useState(0);
 
   async function refresh() {
     try {
-      const [usersData, invitesData, removalData, auditData] = await Promise.all([
+      const [usersData, invitesData, removalData, auditData, companyData] = await Promise.all([
         api.get<UserSummary[]>("/companies/me/users", token),
         api.get<InviteSummary[]>("/companies/me/invites", token),
         api.get<RemovalRequestSummary[]>("/documents/removal-requests", token),
         api.get<AuditLogEntry[]>("/companies/me/audit-log", token),
+        api.get<MyCompanySummary>("/companies/me", token),
       ]);
       setUsers(usersData);
       setInvites(invitesData);
       setRemovalRequests(removalData);
       setAuditLog(auditData);
+      setCompany(companyData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load company data");
     } finally {
@@ -105,9 +111,24 @@ export function CompanyAdminDashboard() {
     formData.append("file", file);
     try {
       await api.upload("/companies/me/logo", formData, token);
-      setLogoStatus("Logo updated.");
+      setLogoStatus(t("dash.company.logoUpdated"));
+      setLogoVersion((v) => v + 1);
+      refresh();
     } catch (err) {
       setLogoStatus(err instanceof ApiError ? err.message : "Failed to upload logo");
+    } finally {
+      if (logoInputRef.current) logoInputRef.current.value = "";
+    }
+  }
+
+  async function removeLogo() {
+    try {
+      await api.del("/companies/me/logo", token);
+      setLogoStatus(t("dash.company.logoRemoved"));
+      setLogoVersion((v) => v + 1);
+      refresh();
+    } catch (err) {
+      setLogoStatus(err instanceof ApiError ? err.message : "Failed to remove logo");
     }
   }
 
@@ -119,25 +140,27 @@ export function CompanyAdminDashboard() {
 
   return (
     <div>
-      <h1>{t("dash.company.title")}</h1>
+      <h1>
+        {company?.type === "municipality"
+          ? t("dash.company.titleMunicipality", { name: company.name })
+          : t("dash.company.title")}
+      </h1>
 
       <div className={styles.grid}>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{users.length}</span>
-          <span className={styles.statLabel}>{t("dash.company.teamMembers")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{activeUsers}</span>
-          <span className={styles.statLabel}>{t("dash.company.activeAccess")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{pendingRemovals.length}</span>
-          <span className={styles.statLabel}>{t("dash.company.pendingApprovals")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{invites.filter((i) => i.status === "pending").length}</span>
-          <span className={styles.statLabel}>{t("dash.company.pendingInvites")}</span>
-        </div>
+        <StatCard tone="primary" icon={<UsersIcon />} value={users.length} label={t("dash.company.teamMembers")} />
+        <StatCard tone="info" icon={<ShieldCheckIcon />} value={activeUsers} label={t("dash.company.activeAccess")} />
+        <StatCard
+          tone={pendingRemovals.length > 0 ? "accent" : "primary"}
+          icon={<ClockIcon />}
+          value={pendingRemovals.length}
+          label={t("dash.company.pendingApprovals")}
+        />
+        <StatCard
+          tone="purple"
+          icon={<MailIcon />}
+          value={invites.filter((i) => i.status === "pending").length}
+          label={t("dash.company.pendingInvites")}
+        />
       </div>
 
       <div className={styles.twoCol}>
@@ -308,7 +331,21 @@ export function CompanyAdminDashboard() {
             <div className={styles.sectionHeader}>
               <h2>{t("dash.company.logo")}</h2>
             </div>
-            <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadLogo} />
+            {company?.has_logo && (
+              <img
+                src={`${API_URL}/companies/${company.id}/logo?v=${logoVersion}`}
+                alt={t("dash.company.logoAlt", { name: company.name })}
+                className={styles.logoPreview}
+              />
+            )}
+            <div className={styles.logoControls}>
+              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadLogo} />
+              {company?.has_logo && (
+                <button className="btn btn-danger" onClick={removeLogo}>
+                  {t("dash.company.removeLogo")}
+                </button>
+              )}
+            </div>
             {logoStatus && <p className="text-muted" style={{ marginTop: "var(--space-2)" }}>{logoStatus}</p>}
           </section>
         </div>

@@ -130,12 +130,34 @@ class AuditLogEntry(BaseModel):
     created_at: datetime
 
 
+class NotificationSummary(BaseModel):
+    id: int
+    type: str
+    title: str
+    body: str | None = None
+    link: str | None = None
+    is_read: bool
+    created_at: datetime
+
+
+class NotificationListResponse(BaseModel):
+    items: list[NotificationSummary]
+    unread_count: int
+
+
 class CompanySummary(BaseModel):
     id: int
     name: str
     type: str
     is_suspended: bool
     created_at: datetime
+
+
+class MyCompanySummary(BaseModel):
+    id: int
+    name: str
+    type: str
+    has_logo: bool
 
 
 class RemovalRequestSummary(BaseModel):

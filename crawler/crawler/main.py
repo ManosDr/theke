@@ -30,12 +30,37 @@ DIRECT_MODE_HANDLERS = {
 }
 
 
+def notify_users_of_new_documents(conn: psycopg.Connection, new_count: int) -> None:
+    """One digest notification per active user after a crawl adds new public
+    documents - mirrors the backend's Notification model/table directly,
+    since the crawler already talks to the same Postgres over raw psycopg."""
+    if new_count <= 0:
+        return
+
+    title = f"{new_count} new document{'s' if new_count != 1 else ''} added"
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE is_active = true")
+        user_ids = [row[0] for row in cur.fetchall()]
+        cur.executemany(
+            "INSERT INTO notifications (user_id, type, title, body, link) VALUES (%s, %s, %s, %s, %s)",
+            [
+                (user_id, "new_documents", title, "From this month's automatic crawl.", "/sources")
+                for user_id in user_ids
+            ],
+        )
+    conn.commit()
+    print(f"Notified {len(user_ids)} user(s) of {new_count} new document(s)")
+
+
 def run() -> None:
+    new_document_count = 0
+
     with psycopg.connect(DATABASE_URL) as conn:
         for seed in SEED_DOCUMENTS:
             print(f"Ingesting seed {seed['identifier']} from {seed['source_name']}...")
             try:
-                ingest_seed_document(conn, seed)
+                if ingest_seed_document(conn, seed) is not None:
+                    new_document_count += 1
             except Exception as exc:
                 print(f"  failed: {exc}")
 
@@ -49,9 +74,13 @@ def run() -> None:
             if mode in DIRECT_MODE_HANDLERS:
                 print(f"Fetching {source['name']} ({source['url']})...")
                 try:
-                    DIRECT_MODE_HANDLERS[mode](
-                        conn, url=source["url"], title=source["description"], source_name=source["name"]
-                    )
+                    if (
+                        DIRECT_MODE_HANDLERS[mode](
+                            conn, url=source["url"], title=source["description"], source_name=source["name"]
+                        )
+                        is not None
+                    ):
+                        new_document_count += 1
                 except Exception as exc:
                     print(f"  failed: {exc}")
                 continue
@@ -67,9 +96,12 @@ def run() -> None:
             handler = DISCOVERY_MODE_HANDLERS[mode]
             for candidate in candidates:
                 try:
-                    handler(conn, source_name=source["name"], **candidate)
+                    if handler(conn, source_name=source["name"], **candidate) is not None:
+                        new_document_count += 1
                 except Exception as exc:
                     print(f"  failed on {candidate['url']}: {exc}")
+
+        notify_users_of_new_documents(conn, new_document_count)
 
 
 if __name__ == "__main__":

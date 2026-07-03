@@ -7,6 +7,7 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
+import { highlightMatches } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { BrowseResponse, SourceGroupSummary } from "../lib/types";
@@ -203,8 +204,12 @@ function SearchContent() {
                 <tr key={doc.id}>
                   <td className="text-muted">{doc.date ?? "—"}</td>
                   <td>
-                    {doc.title}
-                    {doc.snippet && <p className="text-muted" style={{ margin: "4px 0 0", fontSize: "0.85rem" }}>{doc.snippet.slice(0, 160)}…</p>}
+                    {highlightMatches(doc.title ?? "", filters.q)}
+                    {doc.snippet && (
+                      <p className="text-muted" style={{ margin: "4px 0 0", fontSize: "0.85rem" }}>
+                        {highlightMatches(doc.snippet.slice(0, 160), filters.q)}…
+                      </p>
+                    )}
                   </td>
                   <td className="text-muted">{doc.source_group ?? "—"}</td>
                   <td className="text-muted">{doc.doc_type ? t(`docType.${doc.doc_type}` as TranslationKey) : "—"}</td>

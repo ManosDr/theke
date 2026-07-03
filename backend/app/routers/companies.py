@@ -10,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import AuditLog, Company, Invite, User
-from app.schemas import AuditLogEntry, InviteCreateRequest, InviteSummary, RoleChangeRequest, UserSummary
+from app.schemas import AuditLogEntry, InviteCreateRequest, InviteSummary, MyCompanySummary, RoleChangeRequest, UserSummary
 from app.services.audit import log_action
 from app.services.authorization import require_company_admin
 from app.services.documents import UPLOAD_DIR
@@ -23,6 +23,22 @@ public_router = APIRouter(prefix="/companies", tags=["companies"])
 INVITE_VALID_DAYS = 7
 LOGO_MAX_BYTES = 2 * 1024 * 1024  # 2MB
 LOGO_CONTENT_TYPES = {"image/png": "png", "image/jpeg": "jpg", "image/webp": "webp", "image/svg+xml": "svg"}
+
+
+@router.get("", response_model=MyCompanySummary)
+async def get_my_company(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> MyCompanySummary:
+    if not user.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Account has no company")
+
+    company = db.get(Company, user.company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+
+    has_logo = bool(company.logo_path and os.path.exists(company.logo_path))
+    return MyCompanySummary(id=company.id, name=company.name, type=company.type, has_logo=has_logo)
 
 
 @router.post("/logo", status_code=status.HTTP_204_NO_CONTENT)
@@ -54,6 +70,21 @@ async def upload_logo(
     company = db.get(Company, user.company_id)
     company.logo_path = logo_path
     log_action(db, actor_user_id=user.user_id, company_id=user.company_id, action="logo_updated")
+    db.commit()
+
+
+@router.delete("/logo", status_code=status.HTTP_204_NO_CONTENT)
+async def delete_logo(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    require_company_admin(user)
+
+    company = db.get(Company, user.company_id)
+    if company.logo_path and os.path.exists(company.logo_path):
+        os.remove(company.logo_path)
+    company.logo_path = None
+    log_action(db, actor_user_id=user.user_id, company_id=user.company_id, action="logo_removed")
     db.commit()
 
 

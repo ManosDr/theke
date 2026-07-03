@@ -25,6 +25,13 @@ export interface CompanySummary {
   created_at: string;
 }
 
+export interface MyCompanySummary {
+  id: number;
+  name: string;
+  type: "construction" | "municipality";
+  has_logo: boolean;
+}
+
 export interface RemovalRequestSummary {
   id: number;
   document_id: number;
@@ -79,4 +86,19 @@ export interface SourceGroupSummary {
 export interface BrowseResponse {
   total: number;
   items: DocumentSummary[];
+}
+
+export interface NotificationSummary {
+  id: number;
+  type: string;
+  title: string;
+  body: string | null;
+  link: string | null;
+  is_read: boolean;
+  created_at: string;
+}
+
+export interface NotificationListResponse {
+  items: NotificationSummary[];
+  unread_count: number;
 }

@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
 import { api } from "../lib/api";
@@ -20,37 +21,68 @@ const DOC_TYPES: { value: string; labelKey: TranslationKey }[] = [
   { value: "upload", labelKey: "docType.upload" },
 ];
 
+interface Filters {
+  q: string;
+  group: string;
+  docType: string;
+  dateFrom: string;
+  dateTo: string;
+}
+
+function buildFilterParams(filters: Filters, offset: number): URLSearchParams {
+  const params = new URLSearchParams();
+  if (filters.q.trim()) params.set("q", filters.q.trim());
+  if (filters.group) params.set("group", filters.group);
+  if (filters.docType) params.set("doc_type", filters.docType);
+  if (filters.dateFrom) params.set("date_from", filters.dateFrom);
+  if (filters.dateTo) params.set("date_to", filters.dateTo);
+  if (offset) params.set("offset", String(offset));
+  return params;
+}
+
 function SearchContent() {
   const { user } = useAuth();
   const { t } = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
-  const [q, setQ] = useState("");
-  const [docType, setDocType] = useState("");
-  const [group, setGroup] = useState("");
-  const [dateFrom, setDateFrom] = useState("");
-  const [dateTo, setDateTo] = useState("");
-  const [offset, setOffset] = useState(0);
+  const [filters, setFilters] = useState<Filters>({
+    q: searchParams.get("q") ?? "",
+    group: searchParams.get("group") ?? "",
+    docType: searchParams.get("doc_type") ?? "",
+    dateFrom: searchParams.get("date_from") ?? "",
+    dateTo: searchParams.get("date_to") ?? "",
+  });
+  const [offset, setOffset] = useState(Number(searchParams.get("offset") ?? 0));
 
   const [sources, setSources] = useState<SourceGroupSummary[]>([]);
   const [data, setData] = useState<BrowseResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const termDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
     api.get<SourceGroupSummary[]>("/documents/sources", user?.token).then(setSources);
   }, [user?.token]);
 
-  async function runSearch(nextOffset = 0) {
+  useEffect(() => () => {
+    if (termDebounceRef.current) clearTimeout(termDebounceRef.current);
+  }, []);
+
+  async function runSearch(nextFilters: Filters, nextOffset: number) {
     setLoading(true);
+    setFilters(nextFilters);
     setOffset(nextOffset);
-    const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(nextOffset) });
-    if (q.trim()) params.set("q", q.trim());
-    if (docType) params.set("doc_type", docType);
-    if (group) params.set("group", group);
-    if (dateFrom) params.set("date_from", dateFrom);
-    if (dateTo) params.set("date_to", dateTo);
+
+    const shareParams = buildFilterParams(nextFilters, nextOffset);
+    router.replace(`${pathname}${shareParams.toString() ? `?${shareParams.toString()}` : ""}`, { scroll: false });
+
+    const apiParams = new URLSearchParams(shareParams);
+    apiParams.set("limit", String(PAGE_SIZE));
+    apiParams.set("offset", String(nextOffset));
 
     try {
-      const result = await api.get<BrowseResponse>(`/documents/browse?${params.toString()}`, user?.token);
+      const result = await api.get<BrowseResponse>(`/documents/browse?${apiParams.toString()}`, user?.token);
       setData(result);
     } finally {
       setLoading(false);
@@ -58,14 +90,29 @@ function SearchContent() {
   }
 
   useEffect(() => {
-    runSearch(0);
+    runSearch(filters, offset);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function updateFilter(patch: Partial<Filters>) {
+    runSearch({ ...filters, ...patch }, 0);
+  }
+
+  function handleTermChange(value: string) {
+    const nextFilters = { ...filters, q: value };
+    setFilters(nextFilters);
+    if (termDebounceRef.current) clearTimeout(termDebounceRef.current);
+    termDebounceRef.current = setTimeout(() => runSearch(nextFilters, 0), 500);
+  }
+
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
-    runSearch(0);
+    if (termDebounceRef.current) clearTimeout(termDebounceRef.current);
+    runSearch(filters, 0);
   }
+
+  const shareQuery = buildFilterParams(filters, offset).toString();
+  const fromParam = encodeURIComponent(shareQuery ? `${pathname}?${shareQuery}` : pathname);
 
   return (
     <div>
@@ -75,12 +122,18 @@ function SearchContent() {
       <form className={`card ${styles.filters}`} onSubmit={handleSubmit}>
         <div className={styles.filterField}>
           <label htmlFor="q">{t("search.term")}</label>
-          <input id="q" className="input" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("search.termPlaceholder")} />
+          <input
+            id="q"
+            className="input"
+            value={filters.q}
+            onChange={(e) => handleTermChange(e.target.value)}
+            placeholder={t("search.termPlaceholder")}
+          />
         </div>
 
         <div className={styles.filterField}>
           <label htmlFor="source">{t("search.source")}</label>
-          <select id="source" className="input" value={group} onChange={(e) => setGroup(e.target.value)}>
+          <select id="source" className="input" value={filters.group} onChange={(e) => updateFilter({ group: e.target.value })}>
             <option value="">{t("search.allSources")}</option>
             {sources.map((s) => (
               <option key={s.group} value={s.group}>
@@ -92,7 +145,7 @@ function SearchContent() {
 
         <div className={styles.filterField}>
           <label htmlFor="docType">{t("search.type")}</label>
-          <select id="docType" className="input" value={docType} onChange={(e) => setDocType(e.target.value)}>
+          <select id="docType" className="input" value={filters.docType} onChange={(e) => updateFilter({ docType: e.target.value })}>
             <option value="">{t("search.allTypes")}</option>
             {DOC_TYPES.map((dt) => (
               <option key={dt.value} value={dt.value}>
@@ -104,12 +157,24 @@ function SearchContent() {
 
         <div className={styles.filterField}>
           <label htmlFor="dateFrom">{t("search.from")}</label>
-          <input id="dateFrom" type="date" className="input" value={dateFrom} onChange={(e) => setDateFrom(e.target.value)} />
+          <input
+            id="dateFrom"
+            type="date"
+            className="input"
+            value={filters.dateFrom}
+            onChange={(e) => updateFilter({ dateFrom: e.target.value })}
+          />
         </div>
 
         <div className={styles.filterField}>
           <label htmlFor="dateTo">{t("search.to")}</label>
-          <input id="dateTo" type="date" className="input" value={dateTo} onChange={(e) => setDateTo(e.target.value)} />
+          <input
+            id="dateTo"
+            type="date"
+            className="input"
+            value={filters.dateTo}
+            onChange={(e) => updateFilter({ dateTo: e.target.value })}
+          />
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -144,7 +209,7 @@ function SearchContent() {
                   <td className="text-muted">{doc.source_group ?? "—"}</td>
                   <td className="text-muted">{doc.doc_type ? t(`docType.${doc.doc_type}` as TranslationKey) : "—"}</td>
                   <td>
-                    <Link href={`/documents/${doc.id}`} className="btn btn-secondary">
+                    <Link href={`/documents/${doc.id}?from=${fromParam}`} className="btn btn-secondary">
                       {t("common.read")}
                     </Link>
                   </td>
@@ -154,7 +219,7 @@ function SearchContent() {
           </table>
 
           <div className={styles.pagination}>
-            <button className="btn btn-secondary" disabled={offset === 0} onClick={() => runSearch(Math.max(0, offset - PAGE_SIZE))}>
+            <button className="btn btn-secondary" disabled={offset === 0} onClick={() => runSearch(filters, Math.max(0, offset - PAGE_SIZE))}>
               {t("common.previous")}
             </button>
             <span className="text-muted">
@@ -164,7 +229,7 @@ function SearchContent() {
                 total: data.total,
               })}
             </span>
-            <button className="btn btn-secondary" disabled={offset + PAGE_SIZE >= data.total} onClick={() => runSearch(offset + PAGE_SIZE)}>
+            <button className="btn btn-secondary" disabled={offset + PAGE_SIZE >= data.total} onClick={() => runSearch(filters, offset + PAGE_SIZE)}>
               {t("common.next")}
             </button>
           </div>
@@ -178,7 +243,9 @@ export default function SearchPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <SearchContent />
+        <Suspense fallback={<p className="text-muted">Loading…</p>}>
+          <SearchContent />
+        </Suspense>
       </AppShell>
     </RequireAuth>
   );

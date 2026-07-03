@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
 import { api } from "../lib/api";
@@ -44,17 +44,33 @@ function SourceButtons() {
 function SourceListing({ group }: { group: string }) {
   const { user } = useAuth();
   const { t } = useLocale();
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
   const [data, setData] = useState<BrowseResponse | null>(null);
-  const [offset, setOffset] = useState(0);
+  const [offset, setOffset] = useState(() => Number(searchParams.get("offset") ?? 0));
+  const prevGroup = useRef(group);
 
   useEffect(() => {
-    setOffset(0);
+    if (prevGroup.current !== group) {
+      prevGroup.current = group;
+      setOffset(0);
+    }
   }, [group]);
 
   useEffect(() => {
+    const shareParams = new URLSearchParams({ group });
+    if (offset) shareParams.set("offset", String(offset));
+    router.replace(`${pathname}?${shareParams.toString()}`, { scroll: false });
+
     const params = new URLSearchParams({ group, limit: String(PAGE_SIZE), offset: String(offset) });
     api.get<BrowseResponse>(`/documents/browse?${params.toString()}`, user?.token).then(setData);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [group, offset, user?.token]);
+
+  const fromParam = encodeURIComponent(
+    `/sources?${new URLSearchParams(offset ? { group, offset: String(offset) } : { group }).toString()}`
+  );
 
   return (
     <div>
@@ -83,9 +99,9 @@ function SourceListing({ group }: { group: string }) {
                 <tr key={doc.id}>
                   <td className="text-muted">{doc.date ?? "—"}</td>
                   <td>{doc.title}</td>
-                  <td className="text-muted">{doc.identifier ?? [doc.series, doc.issue_number].filter(Boolean).join(" ") || "—"}</td>
+                  <td className="text-muted">{doc.identifier ?? ([doc.series, doc.issue_number].filter(Boolean).join(" ") || "—")}</td>
                   <td style={{ display: "flex", gap: "var(--space-2)" }}>
-                    <Link href={`/documents/${doc.id}`} className="btn btn-secondary">
+                    <Link href={`/documents/${doc.id}?from=${fromParam}`} className="btn btn-secondary">
                       {t("common.read")}
                     </Link>
                     {doc.source && (

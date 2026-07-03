@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useParams, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
 import { ApiError, api } from "../../lib/api";
@@ -16,6 +16,8 @@ function DocumentContent() {
   const { user } = useAuth();
   const { t } = useLocale();
   const params = useParams<{ id: string }>();
+  const searchParams = useSearchParams();
+  const backHref = searchParams.get("from") || "/sources";
   const [doc, setDoc] = useState<DocumentDetail | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -31,7 +33,7 @@ function DocumentContent() {
 
   return (
     <div>
-      <Link href="/sources" className={styles.backLink}>
+      <Link href={backHref} className={styles.backLink}>
         {t("doc.back")}
       </Link>
 
@@ -74,7 +76,9 @@ export default function DocumentDetailPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <DocumentContent />
+        <Suspense fallback={<p className="text-muted">Loading…</p>}>
+          <DocumentContent />
+        </Suspense>
       </AppShell>
     </RequireAuth>
   );

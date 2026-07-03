@@ -5,8 +5,9 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
+from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Invite, User
-from app.schemas import LoginRequest, RegisterRequest, TokenResponse
+from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UpdateLocaleRequest
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
 
@@ -49,7 +50,13 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         db.flush()
         role = "admin"
 
-    user = User(company_id=company.id, email=payload.email, role=role, password_hash=hash_password(payload.password))
+    user = User(
+        company_id=company.id,
+        email=payload.email,
+        role=role,
+        password_hash=hash_password(payload.password),
+        preferred_locale=payload.preferred_locale,
+    )
     db.add(user)
     db.flush()
 
@@ -65,7 +72,13 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
     db.commit()
 
     token = create_access_token(user_id=user.id, company_id=company.id, role=role)
-    return TokenResponse(token=token, company_id=company.id, company_type=company.type, role=role)
+    return TokenResponse(
+        token=token,
+        company_id=company.id,
+        company_type=company.type,
+        role=role,
+        preferred_locale=user.preferred_locale,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)
@@ -89,4 +102,16 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenRe
         company_id=user.company_id,
         company_type=company.type if company else None,
         role=user.role,
+        preferred_locale=user.preferred_locale,
     )
+
+
+@router.patch("/me/locale", status_code=status.HTTP_204_NO_CONTENT)
+async def update_preferred_locale(
+    payload: UpdateLocaleRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    db_user = db.get(User, user.user_id)
+    db_user.preferred_locale = payload.locale
+    db.commit()

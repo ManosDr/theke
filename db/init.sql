@@ -51,6 +51,7 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR NOT NULL DEFAULT 'member',   -- 'super_admin', 'admin', 'member'
     is_active BOOLEAN NOT NULL DEFAULT true,
     password_hash TEXT NOT NULL,
+    preferred_locale VARCHAR,  -- UI language for this account; NULL = no preference set yet
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -198,3 +199,32 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     tool_used VARCHAR,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+
+-- Locales available for the UI. 'en' and 'el' ship built-in (bundled in the
+-- frontend as a fallback, so the app works even if this table is empty);
+-- a super admin can add more (de, tr, he, ...) via the Languages admin panel.
+CREATE TABLE IF NOT EXISTS locales (
+    code VARCHAR PRIMARY KEY,
+    name VARCHAR NOT NULL,
+    is_builtin BOOLEAN NOT NULL DEFAULT false,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+INSERT INTO locales (code, name, is_builtin) VALUES
+    ('en', 'English', true),
+    ('el', 'Ελληνικά', true)
+ON CONFLICT (code) DO NOTHING;
+
+-- Per-key text overrides for a locale. A super admin can tweak any bundled
+-- en/el string, or supply every string for a brand-new locale added above -
+-- keys with no override fall back to the bundled English default at read time.
+CREATE TABLE IF NOT EXISTS translation_overrides (
+    id SERIAL PRIMARY KEY,
+    locale VARCHAR NOT NULL REFERENCES locales(code) ON DELETE CASCADE,
+    key VARCHAR NOT NULL,
+    value TEXT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    UNIQUE (locale, key)
+);
+
+CREATE INDEX IF NOT EXISTS idx_translation_overrides_locale ON translation_overrides(locale);

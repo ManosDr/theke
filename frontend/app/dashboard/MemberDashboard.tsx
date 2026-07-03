@@ -13,15 +13,16 @@ export function MemberDashboard() {
   const { user } = useAuth();
   const { t } = useLocale();
   const token = user?.token ?? null;
+  const isConstruction = user?.companyType !== "municipality";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
 
   useEffect(() => {
-    if (!token) return;
+    if (!token || !isConstruction) return;
     api
       .get<ProjectSummary[]>("/projects", token)
       .then(setProjects)
       .catch(() => setProjects([]));
-  }, [token]);
+  }, [token, isConstruction]);
 
   const defaultProjects = projects.filter((p) => p.is_default);
 
@@ -34,44 +35,48 @@ export function MemberDashboard() {
           : t("dash.member.signedInAsConstruction")}
       </p>
 
-      <div className={styles.grid}>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{projects.length}</span>
-          <span className={styles.statLabel}>{t("dash.member.projects")}</span>
-        </div>
-        <div className={`card ${styles.statCard}`}>
-          <span className={styles.statValue}>{defaultProjects.length}</span>
-          <span className={styles.statLabel}>{t("dash.member.defaultMunicipalities")}</span>
-        </div>
-      </div>
+      {isConstruction && (
+        <>
+          <div className={styles.grid}>
+            <div className={`card ${styles.statCard}`}>
+              <span className={styles.statValue}>{projects.length}</span>
+              <span className={styles.statLabel}>{t("dash.member.projects")}</span>
+            </div>
+            <div className={`card ${styles.statCard}`}>
+              <span className={styles.statValue}>{defaultProjects.length}</span>
+              <span className={styles.statLabel}>{t("dash.member.defaultMunicipalities")}</span>
+            </div>
+          </div>
 
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.member.yourProjects")}</h2>
-        </div>
-        {projects.length === 0 ? (
-          <p className={styles.emptyState}>{t("dash.member.noProjects")}</p>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t("dash.member.colName")}</th>
-                <th>{t("dash.member.colMunicipality")}</th>
-                <th>{t("dash.member.colDefault")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {projects.map((p) => (
-                <tr key={p.id}>
-                  <td>{p.name}</td>
-                  <td>{p.municipality}</td>
-                  <td>{p.is_default ? <span className="badge badge-success">{t("dash.member.default")}</span> : "—"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
+          <section className={`card ${styles.section}`}>
+            <div className={styles.sectionHeader}>
+              <h2>{t("dash.member.yourProjects")}</h2>
+            </div>
+            {projects.length === 0 ? (
+              <p className={styles.emptyState}>{t("dash.member.noProjects")}</p>
+            ) : (
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.member.colName")}</th>
+                    <th>{t("dash.member.colMunicipality")}</th>
+                    <th>{t("dash.member.colDefault")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {projects.map((p) => (
+                    <tr key={p.id}>
+                      <td>{p.name}</td>
+                      <td>{p.municipality}</td>
+                      <td>{p.is_default ? <span className="badge badge-success">{t("dash.member.default")}</span> : "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </section>
+        </>
+      )}
 
       <section className={`card ${styles.section}`} style={{ textAlign: "center" }}>
         <h2>{t("dash.member.readyToAsk")}</h2>

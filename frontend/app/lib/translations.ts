@@ -19,6 +19,8 @@ export const translations = {
     "nav.search": "Search",
     "nav.chat": "Chat",
     "nav.signOut": "Sign out",
+    "nav.language": "Language",
+    "nav.theme": "Theme",
     "role.super_admin": "Super Admin",
     "role.admin": "Admin",
     "role.member": "Member",
@@ -89,6 +91,23 @@ export const translations = {
     "dash.super.colWhen": "When",
     "dash.super.platform": "platform",
 
+    // dashboard - super admin - languages
+    "dash.super.languages": "Languages",
+    "dash.super.languagesDescription": "Add new languages, or adjust any text in the app - changes apply immediately for everyone.",
+    "dash.super.colCode": "Code",
+    "dash.super.colBuiltin": "Type",
+    "dash.super.typeBuiltin": "Built-in",
+    "dash.super.typeCustom": "Custom",
+    "dash.super.addLanguage": "Add a language",
+    "dash.super.localeCode": "Code (e.g. de, tr, he)",
+    "dash.super.localeName": "Name (e.g. Deutsch)",
+    "dash.super.add": "Add",
+    "dash.super.deleteLanguage": "Delete",
+    "dash.super.editTexts": "Edit text",
+    "dash.super.selectLanguage": "Select a language to edit…",
+    "dash.super.saveChanges": "Save changes",
+    "dash.super.textsSaved": "Saved.",
+
     // dashboard - company admin
     "dash.company.title": "Company dashboard",
     "dash.company.teamMembers": "Team members",
@@ -149,7 +168,7 @@ export const translations = {
     "search.title": "Search the knowledge base",
     "search.description": "Filter by date, type, or source, with or without a search term.",
     "search.term": "Term",
-    "search.termPlaceholder": "e.g. άδεια δόμησης",
+    "search.termPlaceholder": "e.g. building permit",
     "search.source": "Source",
     "search.allSources": "All sources",
     "search.type": "Type",
@@ -165,7 +184,7 @@ export const translations = {
     "doc.noContent": "No extracted text for this document - use \"Open original\" to read it directly.",
 
     // chat
-    "chat.placeholder": "Ask e.g. \"Τι δικαιολογητικά χρειάζομαι για χτίσιμο μονοκατοικίας στην Καβάλα;\"",
+    "chat.placeholder": "Ask e.g. \"What documents do I need to build a house in Kavala?\"",
     "chat.thinking": "Thinking…",
     "chat.inputPlaceholder": "Ask a question…",
     "chat.send": "Send",
@@ -197,6 +216,8 @@ export const translations = {
     "nav.search": "Αναζήτηση",
     "nav.chat": "Συνομιλία",
     "nav.signOut": "Αποσύνδεση",
+    "nav.language": "Γλώσσα",
+    "nav.theme": "Εμφάνιση",
     "role.super_admin": "Υπερδιαχειριστής",
     "role.admin": "Διαχειριστής",
     "role.member": "Μέλος",
@@ -266,6 +287,23 @@ export const translations = {
     "dash.super.colResource": "Πόρος",
     "dash.super.colWhen": "Πότε",
     "dash.super.platform": "πλατφόρμα",
+
+    // dashboard - super admin - languages
+    "dash.super.languages": "Γλώσσες",
+    "dash.super.languagesDescription": "Προσθέστε νέες γλώσσες, ή προσαρμόστε οποιοδήποτε κείμενο της εφαρμογής - οι αλλαγές ισχύουν άμεσα για όλους.",
+    "dash.super.colCode": "Κωδικός",
+    "dash.super.colBuiltin": "Τύπος",
+    "dash.super.typeBuiltin": "Ενσωματωμένη",
+    "dash.super.typeCustom": "Προσαρμοσμένη",
+    "dash.super.addLanguage": "Προσθήκη γλώσσας",
+    "dash.super.localeCode": "Κωδικός (π.χ. de, tr, he)",
+    "dash.super.localeName": "Όνομα (π.χ. Deutsch)",
+    "dash.super.add": "Προσθήκη",
+    "dash.super.deleteLanguage": "Διαγραφή",
+    "dash.super.editTexts": "Επεξεργασία κειμένων",
+    "dash.super.selectLanguage": "Επιλέξτε γλώσσα για επεξεργασία…",
+    "dash.super.saveChanges": "Αποθήκευση αλλαγών",
+    "dash.super.textsSaved": "Αποθηκεύτηκε.",
 
     // dashboard - company admin
     "dash.company.title": "Πίνακας εταιρείας",
@@ -359,3 +397,4 @@ export const translations = {
 
 export type Locale = keyof typeof translations;
 export type TranslationKey = keyof (typeof translations)["en"];
+export const TRANSLATION_KEYS = Object.keys(translations.en) as TranslationKey[];

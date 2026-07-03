@@ -1,21 +1,23 @@
 "use client";
 
 import { useLocale } from "../lib/i18n";
-import type { Locale } from "../lib/translations";
 
 export function LanguageToggle() {
-  const { locale, setLocale } = useLocale();
+  const { locale, locales, setLocale } = useLocale();
 
   return (
     <select
       className="input"
       value={locale}
-      onChange={(e) => setLocale(e.target.value as Locale)}
+      onChange={(e) => setLocale(e.target.value)}
       aria-label="Language"
       style={{ width: "auto", padding: "var(--space-1) var(--space-2)" }}
     >
-      <option value="en">EN</option>
-      <option value="el">ΕΛ</option>
+      {locales.map((l) => (
+        <option key={l.code} value={l.code}>
+          {l.code.toUpperCase()}
+        </option>
+      ))}
     </select>
   );
 }

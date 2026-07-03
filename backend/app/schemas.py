@@ -12,6 +12,7 @@ class RegisterRequest(BaseModel):
     invite_token: str | None = None
     company_name: str | None = None
     company_type: str = "construction"  # 'construction', 'municipality' - only used when creating a new company
+    preferred_locale: str | None = None  # UI language active at signup time, if any
 
 
 class LoginRequest(BaseModel):
@@ -24,6 +25,11 @@ class TokenResponse(BaseModel):
     company_id: int | None = None
     company_type: str | None = None
     role: str
+    preferred_locale: str | None = None
+
+
+class UpdateLocaleRequest(BaseModel):
+    locale: str = Field(min_length=2, max_length=10)
 
 
 class InviteCreateRequest(BaseModel):
@@ -82,6 +88,21 @@ class BrowseResponse(BaseModel):
 
 class DocumentDetail(DocumentSummary):
     content: str | None = None
+
+
+class LocaleSummary(BaseModel):
+    code: str
+    name: str
+    is_builtin: bool
+
+
+class LocaleCreate(BaseModel):
+    code: str = Field(min_length=2, max_length=10)
+    name: str = Field(min_length=1, max_length=50)
+
+
+class TranslationsUpdate(BaseModel):
+    values: dict[str, str]
 
 
 class UploadResponse(BaseModel):

@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { TranslationKey } from "../lib/translations";
+import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type { AuditLogEntry, CompanySummary, DocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import styles from "./dashboard.module.css";
@@ -14,6 +14,179 @@ const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
   construction: "register.typeConstruction",
   municipality: "register.typeMunicipality",
 };
+
+const BUILTIN_TRANSLATIONS = translations as Record<string, Partial<Record<TranslationKey, string>>>;
+
+function groupTranslationKeys(): Record<string, TranslationKey[]> {
+  const groups: Record<string, TranslationKey[]> = {};
+  for (const key of TRANSLATION_KEYS) {
+    const group = key.includes(".") ? key.slice(0, key.lastIndexOf(".")) : "misc";
+    (groups[group] ??= []).push(key);
+  }
+  return groups;
+}
+
+const TRANSLATION_GROUPS = groupTranslationKeys();
+
+function LanguagesSection() {
+  const { user } = useAuth();
+  const { t, locales, refreshLocales } = useLocale();
+  const token = user?.token ?? null;
+
+  const [newCode, setNewCode] = useState("");
+  const [newName, setNewName] = useState("");
+  const [addError, setAddError] = useState<string | null>(null);
+
+  const [editLocale, setEditLocale] = useState("");
+  const [overrides, setOverrides] = useState<Record<string, string>>({});
+  const [edits, setEdits] = useState<Record<string, string>>({});
+  const [saveMessage, setSaveMessage] = useState<string | null>(null);
+  const [loadingOverrides, setLoadingOverrides] = useState(false);
+
+  useEffect(() => {
+    if (!editLocale) return;
+    setLoadingOverrides(true);
+    setSaveMessage(null);
+    api
+      .get<Record<string, string>>(`/translations/${editLocale}`)
+      .then((data) => {
+        setOverrides(data);
+        setEdits({});
+      })
+      .finally(() => setLoadingOverrides(false));
+  }, [editLocale]);
+
+  function effectiveValue(locale: string, key: TranslationKey): string {
+    return overrides[key] ?? BUILTIN_TRANSLATIONS[locale]?.[key] ?? translations.en[key] ?? "";
+  }
+
+  async function addLocale(e: React.FormEvent) {
+    e.preventDefault();
+    setAddError(null);
+    try {
+      await api.post("/admin/locales", { code: newCode.trim(), name: newName.trim() }, token);
+      setNewCode("");
+      setNewName("");
+      refreshLocales();
+    } catch (err) {
+      setAddError(err instanceof ApiError ? err.message : "Failed to add language");
+    }
+  }
+
+  async function deleteLocale(code: string) {
+    await api.del(`/admin/locales/${code}`, token);
+    refreshLocales();
+    if (editLocale === code) setEditLocale("");
+  }
+
+  async function saveTranslations() {
+    const changed: Record<string, string> = {};
+    for (const [key, value] of Object.entries(edits)) {
+      if (value !== effectiveValue(editLocale, key as TranslationKey)) changed[key] = value;
+    }
+    if (Object.keys(changed).length === 0) return;
+
+    await api.patch(`/admin/translations/${editLocale}`, { values: changed }, token);
+    const data = await api.get<Record<string, string>>(`/translations/${editLocale}`);
+    setOverrides(data);
+    setEdits({});
+    setSaveMessage(t("dash.super.textsSaved"));
+  }
+
+  return (
+    <section className={`card ${styles.section}`}>
+      <div className={styles.sectionHeader}>
+        <h2>{t("dash.super.languages")}</h2>
+      </div>
+      <p className="text-muted">{t("dash.super.languagesDescription")}</p>
+
+      <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
+        <thead>
+          <tr>
+            <th>{t("dash.super.colCode")}</th>
+            <th>{t("dash.super.colName")}</th>
+            <th>{t("dash.super.colBuiltin")}</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {locales.map((l) => (
+            <tr key={l.code}>
+              <td className="text-muted">{l.code}</td>
+              <td>{l.name}</td>
+              <td className="text-muted">{l.is_builtin ? t("dash.super.typeBuiltin") : t("dash.super.typeCustom")}</td>
+              <td className={styles.rowActions}>
+                <button className="btn btn-secondary" onClick={() => setEditLocale(l.code)}>
+                  {t("dash.super.editTexts")}
+                </button>
+                {!l.is_builtin && (
+                  <button className="btn btn-danger" onClick={() => deleteLocale(l.code)}>
+                    {t("dash.super.deleteLanguage")}
+                  </button>
+                )}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <form className={styles.inlineForm} onSubmit={addLocale} style={{ marginTop: "var(--space-4)" }}>
+        <input
+          className="input"
+          placeholder={t("dash.super.localeCode")}
+          value={newCode}
+          onChange={(e) => setNewCode(e.target.value)}
+          required
+        />
+        <input
+          className="input"
+          placeholder={t("dash.super.localeName")}
+          value={newName}
+          onChange={(e) => setNewName(e.target.value)}
+          required
+        />
+        <button type="submit" className="btn btn-primary">
+          {t("dash.super.add")}
+        </button>
+      </form>
+      {addError && <p style={{ color: "var(--color-danger)" }}>{addError}</p>}
+
+      {editLocale && (
+        <div className={styles.translationScroll}>
+          {loadingOverrides ? (
+            <p className="text-muted">{t("common.loading")}</p>
+          ) : (
+            Object.entries(TRANSLATION_GROUPS).map(([group, keys]) => (
+              <div key={group} className={styles.translationGroup}>
+                <h4>{group}</h4>
+                {keys.map((key) => (
+                  <div key={key} className={styles.translationRow}>
+                    <label htmlFor={`tr-${key}`}>{key.split(".").pop()}</label>
+                    <input
+                      id={`tr-${key}`}
+                      className="input"
+                      value={edits[key] ?? effectiveValue(editLocale, key)}
+                      onChange={(e) => setEdits((prev) => ({ ...prev, [key]: e.target.value }))}
+                    />
+                  </div>
+                ))}
+              </div>
+            ))
+          )}
+        </div>
+      )}
+
+      {editLocale && !loadingOverrides && (
+        <div style={{ marginTop: "var(--space-4)", display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
+          <button className="btn btn-primary" onClick={saveTranslations}>
+            {t("dash.super.saveChanges")}
+          </button>
+          {saveMessage && <span className="text-muted">{saveMessage}</span>}
+        </div>
+      )}
+    </section>
+  );
+}
 
 export function SuperAdminDashboard() {
   const { user } = useAuth();
@@ -189,6 +362,8 @@ export function SuperAdminDashboard() {
           </table>
         )}
       </section>
+
+      <LanguagesSection />
 
       <section className={`card ${styles.section}`}>
         <div className={styles.sectionHeader}>

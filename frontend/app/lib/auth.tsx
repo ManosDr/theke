@@ -14,6 +14,7 @@ export interface AuthUser {
   companyType: CompanyType | null;
   role: Role;
   email: string;
+  preferredLocale: string | null;
 }
 
 interface TokenResponse {
@@ -21,6 +22,7 @@ interface TokenResponse {
   company_id: number | null;
   company_type: CompanyType | null;
   role: Role;
+  preferred_locale: string | null;
 }
 
 interface AuthContextValue {
@@ -28,6 +30,7 @@ interface AuthContextValue {
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updatePreferredLocale: (locale: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -57,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       companyType: data.company_type,
       role: data.role,
       email,
+      preferredLocale: data.preferred_locale,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
@@ -67,7 +71,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null);
   }
 
-  return <AuthContext.Provider value={{ user, loading, login, logout }}>{children}</AuthContext.Provider>;
+  async function updatePreferredLocale(locale: string) {
+    if (!user) return;
+    await api.patch("/auth/me/locale", { locale }, user.token);
+    const updated = { ...user, preferredLocale: locale };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setUser(updated);
+  }
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout, updatePreferredLocale }}>
+      {children}
+    </AuthContext.Provider>
+  );
 }
 
 export function useAuth() {

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import Date, DateTime, ForeignKey, Integer, JSON, Text
+from sqlalchemy import Date, DateTime, ForeignKey, Integer, JSON, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -43,6 +43,7 @@ class User(Base):
     role: Mapped[str] = mapped_column(Text, default="member")  # 'super_admin', 'admin', 'member'
     is_active: Mapped[bool] = mapped_column(default=True)
     password_hash: Mapped[str] = mapped_column(Text)
+    preferred_locale: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -144,6 +145,26 @@ class DocumentRemovalRequest(Base):
     status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'approved', 'rejected'
     decided_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     decided_at: Mapped[datetime | None] = mapped_column(DateTime)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Locale(Base):
+    __tablename__ = "locales"
+
+    code: Mapped[str] = mapped_column(Text, primary_key=True)
+    name: Mapped[str] = mapped_column(Text)
+    is_builtin: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class TranslationOverride(Base):
+    __tablename__ = "translation_overrides"
+    __table_args__ = (UniqueConstraint("locale", "key", name="uq_translation_overrides_locale_key"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    locale: Mapped[str] = mapped_column(ForeignKey("locales.code", ondelete="CASCADE"))
+    key: Mapped[str] = mapped_column(Text)
+    value: Mapped[str] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

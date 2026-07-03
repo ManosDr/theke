@@ -21,7 +21,7 @@ interface TokenResponse {
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
 
   const [mode, setMode] = useState<"invite" | "new_company">("new_company");
   const [email, setEmail] = useState("");
@@ -40,6 +40,7 @@ export default function RegisterPage() {
       await api.post<TokenResponse>("/auth/register", {
         email,
         password,
+        preferred_locale: locale,
         ...(mode === "invite" ? { invite_token: inviteToken } : { company_name: companyName, company_type: companyType }),
       });
       await login(email, password);

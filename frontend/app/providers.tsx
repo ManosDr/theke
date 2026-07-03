@@ -7,8 +7,8 @@ import { LocaleProvider } from "./lib/i18n";
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <LocaleProvider>
-      <AuthProvider>{children}</AuthProvider>
-    </LocaleProvider>
+    <AuthProvider>
+      <LocaleProvider>{children}</LocaleProvider>
+    </AuthProvider>
   );
 }

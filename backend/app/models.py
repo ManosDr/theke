@@ -60,6 +60,7 @@ class Document(Base):
     language: Mapped[str] = mapped_column(Text, default="el")
     content: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(Text)
+    source_name: Mapped[str | None] = mapped_column(Text)
     raw_json: Mapped[dict | None] = mapped_column(JSON)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     municipality: Mapped[str | None] = mapped_column(Text)

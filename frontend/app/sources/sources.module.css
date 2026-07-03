@@ -1,0 +1,72 @@
+.buttonGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+}
+
+.sourceButton {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: var(--space-2);
+  padding: var(--space-5);
+  text-align: left;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.sourceButton:hover {
+  border-color: var(--color-primary);
+}
+
+.sourceName {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.sourceCount {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+}
+
+.backLink {
+  display: inline-block;
+  margin-bottom: var(--space-4);
+  font-weight: 600;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  vertical-align: top;
+}
+
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}
+
+.emptyState {
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: var(--space-5) 0;
+}

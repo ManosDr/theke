@@ -59,4 +59,24 @@ export interface DocumentSummary {
   source: string | null;
   doc_type: string | null;
   municipality: string | null;
+  date: string | null;
+  identifier: string | null;
+  series: string | null;
+  issue_number: string | null;
+  source_name: string | null;
+  source_group: string | null;
+}
+
+export interface DocumentDetail extends DocumentSummary {
+  content: string | null;
+}
+
+export interface SourceGroupSummary {
+  group: string;
+  count: number;
+}
+
+export interface BrowseResponse {
+  total: number;
+  items: DocumentSummary[];
 }

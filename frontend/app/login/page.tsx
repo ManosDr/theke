@@ -4,23 +4,27 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Logo } from "../components/Logo";
+import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
+import type { TranslationKey } from "../lib/translations";
 import styles from "./login.module.css";
 
 const DEMO_PASSWORD = "demo1234";
 
-const DEMO_ACCOUNTS = [
-  { label: "Super Admin", email: "demo-superadmin@theke.gr" },
-  { label: "Construction Admin", email: "demo-admin@construction.theke.gr" },
-  { label: "Construction Member", email: "demo-member@construction.theke.gr" },
-  { label: "Municipality Admin", email: "demo-admin@municipality.theke.gr" },
-  { label: "Municipality Member", email: "demo-member@municipality.theke.gr" },
+const DEMO_ACCOUNTS: { labelKey: TranslationKey; email: string }[] = [
+  { labelKey: "login.demo.superAdmin", email: "demo-superadmin@theke.gr" },
+  { labelKey: "login.demo.constructionAdmin", email: "demo-admin@construction.theke.gr" },
+  { labelKey: "login.demo.constructionMember", email: "demo-member@construction.theke.gr" },
+  { labelKey: "login.demo.municipalityAdmin", email: "demo-admin@municipality.theke.gr" },
+  { labelKey: "login.demo.municipalityMember", email: "demo-member@municipality.theke.gr" },
 ];
 
 export default function LoginPage() {
   const { login } = useAuth();
+  const { t } = useLocale();
   const router = useRouter();
 
   const [email, setEmail] = useState("");
@@ -35,7 +39,7 @@ export default function LoginPage() {
       await login(loginEmail, loginPassword);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not reach the server. Is it running?");
+      setError(err instanceof ApiError ? err.message : t("login.errorFallback"));
     } finally {
       setLoading(false);
     }
@@ -48,23 +52,21 @@ export default function LoginPage() {
 
   return (
     <main className={styles.page}>
-      <div className={styles.themeToggle}>
+      <div className={styles.themeToggle} style={{ display: "flex", gap: "var(--space-2)" }}>
+        <LanguageToggle />
         <ThemeToggle />
       </div>
 
       <div className={styles.intro}>
         <Logo size={56} />
-        <p className={styles.tagline}>
-          Your AI copilot for Greek construction permits &amp; compliance — instant answers with citations from
-          ΦΕΚ, ΤΕΕ, ΥΠΕΝ, and your own knowledge base.
-        </p>
+        <p className={styles.tagline}>{t("login.tagline")}</p>
       </div>
 
       <form className={`card ${styles.card}`} onSubmit={handleSubmit}>
         {error && <p className={styles.error}>{error}</p>}
 
         <div className={styles.field}>
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t("login.email")}</label>
           <input
             id="email"
             type="email"
@@ -77,7 +79,7 @@ export default function LoginPage() {
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">{t("login.password")}</label>
           <input
             id="password"
             type="password"
@@ -90,10 +92,10 @@ export default function LoginPage() {
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? "Signing in…" : "Sign in"}
+          {loading ? t("login.signingIn") : t("login.signIn")}
         </button>
 
-        <div className={styles.divider}>or try a demo account</div>
+        <div className={styles.divider}>{t("login.orDemo")}</div>
 
         <div className={styles.demoGrid}>
           {DEMO_ACCOUNTS.map((account) => (
@@ -104,13 +106,13 @@ export default function LoginPage() {
               disabled={loading}
               onClick={() => doLogin(account.email, DEMO_PASSWORD)}
             >
-              {account.label}
+              {t(account.labelKey)}
             </button>
           ))}
         </div>
 
         <p className={styles.footerLink}>
-          New here? <a href="/register">Create an account</a>
+          {t("login.newHere")} <a href="/register">{t("login.createAccount")}</a>
         </p>
       </form>
     </main>

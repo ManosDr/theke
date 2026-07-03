@@ -5,6 +5,8 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
+import type { TranslationKey } from "../lib/translations";
 import type { DocumentSummary, ProjectSummary } from "../lib/types";
 import styles from "./chat.module.css";
 
@@ -21,6 +23,7 @@ interface ChatResponse {
 
 function ChatContent() {
   const { user } = useAuth();
+  const { t } = useLocale();
   const token = user?.token ?? null;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -81,16 +84,18 @@ function ChatContent() {
   }
 
   const defaultProjects = projects.filter((p) => p.is_default);
+  const accountTypeKey: TranslationKey =
+    user?.companyType === "municipality"
+      ? "register.typeMunicipality"
+      : user?.companyType === "construction"
+        ? "register.typeConstruction"
+        : "dash.super.platform";
 
   return (
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
         <div className={styles.messages}>
-          {messages.length === 0 && (
-            <p className="text-muted">
-              Ask e.g. &ldquo;Τι δικαιολογητικά χρειάζομαι για χτίσιμο μονοκατοικίας στην Καβάλα;&rdquo;
-            </p>
-          )}
+          {messages.length === 0 && <p className="text-muted">{t("chat.placeholder")}</p>}
           {messages.map((m, i) => (
             <div key={i} className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}>
               {m.text}
@@ -103,7 +108,7 @@ function ChatContent() {
               )}
             </div>
           ))}
-          {loading && <p className="text-muted">Thinking…</p>}
+          {loading && <p className="text-muted">{t("chat.thinking")}</p>}
           <div ref={messagesEndRef} />
         </div>
 
@@ -113,24 +118,24 @@ function ChatContent() {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder="Ask a question…"
+            placeholder={t("chat.inputPlaceholder")}
           />
           <button className="btn btn-primary" onClick={sendMessage} disabled={loading}>
-            Send
+            {t("chat.send")}
           </button>
         </div>
       </div>
 
       <aside className={styles.sidebar}>
         <section className={`card ${styles.sidebarSection}`}>
-          <h3>Your context</h3>
+          <h3>{t("chat.yourContext")}</h3>
           <div className={styles.contextRow}>
-            <span className="text-muted">Role</span>
-            <span>{user?.role}</span>
+            <span className="text-muted">{t("chat.role")}</span>
+            <span>{user ? t(`role.${user.role}` as TranslationKey) : ""}</span>
           </div>
           <div className={styles.contextRow}>
-            <span className="text-muted">Account type</span>
-            <span>{user?.companyType ?? "platform"}</span>
+            <span className="text-muted">{t("chat.accountType")}</span>
+            <span>{t(accountTypeKey)}</span>
           </div>
           {defaultProjects.length > 0 ? (
             defaultProjects.map((p) => (
@@ -141,22 +146,22 @@ function ChatContent() {
             ))
           ) : (
             <p className="text-muted" style={{ fontSize: "0.85rem" }}>
-              No default project set. Mark one in your dashboard to auto-scope municipality context.
+              {t("chat.noDefaultProject")}
             </p>
           )}
         </section>
 
         <section className={`card ${styles.sidebarSection}`}>
-          <h3>Quick document search</h3>
+          <h3>{t("chat.quickSearch")}</h3>
           <form onSubmit={searchKb} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
             <input
               className="input"
-              placeholder="Search…"
+              placeholder={t("chat.searchPlaceholder")}
               value={kbQuery}
               onChange={(e) => setKbQuery(e.target.value)}
             />
             <button type="submit" className="btn btn-secondary">
-              Go
+              {t("chat.go")}
             </button>
           </form>
           {kbResults.map((doc) => (

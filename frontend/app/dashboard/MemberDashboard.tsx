@@ -5,11 +5,13 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
 import type { ProjectSummary } from "../lib/types";
 import styles from "./dashboard.module.css";
 
 export function MemberDashboard() {
   const { user } = useAuth();
+  const { t } = useLocale();
   const token = user?.token ?? null;
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
 
@@ -25,35 +27,37 @@ export function MemberDashboard() {
 
   return (
     <div>
-      <h1>Welcome back</h1>
+      <h1>{t("dash.member.welcome")}</h1>
       <p className="text-muted">
-        You're signed in as a {user?.companyType === "municipality" ? "municipality" : "company"} member.
+        {user?.companyType === "municipality"
+          ? t("dash.member.signedInAsMunicipality")
+          : t("dash.member.signedInAsConstruction")}
       </p>
 
       <div className={styles.grid}>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{projects.length}</span>
-          <span className={styles.statLabel}>Projects</span>
+          <span className={styles.statLabel}>{t("dash.member.projects")}</span>
         </div>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{defaultProjects.length}</span>
-          <span className={styles.statLabel}>Default municipalities</span>
+          <span className={styles.statLabel}>{t("dash.member.defaultMunicipalities")}</span>
         </div>
       </div>
 
       <section className={`card ${styles.section}`}>
         <div className={styles.sectionHeader}>
-          <h2>Your projects</h2>
+          <h2>{t("dash.member.yourProjects")}</h2>
         </div>
         {projects.length === 0 ? (
-          <p className={styles.emptyState}>No projects yet.</p>
+          <p className={styles.emptyState}>{t("dash.member.noProjects")}</p>
         ) : (
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Municipality</th>
-                <th>Default</th>
+                <th>{t("dash.member.colName")}</th>
+                <th>{t("dash.member.colMunicipality")}</th>
+                <th>{t("dash.member.colDefault")}</th>
               </tr>
             </thead>
             <tbody>
@@ -61,7 +65,7 @@ export function MemberDashboard() {
                 <tr key={p.id}>
                   <td>{p.name}</td>
                   <td>{p.municipality}</td>
-                  <td>{p.is_default ? <span className="badge badge-success">Default</span> : "—"}</td>
+                  <td>{p.is_default ? <span className="badge badge-success">{t("dash.member.default")}</span> : "—"}</td>
                 </tr>
               ))}
             </tbody>
@@ -70,10 +74,10 @@ export function MemberDashboard() {
       </section>
 
       <section className={`card ${styles.section}`} style={{ textAlign: "center" }}>
-        <h2>Ready to ask a question?</h2>
-        <p className="text-muted">Search the shared knowledge base and your company&apos;s own documents.</p>
+        <h2>{t("dash.member.readyToAsk")}</h2>
+        <p className="text-muted">{t("dash.member.searchDescription")}</p>
         <Link href="/chat" className="btn btn-primary">
-          Open chat
+          {t("dash.member.openChat")}
         </Link>
       </section>
     </div>

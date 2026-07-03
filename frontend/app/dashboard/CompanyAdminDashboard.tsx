@@ -4,12 +4,14 @@ import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
 import type { AuditLogEntry, InviteSummary, RemovalRequestSummary, UserSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import styles from "./dashboard.module.css";
 
 export function CompanyAdminDashboard() {
   const { user } = useAuth();
+  const { t } = useLocale();
   const token = user?.token ?? null;
 
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -109,7 +111,7 @@ export function CompanyAdminDashboard() {
     }
   }
 
-  if (loading) return <p className="text-muted">Loading dashboard…</p>;
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={styles.emptyState}>{error}</p>;
 
   const activeUsers = users.filter((u) => u.is_active).length;
@@ -117,24 +119,24 @@ export function CompanyAdminDashboard() {
 
   return (
     <div>
-      <h1>{user?.companyType === "municipality" ? "Municipality dashboard" : "Company dashboard"}</h1>
+      <h1>{t("dash.company.title")}</h1>
 
       <div className={styles.grid}>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{users.length}</span>
-          <span className={styles.statLabel}>Team members</span>
+          <span className={styles.statLabel}>{t("dash.company.teamMembers")}</span>
         </div>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{activeUsers}</span>
-          <span className={styles.statLabel}>Active access</span>
+          <span className={styles.statLabel}>{t("dash.company.activeAccess")}</span>
         </div>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{pendingRemovals.length}</span>
-          <span className={styles.statLabel}>Pending approvals</span>
+          <span className={styles.statLabel}>{t("dash.company.pendingApprovals")}</span>
         </div>
         <div className={`card ${styles.statCard}`}>
           <span className={styles.statValue}>{invites.filter((i) => i.status === "pending").length}</span>
-          <span className={styles.statLabel}>Pending invites</span>
+          <span className={styles.statLabel}>{t("dash.company.pendingInvites")}</span>
         </div>
       </div>
 
@@ -142,7 +144,7 @@ export function CompanyAdminDashboard() {
         <div>
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
-              <h2>Activity (last 14 days)</h2>
+              <h2>{t("dash.company.activity")}</h2>
             </div>
             <ActivityChart entries={auditLog} />
           </section>
@@ -150,12 +152,12 @@ export function CompanyAdminDashboard() {
           {pendingRemovals.length > 0 && (
             <section className={`card ${styles.section}`}>
               <div className={styles.sectionHeader}>
-                <h2>Pending document removals</h2>
+                <h2>{t("dash.company.pendingRemovals")}</h2>
               </div>
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>Document</th>
+                    <th>{t("dash.company.colDocument")}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -165,10 +167,10 @@ export function CompanyAdminDashboard() {
                       <td>{r.document_title ?? `Document #${r.document_id}`}</td>
                       <td className={styles.rowActions}>
                         <button className="btn btn-primary" onClick={() => decideRemoval(r.id, "approve")}>
-                          Approve
+                          {t("dash.company.approve")}
                         </button>
                         <button className="btn btn-secondary" onClick={() => decideRemoval(r.id, "reject")}>
-                          Reject
+                          {t("dash.company.reject")}
                         </button>
                       </td>
                     </tr>
@@ -180,14 +182,14 @@ export function CompanyAdminDashboard() {
 
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
-              <h2>Team</h2>
+              <h2>{t("dash.company.team")}</h2>
             </div>
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>Email</th>
-                  <th>Role</th>
-                  <th>Status</th>
+                  <th>{t("dash.company.colEmail")}</th>
+                  <th>{t("dash.company.colRole")}</th>
+                  <th>{t("dash.company.colStatus")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -202,18 +204,18 @@ export function CompanyAdminDashboard() {
                         onChange={(e) => changeRole(u, e.target.value as "admin" | "member")}
                         style={{ width: "auto" }}
                       >
-                        <option value="admin">Admin</option>
-                        <option value="member">Member</option>
+                        <option value="admin">{t("role.admin")}</option>
+                        <option value="member">{t("role.member")}</option>
                       </select>
                     </td>
                     <td>
                       <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>
-                        {u.is_active ? "Active" : "Revoked"}
+                        {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
                       </span>
                     </td>
                     <td>
                       <button className="btn btn-secondary" onClick={() => toggleActive(u)}>
-                        {u.is_active ? "Revoke" : "Restore"}
+                        {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
                       </button>
                     </td>
                   </tr>
@@ -226,13 +228,13 @@ export function CompanyAdminDashboard() {
         <div>
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
-              <h2>Invite a teammate</h2>
+              <h2>{t("dash.company.inviteTeammate")}</h2>
             </div>
             <form className={styles.inlineForm} onSubmit={createInvite}>
               <input
                 className="input"
                 type="email"
-                placeholder="email@example.com"
+                placeholder={t("dash.company.inviteEmailPlaceholder")}
                 value={inviteEmail}
                 onChange={(e) => setInviteEmail(e.target.value)}
                 required
@@ -243,17 +245,17 @@ export function CompanyAdminDashboard() {
                 onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
                 style={{ width: "auto" }}
               >
-                <option value="member">Member</option>
-                <option value="admin">Admin</option>
+                <option value="member">{t("role.member")}</option>
+                <option value="admin">{t("role.admin")}</option>
               </select>
               <button type="submit" className="btn btn-primary">
-                Send invite
+                {t("dash.company.sendInvite")}
               </button>
             </form>
 
             {newInviteToken && (
               <div className={styles.tokenBox}>
-                Share this invite code: <br />
+                {t("dash.company.shareInviteCode")} <br />
                 {newInviteToken}
               </div>
             )}
@@ -262,8 +264,8 @@ export function CompanyAdminDashboard() {
               <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
                 <thead>
                   <tr>
-                    <th>Email</th>
-                    <th>Status</th>
+                    <th>{t("dash.company.colEmail")}</th>
+                    <th>{t("dash.company.colStatus")}</th>
                     <th></th>
                   </tr>
                 </thead>
@@ -281,13 +283,17 @@ export function CompanyAdminDashboard() {
                                 : "badge-warning"
                           }`}
                         >
-                          {inv.status}
+                          {inv.status === "accepted"
+                            ? t("dash.company.inviteAccepted")
+                            : inv.status === "revoked"
+                              ? t("dash.company.inviteRevoked")
+                              : t("dash.company.invitePending")}
                         </span>
                       </td>
                       <td>
                         {inv.status === "pending" && (
                           <button className="btn btn-secondary" onClick={() => revokeInvite(inv.id)}>
-                            Revoke
+                            {t("dash.company.revoke")}
                           </button>
                         )}
                       </td>
@@ -300,7 +306,7 @@ export function CompanyAdminDashboard() {
 
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
-              <h2>Company logo</h2>
+              <h2>{t("dash.company.logo")}</h2>
             </div>
             <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadLogo} />
             {logoStatus && <p className="text-muted" style={{ marginTop: "var(--space-2)" }}>{logoStatus}</p>}

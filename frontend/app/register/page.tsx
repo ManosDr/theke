@@ -4,9 +4,11 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Logo } from "../components/Logo";
+import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
 import styles from "../login/login.module.css";
 
 interface TokenResponse {
@@ -19,6 +21,7 @@ interface TokenResponse {
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
+  const { t } = useLocale();
 
   const [mode, setMode] = useState<"invite" | "new_company">("new_company");
   const [email, setEmail] = useState("");
@@ -42,7 +45,7 @@ export default function RegisterPage() {
       await login(email, password);
       router.push("/dashboard");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Could not reach the server. Is it running?");
+      setError(err instanceof ApiError ? err.message : t("login.errorFallback"));
     } finally {
       setLoading(false);
     }
@@ -50,7 +53,8 @@ export default function RegisterPage() {
 
   return (
     <main className={styles.page}>
-      <div className={styles.themeToggle}>
+      <div className={styles.themeToggle} style={{ display: "flex", gap: "var(--space-2)" }}>
+        <LanguageToggle />
         <ThemeToggle />
       </div>
 
@@ -67,19 +71,19 @@ export default function RegisterPage() {
             className={`btn ${mode === "new_company" ? "btn-primary" : "btn-secondary"} ${styles.fullRow}`}
             onClick={() => setMode("new_company")}
           >
-            Create a new company
+            {t("register.createCompany")}
           </button>
           <button
             type="button"
             className={`btn ${mode === "invite" ? "btn-primary" : "btn-secondary"} ${styles.fullRow}`}
             onClick={() => setMode("invite")}
           >
-            I have an invite
+            {t("register.haveInvite")}
           </button>
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="email">Email</label>
+          <label htmlFor="email">{t("login.email")}</label>
           <input
             id="email"
             type="email"
@@ -92,7 +96,7 @@ export default function RegisterPage() {
         </div>
 
         <div className={styles.field}>
-          <label htmlFor="password">Password</label>
+          <label htmlFor="password">{t("login.password")}</label>
           <input
             id="password"
             type="password"
@@ -107,7 +111,7 @@ export default function RegisterPage() {
 
         {mode === "invite" ? (
           <div className={styles.field}>
-            <label htmlFor="inviteToken">Invite code</label>
+            <label htmlFor="inviteToken">{t("register.inviteCode")}</label>
             <input
               id="inviteToken"
               type="text"
@@ -120,7 +124,7 @@ export default function RegisterPage() {
         ) : (
           <>
             <div className={styles.field}>
-              <label htmlFor="companyName">Company / municipality name</label>
+              <label htmlFor="companyName">{t("register.companyName")}</label>
               <input
                 id="companyName"
                 type="text"
@@ -131,26 +135,26 @@ export default function RegisterPage() {
               />
             </div>
             <div className={styles.field}>
-              <label htmlFor="companyType">Account type</label>
+              <label htmlFor="companyType">{t("register.accountType")}</label>
               <select
                 id="companyType"
                 className="input"
                 value={companyType}
                 onChange={(e) => setCompanyType(e.target.value as "construction" | "municipality")}
               >
-                <option value="construction">Construction company</option>
-                <option value="municipality">Municipality</option>
+                <option value="construction">{t("register.typeConstruction")}</option>
+                <option value="municipality">{t("register.typeMunicipality")}</option>
               </select>
             </div>
           </>
         )}
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
-          {loading ? "Creating account…" : "Create account"}
+          {loading ? t("register.creatingAccount") : t("register.createAccount")}
         </button>
 
         <p className={styles.footerLink}>
-          Already have an account? <a href="/login">Sign in</a>
+          {t("register.alreadyHaveAccount")} <a href="/login">{t("register.signIn")}</a>
         </p>
       </form>
     </main>

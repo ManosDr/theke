@@ -75,6 +75,11 @@ CREATE TABLE IF NOT EXISTS documents (
     language VARCHAR DEFAULT 'el',
     content TEXT,
     content_hash TEXT,       -- sha256 of raw file bytes, for crawl dedup across re-discovered URLs
+    -- Which crawler source ingested this (matches crawler/crawler/sources.py
+    -- entry names, e.g. 'fek_search_api', 'tee_e_adeies'). NULL for uploads
+    -- (they aren't crawled - see doc_type='upload' instead). Powers the
+    -- "browse by source" UI.
+    source_name VARCHAR,
     raw_json JSONB,
     company_id INT REFERENCES companies(id),  -- NULL = public/crawled
     municipality VARCHAR,                     -- set on municipality uploads for broad visibility
@@ -97,6 +102,7 @@ CREATE INDEX IF NOT EXISTS idx_documents_identifier ON documents(identifier);
 CREATE INDEX IF NOT EXISTS idx_documents_type ON documents(doc_type);
 CREATE INDEX IF NOT EXISTS idx_documents_company ON documents(company_id);
 CREATE INDEX IF NOT EXISTS idx_documents_municipality ON documents(municipality);
+CREATE INDEX IF NOT EXISTS idx_documents_source_name ON documents(source_name);
 CREATE INDEX IF NOT EXISTS idx_documents_title_fts ON documents USING gin(to_tsvector('greek', coalesce(title, '')));
 CREATE INDEX IF NOT EXISTS idx_documents_content_fts ON documents USING gin(to_tsvector('greek', coalesce(content, '')));
 

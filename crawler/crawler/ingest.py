@@ -128,16 +128,17 @@ def insert_document(
     doc_date: date_cls | None = None,
     content: str | None = None,
     content_hash_value: str | None = None,
+    source_name: str | None = None,
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO documents
-                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s)
+                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash, source_name)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s, %s)
             RETURNING id
             """,
-            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value),
+            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value, source_name),
         )
         row = cur.fetchone()
         assert row is not None
@@ -165,6 +166,7 @@ def ingest_seed_document(conn: psycopg.Connection, seed: dict) -> int | None:
         source=seed["url"],
         content=text,
         content_hash_value=content_hash(pdf_bytes),
+        source_name=seed["source_name"],
     )
     print(f"  inserted document id={doc_id} ({len(text)} chars extracted)")
     return doc_id
@@ -196,6 +198,7 @@ def ingest_discovered_pdf(conn: psycopg.Connection, *, url: str, title: str, sou
         source=url,
         content=text,
         content_hash_value=hash_value,
+        source_name=source_name,
     )
     print(f"  inserted document id={doc_id} ({len(text)} chars) [{source_name}]")
     return doc_id
@@ -238,6 +241,7 @@ def ingest_fek_document(
         source=url,
         content=text,
         content_hash_value=hash_value,
+        source_name=source_name,
     )
     print(f"  inserted document id={doc_id} ({len(text)} chars) [{source_name}]")
     return doc_id
@@ -277,6 +281,7 @@ def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_n
         source=url,
         content=text,
         content_hash_value=hash_value,
+        source_name=source_name,
     )
     print(f"  inserted document id={doc_id} ({len(text)} chars) [{source_name}]")
     return doc_id
@@ -301,6 +306,7 @@ def ingest_reference_only(conn: psycopg.Connection, *, url: str, title: str, sou
         source=url,
         content=None,
         content_hash_value=None,
+        source_name=source_name,
     )
     print(f"  indexed reference id={doc_id} (no content fetched, robots.txt disallows it) [{source_name}]")
     return doc_id

@@ -1,22 +1,47 @@
 import os
-from datetime import datetime
+from datetime import date as date_cls, datetime
 
-from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
-from sqlalchemy import select, text
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
+from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Document, DocumentRemovalRequest
-from app.schemas import DocumentSummary, RemovalRequestSummary, UploadResponse
+from app.schemas import (
+    BrowseResponse,
+    DocumentDetail,
+    DocumentSummary,
+    RemovalRequestSummary,
+    SourceGroupSummary,
+    UploadResponse,
+)
 from app.services.audit import log_action
 from app.services.authorization import can_approve_removal, require_can_upload_documents
 from app.services.documents import UPLOAD_DIR, content_hash, extract_text
+from app.services.sources import group_label, source_names_for_group
 from app.services.visibility import visible_documents_filter
 
 router = APIRouter(prefix="/documents", tags=["documents"])
 
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024  # 25MB
+
+
+def _to_summary(doc: Document, *, with_snippet: bool = True) -> DocumentSummary:
+    return DocumentSummary(
+        id=doc.id,
+        title=doc.title,
+        snippet=(doc.content[:280] if with_snippet and doc.content else None),
+        source=doc.source,
+        doc_type=doc.doc_type,
+        municipality=doc.municipality,
+        date=doc.date,
+        identifier=doc.identifier,
+        series=doc.series,
+        issue_number=doc.issue_number,
+        source_name=doc.source_name,
+        source_group=group_label(doc.source_name) if doc.source_name else None,
+    )
 
 
 @router.get("/search", response_model=list[DocumentSummary])
@@ -37,17 +62,68 @@ async def search_documents(
         .limit(20)
     )
     results = db.scalars(stmt).all()
-    return [
-        DocumentSummary(
-            id=doc.id,
-            title=doc.title,
-            snippet=(doc.content[:280] if doc.content else None),
-            source=doc.source,
-            doc_type=doc.doc_type,
-            municipality=doc.municipality,
-        )
-        for doc in results
-    ]
+    return [_to_summary(doc) for doc in results]
+
+
+@router.get("/sources", response_model=list[SourceGroupSummary])
+async def list_sources(db: Session = Depends(get_db)) -> list[SourceGroupSummary]:
+    """Distinct crawl sources with counts, grouped for the Sources page's
+    buttons (e.g. both e-ΕΦΚΑ pages count under one 'e-ΕΦΚΑ' button).
+    Public/crawled documents only - source_name is never set on uploads.
+    """
+    rows = db.execute(
+        select(Document.source_name, func.count())
+        .where(Document.company_id.is_(None), Document.status == "active", Document.source_name.isnot(None))
+        .group_by(Document.source_name)
+    ).all()
+
+    counts: dict[str, int] = {}
+    for source_name, count in rows:
+        group = group_label(source_name)
+        counts[group] = counts.get(group, 0) + count
+
+    return [SourceGroupSummary(group=group, count=count) for group, count in sorted(counts.items())]
+
+
+@router.get("/browse", response_model=BrowseResponse)
+async def browse_documents(
+    group: str | None = None,
+    q: str | None = None,
+    doc_type: str | None = None,
+    date_from: date_cls | None = None,
+    date_to: date_cls | None = None,
+    municipality: str | None = None,
+    limit: int = Query(default=20, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> BrowseResponse:
+    """Listing/filtering endpoint behind both the Sources drill-down (filter
+    by `group`) and the Search page (any combination of filters, `q` optional
+    unlike /search where it's required).
+    """
+    stmt = select(Document).where(Document.status == "active").where(visible_documents_filter(user, municipality=municipality))
+
+    if group:
+        names = source_names_for_group(group)
+        if not names:
+            return BrowseResponse(total=0, items=[])
+        stmt = stmt.where(Document.source_name.in_(names))
+    if q:
+        stmt = stmt.where(
+            text("to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)")
+        ).params(q=q)
+    if doc_type:
+        stmt = stmt.where(Document.doc_type == doc_type)
+    if date_from:
+        stmt = stmt.where(Document.date >= date_from)
+    if date_to:
+        stmt = stmt.where(Document.date <= date_to)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    results = db.scalars(stmt.order_by(Document.date.desc().nullslast()).limit(limit).offset(offset)).all()
+
+    return BrowseResponse(total=total, items=[_to_summary(doc, with_snippet=bool(q)) for doc in results])
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)
@@ -274,3 +350,26 @@ async def reject_removal(
         resource_id=doc.id,
     )
     db.commit()
+
+
+# Registered last: a bare "/{document_id}" would otherwise shadow the static
+# routes above (/search, /sources, /browse, /upload, /removal-requests) since
+# FastAPI matches routes in registration order.
+@router.get("/{document_id}", response_model=DocumentDetail)
+async def get_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentDetail:
+    doc = db.get(Document, document_id)
+    if not doc or doc.status != "active":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    visible_ids = db.scalars(
+        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(user))
+    ).all()
+    if not visible_ids:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    summary = _to_summary(doc, with_snippet=False)
+    return DocumentDetail(**summary.model_dump(), content=doc.content)

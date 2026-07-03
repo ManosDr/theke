@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date as date_type, datetime
 
 from pydantic import BaseModel, Field
 
@@ -62,6 +62,26 @@ class DocumentSummary(BaseModel):
     source: str | None = None
     doc_type: str | None = None
     municipality: str | None = None
+    date: date_type | None = None
+    identifier: str | None = None
+    series: str | None = None
+    issue_number: str | None = None
+    source_name: str | None = None
+    source_group: str | None = None
+
+
+class SourceGroupSummary(BaseModel):
+    group: str
+    count: int
+
+
+class BrowseResponse(BaseModel):
+    total: int
+    items: list[DocumentSummary]
+
+
+class DocumentDetail(DocumentSummary):
+    content: str | None = None
 
 
 class UploadResponse(BaseModel):

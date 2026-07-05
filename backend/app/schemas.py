@@ -70,6 +70,35 @@ class ChatResponse(BaseModel):
     citations: list[ChatCitation] = []
 
 
+class ChatHistoryTurn(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
+class ChatMessageRequest(BaseModel):
+    query: str
+    conversation_history: list[ChatHistoryTurn] = []
+    project_id: int | None = None
+
+
+class ChatMessageCitation(BaseModel):
+    document_id: int
+    title: str | None = None
+    authority: str | None = None
+    source_url: str | None = None
+
+
+class ChatMessageResponse(BaseModel):
+    answer: str
+    citations: list[ChatMessageCitation] = []
+    # True when either nothing was retrieved (canned response, no GPT call)
+    # or a real answer was generated from fewer supporting excerpts than
+    # rag_top_k requested, or from excerpts weaker than rag_warn_distance -
+    # a signal to present the answer as lower-confidence, not a promise
+    # that no answer was given.
+    gap: bool
+
+
 class DocumentSummary(BaseModel):
     id: int
     title: str | None = None

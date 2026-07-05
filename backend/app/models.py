@@ -166,6 +166,10 @@ class ChatSession(Base):
     message: Mapped[str | None] = mapped_column(Text)
     response: Mapped[str | None] = mapped_column(Text)
     tool_used: Mapped[str | None] = mapped_column(Text)
+    # [{document_id, title, authority, source_url}, ...] as actually returned
+    # to the caller - populated by POST /chat/message; left NULL by the older
+    # POST /chat, which doesn't persist citations.
+    citations: Mapped[list | None] = mapped_column(JSON)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

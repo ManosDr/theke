@@ -292,3 +292,34 @@ would never get noticed or reported as a bug by a user.
 re-tune `lists` for the actual row count (rule of thumb ~ rows/1000 for
 this index type) and set `probes` to a smaller fraction (e.g. `sqrt(lists)`)
 based on measured recall against a real query sample — not guessed.
+
+## A real numeric coefficient list can still score below the retrieval threshold
+
+**What was found:** while testing `POST /chat/message`'s coefficient/setback
+rule, document 223 (Kavala's Γ.Π.Σ. approval ΦΕΚ) has a chunk with genuine,
+usable data — named zones with actual ΣΔ figures ("Χαλκερό: 0,8", "Ν.
+Καρβάλη: 0,8", etc.). Several natural-language queries asking for exactly
+that data (by zone name, by topic, by near-verbatim source vocabulary) all
+scored a cosine distance around 0.54 against that chunk — above
+`rag_max_distance` (0.5), so it never got retrieved and the endpoint
+correctly gave an honest "excerpts don't cover this" answer rather than a
+fabricated number. This isn't the `ivfflat.probes` recall bug above (probes
+is already maxed) — it's the embedding model's semantic similarity for this
+specific chunk's content, genuinely landing outside the threshold for how
+the question is naturally phrased.
+
+**Why this is left as-is for now:** the honest-gap behavior is doing
+exactly what it's supposed to when retrieval falls short — refusing rather
+than guessing. The system worked correctly; the corpus/chunking just
+didn't surface the right passage for this one case. Chasing this by
+lowering `rag_max_distance` globally would let weaker matches through
+everywhere, not just here.
+
+**Revisit when:** there's a real query log to sample from. Options worth
+trying then, in rough order of effort: shrinking `chunk_size` for
+numeric-list-heavy sections so a zone/figure pair isn't diluted by
+surrounding prose in the same chunk; a query-rewriting pass before
+embedding (expand "συντελεστής δόμησης Χαλκερό" style queries with
+synonyms/context); or a hybrid keyword+vector search for this class of
+lookup. Don't retune `rag_max_distance` itself without real query-log
+evidence of where the current value is actually costing correct answers.

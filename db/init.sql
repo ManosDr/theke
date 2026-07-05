@@ -246,6 +246,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     message TEXT,
     response TEXT,
     tool_used VARCHAR,
+    citations JSONB,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 

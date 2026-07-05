@@ -23,6 +23,12 @@ class Settings(BaseSettings):
     rag_max_distance: float = 0.5
     rag_top_k: int = 6
 
+    # Softer inner bound used only by POST /chat/message's `gap` flag - a hit
+    # beyond this still clears rag_max_distance (so an answer IS generated),
+    # but is weak enough that the response should be presented as lower-
+    # confidence rather than as solid as a comfortably-close match.
+    rag_warn_distance: float = 0.45
+
     # If both set, a super_admin user is created on startup if it doesn't
     # already exist. There is no public endpoint that can mint a super_admin -
     # this out-of-band bootstrap is the only way one gets created.

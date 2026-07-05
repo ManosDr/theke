@@ -1,16 +1,29 @@
-from datetime import datetime
+import logging
+import secrets
+from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, Invite, User
-from app.schemas import LoginRequest, RegisterRequest, TokenResponse, UpdateLocaleRequest
+from app.models import Company, Invite, PasswordResetToken, User
+from app.schemas import (
+    ForgotPasswordRequest,
+    LoginRequest,
+    RegisterRequest,
+    ResetPasswordRequest,
+    TokenResponse,
+    UpdateLocaleRequest,
+)
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
 from app.services.notifications import notify
+from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
@@ -91,9 +104,27 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenResponse:
+async def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+    # Client IP, not authenticated identity - this endpoint runs before
+    # anyone's identity is known, so IP is the only thing to key a lockout
+    # on. Doesn't account for a shared IP behind a proxy/NAT; revisit if
+    # this ever sits behind one (X-Forwarded-For, trusted-proxy config).
+    client_ip = request.client.host if request.client else "unknown"
+
+    remaining = seconds_until_login_unlocked(client_ip)
+    if remaining is not None:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Too many failed login attempts. Try again in {remaining} seconds.",
+        )
+
     user = db.scalar(select(User).where(User.email == payload.email))
     if not user or not verify_password(payload.password, user.password_hash):
+        # Counts both "no such email" and "wrong password" the same way -
+        # distinguishing them in the rate limiter (not just the error
+        # message, which already doesn't distinguish them) would let an
+        # attacker use the lockout itself as an email-enumeration oracle.
+        record_login_failure(client_ip)
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid email or password")
     if not user.is_active:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated")
@@ -102,6 +133,7 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenRe
     if company and company.is_suspended:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This company's access is suspended")
 
+    reset_login_failures(client_ip)
     log_action(db, actor_user_id=user.id, company_id=user.company_id, action="login")
     db.commit()
 
@@ -113,6 +145,42 @@ async def login(payload: LoginRequest, db: Session = Depends(get_db)) -> TokenRe
         role=user.role,
         preferred_locale=user.preferred_locale,
     )
+
+
+@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
+async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> None:
+    """Always 204 regardless of whether the email is registered - the
+    response can't be allowed to reveal that, or it becomes an email-
+    enumeration oracle. No email provider is configured yet, so instead of
+    real delivery this logs the reset link (see KNOWN_DECISIONS.md) - the
+    mechanism is real and testable end-to-end, just not yet wired to an
+    inbox."""
+    user = db.scalar(select(User).where(User.email == payload.email))
+    if user and user.is_active:
+        token = secrets.token_urlsafe(32)
+        db.add(
+            PasswordResetToken(
+                user_id=user.id,
+                token=token,
+                expires_at=datetime.utcnow() + timedelta(minutes=settings.password_reset_token_expire_minutes),
+            )
+        )
+        db.commit()
+        reset_link = f"{settings.frontend_url}/reset-password?token={token}"
+        logger.info("Password reset requested for %s: %s", user.email, reset_link)
+
+
+@router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)
+async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(get_db)) -> None:
+    reset = db.scalar(select(PasswordResetToken).where(PasswordResetToken.token == payload.token))
+    if not reset or reset.used_at is not None or reset.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired reset link")
+
+    user = db.get(User, reset.user_id)
+    user.password_hash = hash_password(payload.new_password)
+    reset.used_at = datetime.utcnow()
+    log_action(db, actor_user_id=user.id, company_id=user.company_id, action="password_reset")
+    db.commit()
 
 
 @router.patch("/me/locale", status_code=status.HTTP_204_NO_CONTENT)

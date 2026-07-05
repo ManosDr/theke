@@ -54,6 +54,22 @@ export const translations = {
     "login.newHere": "New here?",
     "login.createAccount": "Create an account",
     "login.errorFallback": "Could not reach the server. Is it running?",
+    "login.forgotPassword": "Forgot password?",
+
+    // forgot / reset password
+    "forgotPassword.title": "Reset your password",
+    "forgotPassword.instructions": "Enter your email and we'll send you a link to reset your password.",
+    "forgotPassword.submit": "Send reset link",
+    "forgotPassword.sending": "Sending…",
+    "forgotPassword.success": "If that email is registered, a reset link has been sent.",
+    "forgotPassword.backToLogin": "Back to sign in",
+    "resetPassword.title": "Choose a new password",
+    "resetPassword.newPassword": "New password",
+    "resetPassword.submit": "Reset password",
+    "resetPassword.submitting": "Resetting…",
+    "resetPassword.success": "Your password has been reset. You can now sign in.",
+    "resetPassword.invalidToken": "This reset link is invalid or missing.",
+    "resetPassword.signIn": "Sign in",
 
     // register
     "register.createCompany": "Create a new company",
@@ -279,6 +295,22 @@ export const translations = {
     "login.newHere": "Νέος εδώ;",
     "login.createAccount": "Δημιουργία λογαριασμού",
     "login.errorFallback": "Δεν ήταν δυνατή η σύνδεση με τον διακομιστή. Εκτελείται;",
+    "login.forgotPassword": "Ξεχάσατε τον κωδικό σας;",
+
+    // forgot / reset password
+    "forgotPassword.title": "Επαναφορά κωδικού",
+    "forgotPassword.instructions": "Εισαγάγετε το email σας και θα σας στείλουμε έναν σύνδεσμο επαναφοράς κωδικού.",
+    "forgotPassword.submit": "Αποστολή συνδέσμου",
+    "forgotPassword.sending": "Αποστολή…",
+    "forgotPassword.success": "Αν αυτό το email είναι καταχωρημένο, στάλθηκε σύνδεσμος επαναφοράς.",
+    "forgotPassword.backToLogin": "Επιστροφή στη σύνδεση",
+    "resetPassword.title": "Επιλέξτε νέο κωδικό",
+    "resetPassword.newPassword": "Νέος κωδικός",
+    "resetPassword.submit": "Επαναφορά κωδικού",
+    "resetPassword.submitting": "Γίνεται επαναφορά…",
+    "resetPassword.success": "Ο κωδικός σας άλλαξε. Μπορείτε τώρα να συνδεθείτε.",
+    "resetPassword.invalidToken": "Αυτός ο σύνδεσμος επαναφοράς δεν είναι έγκυρος ή λείπει.",
+    "resetPassword.signIn": "Σύνδεση",
 
     // register
     "register.createCompany": "Δημιουργία νέας εταιρείας",

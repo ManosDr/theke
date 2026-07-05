@@ -11,6 +11,13 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
 
+    # Base URL the password-reset link is built against - the frontend's
+    # origin, not this API's. No email provider is configured yet, so the
+    # link is logged rather than sent (see app/routers/auth.py and
+    # KNOWN_DECISIONS.md).
+    frontend_url: str = "http://localhost:3000"
+    password_reset_token_expire_minutes: int = 60
+
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"
     chat_model: str = "gpt-4o"

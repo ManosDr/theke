@@ -36,6 +36,17 @@ CREATE TABLE IF NOT EXISTS invites (
 CREATE INDEX IF NOT EXISTS idx_invites_company ON invites(company_id);
 CREATE INDEX IF NOT EXISTS idx_invites_email ON invites(email);
 
+CREATE TABLE IF NOT EXISTS password_reset_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id),
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
+
 -- Users. `role` meaning depends on companies.type:
 --   super_admin - platform-wide, company_id IS NULL, provisioned out-of-band
 --     (env var bootstrap on startup) - never reachable via /auth/register.

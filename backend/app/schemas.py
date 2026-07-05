@@ -1,6 +1,12 @@
 from datetime import date as date_type, datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
+
+# Only used when creating a new company (invite-based registration ignores
+# this field - role/company come from the invite instead). Keep in sync with
+# any frontend company-type dropdown; "municipality" (not "municipal") matches
+# the existing Company.type value used throughout visibility/authorization.
+COMPANY_TYPES = ("construction", "architecture", "engineering", "contractor", "municipality")
 
 
 class RegisterRequest(BaseModel):
@@ -11,13 +17,29 @@ class RegisterRequest(BaseModel):
     # becoming its founding admin). Providing both / neither is rejected.
     invite_token: str | None = None
     company_name: str | None = None
-    company_type: str = "construction"  # 'construction', 'municipality' - only used when creating a new company
+    company_type: str = "construction"
     preferred_locale: str | None = None  # UI language active at signup time, if any
+
+    @field_validator("company_type")
+    @classmethod
+    def _validate_company_type(cls, v: str) -> str:
+        if v not in COMPANY_TYPES:
+            raise ValueError(f"company_type must be one of {COMPANY_TYPES}")
+        return v
 
 
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class ForgotPasswordRequest(BaseModel):
+    email: str
+
+
+class ResetPasswordRequest(BaseModel):
+    token: str
+    new_password: str = Field(min_length=8)
 
 
 class TokenResponse(BaseModel):

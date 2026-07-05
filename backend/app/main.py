@@ -9,6 +9,14 @@ from app.routers import admin, auth, chat, companies, documents, notifications, 
 from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
 from app.services.embeddings import embed_pending_documents
 
+# Root logger defaults to WARNING with no handler configured, which was
+# silently swallowing every app-level logger.info() call (the embedding
+# backfill summary, and now the password-reset link log) - confirmed via
+# `docker logs` never showing them despite the code running correctly.
+# Uvicorn's own loggers are unaffected either way (it configures those
+# itself); this only affects our own `logging.getLogger(__name__)` calls.
+logging.basicConfig(level=logging.INFO)
+
 logger = logging.getLogger(__name__)
 
 app = FastAPI(title="theke API", version="0.1.0")

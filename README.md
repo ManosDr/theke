@@ -56,6 +56,29 @@ The crawler pulls from official sources, deduplicating by content hash so re-cra
 
 Adding a new region is meant to be mostly data, not code: a `regions` + `utility_providers` row and a couple of crawler source entries reusing the existing generic page-scraping logic. In practice this has held for straightforward WordPress-templated municipal sites; a Joomla site and a site whose theme injects decoy `<article>` tags both required a manual research/judgment call instead of a clean drop-in (see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md)).
 
+## Authentication
+
+Registration (create a company or join via invite), login, and JWTs (15-minute
+access tokens, re-checked against the DB on every request so a revoked user or
+suspended company locks out immediately rather than waiting for the token to
+expire) are covered in more depth in [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md).
+Two things worth calling out here:
+
+- **Login rate limiting**: 5 failed attempts from the same IP within 15
+  minutes returns `429` for the rest of that window, backed by the Redis
+  instance that's been in `docker-compose.yml`/`config.py` since early on but
+  unused until this. A correct password doesn't count towards the cap; a
+  correct password doesn't clear it early either once it's tripped.
+- **Password reset**: `POST /auth/forgot-password` + `/reset-password`, with
+  a `/forgot-password` and `/reset-password` page on the frontend. No email
+  provider is configured yet, so the reset link is logged (`docker logs
+  theke-backend-1`) rather than emailed - the mechanism is real and
+  testable end-to-end, just not wired to an inbox yet.
+
+`company_type` at registration is validated against a fixed whitelist
+(`construction`, `architecture`, `engineering`, `contractor`, `municipality`)
+rather than accepted as an arbitrary string.
+
 ## Roles & multi-tenancy
 
 Three visibility tiers on the knowledge base: public (crawled, everyone), company-private (uploaded, visible only within that company), and municipality-scoped (uploaded by a municipality, visible to anyone asking about that municipality). Company/municipality admins manage their own team (invite, revoke, change roles) and approve document removals; a platform super admin manages tenants and the public knowledge base.

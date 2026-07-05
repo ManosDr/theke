@@ -323,3 +323,61 @@ embedding (expand "συντελεστής δόμησης Χαλκερό" style q
 synonyms/context); or a hybrid keyword+vector search for this class of
 lookup. Don't retune `rag_max_distance` itself without real query-log
 evidence of where the current value is actually costing correct answers.
+
+## Email verification is deferred, not built
+
+**What was chosen:** `POST /auth/register` issues a token and logs the user
+in immediately - no "confirm your email" step exists, and none is planned
+for Phase 3. A registered email is trusted at face value.
+
+**Why:** this is a closed soft launch to known contacts, not open public
+signup. There's no anonymous-abuse surface to defend against yet (no
+spam-account risk, no unverified-email-as-identity risk in practice), so
+building a verification flow now would be effort spent on a threat model
+that doesn't apply yet.
+
+**Revisit when:** registration opens to the public, or any flow starts
+treating an email address as a verified fact (e.g. using it to auto-grant
+access to a company by domain match) rather than just a login identifier.
+
+## No refresh tokens - 15-minute re-login is accepted as-is
+
+**What was chosen:** access tokens expire in 15 minutes
+(`ACCESS_TOKEN_EXPIRE_MINUTES`) with no refresh-token flow to extend a
+session silently - once a token expires, the only way back in is
+`/auth/login` again.
+
+**Why this is acceptable, not just unfinished:** `get_current_user`
+(`app/dependencies.py`) already re-reads the user and company from the DB
+on *every* request, not just at token-issue time - so a short expiry isn't
+covering for weak per-request checks, it's on top of them. A refresh-token
+flow mainly buys UX (fewer re-logins), not additional security, and adds
+real complexity (rotation, revocation, storage) for a soft launch with a
+small, known user base who can tolerate re-entering a password every 15
+minutes of inactivity.
+
+**Revisit when:** real usage data shows 15-minute re-logins are a genuine
+friction point (long-running sessions, users complaining), not before -
+implementing refresh tokens speculatively adds a whole new revocation
+surface for a problem that may not materialize.
+
+## JWT stored in localStorage - accepted MVP risk, not an oversight
+
+**What was chosen:** the frontend stores the JWT in `localStorage`
+(`frontend/app/lib/auth.tsx`), not an httpOnly cookie.
+
+**Why this is accepted for now:** an httpOnly-cookie approach needs the
+backend to set/read cookies (CSRF protection, `SameSite` configuration,
+cross-origin handling between the frontend and API's separate origins in
+dev) - real work that wasn't justified yet for a closed soft launch with
+known users and no third-party script surface on the frontend that could
+exploit an XSS bug to read `localStorage`.
+
+**Why this matters and isn't just theoretical:** if an XSS vulnerability
+is ever introduced (a dependency, a rendered-unescaped field, a future
+integration), `localStorage` gives it direct read access to every active
+user's token, where an httpOnly cookie would not.
+
+**Revisit when:** before any public launch, or the moment any third-party
+script/widget is added to the frontend - either meaningfully raises the
+XSS blast radius this decision is currently betting against.

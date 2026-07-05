@@ -95,6 +95,10 @@ export default function LoginPage() {
           {loading ? t("login.signingIn") : t("login.signIn")}
         </button>
 
+        <p className={styles.footerLink}>
+          <a href="/forgot-password">{t("login.forgotPassword")}</a>
+        </p>
+
         <div className={styles.divider}>{t("login.orDemo")}</div>
 
         <div className={styles.demoGrid}>

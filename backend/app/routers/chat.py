@@ -1,6 +1,6 @@
 import logging
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException, status
 from openai import OpenAIError
 from sqlalchemy.orm import Session
 
@@ -83,6 +83,22 @@ CHAT_MESSAGE_SYSTEM_PROMPT = """Είσαι ο βοηθός γνώσης της �
 """
 
 
+def _resolve_project(db: Session, user: CurrentUser, project_id: int | None) -> Project | None:
+    """Raises rather than silently ignoring a bad project_id: a 404 if it
+    doesn't exist, a 403 if it exists but belongs to a different company.
+    Previously this fell back to unscoped/national-only retrieval on either
+    case, which meant a stale or foreign project_id silently narrowed a
+    user's results without ever telling them why (see KNOWN_DECISIONS.md)."""
+    if project_id is None:
+        return None
+    project = db.get(Project, project_id)
+    if not project:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found")
+    if project.company_id != user.company_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project belongs to a different company")
+    return project
+
+
 def _build_context_block(hits: list) -> str:
     parts = []
     for i, hit in enumerate(hits, start=1):
@@ -105,6 +121,8 @@ async def chat(
     if not question:
         return ChatResponse(answer=GAP_RESPONSE, citations=[])
 
+    project = _resolve_project(db, user, payload.project_id)
+
     hits = search_regulation(db, user, question)
 
     if not hits:
@@ -112,10 +130,8 @@ async def chat(
         return ChatResponse(answer=GAP_RESPONSE, citations=[])
 
     project_line = ""
-    if payload.project_id is not None:
-        project = db.get(Project, payload.project_id)
-        if project and project.company_id == user.company_id and project.municipality:
-            project_line = f"\nΟ χρήστης εργάζεται σε έργο στον/στην {project.municipality}."
+    if project and project.municipality:
+        project_line = f"\nΟ χρήστης εργάζεται σε έργο στον/στην {project.municipality}."
 
     user_prompt = (
         f"Ερώτηση: {question}\n{project_line}\n\nΑποσπάσματα πηγών:\n{_build_context_block(hits)}"
@@ -181,11 +197,8 @@ async def chat_message(
     if not question:
         return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
 
-    region_id = None
-    if payload.project_id is not None:
-        project = db.get(Project, payload.project_id)
-        if project and project.company_id == user.company_id:
-            region_id = project.region_id
+    project = _resolve_project(db, user, payload.project_id)
+    region_id = project.region_id if project else None
 
     raw_hits = _retrieve(db, user, question, settings.rag_top_k, region_id=region_id)
     hits = [h for h in raw_hits if h.distance <= settings.rag_max_distance]

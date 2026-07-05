@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import SessionLocal
-from app.routers import admin, auth, chat, companies, documents, notifications, projects, translations
+from app.routers import admin, auth, chat, companies, documents, notifications, projects, search, translations
 from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
 from app.services.embeddings import embed_pending_documents
 
@@ -29,6 +29,7 @@ app.include_router(companies.public_router)
 app.include_router(documents.router)
 app.include_router(notifications.router)
 app.include_router(projects.router)
+app.include_router(search.router)
 app.include_router(translations.router)
 
 

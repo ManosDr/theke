@@ -119,6 +119,8 @@ Working end-to-end: crawler ingestion (national + 5 onboarded regions), auth, ro
 
 Per-plot coefficient lookup (as opposed to zone-level legal text) is explicitly out of scope for now - see "Knowledge base regions" above.
 
+`POST /search` exposes the same retrieval (embedding + pgvector + visibility scoping, with an optional `region_id` to narrow further, and `needs_review` documents excluded twice over - once by never being embedded, once by the shared visibility filter) with no completion step, returning raw chunks, distances, and source metadata directly. It exists to let retrieval quality be inspected on its own before results feed into `/chat`'s generation step; there's no frontend for it yet.
+
 **Test coverage:** the automated suite currently covers only a basic backend health check. Everything described in "Knowledge base regions" and "Data quality & staleness" above was verified manually (direct API calls and/or a real browser session), not by an automated test.
 
 See [construction-ai-platform-blueprint.md](construction-ai-platform-blueprint.md) for the full roadmap, [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md) for judgment calls made along the way that are deliberate but worth revisiting under specific conditions, and [PROJECT_STATE.md](PROJECT_STATE.md) for a point-in-time, codebase-verified snapshot of exact schema, data, and test coverage.

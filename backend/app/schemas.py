@@ -205,6 +205,32 @@ class RegionSummary(BaseModel):
     has_zone_level_coefficient_text: bool | None = None
 
 
+class SearchRequest(BaseModel):
+    query: str
+    region_id: str | None = None  # narrows to one region on top of visibility; national docs stay included
+    top_k: int | None = None
+
+
+class SearchResultItem(BaseModel):
+    document_id: int
+    title: str | None = None
+    authority: str | None = None
+    source_url: str | None = None
+    date: str | None = None
+    content_type: str | None = None
+    extraction_status: str | None = None
+    chunk_text: str
+    distance: float
+
+
+class SearchResponse(BaseModel):
+    results: list[SearchResultItem] = []
+    # Populated only when results is empty, explaining why - "nothing in
+    # scope at all" vs. "candidates existed but none confident enough" -
+    # so an empty response never reads as a confident "no matches exist."
+    reason: str | None = None
+
+
 class StaleDocumentSummary(BaseModel):
     id: int
     title: str | None = None

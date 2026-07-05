@@ -20,6 +20,12 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
   const { t } = useLocale();
   const [docs, setDocs] = useState<StaleDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [markingId, setMarkingId] = useState<number | null>(null);
+  // Per-row confirmation gate: clearing needs_review can't itself verify the
+  // content was fixed (confirmed the hard way - an uncorrected document
+  // became fully visible in chat/search the moment its flag was cleared),
+  // so the button stays disabled until the reviewer explicitly checks this.
+  const [confirmedIds, setConfirmedIds] = useState<Set<number>>(new Set());
 
   useEffect(() => {
     if (!user?.token) return;
@@ -29,6 +35,26 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
       .catch(() => setDocs([]))
       .finally(() => setLoading(false));
   }, [user?.token]);
+
+  function toggleConfirmed(id: number, checked: boolean) {
+    setConfirmedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  async function markReviewed(id: number) {
+    if (!user?.token || !confirmedIds.has(id)) return;
+    setMarkingId(id);
+    try {
+      await api.post(`/admin/stale-documents/${id}/mark-reviewed`, { confirmed: true }, user.token);
+      setDocs((prev) => prev.filter((d) => d.id !== id));
+    } finally {
+      setMarkingId(null);
+    }
+  }
 
   return (
     <div>
@@ -48,6 +74,8 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
                 <th>{t("dash.super.colSource")}</th>
                 <th>{t("dash.super.colRegion")}</th>
                 <th>{t("dash.super.colLastVerified")}</th>
+                <th>{t("admin.confirmCorrect")}</th>
+                <th></th>
               </tr>
             </thead>
             <tbody>
@@ -60,6 +88,24 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
                     <span className="badge badge-warning">
                       {doc.last_verified_at ? new Date(doc.last_verified_at).toLocaleDateString() : t("dash.super.neverVerified")}
                     </span>
+                  </td>
+                  <td>
+                    <input
+                      type="checkbox"
+                      checked={confirmedIds.has(doc.id)}
+                      onChange={(e) => toggleConfirmed(doc.id, e.target.checked)}
+                      aria-label={t("admin.confirmCorrect")}
+                    />
+                  </td>
+                  <td>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={markingId === doc.id || !confirmedIds.has(doc.id)}
+                      onClick={() => markReviewed(doc.id)}
+                    >
+                      {markingId === doc.id ? t("admin.marking") : t("admin.markReviewed")}
+                    </button>
                   </td>
                 </tr>
               ))}

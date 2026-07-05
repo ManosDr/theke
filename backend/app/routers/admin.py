@@ -1,3 +1,5 @@
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select, text
 from sqlalchemy.orm import Session
@@ -5,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import AuditLog, Company, Document
-from app.schemas import AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary
+from app.schemas import AuditLogEntry, CompanySummary, DocumentSummary, MarkReviewedRequest, StaleDocumentSummary
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
@@ -136,6 +138,50 @@ async def list_stale_documents(
         )
         for doc in docs
     ]
+
+
+@router.post("/stale-documents/{document_id}/mark-reviewed", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_document_reviewed(
+    document_id: int,
+    payload: MarkReviewedRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """The mechanism KNOWN_DECISIONS.md flagged as missing: clears
+    needs_review once a human has actually looked at the document, and
+    resets last_verified_at to today so the weekly staleness sweep doesn't
+    immediately re-flag it for being 6+ months old. Doesn't re-trigger a
+    re-crawl - that's a separate, unbuilt concern (see KNOWN_DECISIONS.md).
+
+    Requires payload.confirmed=True: clearing the flag can't itself verify
+    the underlying content was actually fixed (confirmed concretely while
+    testing this - a document whose content was still the original decoy-
+    bug garbage became fully visible in chat/search the moment the flag
+    was cleared). The confirmation is enforced here, not just as a
+    disabled frontend button, so a direct API call can't bypass the same
+    judgment call a human is supposed to be making.
+    """
+    require_super_admin(user)
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm the content has actually been verified before clearing needs_review",
+        )
+    doc = db.get(Document, document_id)
+    if not doc or doc.company_id is not None or not doc.needs_review:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Flagged public document not found")
+
+    doc.needs_review = False
+    doc.last_verified_at = date.today()
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="document_marked_reviewed",
+        resource_type="document",
+        resource_id=doc.id,
+    )
+    db.commit()
 
 
 @router.get("/audit-log", response_model=list[AuditLogEntry])

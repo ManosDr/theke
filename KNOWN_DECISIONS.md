@@ -60,24 +60,43 @@ be solving a problem that doesn't exist yet.
 one person, or the queue grows large enough that a weekly manual pass is no
 longer realistic.
 
-## No "mark reviewed" mechanism exists for `needs_review` documents
+## "Mark reviewed" now exists, and requires an explicit correctness confirmation
 
-**What was found:** There is no endpoint or UI action to clear a
-`needs_review` flag once a human has looked at a document and corrected or
-dismissed it. The only way a document currently leaves the queue is a
-developer directly updating the row (e.g. via SQL), since
-`crawler/crawler/staleness.py`'s sweep only ever raises the flag, never
-lowers it (see the multi-`<article>` entry below for why).
+**Status update:** the gap this entry originally described (no way to
+clear `needs_review` except a direct DB edit) is resolved -
+`POST /admin/stale-documents/{id}/mark-reviewed` plus a button in both
+admin queue pages. Built the moment it became testable (Phase 4's admin
+screens made the queue visible for the first time), not speculatively.
 
-**Why not built yet:** This gap was noticed while building the
-visibility-suppression fix, at a point where the review queue itself was
-brand new and unpopulated - there was nothing yet to justify a dedicated
-resolution workflow beyond a manual DB edit.
+**What was found while building and verifying it:** clearing the flag
+alone is not safe. Tested concretely against the real Drama decoy-bug
+document (`id=219`, still holding its original wrong content - a
+council-meeting agenda grabbed by the multi-`<article>` bug instead of
+the real building-permits page): marking it reviewed with no other check
+made it **immediately visible** in both `/documents/search` and
+`/documents/browse`, snippet and all, to any company with Drama region
+access - the exact failure mode `needs_review` suppression exists to
+prevent, just self-inflicted through the "fix" instead of a bad crawl.
 
-**Revisit when:** The queue's real backlog grows to the point where manual
-database edits become the routine way of clearing it, rather than a rare
-one-off - that's the sign a proper "mark reviewed" action (and a decision
-on whether it re-triggers re-crawl/re-verification) is worth building.
+**What shipped instead:** the endpoint requires a `confirmed: true` body
+field and rejects the request with 400 otherwise (enforced server-side,
+not just a disabled frontend button - a direct API call can't skip it
+either); the frontend gates the "Mark reviewed" button behind a
+per-row "I've verified this content is correct" checkbox. This puts the
+correctness judgment explicitly on the human reviewer, matching how the
+rest of this suppression system already works, rather than silently
+trusting that clicking the button implies the content was checked.
+
+**Still not built:** re-triggering a re-crawl or otherwise fixing the
+underlying content automatically - confirming still requires a human to
+have actually looked at the source and judged it correct (or to have
+fixed the extraction some other way first). `mark-reviewed` only ever
+clears the flag; it has no way to verify the confirmation was honest.
+
+**Revisit when:** the confirm-checkbox pattern feels like it's being
+clicked reflexively rather than as a real check - that's the sign a
+stronger gate (requiring a short note, or comparing before/after content)
+is worth the added friction.
 
 ## Region-scoped document visibility is company-wide, not per-project
 

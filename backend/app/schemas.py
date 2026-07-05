@@ -310,3 +310,12 @@ class StaleDocumentSummary(BaseModel):
     source_group: str | None = None
     region_id: str | None = None
     last_verified_at: date_type | None = None
+
+
+class MarkReviewedRequest(BaseModel):
+    # Required and must be true - clearing needs_review has no way to check
+    # the underlying content was actually fixed, so the reviewer's explicit
+    # confirmation is the only correctness gate that exists (see
+    # KNOWN_DECISIONS.md). Enforced server-side, not just as a disabled
+    # frontend button, so a direct API call can't skip it either.
+    confirmed: bool

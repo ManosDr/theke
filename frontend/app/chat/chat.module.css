@@ -44,6 +44,13 @@
   font-size: 0.7rem;
 }
 
+.zoneCaveat {
+  margin: var(--space-2) 0 0;
+  font-size: 0.78rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+}
+
 .messages {
   flex: 1;
   overflow-y: auto;

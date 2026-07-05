@@ -152,24 +152,34 @@ function ChatContent() {
               {m.gap && <div className={styles.gapBadge}>{t("chat.gapLabel")}</div>}
               {m.text}
               {m.citations && m.citations.length > 0 && (
-                <ul className={styles.citations}>
-                  {m.citations.map((c, j) => (
-                    <li key={c.document_id}>
-                      [{j + 1}]{" "}
-                      {c.source_url ? (
-                        <a href={c.source_url} target="_blank" rel="noreferrer" className={styles.citationLink}>
-                          {c.title ?? t("chat.untitledSource")}
-                        </a>
-                      ) : (
-                        <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
-                      )}
-                      {c.authority && <span className="text-muted"> — {c.authority}</span>}
-                      {isUnverified(c.extraction_status) && (
-                        <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
+                <>
+                  <ul className={styles.citations}>
+                    {m.citations.map((c, j) => (
+                      <li key={c.document_id}>
+                        [{j + 1}]{" "}
+                        {c.source_url ? (
+                          <a href={c.source_url} target="_blank" rel="noreferrer" className={styles.citationLink}>
+                            {c.title ?? t("chat.untitledSource")}
+                          </a>
+                        ) : (
+                          <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
+                        )}
+                        {c.authority && <span className="text-muted"> — {c.authority}</span>}
+                        {isUnverified(c.extraction_status) && (
+                          <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>
+                        )}
+                      </li>
+                    ))}
+                  </ul>
+                  {/* ydom (building/planning office) is the authority zone-
+                      coefficient and setback figures actually come from - the
+                      closest reliable signal available on a citation for
+                      "this may need engineer confirmation," short of a
+                      dedicated content_type value that doesn't exist yet. */}
+                  {m.citations.some((c) => c.authority === "ydom") && (
+                    <p className={styles.zoneCaveat}>{t("chat.zoneCaveat")}</p>
+                  )}
+                </>
               )}
             </div>
           ))}

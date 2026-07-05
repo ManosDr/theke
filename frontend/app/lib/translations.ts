@@ -116,6 +116,9 @@ export const translations = {
     "admin.staleDocuments.description": "Public documents overdue for reverification (unverified for 6+ months).",
     "admin.needsReview.title": "Needs review",
     "admin.needsReview.description": "Same review queue as Stale documents - a document lands here either because it's overdue for reverification or because a crawl looked ambiguous and needs a human look before it's trusted.",
+    "admin.markReviewed": "Mark reviewed",
+    "admin.marking": "Marking…",
+    "admin.confirmCorrect": "I've verified this content is correct",
     "dash.super.kb": "Public knowledge base",
     "dash.super.kbPlaceholder": "Search crawled documents…",
     "dash.super.colTitle": "Title",
@@ -276,6 +279,7 @@ export const translations = {
     "chat.selectProject": "Project",
     "chat.noProjectsOption": "No project (national sources only)",
     "chat.loadingHistory": "Loading conversation…",
+    "chat.zoneCaveat": "Zone/coefficient figures from these sources require confirmation from a licensed engineer for your specific plot.",
   },
   el: {
     // common
@@ -394,6 +398,9 @@ export const translations = {
     "admin.staleDocuments.description": "Δημόσια έγγραφα που εκκρεμεί επανεπαλήθευση (χωρίς επαλήθευση 6+ μήνες).",
     "admin.needsReview.title": "Χρειάζονται έλεγχο",
     "admin.needsReview.description": "Ίδια ουρά ελέγχου με τα Ξεπερασμένα έγγραφα - ένα έγγραφο καταλήγει εδώ είτε επειδή εκκρεμεί επανεπαλήθευση είτε επειδή η συλλογή δεδομένων φάνηκε διφορούμενη και χρειάζεται ανθρώπινο έλεγχο πριν εμπιστευτεί.",
+    "admin.markReviewed": "Σήμανση ως ελεγμένο",
+    "admin.marking": "Γίνεται σήμανση…",
+    "admin.confirmCorrect": "Επιβεβαίωσα ότι το περιεχόμενο είναι σωστό",
     "dash.super.kb": "Δημόσια βάση γνώσης",
     "dash.super.kbPlaceholder": "Αναζήτηση εγγράφων…",
     "dash.super.colTitle": "Τίτλος",
@@ -554,6 +561,7 @@ export const translations = {
     "chat.selectProject": "Έργο",
     "chat.noProjectsOption": "Χωρίς έργο (μόνο εθνικές πηγές)",
     "chat.loadingHistory": "Φόρτωση συνομιλίας…",
+    "chat.zoneCaveat": "Οι τιμές συντελεστών/ζωνών από αυτές τις πηγές χρειάζονται επιβεβαίωση από αδειούχο μηχανικό για το συγκεκριμένο οικόπεδό σας.",
   },
 } as const;
 

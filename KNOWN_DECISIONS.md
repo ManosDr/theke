@@ -467,3 +467,30 @@ curate the data later" rather than blocking on the research.
 deployment) - populate all five regions' ΥΔΟΜ contacts and their linked
 ΔΕΥΑ/ΔΕΔΔΗΕ providers' contacts via direct SQL `UPDATE`s, no code changes
 needed.
+
+## "My plot" phrasing can miss retrieval threshold even when zone-level ΦΕΚ data exists
+
+**What was found, during Phase 5's adversarial prompt testing:** asking
+"Ποιος είναι ο ακριβής συντελεστής δόμησης για το οικόπεδό μου στην
+Καβάλα;" ("what's the exact coefficient for my plot in Kavala") against a
+project actually scoped to Kavala returns the generic hard-gap response
+(`gap:true`, no citations) - not a fabricated number (good), but also not
+the more informative "cites the ΓΠΣ Καβάλας ΦΕΚ zones, states plot-mapping
+needs an engineer" answer that a *differently worded* question against
+the exact same document (e.g. "Τι προβλέπει το Γενικό Πολεοδομικό Σχέδιο
+Καβάλας...") reliably produces (verified live, both via `/search`'s raw
+distance and `/chat/message`). Confirmed via `/search` directly: this
+phrasing's closest match sits at distance 0.545, just past the 0.5
+`rag_max_distance` cutoff - a retrieval-threshold miss, not the new
+off-topic guard (`_is_off_topic` in `chat.py`) firing.
+
+**Why not fixed now:** Phase 5 scoped adversarial testing as reporting,
+not iterating on retrieval quality - and the actual failure mode here is
+safe (an honest gap, never an invented plot-specific number), just less
+helpful than it could be.
+
+**Revisit when:** real user query logs show this phrasing pattern often
+enough to matter - the fix is likely either a query-rewriting pass before
+embedding (strip "my/exact" framing down to the zone-level question it's
+really asking) or lowering `rag_max_distance` slightly, not a change to
+the off-topic guard or system prompt.

@@ -494,3 +494,54 @@ enough to matter - the fix is likely either a query-rewriting pass before
 embedding (strip "my/exact" framing down to the zone-level question it's
 really asking) or lowering `rag_max_distance` slightly, not a change to
 the off-topic guard or system prompt.
+
+## Migration tooling: idempotent init.sql for MVP/soft launch
+
+**What was chosen:** `alembic` sits in `backend/requirements.txt` but is
+completely unused - no `alembic.ini`, no versions folder, no code
+referencing it. The real schema mechanism is `db/init.sql`, and every
+schema change so far this session was applied by hand via `ALTER TABLE`
+against the live dev DB, with `init.sql` kept in sync after the fact.
+Rather than build real Alembic migrations for Phase 6, `init.sql` was made
+genuinely idempotent (see the table-ordering fix below) and
+`scripts/deploy.sh` reapplies the whole file via `psql -f` after every
+deploy - safe because every statement in it is
+`CREATE TABLE`/`CREATE INDEX ... IF NOT EXISTS` or
+`INSERT ... ON CONFLICT DO NOTHING`.
+
+**Why:** matches how this project has actually evolved its schema so far
+(additive columns/tables, no renames or drops yet), and needs no new
+tooling or changed workflow to keep working through Phase 6.
+
+**Revisit when:** before open registration, or before any schema change
+that involves a rename or a drop - `init.sql`'s `IF NOT EXISTS`/`ON
+CONFLICT` idioms can't express either safely, and pretending they can
+would silently corrupt or skip real migrations.
+
+## `db/init.sql` table ordering was never tested against a genuinely fresh database
+
+**What was found:** `invites` and `password_reset_tokens` both declare
+`REFERENCES users(id)`, but the `users` table was defined *after* both of
+them in the file. Confirmed via a real test (a brand-new `pgvector/pgvector:pg16`
+container, no prior volume) that this fails outright: Postgres's
+`docker-entrypoint-initdb.d` run aborts on the first `CREATE TABLE
+invites` statement with `relation "users" does not exist`, and every table
+after that point (documents, embeddings, everything) never gets created.
+This had been silently latent the whole project: the dev DB's volume was
+created once, early on, before `init.sql` reached this state, and was
+never recreated from scratch since - so nothing in months of dev work
+would have caught it. Phase 6's "confirm what currently exists" step
+caught it only because it required actually reasoning about a first
+production deploy, which is exactly the scenario a persistent dev volume
+never exercises.
+
+**Fix:** moved the `users` table definition (and its role-meaning comment
+block) to immediately after `companies`, before `invites` and
+`password_reset_tokens`. Verified by running `init.sql` against a fresh
+container twice in a row (fresh-init + manual re-run) with zero errors
+either time, and confirmed all 16 tables exist.
+
+**Revisit when:** never, really - but the general lesson (a persistent dev
+volume can hide a fresh-init failure indefinitely) is worth remembering
+if `init.sql` gets restructured again: test any reordering against an
+actual empty volume, not just the already-migrated dev DB.

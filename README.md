@@ -38,6 +38,24 @@ The crawler and scheduler don't need to be started manually - `docker compose up
 docker compose --profile crawler run --rm crawler
 ```
 
+## Deployment
+
+`docker-compose.prod.yml` is the production variant: no bind mounts (code is baked into images via `backend/Dockerfile.prod` / `frontend/Dockerfile.prod`), restart policies on every long-running service, Postgres/Redis not published to the host, and an `nginx` service in front (`infra/nginx.conf`) terminating SSL and proxying `/api/*` to the backend, everything else to the frontend.
+
+First deploy, on the actual server (not automated - provisioning the VPS itself is a manual step):
+
+```bash
+git clone <repo> && cd theke
+cp .env.example .env   # fill in real values - see infra/nginx.conf's header
+                        # comment for the certbot bootstrap order (no SSL
+                        # cert exists yet on a brand-new server)
+./scripts/deploy.sh
+```
+
+`scripts/deploy.sh` pulls `main`, rebuilds and restarts the stack, reapplies `db/init.sql` (idempotent - see KNOWN_DECISIONS.md on why there's no Alembic yet), and polls `/health` before declaring success, dumping recent backend logs if it never comes up healthy. Re-run the same script for every subsequent deploy.
+
+`scripts/backup.sh` dumps Postgres to a timestamped, gzipped file under `backups/`, keeps the last 7, and logs success/failure to `backups/backup.log` - meant to run from cron (see the script's header for a crontab example), not manually.
+
 ## Data sources
 
 The crawler pulls from official sources, deduplicating by content hash so re-crawls are cheap. Every document is tagged `scope: national` or `scope: regional` and records which source it came from, so it can be browsed by dataset (see Sources below) in addition to full-text search.

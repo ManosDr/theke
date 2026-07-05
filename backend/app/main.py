@@ -1,10 +1,13 @@
 import asyncio
 import logging
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI, HTTPException, status
 from fastapi.middleware.cors import CORSMiddleware
+from sqlalchemy import func, select
+from sqlalchemy.orm import Session
 
-from app.database import SessionLocal
+from app.database import SessionLocal, get_db
+from app.models import Document
 from app.routers import admin, auth, chat, companies, documents, notifications, projects, search, translations
 from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
 from app.services.embeddings import embed_pending_documents
@@ -66,5 +69,16 @@ async def on_startup() -> None:
 
 
 @app.get("/health")
-async def health() -> dict[str, str]:
-    return {"status": "ok"}
+async def health(db: Session = Depends(get_db)) -> dict:
+    """Deliberately does a real query, not just a bare 200 - a misconfigured
+    DATABASE_URL (wrong host/credentials after a deploy) would otherwise
+    still return 200 here, since the connection pool is lazy and nothing
+    else touches it until the first real request. active_documents is a
+    cheap, meaningful number to eyeball post-deploy: 0 on a fresh KB is
+    expected, 0 on a DB that should have thousands is a red flag."""
+    try:
+        active_documents = db.scalar(select(func.count()).select_from(Document).where(Document.status == "active"))
+    except Exception as exc:
+        logger.error("Health check DB query failed: %s", exc)
+        raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail="Database unavailable") from exc
+    return {"status": "ok", "database": "connected", "active_documents": active_documents}

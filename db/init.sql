@@ -16,6 +16,30 @@ CREATE TABLE IF NOT EXISTS companies (
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Users. `role` meaning depends on companies.type:
+--   super_admin - platform-wide, company_id IS NULL, provisioned out-of-band
+--     (env var bootstrap on startup) - never reachable via /auth/register.
+--   admin  - construction: manages that company's KB/users.
+--            municipality: manages that municipality's KB/users, approves removals.
+--   member - construction: employee, read-only on documents (chat/search).
+--            municipality: can upload/edit (new versions) but not remove outright.
+-- Defined before invites/password_reset_tokens below since both reference
+-- it - table creation order matters here (see KNOWN_DECISIONS.md: this file
+-- previously had users declared after its own referencers, which only
+-- "worked" because the dev DB's volume was created once, long before this
+-- file reached that state, and was never re-run against a fresh database
+-- until Phase 6 caught it).
+CREATE TABLE IF NOT EXISTS users (
+    id SERIAL PRIMARY KEY,
+    company_id INT REFERENCES companies(id),
+    email TEXT UNIQUE NOT NULL,
+    role VARCHAR NOT NULL DEFAULT 'member',   -- 'super_admin', 'admin', 'member'
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    password_hash TEXT NOT NULL,
+    preferred_locale VARCHAR,  -- UI language for this account; NULL = no preference set yet
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
 -- Per-person invites (replaces an earlier shared company-wide invite code,
 -- which let anyone who obtained it join indefinitely with no record of who
 -- was actually invited). An admin creates one per teammate; joining an
@@ -46,24 +70,6 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
-
--- Users. `role` meaning depends on companies.type:
---   super_admin - platform-wide, company_id IS NULL, provisioned out-of-band
---     (env var bootstrap on startup) - never reachable via /auth/register.
---   admin  - construction: manages that company's KB/users.
---            municipality: manages that municipality's KB/users, approves removals.
---   member - construction: employee, read-only on documents (chat/search).
---            municipality: can upload/edit (new versions) but not remove outright.
-CREATE TABLE IF NOT EXISTS users (
-    id SERIAL PRIMARY KEY,
-    company_id INT REFERENCES companies(id),
-    email TEXT UNIQUE NOT NULL,
-    role VARCHAR NOT NULL DEFAULT 'member',   -- 'super_admin', 'admin', 'member'
-    is_active BOOLEAN NOT NULL DEFAULT true,
-    password_hash TEXT NOT NULL,
-    preferred_locale VARCHAR,  -- UI language for this account; NULL = no preference set yet
-    created_at TIMESTAMP NOT NULL DEFAULT now()
-);
 
 -- Utility providers (ΔΕΥΑ water utilities, ΔΕΔΔΗΕ electric-grid regional
 -- offices). Modeled separately from regions since coverage isn't 1:1 with

@@ -181,6 +181,10 @@ class ChatSession(Base):
     # to the caller - populated by POST /chat/message; left NULL by the older
     # POST /chat, which doesn't persist citations.
     citations: Mapped[list | None] = mapped_column(JSON)
+    # Mirrors ChatMessageResponse.gap so a reloaded conversation (GET
+    # /chat/history) can still show the low-confidence indicator - NULL for
+    # rows written by the older POST /chat, which has no such concept.
+    gap: Mapped[bool | None] = mapped_column(default=None)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

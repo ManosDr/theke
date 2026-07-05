@@ -19,6 +19,48 @@
   border-color: var(--color-primary);
 }
 
+.sourceButtonActive {
+  border-color: var(--color-primary);
+  background: var(--color-surface-alt);
+}
+
+.filters {
+  display: flex;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+  align-items: flex-end;
+  margin-bottom: var(--space-5);
+  padding: var(--space-4);
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.filterField label {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.filterField select {
+  min-width: 180px;
+}
+
+.pendingBadge {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  background: var(--color-warning-bg);
+  color: var(--color-text-muted);
+  font-size: 0.7rem;
+}
+
 .sourceName {
   font-size: 1.05rem;
   font-weight: 700;

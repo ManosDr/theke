@@ -55,6 +55,9 @@ def _to_summary(doc: Document, *, with_snippet: bool = True, q: str | None = Non
         issue_number=doc.issue_number,
         source_name=doc.source_name,
         source_group=group_label(doc.source_name) if doc.source_name else None,
+        authority=doc.authority,
+        content_type=doc.content_type,
+        extraction_status=doc.extraction_status,
     )
 
 
@@ -109,6 +112,9 @@ async def browse_documents(
     group: str | None = None,
     q: str | None = None,
     doc_type: str | None = None,
+    authority: str | None = None,
+    content_type: str | None = None,
+    region_id: str | None = None,
     date_from: date_cls | None = None,
     date_to: date_cls | None = None,
     municipality: str | None = None,
@@ -119,7 +125,9 @@ async def browse_documents(
 ) -> BrowseResponse:
     """Listing/filtering endpoint behind both the Sources drill-down (filter
     by `group`) and the Search page (any combination of filters, `q` optional
-    unlike /search where it's required).
+    unlike /search where it's required). needs_review documents never appear
+    here regardless of any filter - visible_documents_filter excludes them
+    unconditionally (see app/services/visibility.py).
     """
     stmt = select(Document).where(Document.status == "active").where(visible_documents_filter(db, user, municipality=municipality))
 
@@ -134,6 +142,12 @@ async def browse_documents(
         ).params(q=q)
     if doc_type:
         stmt = stmt.where(Document.doc_type == doc_type)
+    if authority:
+        stmt = stmt.where(Document.authority == authority)
+    if content_type:
+        stmt = stmt.where(Document.content_type == content_type)
+    if region_id:
+        stmt = stmt.where(Document.region_id == region_id)
     if date_from:
         stmt = stmt.where(Document.date >= date_from)
     if date_to:

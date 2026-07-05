@@ -108,6 +108,12 @@ class ChatMessageCitation(BaseModel):
     title: str | None = None
     authority: str | None = None
     source_url: str | None = None
+    # Always "full_text" today in practice - only full_text documents are
+    # ever embedded (see app/services/embeddings.py), so a RAG citation can't
+    # actually be reference_only/manual_entry_pending yet. Carried anyway so
+    # the frontend's "source pending verification" badge is genuinely wired
+    # up rather than silently assumed impossible, in case that ever changes.
+    extraction_status: str | None = None
 
 
 class ChatMessageResponse(BaseModel):
@@ -119,6 +125,18 @@ class ChatMessageResponse(BaseModel):
     # a signal to present the answer as lower-confidence, not a promise
     # that no answer was given.
     gap: bool
+
+
+class ChatHistoryItem(BaseModel):
+    message: str
+    response: str
+    citations: list[ChatMessageCitation] = []
+    gap: bool | None = None  # NULL for rows written by the older POST /chat
+    created_at: datetime
+
+
+class ChatHistoryResponse(BaseModel):
+    items: list[ChatHistoryItem]
 
 
 class DocumentSummary(BaseModel):
@@ -135,6 +153,9 @@ class DocumentSummary(BaseModel):
     issue_number: str | None = None
     source_name: str | None = None
     source_group: str | None = None
+    authority: str | None = None
+    content_type: str | None = None
+    extraction_status: str | None = None
 
 
 class SourceGroupSummary(BaseModel):

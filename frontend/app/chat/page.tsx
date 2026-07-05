@@ -7,27 +7,28 @@ import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
-import type { DocumentSummary, ProjectSummary } from "../lib/types";
+import type {
+  ChatCitation,
+  ChatHistoryResponse,
+  ChatMessageResponse,
+  DocumentSummary,
+  ProjectSummary,
+} from "../lib/types";
 import styles from "./chat.module.css";
-
-interface ChatCitation {
-  document_id: number;
-  title: string | null;
-  authority: string | null;
-  content_type: string | null;
-  source: string | null;
-  date: string | null;
-}
 
 interface Message {
   role: "user" | "assistant";
   text: string;
   citations?: ChatCitation[];
+  gap?: boolean | null;
 }
 
-interface ChatResponse {
-  answer: string;
-  citations: ChatCitation[];
+// Messages, not conversational turns - caps what's sent to the completion
+// as context, not what's shown on screen (the full history stays visible).
+const MAX_HISTORY_MESSAGES = 10;
+
+function isUnverified(status: string | null): boolean {
+  return status === "reference_only" || status === "manual_entry_pending";
 }
 
 function ChatContent() {
@@ -38,9 +39,11 @@ function ChatContent() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [kbQuery, setKbQuery] = useState("");
   const [kbResults, setKbResults] = useState<DocumentSummary[]>([]);
 
@@ -48,9 +51,35 @@ function ChatContent() {
     if (!token) return;
     api
       .get<ProjectSummary[]>("/projects", token)
-      .then(setProjects)
+      .then((data) => {
+        setProjects(data);
+        const def = data.find((p) => p.is_default);
+        setSelectedProjectId(def ? def.id : null);
+      })
       .catch(() => setProjects([]));
   }, [token]);
+
+  // Per-project chat view: switching projects re-scopes both retrieval
+  // (region comes from the project on the backend) and which conversation
+  // is shown - each project's history is its own thread, not one shared feed.
+  useEffect(() => {
+    if (!token) return;
+    setHistoryLoading(true);
+    const params = new URLSearchParams();
+    if (selectedProjectId != null) params.set("project_id", String(selectedProjectId));
+    api
+      .get<ChatHistoryResponse>(`/chat/history?${params.toString()}`, token)
+      .then((data) => {
+        const restored: Message[] = [];
+        for (const item of data.items) {
+          restored.push({ role: "user", text: item.message });
+          restored.push({ role: "assistant", text: item.response, citations: item.citations, gap: item.gap });
+        }
+        setMessages(restored);
+      })
+      .catch(() => setMessages([]))
+      .finally(() => setHistoryLoading(false));
+  }, [token, selectedProjectId]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -60,18 +89,26 @@ function ChatContent() {
     const question = input.trim();
     if (!question || loading) return;
 
+    const history = messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({ role: m.role, content: m.text }));
+
     setMessages((prev) => [...prev, { role: "user", text: question }]);
     setInput("");
     setLoading(true);
 
     try {
-      const defaultProject = projects.find((p) => p.is_default);
-      const data = await api.post<ChatResponse>(
-        "/chat",
-        { message: question, project_id: defaultProject?.id },
+      const data = await api.post<ChatMessageResponse>(
+        "/chat/message",
+        {
+          query: question,
+          conversation_history: history,
+          project_id: selectedProjectId ?? undefined,
+        },
         token
       );
-      setMessages((prev) => [...prev, { role: "assistant", text: data.answer, citations: data.citations }]);
+      setMessages((prev) => [
+        ...prev,
+        { role: "assistant", text: data.answer, citations: data.citations, gap: data.gap },
+      ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
@@ -85,14 +122,13 @@ function ChatContent() {
   async function searchKb(e: React.FormEvent) {
     e.preventDefault();
     if (!kbQuery.trim() || !token) return;
-    const municipality = projects.find((p) => p.is_default)?.municipality ?? undefined;
+    const project = projects.find((p) => p.id === selectedProjectId);
     const params = new URLSearchParams({ q: kbQuery });
-    if (municipality) params.set("municipality", municipality);
+    if (project?.municipality) params.set("municipality", project.municipality);
     const results = await api.get<DocumentSummary[]>(`/documents/search?${params.toString()}`, token);
     setKbResults(results);
   }
 
-  const defaultProjects = projects.filter((p) => p.is_default);
   const accountTypeKey: TranslationKey =
     user?.companyType === "municipality"
       ? "register.typeMunicipality"
@@ -103,28 +139,33 @@ function ChatContent() {
   return (
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
+        <div className={styles.disclaimerBanner}>{t("chat.disclaimer")}</div>
+
         <div className={styles.messages}>
-          {messages.length === 0 && <p className="text-muted">{t("chat.placeholder")}</p>}
+          {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
+          {!historyLoading && messages.length === 0 && <p className="text-muted">{t("chat.placeholder")}</p>}
           {messages.map((m, i) => (
-            <div key={i} className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}>
+            <div
+              key={i}
+              className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}
+            >
+              {m.gap && <div className={styles.gapBadge}>{t("chat.gapLabel")}</div>}
               {m.text}
               {m.citations && m.citations.length > 0 && (
                 <ul className={styles.citations}>
                   {m.citations.map((c, j) => (
                     <li key={c.document_id}>
                       [{j + 1}]{" "}
-                      {c.source ? (
-                        <a href={c.source} target="_blank" rel="noreferrer" className={styles.citationLink}>
+                      {c.source_url ? (
+                        <a href={c.source_url} target="_blank" rel="noreferrer" className={styles.citationLink}>
                           {c.title ?? t("chat.untitledSource")}
                         </a>
                       ) : (
                         <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
                       )}
-                      {(c.authority || c.date) && (
-                        <span className="text-muted">
-                          {" "}
-                          — {[c.authority, c.date].filter(Boolean).join(" · ")}
-                        </span>
+                      {c.authority && <span className="text-muted"> — {c.authority}</span>}
+                      {isUnverified(c.extraction_status) && (
+                        <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>
                       )}
                     </li>
                   ))}
@@ -161,13 +202,26 @@ function ChatContent() {
             <span className="text-muted">{t("chat.accountType")}</span>
             <span>{t(accountTypeKey)}</span>
           </div>
-          {defaultProjects.length > 0 ? (
-            defaultProjects.map((p) => (
-              <div className={styles.contextRow} key={p.id}>
-                <span className="text-muted">{p.name}</span>
-                <span>{p.municipality}</span>
-              </div>
-            ))
+          {projects.length > 0 ? (
+            <div style={{ marginTop: "var(--space-3)" }}>
+              <label htmlFor="project-select" className="text-muted" style={{ fontSize: "0.85rem" }}>
+                {t("chat.selectProject")}
+              </label>
+              <select
+                id="project-select"
+                className="input"
+                style={{ marginTop: "var(--space-1)" }}
+                value={selectedProjectId ?? ""}
+                onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">{t("chat.noProjectsOption")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.municipality})
+                  </option>
+                ))}
+              </select>
+            </div>
           ) : (
             <p className="text-muted" style={{ fontSize: "0.85rem" }}>
               {t("chat.noDefaultProject")}

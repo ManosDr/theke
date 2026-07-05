@@ -112,3 +112,27 @@ export function RequireAuth({ children }: { children: ReactNode }) {
 
   return <>{children}</>;
 }
+
+// Mirrors the backend's require_super_admin check (app/services/
+// authorization.py) - a non-super_admin is redirected away rather than
+// shown the page and denied API calls one by one.
+export function RequireSuperAdmin({ children }: { children: ReactNode }) {
+  const { user, loading } = useAuth();
+  const router = useRouter();
+
+  useEffect(() => {
+    if (!loading && (!user || user.role !== "super_admin")) {
+      router.replace(user ? "/dashboard" : "/login");
+    }
+  }, [loading, user, router]);
+
+  if (loading || !user || user.role !== "super_admin") {
+    return (
+      <main style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh" }}>
+        <p className="text-muted">Loading…</p>
+      </main>
+    );
+  }
+
+  return <>{children}</>;
+}

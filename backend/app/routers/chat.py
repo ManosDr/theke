@@ -2,6 +2,7 @@ import logging
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from openai import OpenAIError
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -10,6 +11,8 @@ from app.dependencies import CurrentUser, get_current_user
 from app.models import ChatSession, Project
 from app.schemas import (
     ChatCitation,
+    ChatHistoryItem,
+    ChatHistoryResponse,
     ChatMessageCitation,
     ChatMessageRequest,
     ChatMessageResponse,
@@ -204,7 +207,7 @@ async def chat_message(
     hits = [h for h in raw_hits if h.distance <= settings.rag_max_distance]
 
     if not hits:
-        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none")
+        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none", gap=True)
         return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
 
     # A real answer is still generated from these hits - "gap" here flags
@@ -234,7 +237,7 @@ async def chat_message(
         return ChatMessageResponse(answer=ERROR_RESPONSE, citations=[], gap=True)
 
     if not raw_answer:
-        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none")
+        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none", gap=True)
         return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
 
     answer = f"{raw_answer}\n\n{CHAT_MESSAGE_CLOSING_LINE}"
@@ -251,6 +254,7 @@ async def chat_message(
                 title=hit.title,
                 authority=hit.authority,
                 source_url=hit.source,
+                extraction_status=hit.extraction_status,
             )
         )
 
@@ -262,8 +266,43 @@ async def chat_message(
         answer,
         tool_used="rag",
         citations=[c.model_dump() for c in citations],
+        gap=is_low_confidence,
     )
     return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence)
+
+
+@router.get("/history", response_model=ChatHistoryResponse)
+async def chat_history(
+    project_id: int | None = None,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ChatHistoryResponse:
+    """Backs conversation persistence across a page refresh - the frontend
+    has no other way to reconstruct prior turns, since messages otherwise
+    only ever lived in React state. Scoped to the caller's own turns (not
+    the whole company), matching how the chat UI already frames it as
+    "your" conversation. project_id=None returns turns logged without one
+    (a project_id-validation failure never reaches _log_session, so nothing
+    here was silently mis-scoped)."""
+    stmt = (
+        select(ChatSession)
+        .where(ChatSession.user_id == user.user_id, ChatSession.project_id == project_id)
+        .order_by(ChatSession.created_at.desc())
+        .limit(limit)
+    )
+    rows = db.scalars(stmt).all()
+    items = [
+        ChatHistoryItem(
+            message=row.message or "",
+            response=row.response or "",
+            citations=[ChatMessageCitation(**c) for c in (row.citations or [])],
+            gap=row.gap,
+            created_at=row.created_at,
+        )
+        for row in reversed(rows)
+    ]
+    return ChatHistoryResponse(items=items)
 
 
 def _log_session(
@@ -274,6 +313,7 @@ def _log_session(
     response: str,
     tool_used: str,
     citations: list[dict] | None = None,
+    gap: bool | None = None,
 ) -> None:
     db.add(
         ChatSession(
@@ -284,6 +324,7 @@ def _log_session(
             response=response,
             tool_used=tool_used,
             citations=citations,
+            gap=gap,
         )
     )
     db.commit()

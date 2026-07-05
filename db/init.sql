@@ -258,6 +258,7 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     response TEXT,
     tool_used VARCHAR,
     citations JSONB,
+    gap BOOLEAN,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 

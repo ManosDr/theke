@@ -381,3 +381,45 @@ user's token, where an httpOnly cookie would not.
 **Revisit when:** before any public launch, or the moment any third-party
 script/widget is added to the frontend - either meaningfully raises the
 XSS blast radius this decision is currently betting against.
+
+## `/admin/stale-documents` and `/admin/needs-review` are one queue, two routes
+
+**What was chosen:** Phase 4 asked for both routes as distinct admin
+screens. There is only one backend endpoint (`GET /admin/stale-documents`)
+and one underlying flag (`documents.needs_review`) - the weekly staleness
+sweep sets that same flag rather than maintaining a separate one (see
+`crawler/crawler/staleness.py`'s own docstring on this, from an earlier
+phase). Both frontend pages (`frontend/app/admin/stale-documents`,
+`frontend/app/admin/needs-review`) call the same endpoint through a shared
+`StaleDocumentsQueue` component, with page-specific copy explaining why
+they show the same list rather than silently duplicating one page under
+two URLs without saying so.
+
+**Why not build a second, distinct queue to match the two routes
+literally:** there's no real second concept to back it with - a document
+needing review IS the stale-documents queue, by design. Fabricating a
+separate `needs_review`-only endpoint that excludes staleness-flagged rows
+would invent a distinction the data model deliberately doesn't have,
+purely to make two routes look different.
+
+**Revisit when:** a genuine second category of "needs review" emerges
+that isn't staleness-driven (e.g., a user-reported content issue, distinct
+from the crawler's own ambiguous-extraction and 6-month-staleness
+triggers) - at that point the two routes would earn actually-different
+queries.
+
+## Company admin dashboard has no project management UI
+
+**What was found, not built:** auditing the frontend for Phase 4,
+`MemberDashboard.tsx` has a full project list + create-project form, but
+`CompanyAdminDashboard.tsx` (shown to `role=admin` users) has none - an
+admin can't see or add projects from their own dashboard, only regular
+members can. Confirmed via `dashboard/page.tsx`'s role routing.
+
+**Why this wasn't fixed now:** Phase 4's explicit build list didn't
+include the dashboard - it was flagged as an audit finding, not scoped as
+a gap to close in this phase.
+
+**Revisit when:** dashboard work is scoped again - likely just moving
+`MemberDashboard`'s project section into a shared component both
+dashboards render, rather than a new build.

@@ -93,6 +93,9 @@ export interface DocumentSummary {
   issue_number: string | null;
   source_name: string | null;
   source_group: string | null;
+  authority: string | null;
+  content_type: string | null;
+  extraction_status: string | null;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -107,6 +110,32 @@ export interface SourceGroupSummary {
 export interface BrowseResponse {
   total: number;
   items: DocumentSummary[];
+}
+
+export interface ChatCitation {
+  document_id: number;
+  title: string | null;
+  authority: string | null;
+  source_url: string | null;
+  extraction_status: string | null;
+}
+
+export interface ChatMessageResponse {
+  answer: string;
+  citations: ChatCitation[];
+  gap: boolean;
+}
+
+export interface ChatHistoryItem {
+  message: string;
+  response: string;
+  citations: ChatCitation[];
+  gap: boolean | null;
+  created_at: string;
+}
+
+export interface ChatHistoryResponse {
+  items: ChatHistoryItem[];
 }
 
 export interface NotificationSummary {

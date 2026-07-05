@@ -1,8 +1,15 @@
+import asyncio
+import logging
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.database import SessionLocal
 from app.routers import admin, auth, chat, companies, documents, notifications, projects, translations
 from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
+from app.services.embeddings import embed_pending_documents
+
+logger = logging.getLogger(__name__)
 
 app = FastAPI(title="theke API", version="0.1.0")
 
@@ -25,10 +32,28 @@ app.include_router(projects.router)
 app.include_router(translations.router)
 
 
+def _run_embedding_backfill() -> None:
+    """Catch-up sweep for any full_text document that isn't embedded yet -
+    the initial 200+ document backfill, and (on every subsequent restart)
+    anything the crawler ingested since. Not hooked directly into the
+    crawler itself: the crawler is a separate process/dependency stack with
+    no OpenAI client, so "runs on backend startup/restart" is the deliberate
+    stand-in for "runs automatically on ingest" (see KNOWN_DECISIONS.md)."""
+    db = SessionLocal()
+    try:
+        result = embed_pending_documents(db)
+        logger.info("Embedding backfill: %s", result)
+    except Exception:
+        logger.exception("Embedding backfill failed")
+    finally:
+        db.close()
+
+
 @app.on_event("startup")
 async def on_startup() -> None:
     bootstrap_super_admin()
     seed_demo_data()
+    asyncio.create_task(asyncio.to_thread(_run_embedding_backfill))
 
 
 @app.get("/health")

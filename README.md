@@ -72,7 +72,7 @@ A fixed left sidebar (Dashboard / Sources / Search / Chat) plus a top header (pa
 
 - **Sources** (`/sources`): every dataset as a button (ΦΕΚ, ΤΕΕ, ΥΠΕΝ, ...) with a live document count; clicking one drills into a dated, paginated listing with links to the original source or an in-app reader.
 - **Search** (`/search`): combined term + source + type + date-range filtering. Every filter (including the search term, debounced as you type) is reflected in the URL, so any results view is copy-paste shareable. Matches are highlighted directly in the results, and the snippet shown is centered on wherever the term actually matched in the document (not always the first few hundred characters), so it's obvious why a document matched. A document's "Read" link remembers exactly which search/sources page you came from, so the back link returns to your filtered, paginated results instead of a generic listing.
-- **Chat** (`/chat`): natural-language Q&A with a context sidebar (role, account type, default project) and a quick document search - the flagship feature, currently a stub pending an OpenAI API key (see Current status).
+- **Chat** (`/chat`): natural-language Q&A with a context sidebar (role, account type, default project) and a quick document search - the flagship feature. Every question is embedded and matched against the visible knowledge base; an answer is only generated (GPT-4o, grounded in the retrieved excerpts with numbered citations) when a genuinely relevant match exists, otherwise the app returns an honest "not enough of a reliable source" response rather than guessing (see Current status).
 
 ## Knowledge base regions
 
@@ -115,9 +115,9 @@ The account menu (click your email/role in the header) tucks the language switch
 
 ## Current status
 
-Working end-to-end: crawler ingestion (national + 5 onboarded regions), auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable, highlighted, snippet-aware results), region-scoped visibility, notifications, the staleness/review queue, the full i18n system (bundled + admin-managed + per-user persisted), and the whole frontend shell in both themes.
+Working end-to-end: crawler ingestion (national + 5 onboarded regions), auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable, highlighted, snippet-aware results), region-scoped visibility, notifications, the staleness/review queue, the full i18n system (bundled + admin-managed + per-user persisted), the whole frontend shell in both themes, and the Chat RAG pipeline (chunking + embedding via `text-embedding-3-small`, pgvector cosine-distance retrieval scoped through the same visibility rules as everywhere else, GPT-4o generation grounded only in retrieved excerpts with numbered citations, and a structural honest-gap fallback - no chat completion is ever called when nothing relevant enough is found).
 
-**Not yet wired up:** the Chat page's actual RAG generation (embeddings + retrieval + GPT calls) - it's still a stub pending an OpenAI API key. Everything else on the Chat page (context sidebar, quick document search) is live. Per-plot coefficient lookup (as opposed to zone-level legal text) is explicitly out of scope for now - see "Knowledge base regions" above.
+Per-plot coefficient lookup (as opposed to zone-level legal text) is explicitly out of scope for now - see "Knowledge base regions" above.
 
 **Test coverage:** the automated suite currently covers only a basic backend health check. Everything described in "Knowledge base regions" and "Data quality & staleness" above was verified manually (direct API calls and/or a real browser session), not by an automated test.
 

@@ -222,6 +222,7 @@ export const translations = {
     "chat.quickSearch": "Quick document search",
     "chat.searchPlaceholder": "Search…",
     "chat.go": "Go",
+    "chat.untitledSource": "Untitled source",
   },
   el: {
     // common
@@ -446,6 +447,7 @@ export const translations = {
     "chat.quickSearch": "Γρήγορη αναζήτηση εγγράφων",
     "chat.searchPlaceholder": "Αναζήτηση…",
     "chat.go": "Μετάβαση",
+    "chat.untitledSource": "Πηγή χωρίς τίτλο",
   },
 } as const;
 

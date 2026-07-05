@@ -264,3 +264,31 @@ coefficient text should be honest about which question it's actually
 answering — a homeowner asking about their address is not the same
 question as "what does zone X's rule say," and the KB currently only
 answers the latter.
+
+## RAG retrieval forces `ivfflat.probes` to match `lists`, trading index speed for exact recall
+
+**What was chosen:** `embeddings.idx_embeddings_vector` is a pgvector
+`ivfflat` index (`lists=128`). Its default `probes=1` only scans 1 of the
+128 clusters per query — while wiring up Phase 2 (chat RAG), this was
+caught concretely: a real, well-under-threshold match (cosine distance
+0.246 against a `rag_max_distance` of 0.5) was silently missed with the
+default, causing `/chat` to return the honest-gap response even though a
+genuinely relevant, correctly-visible document existed. `app/services/
+rag.py`'s `search_regulation()` now runs `SET LOCAL ivfflat.probes = 128`
+before every retrieval query — at the current corpus size (~206 documents,
+~16k chunks) this is a full scan of every cluster, i.e. effectively exact
+nearest-neighbor search, at negligible latency cost.
+
+**Why it's a real risk, not a rare edge case:** the whole point of the
+honest-gap design (see `app/routers/chat.py`'s `GAP_RESPONSE`) is that a
+refusal should mean "nothing relevant enough exists," not "the index
+happened to miss it." An approximate-search recall failure silently
+degrades that guarantee into something worse than a known limitation —
+it looks identical to a genuine knowledge gap from the outside, so it
+would never get noticed or reported as a bug by a user.
+
+**Revisit when:** the corpus grows enough (many multiples of the current
+~16k chunks) that scanning every list stops being cheap. At that point,
+re-tune `lists` for the actual row count (rule of thumb ~ rows/1000 for
+this index type) and set `probes` to a smaller fraction (e.g. `sqrt(lists)`)
+based on measured recall against a real query sample — not guessed.

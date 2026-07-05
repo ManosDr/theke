@@ -10,15 +10,24 @@ import type { TranslationKey } from "../lib/translations";
 import type { DocumentSummary, ProjectSummary } from "../lib/types";
 import styles from "./chat.module.css";
 
+interface ChatCitation {
+  document_id: number;
+  title: string | null;
+  authority: string | null;
+  content_type: string | null;
+  source: string | null;
+  date: string | null;
+}
+
 interface Message {
   role: "user" | "assistant";
   text: string;
-  citations?: string[];
+  citations?: ChatCitation[];
 }
 
 interface ChatResponse {
   answer: string;
-  citations: string[];
+  citations: ChatCitation[];
 }
 
 function ChatContent() {
@@ -102,7 +111,22 @@ function ChatContent() {
               {m.citations && m.citations.length > 0 && (
                 <ul className={styles.citations}>
                   {m.citations.map((c, j) => (
-                    <li key={j}>{c}</li>
+                    <li key={c.document_id}>
+                      [{j + 1}]{" "}
+                      {c.source ? (
+                        <a href={c.source} target="_blank" rel="noreferrer" className={styles.citationLink}>
+                          {c.title ?? t("chat.untitledSource")}
+                        </a>
+                      ) : (
+                        <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
+                      )}
+                      {(c.authority || c.date) && (
+                        <span className="text-muted">
+                          {" "}
+                          — {[c.authority, c.date].filter(Boolean).join(" · ")}
+                        </span>
+                      )}
+                    </li>
                   ))}
                 </ul>
               )}

@@ -12,8 +12,16 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
 
     openai_api_key: str = ""
-    embedding_model: str = "text-embedding-ada-002"
+    embedding_model: str = "text-embedding-3-small"
     chat_model: str = "gpt-4o"
+
+    # Cosine distance (pgvector's <=> operator) above which a retrieved chunk
+    # is considered too weak to ground an answer - see app/services/rag.py.
+    # Lower is stricter. text-embedding-3-small cosine distances for genuinely
+    # relevant Greek legal/procedural text vs. a real question tend to land
+    # well under this in practice; tune from real query logs once there are any.
+    rag_max_distance: float = 0.5
+    rag_top_k: int = 6
 
     # If both set, a super_admin user is created on startup if it doesn't
     # already exist. There is no public endpoint that can mint a super_admin -

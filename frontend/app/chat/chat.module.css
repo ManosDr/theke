@@ -27,6 +27,7 @@
   padding: var(--space-3) var(--space-4);
   border-radius: var(--radius-md);
   line-height: 1.4;
+  white-space: pre-wrap;
 }
 
 .messageUser {
@@ -41,9 +42,18 @@
 }
 
 .citations {
-  margin: var(--space-2) 0 0;
-  padding-left: var(--space-4);
-  font-size: 0.85rem;
+  margin: var(--space-3) 0 0;
+  padding-top: var(--space-2);
+  border-top: 1px solid var(--color-border);
+  list-style: none;
+  font-size: 0.8rem;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.citationLink {
+  color: var(--color-text-muted);
 }
 
 .composer {

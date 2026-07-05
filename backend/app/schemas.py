@@ -56,9 +56,18 @@ class ChatRequest(BaseModel):
     project_id: int | None = None
 
 
+class ChatCitation(BaseModel):
+    document_id: int
+    title: str | None = None
+    authority: str | None = None
+    content_type: str | None = None
+    source: str | None = None
+    date: str | None = None
+
+
 class ChatResponse(BaseModel):
     answer: str
-    citations: list[str] = []
+    citations: list[ChatCitation] = []
 
 
 class DocumentSummary(BaseModel):

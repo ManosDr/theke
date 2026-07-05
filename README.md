@@ -6,7 +6,7 @@ AI-powered assistant for Greek construction professionals. Ask permit questions,
 
 - `backend/` - FastAPI app: auth (JWT/bcrypt), multi-tenant roles & permissions, document upload/versioning/removal workflow, invites, company logos, audit log, locale/translation management, notifications
 - `frontend/` - Next.js app: login/register, role-aware dashboards, a Sources browser, Search, and the Chat UI - fully bilingual (English/Greek, admin-extensible to more), dark/light mode, installable as a PWA
-- `crawler/` - automated ingestion from 7 Greek government sources, scheduled monthly
+- `crawler/` - automated ingestion from national and per-municipality Greek government sources, scheduled monthly, plus a weekly staleness sweep
 - `db/init.sql` - Postgres + pgvector schema
 
 ## Getting started
@@ -40,22 +40,29 @@ docker compose --profile crawler run --rm crawler
 
 ## Data sources
 
-The crawler pulls from these official sources, deduplicating by content hash so re-crawls are cheap:
+The crawler pulls from official sources, deduplicating by content hash so re-crawls are cheap. Every document is tagged `scope: national` or `scope: regional` and records which source it came from, so it can be browsed by dataset (see Sources below) in addition to full-text search.
 
-- **ΦΕΚ** (Government Gazette, Series Α + Δ) via et.gr's search API
-- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars
-- **ΥΠΕΝ** (Ministry of Environment & Energy) - indexed by title/link only, per their robots.txt
-- **ΑΑΔΕ** (tax authority) - Ε9/ΕΝΦΙΑ circulars
+**National:**
+
+- **ΦΕΚ** (Government Gazette, Series Α, Δ, and Α.Α.Π. - forced expropriations & urban planning matters, which is where Γενικά Πολεοδομικά Σχέδια get published) via et.gr's search API
+- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars, plus EUGO's e-Άδειες permit-issuance overview
+- **ΥΠΕΝ** (Ministry of Environment & Energy) - mostly indexed by title/link only per their robots.txt, with a handful of documents manually text-extracted where the source PDF was hand-verified
+- **ΑΑΔΕ** (tax authority) - Ε9/ΕΝΦΙΑ circulars and the real-estate transfer tax overview
 - **e-ΕΦΚΑ** (social security) - construction insurance contribution guidance
 - **Κτηματολόγιο** (Hellenic Cadastre) - institutional framework laws/decrees
+- **ΔΕΔΔΗΕ** (electricity grid operator) - new grid connection procedure
 
-Every crawled document records which source it came from, so it can be browsed by dataset (see Sources below) in addition to full-text search.
+**Regional** (per-municipality ΥΔΟΜ building-permit offices and ΔΕΥΑ water utilities, currently covering Δήμος Καβάλας, Παγγαίου, Θάσου, Δράμας, and Ξάνθης - see "Knowledge base regions" below): building-directorate contact/forms pages, water/sewer new-connection requirements, and (where locatable) the municipality's Γ.Π.Σ. approval ΦΕΚ with actual zone-level building-coefficient figures.
+
+Adding a new region is meant to be mostly data, not code: a `regions` + `utility_providers` row and a couple of crawler source entries reusing the existing generic page-scraping logic. In practice this has held for straightforward WordPress-templated municipal sites; a Joomla site and a site whose theme injects decoy `<article>` tags both required a manual research/judgment call instead of a clean drop-in (see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md)).
 
 ## Roles & multi-tenancy
 
 Three visibility tiers on the knowledge base: public (crawled, everyone), company-private (uploaded, visible only within that company), and municipality-scoped (uploaded by a municipality, visible to anyone asking about that municipality). Company/municipality admins manage their own team (invite, revoke, change roles) and approve document removals; a platform super admin manages tenants and the public knowledge base.
 
-Construction companies can track **projects** (a name + municipality + address) to scope which municipality's rules apply to a given job site, and mark a default project so chat auto-detects context - this concept doesn't apply to municipality accounts, since a municipality user's context is always their own municipality, so it's hidden from their dashboard.
+Construction companies can track **projects** (a name + municipality + optional region + address) to scope which municipality's rules apply to a given job site, and mark a default project so chat auto-detects context - this concept doesn't apply to municipality accounts, since a municipality user's context is always their own municipality, so it's hidden from their dashboard.
+
+When a project is linked to a tracked region, its company gains visibility into that region's regional-scope KB documents (ΥΔΟΜ/ΔΕΥΑ/ΔΕΔΔΗΕ paperwork) everywhere - Sources, Search, and Chat - on top of the always-visible national documents. This is company-wide (any project unlocks the region for the whole company, not just that project's users) - a deliberate choice, not an oversight; see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md) for the reasoning and the condition under which it'd be worth revisiting.
 
 ## Interface
 
@@ -66,6 +73,23 @@ A fixed left sidebar (Dashboard / Sources / Search / Chat) plus a top header (pa
 - **Sources** (`/sources`): every dataset as a button (ΦΕΚ, ΤΕΕ, ΥΠΕΝ, ...) with a live document count; clicking one drills into a dated, paginated listing with links to the original source or an in-app reader.
 - **Search** (`/search`): combined term + source + type + date-range filtering. Every filter (including the search term, debounced as you type) is reflected in the URL, so any results view is copy-paste shareable. Matches are highlighted directly in the results, and the snippet shown is centered on wherever the term actually matched in the document (not always the first few hundred characters), so it's obvious why a document matched. A document's "Read" link remembers exactly which search/sources page you came from, so the back link returns to your filtered, paginated results instead of a generic listing.
 - **Chat** (`/chat`): natural-language Q&A with a context sidebar (role, account type, default project) and a quick document search - the flagship feature, currently a stub pending an OpenAI API key (see Current status).
+
+## Knowledge base regions
+
+Beyond the always-national KB, `regions` and `utility_providers` tables track per-municipality coverage. A construction company links one of its projects to a tracked region via a dropdown on its dashboard (a project name + region + address form, backed by `GET /projects/regions`) - onboarding the region itself (crawling its ΥΔΟΜ/ΔΕΥΑ pages and creating its `regions`/`utility_providers` rows) is a one-time setup step per municipality, not something a company does themselves.
+
+Two fields track how complete a region's coefficient data is, and they mean different things on purpose:
+
+- `has_coefficient_data` - whether the region's own ΥΔΟΜ (building office) page has building-coefficient/setback content. Currently `false` for every onboarded region except two where it was never actually possible to check (the page failed to load cleanly).
+- `has_zone_level_coefficient_text` - whether an actual Γ.Π.Σ. approval ΦΕΚ has been located and ingested, with genuine coefficient figures organized by named zone (not by address or parcel).
+
+**Important limitation, stated plainly rather than implied by the data:** theke can currently answer "what does the law say for this municipality's zones" (and for a couple of regions, real zone-named coefficient figures), but **not** "what applies to my specific plot." Resolving a real address to its zone requires GIS/map data outside this pipeline, plus correct legal interpretation of conditional clauses in the source ΦΕΚ - both are explicitly out of scope for now (see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md)).
+
+### Data quality & staleness
+
+- **`extraction_status`** on every document is one of `full_text`, `reference_only` (indexed by title/link only, per a source's robots.txt), or `manual_entry_pending` (a real gap - the topic is known and worth covering, but no usable source content was found; the reason is recorded and surfaced instead of left silently absent).
+- **`needs_review`** flags a document whose extraction may have grabbed the wrong content entirely (e.g. a page template that injects unrelated "recent posts" `<article>` tags ahead of the real content). A flagged document is suppressed everywhere a normal user can see it - Search, Sources, Chat, direct document links - and only remains visible to a super admin via the KB management search and the staleness/review queue, until someone corrects it.
+- A **weekly job** flags any public document whose `last_verified_at` is missing or older than six months into that same super admin review queue (`GET /admin/stale-documents`, surfaced on the Super Admin dashboard). The flag only ever gets raised automatically, never cleared automatically - it comes off the queue only once a human has actually addressed it.
 
 ## Notifications
 
@@ -91,8 +115,10 @@ The account menu (click your email/role in the header) tucks the language switch
 
 ## Current status
 
-Working end-to-end: crawler ingestion, auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable, highlighted, snippet-aware results), notifications, the full i18n system (bundled + admin-managed + per-user persisted), and the whole frontend shell in both themes.
+Working end-to-end: crawler ingestion (national + 5 onboarded regions), auth, roles/permissions, document upload/versioning, the Sources browser, full-text Search (with shareable, highlighted, snippet-aware results), region-scoped visibility, notifications, the staleness/review queue, the full i18n system (bundled + admin-managed + per-user persisted), and the whole frontend shell in both themes.
 
-**Not yet wired up:** the Chat page's actual RAG generation (embeddings + retrieval + GPT calls) - it's still a stub pending an OpenAI API key. Everything else on the Chat page (context sidebar, quick document search) is live.
+**Not yet wired up:** the Chat page's actual RAG generation (embeddings + retrieval + GPT calls) - it's still a stub pending an OpenAI API key. Everything else on the Chat page (context sidebar, quick document search) is live. Per-plot coefficient lookup (as opposed to zone-level legal text) is explicitly out of scope for now - see "Knowledge base regions" above.
 
-See [construction-ai-platform-blueprint.md](construction-ai-platform-blueprint.md) for the full roadmap.
+**Test coverage:** the automated suite currently covers only a basic backend health check. Everything described in "Knowledge base regions" and "Data quality & staleness" above was verified manually (direct API calls and/or a real browser session), not by an automated test.
+
+See [construction-ai-platform-blueprint.md](construction-ai-platform-blueprint.md) for the full roadmap, [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md) for judgment calls made along the way that are deliberate but worth revisiting under specific conditions, and [PROJECT_STATE.md](PROJECT_STATE.md) for a point-in-time, codebase-verified snapshot of exact schema, data, and test coverage.

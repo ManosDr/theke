@@ -3,11 +3,11 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
-import { API_URL, api } from "../lib/api";
+import { API_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { BuildingIcon, FlagIcon } from "../components/StatIcons";
-import type { MyCompanySummary, ProjectSummary } from "../lib/types";
+import type { MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 
@@ -18,13 +18,27 @@ export function MemberDashboard() {
   const isConstruction = user?.companyType !== "municipality";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
+  const [regions, setRegions] = useState<RegionSummary[]>([]);
+  const [newName, setNewName] = useState("");
+  const [newRegionId, setNewRegionId] = useState("");
+  const [newAddress, setNewAddress] = useState("");
 
-  useEffect(() => {
-    if (!token || !isConstruction) return;
+  function refreshProjects() {
+    if (!token) return;
     api
       .get<ProjectSummary[]>("/projects", token)
       .then(setProjects)
       .catch(() => setProjects([]));
+  }
+
+  useEffect(() => {
+    if (!token || !isConstruction) return;
+    refreshProjects();
+    api
+      .get<RegionSummary[]>("/projects/regions", token)
+      .then(setRegions)
+      .catch(() => setRegions([]));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token, isConstruction]);
 
   useEffect(() => {
@@ -34,6 +48,34 @@ export function MemberDashboard() {
       .then(setCompany)
       .catch(() => setCompany(null));
   }, [token]);
+
+  async function createProject(e: React.FormEvent) {
+    e.preventDefault();
+    const region = regions.find((r) => r.region_id === newRegionId);
+    try {
+      await api.post<ProjectSummary>(
+        "/projects",
+        {
+          name: newName.trim(),
+          municipality: region?.region_name_el ?? "",
+          region_id: newRegionId || undefined,
+          address: newAddress.trim() || undefined,
+        },
+        token
+      );
+      setNewName("");
+      setNewRegionId("");
+      setNewAddress("");
+      refreshProjects();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : t("dash.member.failedToCreateProject"));
+    }
+  }
+
+  async function setDefault(projectId: number) {
+    await api.post(`/projects/${projectId}/default`, undefined, token);
+    refreshProjects();
+  }
 
   const defaultProjects = projects.filter((p) => p.is_default);
 
@@ -80,12 +122,56 @@ export function MemberDashboard() {
                     <tr key={p.id}>
                       <td>{p.name}</td>
                       <td>{p.municipality}</td>
-                      <td>{p.is_default ? <span className="badge badge-success">{t("dash.member.default")}</span> : "—"}</td>
+                      <td>
+                        {p.is_default ? (
+                          <span className="badge badge-success">{t("dash.member.default")}</span>
+                        ) : (
+                          <button type="button" className="btn btn-secondary" onClick={() => setDefault(p.id)}>
+                            {t("dash.member.setDefault")}
+                          </button>
+                        )}
+                      </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
             )}
+
+            <form className={styles.inlineForm} onSubmit={createProject} style={{ marginTop: "var(--space-4)" }}>
+              <input
+                className="input"
+                type="text"
+                placeholder={t("dash.member.projectNamePlaceholder")}
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                required
+              />
+              <select
+                className="input"
+                value={newRegionId}
+                onChange={(e) => setNewRegionId(e.target.value)}
+                required
+              >
+                <option value="" disabled>
+                  {t("dash.member.selectMunicipality")}
+                </option>
+                {regions.map((r) => (
+                  <option key={r.region_id} value={r.region_id}>
+                    {r.region_name_el}
+                  </option>
+                ))}
+              </select>
+              <input
+                className="input"
+                type="text"
+                placeholder={t("dash.member.addressPlaceholder")}
+                value={newAddress}
+                onChange={(e) => setNewAddress(e.target.value)}
+              />
+              <button type="submit" className="btn btn-primary">
+                {t("dash.member.addProject")}
+              </button>
+            </form>
           </section>
         </>
       )}

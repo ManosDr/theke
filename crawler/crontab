@@ -2,3 +2,9 @@
 # Runs the 3rd of each month at 03:00 UTC — after the National Printing
 # House typically finishes publishing the previous month's issues.
 0 3 3 * * python -m crawler.main
+
+# Weekly staleness sweep - flags public KB documents whose last_verified_at
+# is missing or older than 6 months, for the super admin's manual review
+# queue (GET /admin/stale-documents). Monday 04:00 UTC, after the sweep
+# would have run against whatever the monthly crawl last touched.
+0 4 * * 1 python -m crawler.staleness

@@ -7,7 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { AlertIcon, BuildingIcon, FlagIcon, HammerIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
-import type { AuditLogEntry, CompanySummary, DocumentSummary } from "../lib/types";
+import type { AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
@@ -204,14 +204,18 @@ export function SuperAdminDashboard() {
   const [kbResults, setKbResults] = useState<DocumentSummary[]>([]);
   const [kbSearched, setKbSearched] = useState(false);
 
+  const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
+
   async function refresh() {
     try {
-      const [companiesData, auditData] = await Promise.all([
+      const [companiesData, auditData, staleData] = await Promise.all([
         api.get<CompanySummary[]>("/admin/companies", token),
         api.get<AuditLogEntry[]>("/admin/audit-log", token),
+        api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
       ]);
       setCompanies(companiesData);
       setAuditLog(auditData);
+      setStaleDocs(staleData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -301,6 +305,40 @@ export function SuperAdminDashboard() {
                     <button className="btn btn-secondary" onClick={() => toggleSuspend(c)}>
                       {c.is_suspended ? t("dash.super.unsuspend") : t("dash.super.suspend")}
                     </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className={`card ${styles.section}`}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.super.staleDocs")}</h2>
+        </div>
+        {staleDocs.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.super.noStaleDocs")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.super.colTitle")}</th>
+                <th>{t("dash.super.colSource")}</th>
+                <th>{t("dash.super.colRegion")}</th>
+                <th>{t("dash.super.colLastVerified")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {staleDocs.map((doc) => (
+                <tr key={doc.id}>
+                  <td>{doc.title}</td>
+                  <td className="text-muted">{doc.source_group ?? "—"}</td>
+                  <td className="text-muted">{doc.region_id ?? t("dash.super.national")}</td>
+                  <td>
+                    <span className="badge badge-warning">
+                      {doc.last_verified_at ? new Date(doc.last_verified_at).toLocaleDateString() : t("dash.super.neverVerified")}
+                    </span>
                   </td>
                 </tr>
               ))}

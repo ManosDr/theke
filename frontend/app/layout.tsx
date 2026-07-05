@@ -11,7 +11,7 @@ import "./globals.css";
 // it covers the Greek subset that most of this app's UI text needs.
 const inter = Inter({
   subsets: ["latin", "greek"],
-  weight: ["400", "500", "600", "700"],
+  weight: ["400", "500", "600", "700", "800"],
   variable: "--font-body",
 });
 

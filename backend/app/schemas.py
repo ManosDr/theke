@@ -68,6 +68,7 @@ class DocumentSummary(BaseModel):
     source: str | None = None
     doc_type: str | None = None
     municipality: str | None = None
+    region_id: str | None = None
     date: date_type | None = None
     identifier: str | None = None
     series: str | None = None
@@ -172,6 +173,7 @@ class RemovalRequestSummary(BaseModel):
 class ProjectCreateRequest(BaseModel):
     name: str
     municipality: str
+    region_id: str | None = None  # links to regions.region_id, gates access to that region's KB documents
     address: str | None = None
 
 
@@ -179,5 +181,25 @@ class ProjectSummary(BaseModel):
     id: int
     name: str | None
     municipality: str | None
+    region_id: str | None = None
     address: str | None
     is_default: bool = False
+
+
+class RegionSummary(BaseModel):
+    region_id: str
+    region_name_el: str
+    region_name_en: str
+    level: str
+    status: str
+    has_coefficient_data: bool | None = None
+    has_zone_level_coefficient_text: bool | None = None
+
+
+class StaleDocumentSummary(BaseModel):
+    id: int
+    title: str | None = None
+    source: str | None = None
+    source_group: str | None = None
+    region_id: str | None = None
+    last_verified_at: date_type | None = None

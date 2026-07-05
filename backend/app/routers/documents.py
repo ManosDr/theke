@@ -48,6 +48,7 @@ def _to_summary(doc: Document, *, with_snippet: bool = True, q: str | None = Non
         source=doc.source,
         doc_type=doc.doc_type,
         municipality=doc.municipality,
+        region_id=doc.region_id,
         date=doc.date,
         identifier=doc.identifier,
         series=doc.series,
@@ -70,7 +71,7 @@ async def search_documents(
             text("to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)")
         )
         .where(Document.status == "active")
-        .where(visible_documents_filter(user, municipality=municipality))
+        .where(visible_documents_filter(db, user, municipality=municipality))
         .params(q=q)
         .limit(20)
     )
@@ -79,14 +80,19 @@ async def search_documents(
 
 
 @router.get("/sources", response_model=list[SourceGroupSummary])
-async def list_sources(db: Session = Depends(get_db)) -> list[SourceGroupSummary]:
+async def list_sources(
+    db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)
+) -> list[SourceGroupSummary]:
     """Distinct crawl sources with counts, grouped for the Sources page's
     buttons (e.g. both e-ΕΦΚΑ pages count under one 'e-ΕΦΚΑ' button).
     Public/crawled documents only - source_name is never set on uploads.
+    Goes through visible_documents_filter so a region-scoped source (e.g.
+    ΔΕΥΑ Καβάλας) only shows up for users whose company has a project there.
     """
     rows = db.execute(
         select(Document.source_name, func.count())
-        .where(Document.company_id.is_(None), Document.status == "active", Document.source_name.isnot(None))
+        .where(Document.status == "active", Document.source_name.isnot(None))
+        .where(visible_documents_filter(db, user))
         .group_by(Document.source_name)
     ).all()
 
@@ -115,7 +121,7 @@ async def browse_documents(
     by `group`) and the Search page (any combination of filters, `q` optional
     unlike /search where it's required).
     """
-    stmt = select(Document).where(Document.status == "active").where(visible_documents_filter(user, municipality=municipality))
+    stmt = select(Document).where(Document.status == "active").where(visible_documents_filter(db, user, municipality=municipality))
 
     if group:
         names = source_names_for_group(group)
@@ -417,7 +423,7 @@ async def get_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     visible_ids = db.scalars(
-        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(user))
+        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(db, user))
     ).all()
     if not visible_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")

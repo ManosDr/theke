@@ -10,6 +10,7 @@ separate step will chunk `documents.content` and populate `embeddings`.
 
 import hashlib
 import re
+from dataclasses import dataclass
 from datetime import date as date_cls
 
 import fitz  # PyMuPDF
@@ -129,16 +130,17 @@ def insert_document(
     content: str | None = None,
     content_hash_value: str | None = None,
     source_name: str | None = None,
+    needs_review: bool = False,
 ) -> int:
     with conn.cursor() as cur:
         cur.execute(
             """
             INSERT INTO documents
-                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash, source_name)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s, %s)
+                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash, source_name, last_verified_at, needs_review)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s, %s, CURRENT_DATE, %s)
             RETURNING id
             """,
-            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value, source_name),
+            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value, source_name, needs_review),
         )
         row = cur.fetchone()
         assert row is not None
@@ -247,12 +249,43 @@ def ingest_fek_document(
     return doc_id
 
 
-def extract_article_text(html: str) -> str | None:
+@dataclass
+class ExtractedContent:
+    text: str | None
+    # True when more than one <article> tag was found and the first was used
+    # as a guess (e.g. a "recent posts" widget contributes extra <article>
+    # tags alongside the real content) - dimos-dramas.gr does this, and the
+    # first tag turned out to be an unrelated council-meeting agenda instead
+    # of the building-permits page it was supposed to be. Never trust this
+    # silently; the caller must flag the resulting document for review.
+    ambiguous: bool = False
+
+
+def extract_article_text(html: str) -> ExtractedContent:
+    """Prefer <article>, but fall back to <main> when <article> exists yet is
+    empty (e.g. deyapaggaiou.gr wraps a 0-content <article> tag next to the
+    real content, which sits as a sibling inside <main> instead) - a plain
+    `find("article") or find("main")` doesn't fall through here since an
+    empty Tag is still truthy."""
     soup = BeautifulSoup(html, "html.parser")
-    article = soup.find("article")
-    if not article:
-        return None
-    return article.get_text(separator="\n", strip=True)
+
+    articles = soup.find_all("article")
+    if len(articles) == 1:
+        text = articles[0].get_text(separator="\n", strip=True)
+        if text:
+            return ExtractedContent(text)
+    elif len(articles) > 1:
+        text = articles[0].get_text(separator="\n", strip=True)
+        if text:
+            return ExtractedContent(text, ambiguous=True)
+
+    main = soup.find("main")
+    if main:
+        text = main.get_text(separator="\n", strip=True)
+        if text:
+            return ExtractedContent(text)
+
+    return ExtractedContent(None)
 
 
 def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_name: str) -> int | None:
@@ -262,12 +295,15 @@ def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_n
     """
     resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
     resp.raise_for_status()
-    text = extract_article_text(resp.text)
-    if not text:
-        print(f"  no <article> content found, skipping: {url}")
+    extracted = extract_article_text(resp.text)
+    if not extracted.text:
+        print(f"  no <article>/<main> content found, skipping: {url}")
         return None
 
-    hash_value = content_hash(text.encode("utf-8"))
+    if extracted.ambiguous:
+        print(f"  WARNING: multiple <article> tags found, took the first as a guess - flagging for manual review: {url}")
+
+    hash_value = content_hash(extracted.text.encode("utf-8"))
     if document_exists_by_hash(conn, hash_value):
         print(f"  already ingested (unchanged), skipping: {title}")
         return None
@@ -279,11 +315,12 @@ def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_n
         title=title,
         doc_type="guide",
         source=url,
-        content=text,
+        content=extracted.text,
         content_hash_value=hash_value,
         source_name=source_name,
+        needs_review=extracted.ambiguous,
     )
-    print(f"  inserted document id={doc_id} ({len(text)} chars) [{source_name}]")
+    print(f"  inserted document id={doc_id} ({len(extracted.text)} chars) [{source_name}]")
     return doc_id
 
 

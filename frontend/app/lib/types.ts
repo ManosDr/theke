@@ -55,8 +55,28 @@ export interface ProjectSummary {
   id: number;
   name: string | null;
   municipality: string | null;
+  region_id: string | null;
   address: string | null;
   is_default: boolean;
+}
+
+export interface RegionSummary {
+  region_id: string;
+  region_name_el: string;
+  region_name_en: string;
+  level: string;
+  status: string;
+  has_coefficient_data: boolean | null;
+  has_zone_level_coefficient_text: boolean | null;
+}
+
+export interface StaleDocumentSummary {
+  id: number;
+  title: string | null;
+  source: string | null;
+  source_group: string | null;
+  region_id: string | null;
+  last_verified_at: string | null;
 }
 
 export interface DocumentSummary {
@@ -66,6 +86,7 @@ export interface DocumentSummary {
   source: string | null;
   doc_type: string | null;
   municipality: string | null;
+  region_id: string | null;
   date: string | null;
   identifier: string | null;
   series: string | null;

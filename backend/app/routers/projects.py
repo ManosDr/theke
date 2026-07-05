@@ -4,8 +4,8 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Project, UserDefaultProject
-from app.schemas import ProjectCreateRequest, ProjectSummary
+from app.models import Project, Region, UserDefaultProject
+from app.schemas import ProjectCreateRequest, ProjectSummary, RegionSummary
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -19,17 +19,25 @@ async def create_project(
     if not user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has no company")
 
+    if payload.region_id and not db.get(Region, payload.region_id):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown region")
+
     project = Project(
         company_id=user.company_id,
         name=payload.name,
         municipality=payload.municipality,
+        region_id=payload.region_id,
         address=payload.address,
     )
     db.add(project)
     db.commit()
     db.refresh(project)
     return ProjectSummary(
-        id=project.id, name=project.name, municipality=project.municipality, address=project.address
+        id=project.id,
+        name=project.name,
+        municipality=project.municipality,
+        region_id=project.region_id,
+        address=project.address,
     )
 
 
@@ -50,10 +58,31 @@ async def list_projects(
             id=p.id,
             name=p.name,
             municipality=p.municipality,
+            region_id=p.region_id,
             address=p.address,
             is_default=p.id in default_ids,
         )
         for p in projects
+    ]
+
+
+@router.get("/regions", response_model=list[RegionSummary])
+async def list_regions(db: Session = Depends(get_db)) -> list[RegionSummary]:
+    """Powers the project-creation form's municipality dropdown - any region
+    on record (even 'pending' ones, since a project can exist before that
+    region's KB coverage is complete)."""
+    regions = db.scalars(select(Region).order_by(Region.region_name_el)).all()
+    return [
+        RegionSummary(
+            region_id=r.region_id,
+            region_name_el=r.region_name_el,
+            region_name_en=r.region_name_en,
+            level=r.level,
+            status=r.status,
+            has_coefficient_data=r.has_coefficient_data,
+            has_zone_level_coefficient_text=r.has_zone_level_coefficient_text,
+        )
+        for r in regions
     ]
 
 

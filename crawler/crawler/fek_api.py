@@ -18,11 +18,19 @@ USER_AGENT = "thekebot/0.1 (construction compliance assistant; contact: manos.dr
 
 # Series codes (et.gr's own search_IssueGroupID values, discovered empirically):
 # 1=Α (laws), 2=Β (ministerial decisions), 3=Γ (civil service appointments),
-# 4=Δ (urban planning), 14=Υ.Ο.Δ.Δ. (board appointments).
-# Only Α and Δ are ingested: Β alone produced ~35 docs/day in testing (mostly
-# unrelated ministerial decisions - budgets, appointments, etc.), which would
-# swamp the knowledge base with construction-irrelevant noise every month.
-RELEVANT_SERIES_CODES = {1, 4}
+# 4=Δ (urban planning), 11=ΑΕ-ΕΠΕ (company registrations), 14=Υ.Ο.Δ.Δ. (board
+# appointments), 15=Α.Α.Π. (forced expropriations & urban planning matters -
+# this is where Γ.Π.Σ./ΖΟΕ approvals actually get published, e.g. Kavala's
+# "ΦΕΚ 69/ΑΑΠ/2013" - see KNOWN_DECISIONS.md).
+# Only Α, Δ, and Α.Α.Π. are ingested: Β alone produced ~35 docs/day in
+# testing (mostly unrelated ministerial decisions - budgets, appointments,
+# etc.), which would swamp the knowledge base with construction-irrelevant
+# noise every month. Α.Α.Π. is included despite not being scoped to our
+# tracked regions specifically - unlike Β, every document in this series is
+# genuinely urban-planning/expropriation content, so it's on-topic even for
+# municipalities we haven't onboarded (it'll land unclassified, same as the
+# rest of fek_search_api's bulk results - see Section 1's backfill notes).
+RELEVANT_SERIES_CODES = {1, 4, 15}
 
 
 def search_by_date(day: date_cls) -> list[dict]:

@@ -55,6 +55,50 @@ CREATE TABLE IF NOT EXISTS users (
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Utility providers (ΔΕΥΑ water utilities, ΔΕΔΔΗΕ electric-grid regional
+-- offices). Modeled separately from regions since coverage isn't 1:1 with
+-- a municipality: one ΔΕΥΑ can serve several municipalities, and ΔΕΔΔΗΕ's
+-- own regional boundaries don't follow municipal ones at all.
+CREATE TABLE IF NOT EXISTS utility_providers (
+    provider_id VARCHAR PRIMARY KEY,          -- slug, e.g. 'deya-kavalas'
+    provider_type VARCHAR NOT NULL,           -- 'water', 'electric_grid'
+    provider_name VARCHAR NOT NULL,
+    base_url VARCHAR,
+    coverage_region_ids VARCHAR[] NOT NULL DEFAULT '{}',  -- soft reference to regions.region_id, no FK (array)
+    status VARCHAR NOT NULL DEFAULT 'pending', -- 'active', 'pending', 'stub'
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Regions: municipality -> regional_unit -> region hierarchy for the
+-- regional content tier (Kavala is the first one populated). Adding a new
+-- region/provider is meant to be a data entry, not a schema or code change -
+-- see the crawler's scoped-crawl workflow for how a `pending` region becomes
+-- `active`.
+CREATE TABLE IF NOT EXISTS regions (
+    region_id VARCHAR PRIMARY KEY,             -- slug, e.g. 'kavala'
+    region_name_el VARCHAR NOT NULL,
+    region_name_en VARCHAR NOT NULL,
+    level VARCHAR NOT NULL,                    -- 'municipality', 'regional_unit', 'region'
+    parent_region_id VARCHAR REFERENCES regions(region_id),
+    ydom_authority_name VARCHAR,               -- name of the ΥΔΟΜ office covering this municipality (may be shared)
+    deya_provider_id VARCHAR REFERENCES utility_providers(provider_id),
+    deddie_region_id VARCHAR REFERENCES utility_providers(provider_id),
+    -- 'active' once at least one utility provider is populated with real
+    -- content - not blocked on has_coefficient_data (see below).
+    status VARCHAR NOT NULL DEFAULT 'pending', -- 'active', 'pending', 'stub'
+    -- NULL = not yet determined, TRUE = sourced and in the KB, FALSE =
+    -- actively looked and confirmed not available via the crawled ΥΔΟΜ page.
+    has_coefficient_data BOOLEAN,
+    -- Distinct from has_coefficient_data: TRUE means a ΓΠΣ/ΑΑΠ ΦΕΚ has been
+    -- ingested with real zone-named coefficient/setback text - NOT a
+    -- per-plot answer, since resolving a plot to its zone needs GIS/CAD map
+    -- data this pipeline doesn't parse. See KNOWN_DECISIONS.md.
+    has_zone_level_coefficient_text BOOLEAN,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_regions_parent ON regions(parent_region_id);
+
 -- Documents: crawled legal texts (public) AND uploaded documents (scoped).
 -- Visibility rule, applied at query time (see backend/app/services/visibility.py):
 --   company_id IS NULL                        -> public, everyone
@@ -91,8 +135,30 @@ CREATE TABLE IF NOT EXISTS documents (
     -- approval). Outright removal (no replacement) goes through
     -- document_removal_requests instead and needs admin sign-off.
     replaces_document_id INT REFERENCES documents(id),
-    created_at TIMESTAMP NOT NULL DEFAULT now()
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+
+    -- National/regional tier + classification metadata for the Greek
+    -- construction-permitting KB architecture (national baseline vs.
+    -- per-municipality/per-utility content, plus honest extraction-status
+    -- tracking so a reference-only or manual-entry-pending document is never
+    -- silently presented as if it were fully searchable).
+    scope VARCHAR NOT NULL DEFAULT 'national',  -- 'national', 'regional'
+    region_id VARCHAR REFERENCES regions(region_id),
+    authority VARCHAR,       -- 'tee','ydom','dasarcheio','deddie','deya','ktimatologio','aade','efka','mida','other'
+    permit_stage VARCHAR,    -- 'pre_application','permit_issuance','during_construction','utility_connection','post_construction_registration','tax'
+    content_type VARCHAR,    -- 'procedural_howto','legal_reference','regulatory_change_notice','form','faq'
+    extraction_status VARCHAR, -- 'full_text','reference_only','manual_entry_pending'
+    last_verified_at DATE,
+    applies_to_first_time_homeowner BOOLEAN,
+    -- Set by the weekly staleness job (crawler/crawler/staleness.py), not
+    -- computed at request time, so the review queue is a plain flag read.
+    needs_review BOOLEAN NOT NULL DEFAULT false
 );
+
+CREATE INDEX IF NOT EXISTS idx_documents_region ON documents(region_id);
+CREATE INDEX IF NOT EXISTS idx_documents_scope ON documents(scope);
+CREATE INDEX IF NOT EXISTS idx_documents_authority ON documents(authority);
+CREATE INDEX IF NOT EXISTS idx_documents_needs_review ON documents(needs_review) WHERE needs_review = true;
 
 -- Public (crawled) docs must be globally unique by content; a company's own
 -- uploads only need to be unique within that company (two different
@@ -133,9 +199,11 @@ CREATE TABLE IF NOT EXISTS projects (
     company_id INT REFERENCES companies(id),
     name TEXT,
     municipality VARCHAR,
+    region_id VARCHAR REFERENCES regions(region_id),
     address TEXT,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+CREATE INDEX IF NOT EXISTS idx_projects_region ON projects(region_id);
 
 CREATE TABLE IF NOT EXISTS project_documents (
     id SERIAL PRIMARY KEY,

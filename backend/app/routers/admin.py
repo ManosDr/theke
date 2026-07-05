@@ -5,9 +5,10 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import AuditLog, Company, Document
-from app.schemas import AuditLogEntry, CompanySummary, DocumentSummary
+from app.schemas import AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
+from app.services.sources import group_label
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -106,6 +107,35 @@ async def remove_public_document(
     doc.status = "removed"
     log_action(db, actor_user_id=user.user_id, company_id=None, action="document_removal_approved", resource_type="document", resource_id=doc.id)
     db.commit()
+
+
+@router.get("/stale-documents", response_model=list[StaleDocumentSummary])
+async def list_stale_documents(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[StaleDocumentSummary]:
+    """Manual review queue populated by the weekly staleness sweep
+    (crawler/crawler/staleness.py) - flags public KB documents whose
+    last_verified_at is missing or older than 6 months. Oldest first, since
+    that's the most overdue.
+    """
+    require_super_admin(user)
+    docs = db.scalars(
+        select(Document)
+        .where(Document.company_id.is_(None), Document.status == "active", Document.needs_review.is_(True))
+        .order_by(Document.last_verified_at.asc().nullsfirst())
+    ).all()
+    return [
+        StaleDocumentSummary(
+            id=doc.id,
+            title=doc.title,
+            source=doc.source,
+            source_group=group_label(doc.source_name) if doc.source_name else None,
+            region_id=doc.region_id,
+            last_verified_at=doc.last_verified_at,
+        )
+        for doc in docs
+    ]
 
 
 @router.get("/audit-log", response_model=list[AuditLogEntry])

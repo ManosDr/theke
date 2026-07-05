@@ -108,6 +108,8 @@ Two fields track how complete a region's coefficient data is, and they mean diff
 
 **Important limitation, stated plainly rather than implied by the data:** theke can currently answer "what does the law say for this municipality's zones" (and for a couple of regions, real zone-named coefficient figures), but **not** "what applies to my specific plot." Resolving a real address to its zone requires GIS/map data outside this pipeline, plus correct legal interpretation of conditional clauses in the source ΦΕΚ - both are explicitly out of scope for now (see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md)).
 
+`regions` and `utility_providers` also carry a nullable `contact_phone`/`contact_email` per authority (ΥΔΟΜ on `regions`, ΔΕΥΑ/ΔΕΔΔΗΕ on `utility_providers`). When populated, chat surfaces them next to the relevant citation, and appends them to the honest-gap response for that region; when a real answer is generated instead, that answer is unaffected by contact data either way. All five onboarded regions currently have these fields `NULL` - populating them is a manual research pass, not something the crawler can do (contact pages vary too much to auto-extract reliably, the same reasoning as `base_url`/`ydom_authority_name`).
+
 ### Data quality & staleness
 
 - **`extraction_status`** on every document is one of `full_text`, `reference_only` (indexed by title/link only, per a source's robots.txt), or `manual_entry_pending` (a real gap - the topic is known and worth covering, but no usable source content was found; the reason is recorded and surfaced instead of left silently absent).

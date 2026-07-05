@@ -76,6 +76,8 @@ CREATE TABLE IF NOT EXISTS utility_providers (
     base_url VARCHAR,
     coverage_region_ids VARCHAR[] NOT NULL DEFAULT '{}',  -- soft reference to regions.region_id, no FK (array)
     status VARCHAR NOT NULL DEFAULT 'pending', -- 'active', 'pending', 'stub'
+    contact_phone VARCHAR,                     -- NULL until curated - see KNOWN_DECISIONS.md
+    contact_email VARCHAR,
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
@@ -91,6 +93,8 @@ CREATE TABLE IF NOT EXISTS regions (
     level VARCHAR NOT NULL,                    -- 'municipality', 'regional_unit', 'region'
     parent_region_id VARCHAR REFERENCES regions(region_id),
     ydom_authority_name VARCHAR,               -- name of the ΥΔΟΜ office covering this municipality (may be shared)
+    contact_phone VARCHAR,                     -- ΥΔΟΜ contact - NULL until curated, see KNOWN_DECISIONS.md
+    contact_email VARCHAR,
     deya_provider_id VARCHAR REFERENCES utility_providers(provider_id),
     deddie_region_id VARCHAR REFERENCES utility_providers(provider_id),
     -- 'active' once at least one utility provider is populated with real

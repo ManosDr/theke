@@ -106,6 +106,11 @@ class UtilityProvider(Base):
     base_url: Mapped[str | None] = mapped_column(Text)
     coverage_region_ids: Mapped[list[str]] = mapped_column(ARRAY(Text), default=list)
     status: Mapped[str] = mapped_column(Text, default="pending")  # 'active', 'pending', 'stub'
+    # NULL until a curation pass fills it in - see KNOWN_DECISIONS.md. Left
+    # blank rather than scraped, since contact pages vary too much per site
+    # to auto-extract reliably (same reasoning as base_url/ydom_authority_name).
+    contact_phone: Mapped[str | None] = mapped_column(Text)
+    contact_email: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -118,6 +123,11 @@ class Region(Base):
     level: Mapped[str] = mapped_column(Text)  # 'municipality', 'regional_unit', 'region'
     parent_region_id: Mapped[str | None] = mapped_column(ForeignKey("regions.region_id"))
     ydom_authority_name: Mapped[str | None] = mapped_column(Text)
+    # ΥΔΟΜ contact for this region - NULL until curated (see
+    # KNOWN_DECISIONS.md); ΔΕΥΑ/ΔΕΔΔΗΕ contacts live on utility_providers
+    # instead, since those are shared across regions, not per-region.
+    contact_phone: Mapped[str | None] = mapped_column(Text)
+    contact_email: Mapped[str | None] = mapped_column(Text)
     deya_provider_id: Mapped[str | None] = mapped_column(ForeignKey("utility_providers.provider_id"))
     deddie_region_id: Mapped[str | None] = mapped_column(ForeignKey("utility_providers.provider_id"))
     # 'active' once at least one utility provider is populated with real

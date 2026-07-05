@@ -29,6 +29,7 @@ class RetrievedChunk:
     source: str | None
     date: str | None
     extraction_status: str | None
+    region_id: str | None
     chunk_text: str
     distance: float
 
@@ -83,6 +84,7 @@ def _retrieve(
             Document.source,
             Document.date,
             Document.extraction_status,
+            Document.region_id,
         )
         .join(Document, Document.id == Embedding.document_id)
         .where(Document.status == "active")
@@ -109,6 +111,7 @@ def _retrieve(
             source=row.source,
             date=row.date.isoformat() if row.date else None,
             extraction_status=row.extraction_status,
+            region_id=row.region_id,
             chunk_text=row.chunk_text,
             distance=float(row.distance),
         )

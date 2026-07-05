@@ -442,3 +442,28 @@ a gap to close in this phase.
 **Revisit when:** dashboard work is scoped again - likely just moving
 `MemberDashboard`'s project section into a shared component both
 dashboards render, rather than a new build.
+
+## Authority contact info (ΥΔΟΜ/ΔΕΥΑ/ΔΕΔΔΗΕ) is wired but deliberately left empty
+
+**What was built:** `regions.contact_phone`/`contact_email` (ΥΔΟΜ) and
+`utility_providers.contact_phone`/`contact_email` (ΔΕΥΑ/ΔΕΔΔΗΕ) - both
+nullable. `POST /chat/message` surfaces whichever are populated: appended
+to the honest-gap response for the caller's project region (`_gap_contact_lines`
+in `chat.py`), and attached to each citation whose authority/region has
+curated contact info (`_authority_contact`, keyed off the citation's
+`authority` + `region_id`). Verified live for both paths against a
+temporarily-populated Kavala region + `deya-kavalas` provider, then
+reverted to `NULL`.
+
+**Why left empty rather than populated now:** finding real phone
+numbers/emails for all five ΥΔΟΜ offices and ΔΕΥΑ providers is manual
+research (calling/checking each municipality's site), not something the
+crawler can do reliably - contact pages vary too much per site to
+auto-extract (same reasoning already applied to `base_url` and
+`ydom_authority_name`). Explicitly scoped as "wire the plumbing now,
+curate the data later" rather than blocking on the research.
+
+**Revisit when:** the post-Phase-5 curation pass happens (before Phase 6
+deployment) - populate all five regions' ΥΔΟΜ contacts and their linked
+ΔΕΥΑ/ΔΕΔΔΗΕ providers' contacts via direct SQL `UPDATE`s, no code changes
+needed.

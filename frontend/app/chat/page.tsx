@@ -165,6 +165,12 @@ function ChatContent() {
                           <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
                         )}
                         {c.authority && <span className="text-muted"> — {c.authority}</span>}
+                        {(c.contact_phone || c.contact_email) && (
+                          <span className="text-muted">
+                            {" "}
+                            ({[c.contact_phone, c.contact_email].filter(Boolean).join(", ")})
+                          </span>
+                        )}
                         {isUnverified(c.extraction_status) && (
                           <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>
                         )}

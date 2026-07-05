@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import ChatSession, Project
+from app.models import ChatSession, Project, Region, UtilityProvider
 from app.schemas import (
     ChatCitation,
     ChatHistoryItem,
@@ -100,6 +100,52 @@ def _resolve_project(db: Session, user: CurrentUser, project_id: int | None) -> 
     if project.company_id != user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project belongs to a different company")
     return project
+
+
+# Authorities that carry curated per-region contact info - ΥΔΟΜ lives
+# directly on Region, ΔΕΥΑ/ΔΕΔΔΗΕ live on the UtilityProvider a region
+# points at (see models.py). Every other authority (tee, dasarcheio,
+# ktimatologio, aade, efka, mida, other) has no per-region contact concept.
+_AUTHORITY_LABELS = {"ydom": "ΥΔΟΜ", "deya": "ΔΕΥΑ", "deddie": "ΔΕΔΔΗΕ"}
+
+
+def _authority_contact(db: Session, region: Region | None, authority: str | None) -> tuple[str | None, str | None]:
+    """(phone, email) curated for this authority in this region, or (None,
+    None) if not yet curated (see KNOWN_DECISIONS.md) or not one of the
+    three authorities above."""
+    if not region or authority not in _AUTHORITY_LABELS:
+        return None, None
+    if authority == "ydom":
+        return region.contact_phone, region.contact_email
+    provider_id = region.deya_provider_id if authority == "deya" else region.deddie_region_id
+    if not provider_id:
+        return None, None
+    provider = db.get(UtilityProvider, provider_id)
+    return (provider.contact_phone, provider.contact_email) if provider else (None, None)
+
+
+def _gap_contact_lines(db: Session, region_id: str | None) -> str:
+    """Formatted contact lines for every authority with curated info in this
+    region, or "" when none are populated yet - appended to the gap response
+    rather than replacing it, so an uncurated region's gap message stays
+    exactly as before."""
+    if not region_id:
+        return ""
+    region = db.get(Region, region_id)
+    if not region:
+        return ""
+    lines = []
+    for authority, label in _AUTHORITY_LABELS.items():
+        phone, email = _authority_contact(db, region, authority)
+        if not phone and not email:
+            continue
+        parts = [label]
+        if phone:
+            parts.append(f"τηλ. {phone}")
+        if email:
+            parts.append(email)
+        lines.append(" - ".join(parts))
+    return "\n".join(lines)
 
 
 def _build_context_block(hits: list) -> str:
@@ -207,8 +253,14 @@ async def chat_message(
     hits = [h for h in raw_hits if h.distance <= settings.rag_max_distance]
 
     if not hits:
-        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none", gap=True)
-        return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
+        contact_lines = _gap_contact_lines(db, region_id)
+        gap_answer = (
+            f"{CHAT_MESSAGE_GAP_RESPONSE}\n\nΣτοιχεία επικοινωνίας:\n{contact_lines}"
+            if contact_lines
+            else CHAT_MESSAGE_GAP_RESPONSE
+        )
+        _log_session(db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True)
+        return ChatMessageResponse(answer=gap_answer, citations=[], gap=True)
 
     # A real answer is still generated from these hits - "gap" here flags
     # low confidence (thinner or weaker-than-usual support), not absence.
@@ -248,6 +300,8 @@ async def chat_message(
         if hit.document_id in seen_ids:
             continue
         seen_ids.add(hit.document_id)
+        region = db.get(Region, hit.region_id) if hit.region_id else None
+        phone, email = _authority_contact(db, region, hit.authority)
         citations.append(
             ChatMessageCitation(
                 document_id=hit.document_id,
@@ -255,6 +309,8 @@ async def chat_message(
                 authority=hit.authority,
                 source_url=hit.source,
                 extraction_status=hit.extraction_status,
+                contact_phone=phone,
+                contact_email=email,
             )
         )
 

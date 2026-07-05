@@ -114,6 +114,10 @@ class ChatMessageCitation(BaseModel):
     # the frontend's "source pending verification" badge is genuinely wired
     # up rather than silently assumed impossible, in case that ever changes.
     extraction_status: str | None = None
+    # Contact details for the citation's issuing authority, if curated (see
+    # KNOWN_DECISIONS.md) - NULL until a manual research pass fills them in.
+    contact_phone: str | None = None
+    contact_email: str | None = None
 
 
 class ChatMessageResponse(BaseModel):

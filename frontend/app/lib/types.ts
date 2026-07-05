@@ -118,6 +118,8 @@ export interface ChatCitation {
   authority: string | null;
   source_url: string | null;
   extraction_status: string | null;
+  contact_phone: string | null;
+  contact_email: string | null;
 }
 
 export interface ChatMessageResponse {

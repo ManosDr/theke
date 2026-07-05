@@ -14,7 +14,6 @@ class Company(Base):
     name: Mapped[str] = mapped_column(Text)
     type: Mapped[str] = mapped_column(Text, default="construction")  # 'construction', 'municipality'
     logo_path: Mapped[str | None] = mapped_column(Text)
-    plan: Mapped[str] = mapped_column(Text, default="basic")
     is_suspended: Mapped[bool] = mapped_column(default=False)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
@@ -79,7 +78,6 @@ class Document(Base):
     content_type: Mapped[str | None] = mapped_column(Text)  # 'procedural_howto','legal_reference','regulatory_change_notice','form','faq'
     extraction_status: Mapped[str | None] = mapped_column(Text)  # 'full_text','reference_only','manual_entry_pending'
     last_verified_at: Mapped[date | None] = mapped_column(Date)
-    applies_to_first_time_homeowner: Mapped[bool | None] = mapped_column()
     # Set by the weekly staleness job (crawler/crawler/staleness.py), not by
     # request-time queries - so the review queue stays cheap and stable
     # instead of recomputing "is this stale" on every page load.
@@ -146,16 +144,6 @@ class Embedding(Base):
     document: Mapped["Document"] = relationship(back_populates="embeddings")
 
 
-class DocLink(Base):
-    __tablename__ = "doc_links"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    from_doc: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
-    to_doc: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
-    relation: Mapped[str | None] = mapped_column(Text)
-    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-
 class Project(Base):
     __tablename__ = "projects"
 
@@ -166,16 +154,6 @@ class Project(Base):
     region_id: Mapped[str | None] = mapped_column(ForeignKey("regions.region_id"))
     address: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
-
-
-class ProjectDocument(Base):
-    __tablename__ = "project_documents"
-
-    id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"))
-    type: Mapped[str | None] = mapped_column(Text)
-    file_ref: Mapped[str | None] = mapped_column(Text)
-    uploaded_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class ChatSession(Base):

@@ -6,6 +6,79 @@ revisiting. Not a general TODO list; only things that were explicitly chosen
 over an alternative, where the alternative might become the better choice
 later.
 
+## Bulk `fek_search_api` documents are left unclassified, not guessed
+
+**What was chosen:** During the Section 1 schema backfill, ~132 documents
+from `fek_search_api` (et.gr's "recent daily publications" discovery, which
+pulls in whatever ΦΕΚ issues appeared regardless of topic) were left with
+`authority`/`permit_stage`/`content_type`/`applies_to_first_time_homeowner`
+all `NULL`, rather than auto-classified by keyword matching.
+
+**Why:** Keyword-based classification was tried and shown to produce false
+positives on this specific bulk-crawled set. Example: document id 42, a
+routine "αναδασωτέα" (reforestation-declaration) notice for an unrelated
+plot, matches a "Δασαρχείο" keyword search but has nothing to do with
+forest-clearance-for-construction. Guessing metadata here would have been
+worse than leaving it honestly blank.
+
+**Revisit when:** A classification approach with real evidence behind it
+becomes available (e.g. embedding-similarity-based tagging once retrieval
+infrastructure exists) - not simply "someone has time to tag them by hand."
+
+## Edge-case documents kept in the KB, not pruned
+
+**What was chosen:** During the same backfill, a handful of narrow
+edge-case documents surfaced by the audit - id 11 (tourist-investment
+licensing) and ids 14-18 (fire-damage-affected-property circulars, a
+COVID-era deadline-extension decree) - were flagged as low-relevance/narrow
+scope but kept in the KB as-is, per explicit user instruction ("edge-case
+coverage sounds great") rather than pruned.
+
+**Why:** These are legitimate, narrow-applicability construction-compliance
+topics (specific property situations a search might reasonably surface),
+not noise - the call was "keep real edge cases, don't prune for tidiness,"
+distinct from the bulk-`fek_search_api` case above where the problem was
+false-positive keyword matches rather than genuine narrow relevance.
+
+**Revisit when:** Specific evidence that one of these documents actively
+misleads a user in practice - not on a schedule, and not just because
+they're rarely matched.
+
+## Staleness/`needs_review` queue ownership is a stated commitment, not enforced by code
+
+**What was chosen:** The user stated they will personally review the
+`/admin/stale-documents` queue weekly, until the process is shown to be
+stable. No assignment, rotation, or notification system was built for
+this - deliberately, matching the earlier explicit instruction to "build
+the queue, not the automation around who gets pinged."
+
+**Why:** With one person reviewing and a queue that (as of this writing)
+holds a single item, building notification/assignment infrastructure would
+be solving a problem that doesn't exist yet.
+
+**Revisit when:** Review responsibility needs to be shared across more than
+one person, or the queue grows large enough that a weekly manual pass is no
+longer realistic.
+
+## No "mark reviewed" mechanism exists for `needs_review` documents
+
+**What was found:** There is no endpoint or UI action to clear a
+`needs_review` flag once a human has looked at a document and corrected or
+dismissed it. The only way a document currently leaves the queue is a
+developer directly updating the row (e.g. via SQL), since
+`crawler/crawler/staleness.py`'s sweep only ever raises the flag, never
+lowers it (see the multi-`<article>` entry below for why).
+
+**Why not built yet:** This gap was noticed while building the
+visibility-suppression fix, at a point where the review queue itself was
+brand new and unpopulated - there was nothing yet to justify a dedicated
+resolution workflow beyond a manual DB edit.
+
+**Revisit when:** The queue's real backlog grows to the point where manual
+database edits become the routine way of clearing it, rather than a rare
+one-off - that's the sign a proper "mark reviewed" action (and a decision
+on whether it re-triggers re-crawl/re-verification) is worth building.
+
 ## Region-scoped document visibility is company-wide, not per-project
 
 **What was chosen:** A construction company sees a region's KB documents

@@ -12,7 +12,6 @@ CREATE TABLE IF NOT EXISTS companies (
     name TEXT NOT NULL,
     type VARCHAR NOT NULL DEFAULT 'construction',  -- 'construction', 'municipality'
     logo_path TEXT,  -- set via POST /companies/me/logo, served by GET /companies/{id}/logo
-    plan VARCHAR DEFAULT 'basic',
     is_suspended BOOLEAN NOT NULL DEFAULT false,  -- super_admin kill switch
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
@@ -149,7 +148,6 @@ CREATE TABLE IF NOT EXISTS documents (
     content_type VARCHAR,    -- 'procedural_howto','legal_reference','regulatory_change_notice','form','faq'
     extraction_status VARCHAR, -- 'full_text','reference_only','manual_entry_pending'
     last_verified_at DATE,
-    applies_to_first_time_homeowner BOOLEAN,
     -- Set by the weekly staleness job (crawler/crawler/staleness.py), not
     -- computed at request time, so the review queue is a plain flag read.
     needs_review BOOLEAN NOT NULL DEFAULT false
@@ -184,15 +182,6 @@ CREATE TABLE IF NOT EXISTS embeddings (
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 128);
 
--- Knowledge graph: linking documents (e.g. "Law X amends Law Y")
-CREATE TABLE IF NOT EXISTS doc_links (
-    id SERIAL PRIMARY KEY,
-    from_doc INT REFERENCES documents(id),
-    to_doc INT REFERENCES documents(id),
-    relation VARCHAR,   -- 'amends', 'cited_by', 'approved_in'
-    created_at TIMESTAMP NOT NULL DEFAULT now()
-);
-
 -- Companies' projects
 CREATE TABLE IF NOT EXISTS projects (
     id SERIAL PRIMARY KEY,
@@ -204,14 +193,6 @@ CREATE TABLE IF NOT EXISTS projects (
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 CREATE INDEX IF NOT EXISTS idx_projects_region ON projects(region_id);
-
-CREATE TABLE IF NOT EXISTS project_documents (
-    id SERIAL PRIMARY KEY,
-    project_id INT REFERENCES projects(id),
-    type VARCHAR,       -- 'blueprint', 'soil_report', etc.
-    file_ref VARCHAR,   -- path in object storage
-    uploaded_at TIMESTAMP NOT NULL DEFAULT now()
-);
 
 -- A user's chosen project(s) for municipality context. If a user has
 -- projects in more than one distinct municipality, /chat should confirm

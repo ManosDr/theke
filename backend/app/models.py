@@ -84,15 +84,23 @@ class Document(Base):
     # added to support Kavala-style regional content without a future schema change).
     scope: Mapped[str] = mapped_column(Text, default="national")  # 'national', 'regional'
     region_id: Mapped[str | None] = mapped_column(ForeignKey("regions.region_id"))
-    authority: Mapped[str | None] = mapped_column(Text)  # 'tee','ydom','dasarcheio','deddie','deya','ktimatologio','aade','efka','mida','other'
+    authority: Mapped[str | None] = mapped_column(Text)  # 'tee','ydom','dasarcheio','deddie','deya','ktimatologio','aade','efka','mida','ypen','other'
     permit_stage: Mapped[str | None] = mapped_column(Text)  # 'pre_application','permit_issuance','during_construction','utility_connection','post_construction_registration','tax'
     content_type: Mapped[str | None] = mapped_column(Text)  # 'procedural_howto','legal_reference','regulatory_change_notice','form','faq'
-    extraction_status: Mapped[str | None] = mapped_column(Text)  # 'full_text','reference_only','manual_entry_pending'
+    # 'full_text','reference_only','manual_entry_pending' (a stub with no
+    # content yet, awaiting future curation), 'manual_entry' (curated
+    # content authored directly, not crawled - see KNOWN_DECISIONS.md).
+    extraction_status: Mapped[str | None] = mapped_column(Text)
     last_verified_at: Mapped[date | None] = mapped_column(Date)
     # Set by the weekly staleness job (crawler/crawler/staleness.py), not by
     # request-time queries - so the review queue stays cheap and stable
     # instead of recomputing "is this stale" on every page load.
     needs_review: Mapped[bool] = mapped_column(default=False)
+    # True for procedural documents whose requirements apply to a private
+    # individual building their own home (as opposed to e.g. commercial/
+    # industrial-only procedures) - lets a future "am I affected by this"
+    # filter exist without re-classifying every document's title by hand.
+    applies_to_first_time_homeowner: Mapped[bool | None] = mapped_column(default=False)
 
     embeddings: Mapped[list["Embedding"]] = relationship(back_populates="document")
 

@@ -75,8 +75,8 @@ The crawler pulls from official sources, deduplicating by content hash so re-cra
 **National:**
 
 - **ΦΕΚ** (Government Gazette, Series Α, Δ, and Α.Α.Π. - forced expropriations & urban planning matters, which is where Γενικά Πολεοδομικά Σχέδια get published) via et.gr's search API
-- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars, plus EUGO's e-Άδειες permit-issuance overview
-- **ΥΠΕΝ** (Ministry of Environment & Energy) - mostly indexed by title/link only per their robots.txt, with a handful of documents manually text-extracted where the source PDF was hand-verified
+- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars, plus EUGO's e-Άδειες permit-issuance overview and mitos.gov.gr's full e-Άδειες service description (the national administrative-procedures registry)
+- **ΥΠΕΝ** (Ministry of Environment & Energy) - mostly indexed by title/link only per their robots.txt, with a handful of documents manually text-extracted where the source PDF was hand-verified, plus the opengov.gr public-consultation text of the building-permit-documents article (Ν.4495/2017 Άρθρο 50)
 - **ΑΑΔΕ** (tax authority) - Ε9/ΕΝΦΙΑ circulars and the real-estate transfer tax overview
 - **e-ΕΦΚΑ** (social security) - construction insurance contribution guidance
 - **Κτηματολόγιο** (Hellenic Cadastre) - institutional framework laws/decrees

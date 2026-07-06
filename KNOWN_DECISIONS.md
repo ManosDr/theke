@@ -589,3 +589,13 @@ actual empty volume, not just the already-migrated dev DB.
 **Why:** the current panel covers what's needed to sanity-check the platform at soft-launch scale (a handful of companies); graphs add real complexity (charting library choice, aggregation queries, date-range handling) that isn't justified until there's enough activity/company diversity for trends to actually mean something.
 
 **Revisit when:** more than 3 active companies.
+
+## Numbered-list chunking: checked on the permit-checklist document, not currently a problem, no rule added
+
+**What was checked:** the manually-authored two-stage permit document (id 245, "Διαδικασία Έκδοσης Άδειας Δόμησης...") has two numbered lists (7 items, 6 items). The concern going in - the same pattern as the coefficient chunking miss - was that `chunk_text()`'s paragraph-based packing might spread a numbered list across multiple chunks, diluting the retrieval signal for "what documents do I need" style queries.
+
+**What was found:** it didn't happen here. `chunk_text()` splits on double newlines (`\n\n`) only - since this document's list items are separated by single `\n` (no blank lines between them), each full list is already one atomic "paragraph" to the chunker, and both lists together (982 chars) fit under the 1000-char `chunk_size` in a single chunk. Chunk 0 contains the complete Stage 1 list AND the complete Stage 2 list, intact. No special numbered-list rule was implemented, since the conditional that would have triggered it (the list actually getting split) didn't occur.
+
+**Why the risk is still real, just not here:** the failure mode would show up if either (a) a single numbered list is long enough to exceed `chunk_size` on its own, triggering `_split_oversized()`'s single-newline fallback (which *does* break a list item-by-item), or (b) greedy packing happens to place a chunk boundary in the middle of a list because of what else shares its paragraph batch. Neither happened here mostly by luck of this document's specific length and formatting, not because the chunker has a rule protecting numbered lists generally.
+
+**Revisit when:** a second procedural document with a numbered checklist hits a retrieval miss traceable to its list being split across chunks. At that point, add the rule this task originally proposed - numbered lists under ~600 tokens kept as a single chunk regardless of surrounding paragraph packing - and apply it going forward, not as a corpus-wide re-chunk.

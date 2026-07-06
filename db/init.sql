@@ -164,14 +164,19 @@ CREATE TABLE IF NOT EXISTS documents (
     -- silently presented as if it were fully searchable).
     scope VARCHAR NOT NULL DEFAULT 'national',  -- 'national', 'regional'
     region_id VARCHAR REFERENCES regions(region_id),
-    authority VARCHAR,       -- 'tee','ydom','dasarcheio','deddie','deya','ktimatologio','aade','efka','mida','other'
+    authority VARCHAR,       -- 'tee','ydom','dasarcheio','deddie','deya','ktimatologio','aade','efka','mida','ypen','other'
     permit_stage VARCHAR,    -- 'pre_application','permit_issuance','during_construction','utility_connection','post_construction_registration','tax'
     content_type VARCHAR,    -- 'procedural_howto','legal_reference','regulatory_change_notice','form','faq'
-    extraction_status VARCHAR, -- 'full_text','reference_only','manual_entry_pending'
+    -- 'full_text','reference_only','manual_entry_pending' (stub, no content
+    -- yet), 'manual_entry' (curated content authored directly, not crawled)
+    extraction_status VARCHAR,
     last_verified_at DATE,
     -- Set by the weekly staleness job (crawler/crawler/staleness.py), not
     -- computed at request time, so the review queue is a plain flag read.
-    needs_review BOOLEAN NOT NULL DEFAULT false
+    needs_review BOOLEAN NOT NULL DEFAULT false,
+    -- True for procedural docs whose requirements apply to a private
+    -- individual building their own home - see KNOWN_DECISIONS.md.
+    applies_to_first_time_homeowner BOOLEAN DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_region ON documents(region_id);

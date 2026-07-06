@@ -654,3 +654,40 @@ Also worth noting: doc 127's Άρθρο 238 (the ΣΔ-vs-κάλυψη distinctio
 - **Q2 (exempt works), Q8 (ΣΔ vs κάλυψη), Q14 (ΔΕΔΔΗΕ), Q15 (ΔΕΥΑ)** - all confirmed retrieval-ranking misses against content that now genuinely exists and is correctly embedded (see the entries above for each). **Revisit when:** the embedding-quality investigation happens - re-chunking or re-drafting these specific documents again without a different underlying approach is unlikely to help, per the "content-quality fixes don't reliably help" finding above.
 - **Q9 (responsible authority) and Q3 (small-scale works)** - PARTIAL, but for a different reason than retrieval: the correct, complete source document is retrieved and cited, but the LLM's generated answer doesn't always surface every fact the source actually contains (e.g. doc 249 names ΥΔΟΜ and ΤΕΕ explicitly, but a regenerated answer omitted the authority name). **Revisit when:** this becomes a repeatable pattern worth a systematic check (e.g. re-running the same query multiple times to see if it's prompt-variance rather than a one-off) - not a retrieval or content problem, so a chunking/ingestion fix wouldn't address it.
 - **Q10 (Kavala coefficients)** - unchanged, already governed by an existing KNOWN_DECISIONS.md entry ("A real numeric coefficient list can still score below the retrieval threshold") - deliberately not re-attempted this round.
+
+## Hybrid search (vector + PostgreSQL full-text, merged via RRF) - the systemic fix, and its actual measured effect (2026-07-06)
+
+**What was built:** `_retrieve()` in `app/services/rag.py` now runs two independent candidate queries - vector cosine similarity (top 20) and PostgreSQL full-text search via `to_tsvector('greek', chunk_text) @@ plainto_tsquery('greek', query)` with `ts_rank_cd` scoring (top 20, falling back to vector-only on a malformed tsquery) - and merges them with Reciprocal Rank Fusion (`1/(60+rank)`, missing-from-a-list treated as rank 21). The old single `rag_max_distance` cutoff was replaced by `_passes_hybrid_threshold()`: a hit is excluded only if it fails the vector threshold *and* has no keyword rank at all. A GIN index (`idx_embeddings_fts`) backs the full-text side.
+
+**Measured effect against the 5 known retrieval-ranking misses this was built to fix (Q2, Q8, Q12, Q14, Q15):** only **Q8** (building-coefficient crowding) was actually rescued by the algorithm itself - doc 127 went from occasionally-losing to filling 4 of the top 6 slots. The other four were *not* fixed by hybrid search, for two distinct reasons:
+
+- **Q12 and Q14** are pure embedding-space gaps, not ranking/crowding problems - the correct documents (208/38 for Q12, 207 for Q14) never enter *either* candidate pool at all (best vector distances of 0.64+, zero full-text matches). There is nothing in a top-20-vector/top-20-keyword merge to rescue if neither list contains the right answer in the first place.
+- **Q2 and Q15's keyword side** exposed a structural limitation of `plainto_tsquery`: it ANDs every lexeme in the query, so a single non-matching word (e.g. the query's "χρειάζονται" vs. the source's "απαιτείται"/"οικοδομική", or "συνδέω" vs. "σύνδεσης" - different stems under the `greek` text search config's suffix-stripping) zeroes the *entire* keyword score, even when every other word matched. A chunk can be 5/6 words correct and still score exactly 0 on keyword search. This means hybrid search's keyword half only reliably helps when the query and the source happen to share exact-enough vocabulary - it doesn't paper over genuine phrasing mismatches the way a synonym-aware or OR-based keyword approach would.
+
+**What did fix Q6, Q14, and Q15 in the end:** not the algorithm - three new `manual_entry` documents (251, 252, 253) drafted to open with the literal benchmark question as their first line (the same technique that worked well for docs 209/210/249/250 earlier - see the "content-quality fixes don't reliably help" entry above, this time it worked). All three verify well under the 0.5 threshold (0.229, 0.321, 0.228 respectively) and were confirmed via a full benchmark re-run to flip all three questions to PASS. **Q2 and Q12 remain FAIL** - no new content was drafted for them this round (out of this phase's scope), and per the finding above, hybrid search alone doesn't close them either.
+
+**System-prompt fix (Section 4) - also inconsistent:** added one instruction ("if a source names a responsible authority/platform/service, that name must appear in your answer") to `CHAT_MESSAGE_SYSTEM_PROMPT`. Worked for one direct test (Q9 phrasing surfaced ΥΔΟΜ) but not reliably: in the full 15-question re-run, Q9 still didn't mention ΤΕΕ's role, and Q3 still didn't mention ΥΔΟΜ/e-Άδειες at all. Root cause confirmed via direct distance check: doc 249 (small-scale works) has 4 chunks, and the one naming ΥΔΟΜ/ΤΕΕ/e-Άδειες explicitly (dist 0.52) consistently loses the retrieval race to the document's own general-definition chunk (dist 0.29) for this query's phrasing - the LLM is correctly refusing to state a fact it was never given, not failing to follow the instruction. A system-prompt rule cannot fix a retrieval-granularity problem.
+
+**Definitive benchmark result after this phase (Section 7, scoped to project id=38):**
+
+| # | Query (short) | Previous | New | Note |
+|---|---|---|---|---|
+| 1 | Δικαιολογητικά άδειας | PASS | PASS | unchanged |
+| 2 | Έργα χωρίς άδεια | FAIL | FAIL | unchanged - bridge doc 247 still loses the ranking race (see above) |
+| 3 | Άδεια μικρής κλίμακας | PARTIAL | PARTIAL | unchanged - authority-naming chunk still loses internally (see above) |
+| 4 | Πώς υποβάλλω αίτηση | PASS | PASS | unchanged |
+| 5 | Κόστος άδειας | PARTIAL | PARTIAL | unchanged |
+| 6 | Χρόνος έκδοσης | FAIL | **PASS** | new doc 251 (Section 5) |
+| 7 | Αυθαίρετα κτίσματα | PASS | PASS | unchanged |
+| 8 | Συντελεστής δόμησης | PARTIAL | PARTIAL | unchanged - hybrid search won the doc-127 crowding race, but the specific ΣΔ-vs-κάλυψη / ΓΠΣ-sets-it chunk still isn't the one the generated answer draws on |
+| 9 | Αρμόδια υπηρεσία | PARTIAL | PARTIAL | unchanged - ΤΕΕ's role still not surfaced in the full-benchmark phrasing |
+| 10 | ΣΔ Καβάλας (behavior) | PARTIAL/INCORRECT | PARTIAL/INCORRECT | unchanged, out of scope |
+| 11 | Έγκριση δασαρχείου | PASS | PASS | unchanged |
+| 12 | Φόροι ακινήτου | FAIL | FAIL | unchanged - docs 208/38 confirmed to never enter either candidate pool for this query (pure embedding-space gap) |
+| 13 | Καταχώριση Κτηματολόγιο | PASS | PASS | unchanged |
+| 14 | Σύνδεση ρεύματος (ΔΕΔΔΗΕ) | FAIL | **PASS** | new doc 252 (Section 6) |
+| 15 | Σύνδεση νερού (ΔΕΥΑ) | FAIL | **PASS** | new doc 253 (Section 6) |
+
+**Net result: 8 PASS / 4 PARTIAL / 1 PARTIAL-INCORRECT (behavior test) / 2 FAIL** - up from 5 PASS / 4 PARTIAL / 1 PARTIAL-INCORRECT / 5 FAIL. All 3 net gains came from targeted content (manual_entry docs written to open with the exact benchmark question), not from the retrieval algorithm change.
+
+**Revisit when:** considering further retrieval work on Q2/Q12 specifically - per the findings above, neither a rank-crowding fix (hybrid search) nor a keyword-vocabulary fix (broader tsquery matching) is guaranteed to help; Q12 in particular needs new content the corpus doesn't have an anchor for yet. For Q3/Q8/Q9's chunk-granularity problem (right document, wrong internal chunk wins), a real fix would need either splitting the "authority/definition" fact out into its own dedicated chunk per document, or a re-ranking step that scores whole documents rather than only their single best-matching chunk - neither attempted this phase.

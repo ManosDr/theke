@@ -208,6 +208,12 @@ CREATE TABLE IF NOT EXISTS embeddings (
 );
 
 CREATE INDEX IF NOT EXISTS idx_embeddings_vector ON embeddings USING ivfflat (embedding vector_cosine_ops) WITH (lists = 128);
+-- Full-text component of hybrid (vector + keyword) retrieval - see
+-- app/services/rag.py's _retrieve(). Not CONCURRENTLY here since init.sql
+-- only ever runs against a table that's either empty (fresh init) or
+-- already has this index (IF NOT EXISTS no-ops) - CONCURRENTLY was only
+-- needed for the one-time live-DB backfill, which used a separate command.
+CREATE INDEX IF NOT EXISTS idx_embeddings_fts ON embeddings USING gin(to_tsvector('greek', chunk_text));
 
 -- Companies' projects
 CREATE TABLE IF NOT EXISTS projects (

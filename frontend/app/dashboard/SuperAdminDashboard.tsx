@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
@@ -210,8 +210,6 @@ export function SuperAdminDashboard() {
   const [stats, setStats] = useState<AdminStats | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
-  const companiesRef = useRef<HTMLElement | null>(null);
-  const secondaryToolsRef = useRef<HTMLElement | null>(null);
 
   async function refresh() {
     try {
@@ -256,11 +254,6 @@ export function SuperAdminDashboard() {
     setKbResults((prev) => prev.filter((d) => d.id !== id));
   }
 
-  function goToTab(tab: SecondaryTab) {
-    setActiveTab(tab);
-    secondaryToolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={styles.emptyState}>{error}</p>;
 
@@ -290,7 +283,7 @@ export function SuperAdminDashboard() {
           value={suspendedCount}
           label={t("dash.super.suspended")}
           cta={t("dash.super.manage")}
-          onCtaClick={() => companiesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+          onCtaClick={() => router.push("/admin/suspended-tenants")}
         />
         <AttentionCard
           tone={gapTone}
@@ -298,7 +291,7 @@ export function SuperAdminDashboard() {
           value={`${gapRate}%`}
           label={t("dash.super.gapRate")}
           cta={t("dash.super.reviewGaps")}
-          onCtaClick={() => router.push("/chat")}
+          onCtaClick={() => router.push("/admin/chat-gap-rate")}
         />
         <AttentionCard
           tone={staleTone}
@@ -306,7 +299,7 @@ export function SuperAdminDashboard() {
           value={staleDocs.length}
           label={t("dash.super.staleDocs")}
           cta={t("dash.super.reviewQueue")}
-          onCtaClick={() => goToTab("staleness")}
+          onCtaClick={() => router.push("/admin/stale-documents")}
         />
       </div>
 
@@ -372,7 +365,7 @@ export function SuperAdminDashboard() {
         </div>
       </div>
 
-      <section ref={companiesRef} className={`card ${styles.section}`}>
+      <section className={`card ${styles.section}`}>
         <div className={styles.sectionHeader}>
           <h2>{t("dash.super.companies")}</h2>
           <span className="text-muted">{t("dash.super.companiesTotal", { count: companies.length })}</span>
@@ -413,7 +406,7 @@ export function SuperAdminDashboard() {
         )}
       </section>
 
-      <section ref={secondaryToolsRef} className={`card ${styles.section}`}>
+      <section className={`card ${styles.section}`}>
         <div className={styles.tabBar}>
           {(
             [

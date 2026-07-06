@@ -15,6 +15,7 @@ export interface AuthUser {
   role: Role;
   email: string;
   preferredLocale: string | null;
+  preferredTheme: string | null;
 }
 
 interface TokenResponse {
@@ -23,6 +24,7 @@ interface TokenResponse {
   company_type: CompanyType | null;
   role: Role;
   preferred_locale: string | null;
+  preferred_theme: string | null;
 }
 
 interface AuthContextValue {
@@ -31,6 +33,7 @@ interface AuthContextValue {
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
   updatePreferredLocale: (locale: string) => Promise<void>;
+  updatePreferredTheme: (theme: string) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -61,6 +64,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       role: data.role,
       email,
       preferredLocale: data.preferred_locale,
+      preferredTheme: data.preferred_theme,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
@@ -79,8 +83,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updated);
   }
 
+  async function updatePreferredTheme(theme: string) {
+    if (!user) return;
+    await api.patch("/auth/me/theme", { theme }, user.token);
+    const updated = { ...user, preferredTheme: theme };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setUser(updated);
+  }
+
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updatePreferredLocale }}>
+    <AuthContext.Provider value={{ user, loading, login, logout, updatePreferredLocale, updatePreferredTheme }}>
       {children}
     </AuthContext.Provider>
   );

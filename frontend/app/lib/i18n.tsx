@@ -34,7 +34,7 @@ const BUILTIN_TRANSLATIONS = translations as Record<string, Partial<Record<Trans
 
 export function LocaleProvider({ children }: { children: ReactNode }) {
   const { user, updatePreferredLocale } = useAuth();
-  const [locale, setLocaleState] = useState<string>("en");
+  const [locale, setLocaleState] = useState<string>("el");
   const [locales, setLocales] = useState<LocaleOption[]>(BUILTIN_LOCALES);
   const [overrides, setOverrides] = useState<Record<string, string>>({});
 

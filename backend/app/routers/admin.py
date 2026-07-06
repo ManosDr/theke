@@ -12,6 +12,7 @@ from app.schemas import (
     AuditLogEntry,
     CompanySummary,
     DocumentSummary,
+    GapQueryEntry,
     MarkReviewedRequest,
     StaleDocumentSummary,
 )
@@ -216,6 +217,38 @@ async def platform_stats(
         positive_feedback=positive_feedback,
         negative_feedback=negative_feedback,
     )
+
+
+@router.get("/gap-queries", response_model=list[GapQueryEntry])
+async def list_gap_queries(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[GapQueryEntry]:
+    """Recent real questions the chat couldn't confidently answer
+    (ChatSession.gap=true - no relevant KB match, an off-topic guard, or a
+    low-confidence answer). Gives the admin something concrete to act on
+    beyond the aggregate gap-rate percentage: what people are actually
+    asking that the knowledge base doesn't cover yet."""
+    require_super_admin(user)
+    rows = db.scalars(
+        select(ChatSession)
+        .where(ChatSession.gap.is_(True), ChatSession.message.isnot(None))
+        .order_by(ChatSession.created_at.desc())
+        .limit(50)
+    ).all()
+    company_ids = {r.company_id for r in rows if r.company_id}
+    company_names = {}
+    if company_ids:
+        company_names = {c.id: c.name for c in db.scalars(select(Company).where(Company.id.in_(company_ids)))}
+    return [
+        GapQueryEntry(
+            id=r.id,
+            message=r.message,
+            company_name=company_names.get(r.company_id) if r.company_id else None,
+            created_at=r.created_at,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/audit-log", response_model=list[AuditLogEntry])

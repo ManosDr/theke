@@ -95,43 +95,10 @@
   --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) {
-    color-scheme: dark;
-
-    --color-bg: #0d1b2e;
-    --color-surface: #16213a;
-    --color-surface-alt: #1e2a44;
-    --color-border: #2a3752;
-
-    --color-text: #ececec;
-    --color-text-muted: #7b91b0;
-    --color-text-on-primary: #ffffff;
-    --color-text-on-accent: #151d48;
-
-    --color-primary: #0bb783;
-    --color-primary-hover: #00e096;
-    --color-accent: #ffcf00;
-    --color-accent-hover: #ffa800;
-
-    --color-success: #00d08b;
-    --color-success-bg: #123b2c;
-    --color-warning: #ffcf00;
-    --color-warning-bg: #3a2f0a;
-    --color-danger: #f64e60;
-    --color-danger-bg: #3a1620;
-
-    --color-info: #4079ed;
-    --color-info-bg: #0d2b45;
-    --color-purple: #a855f7;
-    --color-purple-bg: #2a1a45;
-
-    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
-    --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
-
-    --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
-  }
-}
+/* Deliberately no `@media (prefers-color-scheme: dark)` fallback: light is
+   the universal default for every user regardless of OS setting, unless
+   they explicitly switch to dark (persisted via ThemeProvider - see
+   lib/theme.tsx - to their account, or to localStorage while logged out). */
 
 * {
   box-sizing: border-box;

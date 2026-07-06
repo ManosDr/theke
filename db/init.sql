@@ -36,7 +36,8 @@ CREATE TABLE IF NOT EXISTS users (
     role VARCHAR NOT NULL DEFAULT 'member',   -- 'super_admin', 'admin', 'member'
     is_active BOOLEAN NOT NULL DEFAULT true,
     password_hash TEXT NOT NULL,
-    preferred_locale VARCHAR,  -- UI language for this account; NULL = no preference set yet
+    preferred_locale VARCHAR,  -- UI language for this account; NULL = no preference set yet (defaults to Greek)
+    preferred_theme VARCHAR,  -- 'light' or 'dark'; NULL = no preference set yet (defaults to light)
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 

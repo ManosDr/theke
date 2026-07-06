@@ -166,3 +166,10 @@ export interface AdminStats {
   positive_feedback: number;
   negative_feedback: number;
 }
+
+export interface GapQueryEntry {
+  id: number;
+  message: string;
+  company_name: string | null;
+  created_at: string;
+}

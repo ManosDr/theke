@@ -1,29 +1,37 @@
-const RADIUS = 28;
+const RADIUS = 40;
 const CIRCUMFERENCE = 2 * Math.PI * RADIUS;
 
-export function SentimentDonut({ positive, negative }: { positive: number; negative: number }) {
+export function SentimentDonut({
+  positive,
+  negative,
+  size = 120,
+}: {
+  positive: number;
+  negative: number;
+  size?: number;
+}) {
   const total = positive + negative;
   const ratio = total === 0 ? 0 : positive / total;
   const percent = Math.round(ratio * 100);
   const dash = `${(ratio * CIRCUMFERENCE).toFixed(1)} ${CIRCUMFERENCE.toFixed(1)}`;
 
   return (
-    <svg width="70" height="70" viewBox="0 0 70 70" aria-hidden="true">
-      <circle cx="35" cy="35" r={RADIUS} fill="none" stroke="var(--color-border)" strokeWidth="9" />
+    <svg width={size} height={size} viewBox="0 0 100 100" style={{ flexShrink: 0 }} aria-hidden="true">
+      <circle cx="50" cy="50" r={RADIUS} fill="none" stroke="var(--color-border)" strokeWidth="12" />
       {total > 0 && (
         <circle
-          cx="35"
-          cy="35"
+          cx="50"
+          cy="50"
           r={RADIUS}
           fill="none"
           stroke="var(--color-warning)"
-          strokeWidth="9"
+          strokeWidth="12"
           strokeDasharray={dash}
           strokeLinecap="round"
-          transform="rotate(-90 35 35)"
+          transform="rotate(-90 50 50)"
         />
       )}
-      <text x="35" y="40" textAnchor="middle" fontSize="15" fontWeight="700" fill="var(--color-text)">
+      <text x="50" y="58" textAnchor="middle" fontSize="26" fontWeight="700" fill="var(--color-text)">
         {percent}
       </text>
     </svg>

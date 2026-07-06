@@ -1,32 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-type Theme = "light" | "dark";
-
-function applyTheme(theme: Theme) {
-  document.documentElement.setAttribute("data-theme", theme);
-  localStorage.setItem("theke-theme", theme);
-}
+import { useTheme } from "../lib/theme";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme>("light");
-
-  useEffect(() => {
-    const current = document.documentElement.getAttribute("data-theme") as Theme | null;
-    setTheme(current === "dark" ? "dark" : "light");
-  }, []);
-
-  function toggle() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    setTheme(next);
-    applyTheme(next);
-  }
+  const { theme, setTheme } = useTheme();
 
   return (
     <button
       className="btn btn-secondary"
-      onClick={toggle}
+      onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
       aria-label="Toggle dark mode"
       title="Toggle dark mode"
       style={{ padding: "var(--space-2)" }}

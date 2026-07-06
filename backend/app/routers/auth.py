@@ -18,6 +18,7 @@ from app.schemas import (
     ResetPasswordRequest,
     TokenResponse,
     UpdateLocaleRequest,
+    UpdateThemeRequest,
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
@@ -101,6 +102,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         company_type=company.type,
         role=role,
         preferred_locale=user.preferred_locale,
+        preferred_theme=user.preferred_theme,
     )
 
 
@@ -145,6 +147,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         company_type=company.type if company else None,
         role=user.role,
         preferred_locale=user.preferred_locale,
+        preferred_theme=user.preferred_theme,
     )
 
 
@@ -208,4 +211,15 @@ async def update_preferred_locale(
 ) -> None:
     db_user = db.get(User, user.user_id)
     db_user.preferred_locale = payload.locale
+    db.commit()
+
+
+@router.patch("/me/theme", status_code=status.HTTP_204_NO_CONTENT)
+async def update_preferred_theme(
+    payload: UpdateThemeRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    db_user = db.get(User, user.user_id)
+    db_user.preferred_theme = payload.theme
     db.commit()

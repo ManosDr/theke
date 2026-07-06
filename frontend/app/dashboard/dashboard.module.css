@@ -32,9 +32,13 @@
   }
 }
 
+/* Flexbox, not grid: flex's cross-axis stretch reliably equalizes sibling
+   heights regardless of content (a fixed-height recharts container vs. a
+   variable-content panel) - CSS Grid's align-items:stretch turned out not
+   to actually equalize these two in practice, confirmed by measuring both
+   cards' rendered heights directly. */
 .analyticsRow {
-  display: grid;
-  grid-template-columns: 2fr 1fr;
+  display: flex;
   gap: var(--space-4);
   margin-bottom: var(--space-4);
   align-items: stretch;
@@ -42,13 +46,15 @@
 
 @media (max-width: 900px) {
   .analyticsRow {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
 }
 
 .chartCard {
   display: flex;
   flex-direction: column;
+  flex: 2 1 0;
+  min-width: 0;
 }
 
 .chartCaption {
@@ -60,7 +66,8 @@
 .kbHealthPanel {
   display: flex;
   flex-direction: column;
-  height: 100%;
+  flex: 1 1 0;
+  min-width: 0;
 }
 
 .kbHealthStats {
@@ -84,19 +91,22 @@
 .sentimentRow {
   display: flex;
   align-items: center;
-  gap: var(--space-4);
+  justify-content: center;
+  gap: var(--space-5);
   padding-top: var(--space-4);
-  margin-top: auto;
+  margin-top: var(--space-2);
   border-top: 1px solid var(--color-border);
+  flex: 1;
 }
 
 .sentimentCaption {
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
 .sentimentLabel {
-  font-size: 0.75rem;
+  font-size: 0.8rem;
+  font-weight: 600;
   color: var(--color-text-muted);
   margin-bottom: 4px;
 }

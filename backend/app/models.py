@@ -54,6 +54,7 @@ class User(Base):
     is_active: Mapped[bool] = mapped_column(default=True)
     password_hash: Mapped[str] = mapped_column(Text)
     preferred_locale: Mapped[str | None] = mapped_column(Text)
+    preferred_theme: Mapped[str | None] = mapped_column(Text)  # 'light' or 'dark'; NULL defaults to 'light'
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -53,10 +53,15 @@ class TokenResponse(BaseModel):
     company_type: str | None = None
     role: str
     preferred_locale: str | None = None
+    preferred_theme: str | None = None
 
 
 class UpdateLocaleRequest(BaseModel):
     locale: str = Field(min_length=2, max_length=10)
+
+
+class UpdateThemeRequest(BaseModel):
+    theme: Literal["light", "dark"]
 
 
 class InviteCreateRequest(BaseModel):
@@ -340,6 +345,13 @@ class AdminStatsResponse(BaseModel):
     active_documents: int
     positive_feedback: int
     negative_feedback: int
+
+
+class GapQueryEntry(BaseModel):
+    id: int
+    message: str
+    company_name: str | None
+    created_at: datetime
 
 
 class MarkReviewedRequest(BaseModel):

@@ -1,4 +1,5 @@
 from datetime import date as date_type, datetime
+from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -35,6 +36,10 @@ class LoginRequest(BaseModel):
 
 class ForgotPasswordRequest(BaseModel):
     email: str
+
+
+class ForgotPasswordResponse(BaseModel):
+    message: str
 
 
 class ResetPasswordRequest(BaseModel):
@@ -129,14 +134,25 @@ class ChatMessageResponse(BaseModel):
     # a signal to present the answer as lower-confidence, not a promise
     # that no answer was given.
     gap: bool
+    # The underlying chat_sessions row id - None for the hard-gap/off-topic/
+    # error paths that return before _log_session ever runs, since there's
+    # nothing to attach a POST /chat/feedback rating to in that case.
+    session_id: int | None = None
 
 
 class ChatHistoryItem(BaseModel):
+    id: int
     message: str
     response: str
     citations: list[ChatMessageCitation] = []
     gap: bool | None = None  # NULL for rows written by the older POST /chat
     created_at: datetime
+
+
+class ChatFeedbackRequest(BaseModel):
+    session_id: int
+    message_index: int
+    rating: Literal["positive", "negative"]
 
 
 class ChatHistoryResponse(BaseModel):
@@ -314,6 +330,16 @@ class StaleDocumentSummary(BaseModel):
     source_group: str | None = None
     region_id: str | None = None
     last_verified_at: date_type | None = None
+
+
+class AdminStatsResponse(BaseModel):
+    total_messages: int
+    # Percentage of chat_sessions rows with gap=true, rounded to one
+    # decimal place - 0.0 (not an error) when total_messages is 0.
+    gap_rate: float
+    active_documents: int
+    positive_feedback: int
+    negative_feedback: int
 
 
 class MarkReviewedRequest(BaseModel):

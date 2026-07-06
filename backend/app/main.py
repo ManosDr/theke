@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import SessionLocal, get_db
 from app.models import Document
 from app.routers import admin, auth, chat, companies, documents, notifications, projects, search, translations
@@ -22,11 +23,27 @@ logging.basicConfig(level=logging.INFO)
 
 logger = logging.getLogger(__name__)
 
-app = FastAPI(title="theke API", version="0.1.0")
+# /docs and /redoc expose the full API schema (every route, every field) -
+# convenient in dev, not something a production deployment should serve
+# publicly. Gated on ENVIRONMENT rather than removed outright so local dev
+# keeps them by default (see app/config.py).
+_is_production = settings.environment == "production"
+app = FastAPI(
+    title="theke API",
+    version="0.1.0",
+    docs_url=None if _is_production else "/docs",
+    redoc_url=None if _is_production else "/redoc",
+    # Explicit, not just relying on FastAPI's own default - debug mode
+    # renders unhandled-exception tracebacks straight into HTTP responses,
+    # which must never happen in production and has no real use in this
+    # project's dev workflow either (uvicorn --reload already covers dev
+    # convenience).
+    debug=False,
+)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -12,7 +12,9 @@ import type {
   ChatHistoryResponse,
   ChatMessageResponse,
   DocumentSummary,
+  FeedbackRating,
   ProjectSummary,
+  RegionSummary,
 } from "../lib/types";
 import styles from "./chat.module.css";
 
@@ -21,6 +23,12 @@ interface Message {
   text: string;
   citations?: ChatCitation[];
   gap?: boolean | null;
+  // Underlying chat_sessions row id - only assistant messages that actually
+  // got logged (not the empty-question early return) carry one; feedback
+  // controls need it to call POST /chat/feedback.
+  sessionId?: number | null;
+  feedback?: FeedbackRating | null;
+  feedbackError?: boolean;
 }
 
 // Messages, not conversational turns - caps what's sent to the completion
@@ -43,6 +51,7 @@ function ChatContent() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
+  const [regions, setRegions] = useState<RegionSummary[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [kbQuery, setKbQuery] = useState("");
   const [kbResults, setKbResults] = useState<DocumentSummary[]>([]);
@@ -57,7 +66,18 @@ function ChatContent() {
         setSelectedProjectId(def ? def.id : null);
       })
       .catch(() => setProjects([]));
+    // Region names for the persistent "Έργο: ... | Περιοχή: ..." label below -
+    // ProjectSummary only carries region_id, not the display name.
+    api
+      .get<RegionSummary[]>("/projects/regions", token)
+      .then(setRegions)
+      .catch(() => setRegions([]));
   }, [token]);
+
+  const selectedProject = projects.find((p) => p.id === selectedProjectId) ?? null;
+  const selectedRegionName = selectedProject?.region_id
+    ? (regions.find((r) => r.region_id === selectedProject.region_id)?.region_name_el ?? null)
+    : null;
 
   // Per-project chat view: switching projects re-scopes both retrieval
   // (region comes from the project on the backend) and which conversation
@@ -73,7 +93,13 @@ function ChatContent() {
         const restored: Message[] = [];
         for (const item of data.items) {
           restored.push({ role: "user", text: item.message });
-          restored.push({ role: "assistant", text: item.response, citations: item.citations, gap: item.gap });
+          restored.push({
+            role: "assistant",
+            text: item.response,
+            citations: item.citations,
+            gap: item.gap,
+            sessionId: item.id,
+          });
         }
         setMessages(restored);
       })
@@ -107,7 +133,7 @@ function ChatContent() {
       );
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.answer, citations: data.citations, gap: data.gap },
+        { role: "assistant", text: data.answer, citations: data.citations, gap: data.gap, sessionId: data.session_id },
       ]);
     } catch (err) {
       setMessages((prev) => [
@@ -116,6 +142,20 @@ function ChatContent() {
       ]);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function submitFeedback(messageIndex: number, sessionId: number, rating: FeedbackRating) {
+    // Optimistic lock first - the buttons disable immediately on click, no
+    // confirmation dialog per spec. Rolled back (feedbackError shown, lock
+    // lifted) only if the request actually fails.
+    setMessages((prev) => prev.map((m, i) => (i === messageIndex ? { ...m, feedback: rating, feedbackError: false } : m)));
+    try {
+      await api.post("/chat/feedback", { session_id: sessionId, message_index: messageIndex, rating }, token);
+    } catch {
+      setMessages((prev) =>
+        prev.map((m, i) => (i === messageIndex ? { ...m, feedback: null, feedbackError: true } : m))
+      );
     }
   }
 
@@ -140,6 +180,17 @@ function ChatContent() {
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
         <div className={styles.disclaimerBanner}>{t("chat.disclaimer")}</div>
+
+        {selectedProject && (
+          <div className={styles.projectContextBar}>
+            {t("chat.projectLabel")}: {selectedProject.name}
+            {selectedRegionName && (
+              <>
+                {" "}| {t("chat.regionLabel")}: {selectedRegionName}
+              </>
+            )}
+          </div>
+        )}
 
         <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
@@ -186,6 +237,29 @@ function ChatContent() {
                     <p className={styles.zoneCaveat}>{t("chat.zoneCaveat")}</p>
                   )}
                 </>
+              )}
+              {m.role === "assistant" && m.gap === false && m.sessionId != null && (
+                <div className={styles.feedbackRow}>
+                  <button
+                    type="button"
+                    className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonActive : ""}`}
+                    disabled={m.feedback != null}
+                    onClick={() => submitFeedback(i, m.sessionId as number, "positive")}
+                    aria-label={t("chat.feedbackPositive")}
+                  >
+                    👍
+                  </button>
+                  <button
+                    type="button"
+                    className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonActive : ""}`}
+                    disabled={m.feedback != null}
+                    onClick={() => submitFeedback(i, m.sessionId as number, "negative")}
+                    aria-label={t("chat.feedbackNegative")}
+                  >
+                    👎
+                  </button>
+                  {m.feedbackError && <span className={styles.feedbackError}>{t("chat.feedbackError")}</span>}
+                </div>
               )}
             </div>
           ))}

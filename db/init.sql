@@ -272,6 +272,20 @@ CREATE TABLE IF NOT EXISTS chat_sessions (
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
 
+-- Thumbs up/down on a specific assistant answer. message_index is the
+-- position of the rated message in the frontend's displayed conversation
+-- array (0-indexed) - not a position within chat_sessions itself, since
+-- each chat_sessions row is already one Q&A turn (one assistant message).
+CREATE TABLE IF NOT EXISTS message_feedback (
+    id SERIAL PRIMARY KEY,
+    session_id INT NOT NULL REFERENCES chat_sessions(id),
+    message_index INT NOT NULL,
+    rating VARCHAR NOT NULL,  -- 'positive', 'negative'
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_message_feedback_session ON message_feedback(session_id);
+
 -- Locales available for the UI. 'en' and 'el' ship built-in (bundled in the
 -- frontend as a fallback, so the app works even if this table is empty);
 -- a super admin can add more (de, tr, he, ...) via the Languages admin panel.

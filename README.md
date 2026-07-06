@@ -13,6 +13,18 @@ AI-powered assistant for Greek construction professionals. Ask permit questions,
 
 ```bash
 cp .env.example .env
+```
+
+`.env.example` ships with production-oriented values for a couple of settings (`ENVIRONMENT=production`, and - see "Production environment guards" below - `SEED_DEMO_DATA=false`), since it doubles as the reference for a real deployment. For local dev, edit your new `.env` and set:
+
+```
+ENVIRONMENT=development
+SEED_DEMO_DATA=true
+```
+
+then:
+
+```bash
 docker compose up --build
 ```
 
@@ -20,7 +32,7 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Postgres: localhost:5432 (pgvector enabled)
 
-Set `SEED_DEMO_DATA=true` in `.env` (already the default in `.env.example`) to get 5 fixed demo accounts on first startup - password `demo1234` for all:
+With `SEED_DEMO_DATA=true`, you get 5 fixed demo accounts on first startup - password `demo1234` for all:
 
 | Email | Role |
 |---|---|

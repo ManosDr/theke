@@ -198,6 +198,22 @@ class ChatSession(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class MessageFeedback(Base):
+    __tablename__ = "message_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"))
+    # Position of the rated message in the frontend's displayed conversation
+    # array (0-indexed) - not a position within this one session row, since
+    # each chat_sessions row is already exactly one Q&A turn (one assistant
+    # message). Carried through so future analytics can tell "was it an
+    # early or late message in the conversation that got a bad rating",
+    # even though session_id alone already identifies which turn this is.
+    message_index: Mapped[int] = mapped_column(Integer)
+    rating: Mapped[str] = mapped_column(Text)  # 'positive', 'negative'
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class UserDefaultProject(Base):
     __tablename__ = "user_default_projects"
 

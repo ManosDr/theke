@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
@@ -22,18 +22,33 @@ const DEMO_ACCOUNTS: { labelKey: TranslationKey; email: string }[] = [
   { labelKey: "login.demo.municipalityMember", email: "demo-member@municipality.theke.gr" },
 ];
 
-export default function LoginPage() {
+function LoginContent() {
   const { login } = useAuth();
   const { t } = useLocale();
   const router = useRouter();
+  const searchParams = useSearchParams();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  // A boolean, not the translated string itself - t() is called at render
+  // time below so the message stays correct if the user switches language
+  // after landing here (a saved string would freeze at whatever locale was
+  // active the instant this effect ran, which can be wrong: the redirect
+  // is a full page reload, and LocaleProvider's own locale-from-storage
+  // effect isn't guaranteed to resolve before this one does).
+  const [sessionExpired, setSessionExpired] = useState(false);
+
+  useEffect(() => {
+    if (searchParams.get("sessionExpired")) {
+      setSessionExpired(true);
+    }
+  }, [searchParams]);
 
   async function doLogin(loginEmail: string, loginPassword: string) {
     setError(null);
+    setSessionExpired(false);
     setLoading(true);
     try {
       await login(loginEmail, loginPassword);
@@ -63,6 +78,7 @@ export default function LoginPage() {
       </div>
 
       <form className={`card ${styles.card}`} onSubmit={handleSubmit}>
+        {sessionExpired && <p className={styles.error}>{t("login.sessionExpired")}</p>}
         {error && <p className={styles.error}>{error}</p>}
 
         <div className={styles.field}>
@@ -120,5 +136,13 @@ export default function LoginPage() {
         </p>
       </form>
     </main>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={null}>
+      <LoginContent />
+    </Suspense>
   );
 }

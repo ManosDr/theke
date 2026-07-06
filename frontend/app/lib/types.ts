@@ -126,15 +126,19 @@ export interface ChatMessageResponse {
   answer: string;
   citations: ChatCitation[];
   gap: boolean;
+  session_id: number | null;
 }
 
 export interface ChatHistoryItem {
+  id: number;
   message: string;
   response: string;
   citations: ChatCitation[];
   gap: boolean | null;
   created_at: string;
 }
+
+export type FeedbackRating = "positive" | "negative";
 
 export interface ChatHistoryResponse {
   items: ChatHistoryItem[];
@@ -153,4 +157,12 @@ export interface NotificationSummary {
 export interface NotificationListResponse {
   items: NotificationSummary[];
   unread_count: number;
+}
+
+export interface AdminStats {
+  total_messages: number;
+  gap_rate: number;
+  active_documents: number;
+  positive_feedback: number;
+  negative_feedback: number;
 }

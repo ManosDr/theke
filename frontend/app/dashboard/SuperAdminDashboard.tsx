@@ -5,9 +5,9 @@ import { useEffect, useState } from "react";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import { AlertIcon, BuildingIcon, FlagIcon, HammerIcon } from "../components/StatIcons";
+import { AlertIcon, BuildingIcon, ClockIcon, FlagIcon, HammerIcon, MailIcon, ShieldCheckIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
-import type { AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
+import type { AdminStats, AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
@@ -205,17 +205,20 @@ export function SuperAdminDashboard() {
   const [kbSearched, setKbSearched] = useState(false);
 
   const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
+  const [stats, setStats] = useState<AdminStats | null>(null);
 
   async function refresh() {
     try {
-      const [companiesData, auditData, staleData] = await Promise.all([
+      const [companiesData, auditData, staleData, statsData] = await Promise.all([
         api.get<CompanySummary[]>("/admin/companies", token),
         api.get<AuditLogEntry[]>("/admin/audit-log", token),
         api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
+        api.get<AdminStats>("/admin/stats", token),
       ]);
       setCompanies(companiesData);
       setAuditLog(auditData);
       setStaleDocs(staleData);
+      setStats(statsData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -265,6 +268,21 @@ export function SuperAdminDashboard() {
         <StatCard tone="purple" icon={<FlagIcon />} value={municipalityCount} label={t("dash.super.municipalities")} />
         <StatCard tone="danger" icon={<AlertIcon />} value={suspendedCount} label={t("dash.super.suspended")} />
       </div>
+
+      <section className={`card ${styles.section}`}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.super.ragStats")}</h2>
+        </div>
+        {stats && (
+          <div className={styles.grid}>
+            <StatCard tone="info" icon={<MailIcon />} value={stats.total_messages} label={t("dash.super.totalMessages")} />
+            <StatCard tone="danger" icon={<AlertIcon />} value={`${stats.gap_rate}%`} label={t("dash.super.gapRate")} />
+            <StatCard tone="primary" icon={<ShieldCheckIcon />} value={stats.active_documents} label={t("dash.super.activeDocuments")} />
+            <StatCard tone="accent" icon={<ClockIcon />} value={stats.positive_feedback} label={t("dash.super.positiveFeedback")} />
+            <StatCard tone="purple" icon={<ClockIcon />} value={stats.negative_feedback} label={t("dash.super.negativeFeedback")} />
+          </div>
+        )}
+      </section>
 
       <section className={`card ${styles.section}`}>
         <div className={styles.sectionHeader}>

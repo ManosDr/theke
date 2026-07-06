@@ -312,6 +312,16 @@ re-tune `lists` for the actual row count (rule of thumb ~ rows/1000 for
 this index type) and set `probes` to a smaller fraction (e.g. `sqrt(lists)`)
 based on measured recall against a real query sample — not guessed.
 
+## The ivfflat index above was never actually being used, and was trained on zero rows
+
+**What was found, during Phase 6's pre-deploy pgvector check:** `pg_stat_user_indexes.idx_scan` for `idx_embeddings_vector` was `0`, despite ~16k rows and continuous RAG querying all session. `EXPLAIN` showed why: the entry directly above this one forces `ivfflat.probes = 128` (= `lists`) for exact recall, and probing *every* list gives the index no pruning advantage over a plain sequential scan - so the planner correctly picks a seq scan every time (cost ~3743 vs. the index's ~334 at the low-recall `probes=1`). Separately, `db/init.sql` creates the index immediately after `CREATE TABLE embeddings`, which runs on a genuinely empty table via Postgres's one-time `docker-entrypoint-initdb.d` hook - so its k-means centroids were trained on zero real vectors.
+
+**Why this went unnoticed:** the `probes=128` decision above was made to guarantee exact recall, and it worked for that purpose regardless of the index's own quality (a seq scan is always exact). The index being unused and poorly trained had no visible effect on answer quality - it would only matter once something makes the planner actually choose it again.
+
+**Fix:** dropped and rebuilt `idx_embeddings_vector` (same `lists=128`) against the populated table. Verified retrieval still returns correct results afterward.
+
+**Revisit when:** the `probes=128` decision above gets revisited (corpus grows, `probes` gets lowered) - rebuild the index again at that point if it's been more than a handful of ingestion batches since the last rebuild, so its centroids reflect the actual corpus rather than whatever existed at the last rebuild.
+
 ## A real numeric coefficient list can still score below the retrieval threshold
 
 **What was found:** while testing `POST /chat/message`'s coefficient/setback
@@ -545,3 +555,37 @@ either time, and confirmed all 16 tables exist.
 volume can hide a fresh-init failure indefinitely) is worth remembering
 if `init.sql` gets restructured again: test any reordering against an
 actual empty volume, not just the already-migrated dev DB.
+
+## Password reset used to log the full email and the raw reset token
+
+**What was found, during Phase 6's log content audit:** `POST /auth/forgot-password` logged `"Password reset requested for %s: %s" % (user.email, reset_link)` at INFO level - the full email address, and the full reset link with the raw, valid, unexpired token embedded in the URL. Anyone with log access could lift that token directly and reset the account's password within the token's expiry window (60 minutes by default) - a real credential leak, not a theoretical one.
+
+**Why it was there:** no email provider is configured yet (see "Email verification is deferred, not built" - a related but distinct gap), so logging the link was standing in for actual delivery, to keep the reset flow testable end-to-end in dev.
+
+**Fix:** the log line now masks the email (first 3 characters + domain, e.g. `dem***@construction.theke.gr`) and never includes the token or the link at all. This means there is currently no way to retrieve a reset link for local testing except querying `password_reset_tokens` directly - a deliberate tradeoff, not an oversight.
+
+**Revisit when:** real email delivery is wired up (the actual fix for both this and the deferred-verification entry) - at that point the token only ever needs to exist in the outbound email, never in a log line.
+
+## Multiple named conversations per project
+
+**What was chosen:** deferred post-soft-launch. Each project currently has one continuous chat thread (see `GET /chat/history`'s `project_id` scoping), not multiple named/switchable conversations within it.
+
+**Why:** useful for engineers handling several permit applications simultaneously within the same project, but adds real UI/data-model surface (conversation naming, switching, deletion) for a need not yet confirmed by actual usage.
+
+**Revisit when:** a soft-launch user explicitly asks for it.
+
+## Export/print of cited conversations
+
+**What was chosen:** deferred post-soft-launch. There's currently no way to export or print a chat conversation with its citations intact.
+
+**Why:** engineers will want this for client presentations and ΥΔΟΜ submissions, but it's a real feature (formatting, citation rendering outside the chat UI, likely a PDF/print stylesheet) worth building once there's a concrete request shaping what it actually needs to look like, rather than guessing the format upfront.
+
+**Revisit when:** first soft-launch feedback mentions it.
+
+## Dashboard analytics graphs
+
+**What was chosen:** deferred post-soft-launch. The super-admin stats panel (Phase 6 Section 5) shows total messages, gap rate, active documents, and thumbs up/down as plain labelled numbers - no usage-over-time, query-category, or per-region activity graphs.
+
+**Why:** the current panel covers what's needed to sanity-check the platform at soft-launch scale (a handful of companies); graphs add real complexity (charting library choice, aggregation queries, date-range handling) that isn't justified until there's enough activity/company diversity for trends to actually mean something.
+
+**Revisit when:** more than 3 active companies.

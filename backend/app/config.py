@@ -47,5 +47,17 @@ class Settings(BaseSettings):
     # work in dev. Leave false for any real deployment.
     seed_demo_data: bool = False
 
+    # "development" or "production" - gates things that are convenient in
+    # dev but must not ship live (currently: /docs and /redoc, see
+    # main.py). Not validated against the two literal values here since
+    # pydantic-settings would just reject anything else at startup anyway.
+    environment: str = "development"
+
+    # Comma-separated list of allowed frontend origins for CORS (see
+    # main.py). Defaults to the local dev frontend regardless of what
+    # .env.example documents for production - an unset/missing var must
+    # never silently widen access.
+    cors_origins: str = "http://localhost:3000"
+
 
 settings = Settings()

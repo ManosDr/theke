@@ -8,9 +8,10 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import ChatSession, Project, Region, UtilityProvider
+from app.models import ChatSession, MessageFeedback, Project, Region, UtilityProvider
 from app.schemas import (
     ChatCitation,
+    ChatFeedbackRequest,
     ChatHistoryItem,
     ChatHistoryResponse,
     ChatMessageCitation,
@@ -301,10 +302,10 @@ async def chat_message(
         client = OpenAI(api_key=settings.openai_api_key)
 
         if _is_off_topic(client, question):
-            _log_session(
+            session_id = _log_session(
                 db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="off_topic_guard", gap=True
             )
-            return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
+            return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
         raw_hits = _retrieve(db, user, question, settings.rag_top_k, region_id=region_id)
         hits = [h for h in raw_hits if h.distance <= settings.rag_max_distance]
@@ -316,8 +317,8 @@ async def chat_message(
                 if contact_lines
                 else CHAT_MESSAGE_GAP_RESPONSE
             )
-            _log_session(db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True)
-            return ChatMessageResponse(answer=gap_answer, citations=[], gap=True)
+            session_id = _log_session(db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True)
+            return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
         # A real answer is still generated from these hits - "gap" here flags
         # low confidence (thinner or weaker-than-usual support), not absence.
@@ -366,7 +367,7 @@ async def chat_message(
             )
         )
 
-    _log_session(
+    session_id = _log_session(
         db,
         user,
         payload.project_id,
@@ -376,7 +377,7 @@ async def chat_message(
         citations=[c.model_dump() for c in citations],
         gap=is_low_confidence,
     )
-    return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence)
+    return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id)
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
@@ -402,6 +403,7 @@ async def chat_history(
     rows = db.scalars(stmt).all()
     items = [
         ChatHistoryItem(
+            id=row.id,
             message=row.message or "",
             response=row.response or "",
             citations=[ChatMessageCitation(**c) for c in (row.citations or [])],
@@ -413,6 +415,33 @@ async def chat_history(
     return ChatHistoryResponse(items=items)
 
 
+@router.post("/feedback", status_code=status.HTTP_201_CREATED)
+async def submit_feedback(
+    payload: ChatFeedbackRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Thumbs up/down on a specific assistant answer. Ownership is checked
+    against the session's company, not its user - matches how chat_history
+    otherwise scopes by user, but a rating is a company-level signal (see
+    GET /admin/stats) rather than a private one, and this still refuses a
+    cross-company rating either way."""
+    session = db.get(ChatSession, payload.session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+    if session.company_id != user.company_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session belongs to a different company")
+
+    feedback = MessageFeedback(
+        session_id=payload.session_id,
+        message_index=payload.message_index,
+        rating=payload.rating,
+    )
+    db.add(feedback)
+    db.commit()
+    return {"id": feedback.id}
+
+
 def _log_session(
     db: Session,
     user: CurrentUser,
@@ -422,17 +451,17 @@ def _log_session(
     tool_used: str,
     citations: list[dict] | None = None,
     gap: bool | None = None,
-) -> None:
-    db.add(
-        ChatSession(
-            company_id=user.company_id,
-            user_id=user.user_id,
-            project_id=project_id,
-            message=message,
-            response=response,
-            tool_used=tool_used,
-            citations=citations,
-            gap=gap,
-        )
+) -> int:
+    session = ChatSession(
+        company_id=user.company_id,
+        user_id=user.user_id,
+        project_id=project_id,
+        message=message,
+        response=response,
+        tool_used=tool_used,
+        citations=citations,
+        gap=gap,
     )
+    db.add(session)
     db.commit()
+    return session.id

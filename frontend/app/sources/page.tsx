@@ -92,6 +92,12 @@ function SourcesContent() {
     runQuery({ ...filters, ...patch }, 0);
   }
 
+  const hasActiveFilters = Boolean(filters.group || filters.authority || filters.contentType || filters.regionId);
+
+  function clearFilters() {
+    runQuery({ group: "", authority: "", contentType: "", regionId: "" }, 0);
+  }
+
   const shareQuery = buildParams(filters, offset).toString();
   const fromParam = encodeURIComponent(shareQuery ? `${pathname}?${shareQuery}` : pathname);
 
@@ -172,7 +178,16 @@ function SourcesContent() {
       {!data ? (
         <p className="text-muted">{t("common.loading")}</p>
       ) : data.items.length === 0 ? (
-        <p className={styles.emptyState}>{t("sources.noDocuments")}</p>
+        hasActiveFilters ? (
+          <div className={styles.emptyState}>
+            <p>{t("sources.noDocumentsFiltered")}</p>
+            <button type="button" className="btn btn-secondary" onClick={clearFilters}>
+              {t("sources.clearFilters")}
+            </button>
+          </div>
+        ) : (
+          <p className={styles.emptyState}>{t("sources.noDocumentsYet")}</p>
+        )
       ) : (
         <div className="card" style={{ padding: "var(--space-4)" }}>
           <table className={styles.table}>

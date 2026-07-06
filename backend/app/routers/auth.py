@@ -12,6 +12,7 @@ from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Invite, PasswordResetToken, User
 from app.schemas import (
     ForgotPasswordRequest,
+    ForgotPasswordResponse,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -147,14 +148,26 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     )
 
 
-@router.post("/forgot-password", status_code=status.HTTP_204_NO_CONTENT)
-async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> None:
-    """Always 204 regardless of whether the email is registered - the
-    response can't be allowed to reveal that, or it becomes an email-
-    enumeration oracle. No email provider is configured yet, so instead of
-    real delivery this logs the reset link (see KNOWN_DECISIONS.md) - the
-    mechanism is real and testable end-to-end, just not yet wired to an
-    inbox."""
+FORGOT_PASSWORD_MESSAGE = "Εάν το email είναι εγγεγραμμένο, θα λάβετε σύντομα οδηγίες επαναφοράς κωδικού."
+
+
+def _mask_email(email: str) -> str:
+    """First 3 chars + domain only - enough to spot-check in logs which
+    account triggered an event, without the full address being readable by
+    anyone with log access."""
+    local, _, domain = email.partition("@")
+    return f"{local[:3]}***@{domain}" if domain else f"{local[:3]}***"
+
+
+@router.post("/forgot-password", response_model=ForgotPasswordResponse)
+async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
+    """Always the same 200 + body regardless of whether the email is
+    registered - the response can't be allowed to reveal that, or it
+    becomes an email-enumeration oracle. No email provider is configured
+    yet, so there's currently no way to actually deliver the reset link to
+    the user (see KNOWN_DECISIONS.md) - querying password_reset_tokens
+    directly is the only way to retrieve it for now, deliberately, since
+    logging it was a real credential leak (see KNOWN_DECISIONS.md)."""
     user = db.scalar(select(User).where(User.email == payload.email))
     if user and user.is_active:
         token = secrets.token_urlsafe(32)
@@ -166,8 +179,12 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
             )
         )
         db.commit()
-        reset_link = f"{settings.frontend_url}/reset-password?token={token}"
-        logger.info("Password reset requested for %s: %s", user.email, reset_link)
+        # Deliberately not logging the token or the reset link built from it
+        # (query password_reset_tokens directly if you need it for local
+        # testing) - this line exists only so "a reset was requested" is
+        # observable in logs, not to substitute for real delivery.
+        logger.info("Password reset requested for %s", _mask_email(user.email))
+    return ForgotPasswordResponse(message=FORGOT_PASSWORD_MESSAGE)
 
 
 @router.post("/reset-password", status_code=status.HTTP_204_NO_CONTENT)

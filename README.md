@@ -119,7 +119,9 @@ When a project is linked to a tracked region, its company gains visibility into 
 
 ## Interface
 
-A fixed left sidebar (Dashboard / Sources / Search / Chat) plus a top header (page title, a search bar that works from any page, a notification bell, and the account menu) frame every page. The visual design - color palette, gradients, card/badge styling - is modeled on a reference dashboard design, recreated for both light and dark mode with the same layout in each. Dashboards use color-coded stat tiles (a suspended-tenant count, for instance, renders in red so it's impossible to miss) and a smooth multi-line activity chart (logins vs. everything else, from real audit-log data - no placeholder numbers).
+A fixed left sidebar (Dashboard / Sources / Search / Chat) plus a top header (page title, a search bar that works from any page, a notification bell, and the account menu) frame every page. The visual design - color palette, gradients, card/badge styling - is modeled on a reference dashboard design, recreated for both light and dark mode with the same layout in each.
+
+The Super Admin dashboard is organized by urgency rather than a flat wall of stat tiles: an **attention row** surfaces the three numbers that actually need a decision (suspended tenants, chat gap rate, stale documents), each with a severity-colored card and a CTA that jumps straight to where it's resolved (scroll to Companies / open Chat / jump to the Staleness tab); an **analytics row** pairs the multi-line activity chart (logins vs. everything else, from real audit-log data) with a chat & knowledge-base health panel (message/document counts plus a thumbs up/down sentiment donut); a **tenants strip** and **companies table** follow; and the lower-frequency admin tools (staleness review, public KB search, languages, audit log) are consolidated into a single **tabbed panel** instead of four separately-scrolled cards.
 
 ## Knowledge base UI
 

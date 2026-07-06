@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import { AlertIcon, BuildingIcon, ClockIcon, FlagIcon, HammerIcon, MailIcon, ShieldCheckIcon } from "../components/StatIcons";
+import { AlertIcon, ClockIcon, FlagIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type { AdminStats, AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
-import { StatCard } from "./StatCard";
+import { AttentionCard } from "./AttentionCard";
+import { SentimentDonut } from "./SentimentDonut";
 import styles from "./dashboard.module.css";
 
 const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
@@ -18,6 +20,8 @@ const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
 };
 
 const BUILTIN_TRANSLATIONS = translations as Record<string, Partial<Record<TranslationKey, string>>>;
+
+type SecondaryTab = "staleness" | "kb" | "languages" | "audit";
 
 function groupTranslationKeys(): Record<string, TranslationKey[]> {
   const groups: Record<string, TranslationKey[]> = {};
@@ -30,7 +34,7 @@ function groupTranslationKeys(): Record<string, TranslationKey[]> {
 
 const TRANSLATION_GROUPS = groupTranslationKeys();
 
-function LanguagesSection() {
+function LanguagesPanel() {
   const { user } = useAuth();
   const { t, locales, refreshLocales } = useLocale();
   const token = user?.token ?? null;
@@ -96,10 +100,7 @@ function LanguagesSection() {
   }
 
   return (
-    <section className={`card ${styles.section}`}>
-      <div className={styles.sectionHeader}>
-        <h2>{t("dash.super.languages")}</h2>
-      </div>
+    <div>
       <p className="text-muted">{t("dash.super.languagesDescription")}</p>
 
       <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
@@ -186,13 +187,14 @@ function LanguagesSection() {
           {saveMessage && <span className="text-muted">{saveMessage}</span>}
         </div>
       )}
-    </section>
+    </div>
   );
 }
 
 export function SuperAdminDashboard() {
   const { user } = useAuth();
   const { t } = useLocale();
+  const router = useRouter();
   const token = user?.token ?? null;
 
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
@@ -206,6 +208,10 @@ export function SuperAdminDashboard() {
 
   const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
   const [stats, setStats] = useState<AdminStats | null>(null);
+
+  const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
+  const companiesRef = useRef<HTMLElement | null>(null);
+  const secondaryToolsRef = useRef<HTMLElement | null>(null);
 
   async function refresh() {
     try {
@@ -250,6 +256,11 @@ export function SuperAdminDashboard() {
     setKbResults((prev) => prev.filter((d) => d.id !== id));
   }
 
+  function goToTab(tab: SecondaryTab) {
+    setActiveTab(tab);
+    secondaryToolsRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={styles.emptyState}>{error}</p>;
 
@@ -258,42 +269,113 @@ export function SuperAdminDashboard() {
   const municipalityCount = companies.filter((c) => c.type === "municipality").length;
   const suspendedCount = companies.filter((c) => c.is_suspended).length;
 
+  const gapRate = stats?.gap_rate ?? 0;
+  const gapTone = gapRate >= 50 ? "danger" : gapRate >= 20 ? "warning" : "success";
+  const staleTone = staleDocs.length > 0 ? "warning" : "success";
+  const suspendedTone = suspendedCount > 0 ? "danger" : "success";
+
+  const totalFeedback = (stats?.positive_feedback ?? 0) + (stats?.negative_feedback ?? 0);
+
   return (
     <div>
-      <h1>{t("dash.super.title")}</h1>
-
-      <div className={styles.grid}>
-        <StatCard tone="primary" icon={<BuildingIcon />} value={companies.length} label={t("dash.super.totalTenants")} />
-        <StatCard tone="info" icon={<HammerIcon />} value={constructionCount} label={t("dash.super.constructionCompanies")} />
-        <StatCard tone="purple" icon={<FlagIcon />} value={municipalityCount} label={t("dash.super.municipalities")} />
-        <StatCard tone="danger" icon={<AlertIcon />} value={suspendedCount} label={t("dash.super.suspended")} />
+      <div className={styles.overviewHeader}>
+        <h1>{t("dash.super.title")}</h1>
+        <p className={styles.overviewSubtitle}>{t("dash.super.subtitle")}</p>
       </div>
 
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.super.ragStats")}</h2>
-        </div>
-        {stats && (
-          <div className={styles.grid}>
-            <StatCard tone="info" icon={<MailIcon />} value={stats.total_messages} label={t("dash.super.totalMessages")} />
-            <StatCard tone="danger" icon={<AlertIcon />} value={`${stats.gap_rate}%`} label={t("dash.super.gapRate")} />
-            <StatCard tone="primary" icon={<ShieldCheckIcon />} value={stats.active_documents} label={t("dash.super.activeDocuments")} />
-            <StatCard tone="accent" icon={<ClockIcon />} value={stats.positive_feedback} label={t("dash.super.positiveFeedback")} />
-            <StatCard tone="purple" icon={<ClockIcon />} value={stats.negative_feedback} label={t("dash.super.negativeFeedback")} />
+      <div className={styles.attentionRow}>
+        <AttentionCard
+          tone={suspendedTone}
+          icon={<FlagIcon size={14} />}
+          value={suspendedCount}
+          label={t("dash.super.suspended")}
+          cta={t("dash.super.manage")}
+          onCtaClick={() => companiesRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}
+        />
+        <AttentionCard
+          tone={gapTone}
+          icon={<AlertIcon size={14} />}
+          value={`${gapRate}%`}
+          label={t("dash.super.gapRate")}
+          cta={t("dash.super.reviewGaps")}
+          onCtaClick={() => router.push("/chat")}
+        />
+        <AttentionCard
+          tone={staleTone}
+          icon={<ClockIcon size={14} />}
+          value={staleDocs.length}
+          label={t("dash.super.staleDocs")}
+          cta={t("dash.super.reviewQueue")}
+          onCtaClick={() => goToTab("staleness")}
+        />
+      </div>
+
+      <div className={styles.analyticsRow}>
+        <section className={`card ${styles.section} ${styles.chartCard}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.super.activity")}</h2>
           </div>
-        )}
-      </section>
+          <p className={styles.chartCaption}>{t("dash.super.activityCaption")}</p>
+          <ActivityChart entries={auditLog} />
+        </section>
 
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.super.activity")}</h2>
+        <section className={`card ${styles.section} ${styles.kbHealthPanel}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.super.chatKbPanel")}</h2>
+          </div>
+          {stats && (
+            <>
+              <div className={styles.kbHealthStats}>
+                <div>
+                  <span className={styles.value}>{stats.total_messages}</span>
+                  <span className={styles.label}>{t("dash.super.totalMessages")}</span>
+                </div>
+                <div>
+                  <span className={styles.value}>{stats.active_documents}</span>
+                  <span className={styles.label}>{t("dash.super.activeDocuments")}</span>
+                </div>
+              </div>
+              <div className={styles.sentimentRow}>
+                <SentimentDonut positive={stats.positive_feedback} negative={stats.negative_feedback} />
+                <div>
+                  <div className={styles.sentimentLabel}>{t("dash.super.sentiment")}</div>
+                  <div className={styles.sentimentCaption}>
+                    {totalFeedback === 0
+                      ? t("dash.super.feedbackCaptionEmpty")
+                      : t("dash.super.feedbackCaption", {
+                          up: stats.positive_feedback,
+                          down: stats.negative_feedback,
+                        })}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+        </section>
+      </div>
+
+      <div className={`card ${styles.tenantsStrip}`}>
+        <span className={styles.tenantsStripLabel}>{t("dash.super.companies")}</span>
+        <div className={styles.tenantStats}>
+          <div className={styles.tenantStat}>
+            <span className={styles.value}>{companies.length}</span>
+            <span className={styles.label}>{t("dash.super.totalTenants")}</span>
+          </div>
+          <div className={styles.tenantStat}>
+            <span className={styles.value}>{constructionCount}</span>
+            <span className={styles.label}>{t("dash.super.constructionCompanies")}</span>
+          </div>
+          <div className={styles.tenantStat}>
+            <span className={styles.value}>{municipalityCount}</span>
+            <span className={styles.label}>{t("dash.super.municipalities")}</span>
+          </div>
         </div>
-        <ActivityChart entries={auditLog} />
-      </section>
+      </div>
 
-      <section className={`card ${styles.section}`}>
+      <section ref={companiesRef} className={`card ${styles.section}`}>
         <div className={styles.sectionHeader}>
           <h2>{t("dash.super.companies")}</h2>
+          <span className="text-muted">{t("dash.super.companiesTotal", { count: companies.length })}</span>
         </div>
         {companies.length === 0 ? (
           <p className={styles.emptyState}>{t("dash.super.noCompanies")}</p>
@@ -331,116 +413,134 @@ export function SuperAdminDashboard() {
         )}
       </section>
 
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.super.staleDocs")}</h2>
+      <section ref={secondaryToolsRef} className={`card ${styles.section}`}>
+        <div className={styles.tabBar}>
+          {(
+            [
+              ["staleness", t("dash.super.tabStaleness")],
+              ["kb", t("dash.super.tabKb")],
+              ["languages", t("dash.super.languages")],
+              ["audit", t("dash.super.tabAudit")],
+            ] as [SecondaryTab, string][]
+          ).map(([tab, label]) => (
+            <button
+              key={tab}
+              type="button"
+              className={`${styles.tab} ${activeTab === tab ? styles.tabActive : ""}`}
+              onClick={() => setActiveTab(tab)}
+            >
+              {label}
+            </button>
+          ))}
         </div>
-        {staleDocs.length === 0 ? (
-          <p className={styles.emptyState}>{t("dash.super.noStaleDocs")}</p>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t("dash.super.colTitle")}</th>
-                <th>{t("dash.super.colSource")}</th>
-                <th>{t("dash.super.colRegion")}</th>
-                <th>{t("dash.super.colLastVerified")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {staleDocs.map((doc) => (
-                <tr key={doc.id}>
-                  <td>{doc.title}</td>
-                  <td className="text-muted">{doc.source_group ?? "—"}</td>
-                  <td className="text-muted">{doc.region_id ?? t("dash.super.national")}</td>
-                  <td>
-                    <span className="badge badge-warning">
-                      {doc.last_verified_at ? new Date(doc.last_verified_at).toLocaleDateString() : t("dash.super.neverVerified")}
-                    </span>
-                  </td>
+
+        {activeTab === "staleness" &&
+          (staleDocs.length === 0 ? (
+            <p className={styles.emptyState}>{t("dash.super.noStaleDocs")}</p>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>{t("dash.super.colTitle")}</th>
+                  <th>{t("dash.super.colSource")}</th>
+                  <th>{t("dash.super.colRegion")}</th>
+                  <th>{t("dash.super.colLastVerified")}</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody>
+                {staleDocs.map((doc) => (
+                  <tr key={doc.id}>
+                    <td>{doc.title}</td>
+                    <td className="text-muted">{doc.source_group ?? "—"}</td>
+                    <td className="text-muted">{doc.region_id ?? t("dash.super.national")}</td>
+                    <td>
+                      <span className="badge badge-warning">
+                        {doc.last_verified_at ? new Date(doc.last_verified_at).toLocaleDateString() : t("dash.super.neverVerified")}
+                      </span>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          ))}
+
+        {activeTab === "kb" && (
+          <div>
+            <form className={styles.inlineForm} onSubmit={searchKb}>
+              <input
+                className="input"
+                placeholder={t("dash.super.kbPlaceholder")}
+                value={kbQuery}
+                onChange={(e) => setKbQuery(e.target.value)}
+              />
+              <button type="submit" className="btn btn-primary">
+                {t("common.search")}
+              </button>
+            </form>
+
+            {kbSearched && kbResults.length === 0 && <p className={styles.emptyState}>{t("common.noMatches")}</p>}
+
+            {kbResults.length > 0 && (
+              <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.super.colTitle")}</th>
+                    <th>{t("dash.super.colType")}</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kbResults.map((doc) => (
+                    <tr key={doc.id}>
+                      <td>{doc.title}</td>
+                      <td>{doc.doc_type ? t(`docType.${doc.doc_type}` as TranslationKey) : "—"}</td>
+                      <td>
+                        <button className="btn btn-danger" onClick={() => removeDoc(doc.id)}>
+                          {t("dash.super.remove")}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </div>
         )}
-      </section>
 
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.super.kb")}</h2>
-        </div>
-        <form className={styles.inlineForm} onSubmit={searchKb}>
-          <input
-            className="input"
-            placeholder={t("dash.super.kbPlaceholder")}
-            value={kbQuery}
-            onChange={(e) => setKbQuery(e.target.value)}
-          />
-          <button type="submit" className="btn btn-primary">
-            {t("common.search")}
-          </button>
-        </form>
+        {activeTab === "languages" && <LanguagesPanel />}
 
-        {kbSearched && kbResults.length === 0 && <p className={styles.emptyState}>{t("common.noMatches")}</p>}
-
-        {kbResults.length > 0 && (
-          <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
-            <thead>
-              <tr>
-                <th>{t("dash.super.colTitle")}</th>
-                <th>{t("dash.super.colType")}</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {kbResults.map((doc) => (
-                <tr key={doc.id}>
-                  <td>{doc.title}</td>
-                  <td>{doc.doc_type ? t(`docType.${doc.doc_type}` as TranslationKey) : "—"}</td>
-                  <td>
-                    <button className="btn btn-danger" onClick={() => removeDoc(doc.id)}>
-                      {t("dash.super.remove")}
-                    </button>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </section>
-
-      <LanguagesSection />
-
-      <section className={`card ${styles.section}`}>
-        <div className={styles.sectionHeader}>
-          <h2>{t("dash.super.auditLog")}</h2>
-        </div>
-        {auditLog.length === 0 ? (
-          <p className={styles.emptyState}>{t("dash.super.noActivity")}</p>
-        ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{t("dash.super.colAction")}</th>
-                <th>{t("dash.super.colCompany")}</th>
-                <th>{t("dash.super.colResource")}</th>
-                <th>{t("dash.super.colWhen")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {auditLog.slice(0, 20).map((entry) => (
-                <tr key={entry.id}>
-                  <td>{entry.action}</td>
-                  <td className="text-muted">
-                    {entry.company_id ? companyNameById.get(entry.company_id) ?? `#${entry.company_id}` : t("dash.super.platform")}
-                  </td>
-                  <td className="text-muted">{entry.resource_type ?? "—"}</td>
-                  <td className="text-muted">{new Date(entry.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
+        {activeTab === "audit" &&
+          (auditLog.length === 0 ? (
+            <p className={styles.emptyState}>{t("dash.super.noActivity")}</p>
+          ) : (
+            <>
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{t("dash.super.colAction")}</th>
+                    <th>{t("dash.super.colCompany")}</th>
+                    <th>{t("dash.super.colResource")}</th>
+                    <th>{t("dash.super.colWhen")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {auditLog.slice(0, 8).map((entry) => (
+                    <tr key={entry.id}>
+                      <td>{entry.action}</td>
+                      <td className="text-muted">
+                        {entry.company_id ? companyNameById.get(entry.company_id) ?? `#${entry.company_id}` : t("dash.super.platform")}
+                      </td>
+                      <td className="text-muted">{entry.resource_type ?? "—"}</td>
+                      <td className="text-muted">{new Date(entry.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-muted" style={{ marginTop: "var(--space-3)" }}>
+                {t("dash.super.showingOf", { shown: Math.min(8, auditLog.length), total: auditLog.length })}
+              </p>
+            </>
+          ))}
       </section>
     </div>
   );

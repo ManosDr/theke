@@ -5,6 +5,162 @@
   margin-bottom: var(--space-5);
 }
 
+.overviewHeader {
+  margin-bottom: var(--space-4);
+}
+
+.overviewHeader h1 {
+  margin: 0;
+}
+
+.overviewSubtitle {
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  margin: 2px 0 0;
+}
+
+.attentionRow {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .attentionRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.analyticsRow {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+  align-items: stretch;
+}
+
+@media (max-width: 900px) {
+  .analyticsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.chartCard {
+  display: flex;
+  flex-direction: column;
+}
+
+.chartCaption {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  margin: 0 0 var(--space-2);
+}
+
+.kbHealthPanel {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+.kbHealthStats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.kbHealthStats .value {
+  font-size: 1.4rem;
+  font-weight: 800;
+  display: block;
+}
+
+.kbHealthStats .label {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.sentimentRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding-top: var(--space-4);
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+}
+
+.sentimentCaption {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.sentimentLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-bottom: 4px;
+}
+
+.tenantsStrip {
+  padding: var(--space-4) var(--space-5);
+  margin-bottom: var(--space-4);
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.tenantsStripLabel {
+  font-size: 0.85rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.tenantStats {
+  display: flex;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.tenantStat {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.tenantStat .value {
+  font-size: 1.25rem;
+  font-weight: 800;
+}
+
+.tenantStat .label {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+}
+
+.tabBar {
+  display: flex;
+  gap: var(--space-1);
+  border-bottom: 1px solid var(--color-border);
+  margin-bottom: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.tab {
+  background: none;
+  border: none;
+  border-bottom: 2px solid transparent;
+  padding: var(--space-3) var(--space-3) var(--space-2);
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.tabActive {
+  color: var(--color-text);
+  border-bottom-color: var(--color-primary);
+}
+
 .section {
   padding: var(--space-5);
   margin-bottom: var(--space-5);

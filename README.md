@@ -75,11 +75,12 @@ The crawler pulls from official sources, deduplicating by content hash so re-cra
 **National:**
 
 - **ΦΕΚ** (Government Gazette, Series Α, Δ, and Α.Α.Π. - forced expropriations & urban planning matters, which is where Γενικά Πολεοδομικά Σχέδια get published) via et.gr's search API
-- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars, plus EUGO's e-Άδειες permit-issuance overview and mitos.gov.gr's full e-Άδειες service description (the national administrative-procedures registry)
-- **ΥΠΕΝ** (Ministry of Environment & Energy) - mostly indexed by title/link only per their robots.txt, with a handful of documents manually text-extracted where the source PDF was hand-verified, plus the opengov.gr public-consultation text of the building-permit-documents article (Ν.4495/2017 Άρθρο 50)
+- **ΤΕΕ** (Technical Chamber) e-Άδειες circulars, plus EUGO's e-Άδειες permit-issuance overview, mitos.gov.gr's full e-Άδειες and small-scale-works (Εργασίες Δόμησης Μικρής Κλίμακας) service descriptions, and a curated summary of the permit cost structure (engineer fees, e-Άδειες platform fee, e-ΕΦΚΑ contributions - honest about which figures aren't publicly available rather than guessing)
+- **ΥΠΕΝ** (Ministry of Environment & Energy) - mostly indexed by title/link only per their robots.txt, with a handful of documents manually text-extracted where the source PDF was hand-verified, plus the opengov.gr public-consultation text of the building-permit-documents article (Ν.4495/2017 Άρθρο 50) and the full text of Ν.4495/2017's Τμήμα Δ (unauthorized buildings/regularization, Άρθρα 81-95, from e-nomothesia.gr)
 - **ΑΑΔΕ** (tax authority) - Ε9/ΕΝΦΙΑ circulars and the real-estate transfer tax overview
 - **e-ΕΦΚΑ** (social security) - construction insurance contribution guidance
-- **Κτηματολόγιο** (Hellenic Cadastre) - institutional framework laws/decrees
+- **Κτηματολόγιο** (Hellenic Cadastre) - institutional framework laws/decrees, plus a curated summary of the post-construction property-declaration procedure (documents, cost, steps)
+- **Δασαρχείο** (Forest Service) - the Πράξη Χαρακτηρισμού (forest-characterization) procedure required before a building permit on land that may be forest, curated from N.998/1979 Άρθρο 14 and its opengov.gr consultation text
 - **ΔΕΔΔΗΕ** (electricity grid operator) - new grid connection procedure
 
 **Regional** (per-municipality ΥΔΟΜ building-permit offices and ΔΕΥΑ water utilities, currently covering Δήμος Καβάλας, Παγγαίου, Θάσου, Δράμας, and Ξάνθης - see "Knowledge base regions" below): building-directorate contact/forms pages, water/sewer new-connection requirements, and (where locatable) the municipality's Γ.Π.Σ. approval ΦΕΚ with actual zone-level building-coefficient figures.

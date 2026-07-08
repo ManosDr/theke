@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import func, select, text
@@ -6,19 +6,32 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import AuditLog, ChatSession, Company, Document, MessageFeedback
+from app.models import AuditLog, ChatSession, Company, DataSource, Document, MessageFeedback, Vertical
 from app.schemas import (
+    AdminStatsByVerticalResponse,
     AdminStatsResponse,
     AuditLogEntry,
     CompanySummary,
+    DataSourceSummary,
+    DataSourceSyncStatus,
+    DataSourceUpdateRequest,
+    DataSourcesByVertical,
+    DocumentReplacementRef,
     DocumentSummary,
     GapQueryEntry,
     MarkReviewedRequest,
+    MarkSupersededRequest,
     StaleDocumentSummary,
+    UndoSupersedeRequest,
+    VerticalStatsEntry,
+    VerticalSummary,
+    VerticalUpdateRequest,
 )
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
+
+_FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -68,6 +81,35 @@ async def unsuspend_company(
     db.commit()
 
 
+def _to_admin_summary(db: Session, doc: Document) -> DocumentSummary:
+    """Same fields as the tenant-facing DocumentSummary, plus the
+    replacement-chain fields only admin KB management ever populates - see
+    Document.replaces_document_id's direction note in db/init.sql (lives on
+    the NEW document, points at the OLD one it supersedes)."""
+    replaced_by = None
+    replacement = db.scalar(select(Document).where(Document.replaces_document_id == doc.id))
+    if replacement:
+        replaced_by = DocumentReplacementRef(id=replacement.id, title=replacement.title)
+
+    replaces = None
+    if doc.replaces_document_id:
+        original = db.get(Document, doc.replaces_document_id)
+        if original:
+            replaces = DocumentReplacementRef(id=original.id, title=original.title)
+
+    return DocumentSummary(
+        id=doc.id,
+        title=doc.title,
+        snippet=(doc.content[:280] if doc.content else None),
+        source=doc.source,
+        doc_type=doc.doc_type,
+        municipality=doc.municipality,
+        status=doc.status,
+        replaced_by=replaced_by,
+        replaces=replaces,
+    )
+
+
 @router.get("/documents", response_model=list[DocumentSummary])
 async def search_public_documents(
     q: str,
@@ -76,8 +118,10 @@ async def search_public_documents(
 ) -> list[DocumentSummary]:
     """Search the crawled public knowledge base (company_id IS NULL) - the
     only management surface a super_admin has over it, since the crawler is
-    otherwise the sole writer. Includes non-active docs so a bad removal can
-    be reviewed/audited, unlike the tenant-facing /documents/search.
+    otherwise the sole writer. Includes non-active docs (including
+    superseded, with their replacement chain populated) so a bad removal or
+    supersede can be reviewed/audited, unlike the tenant-facing
+    /documents/search which never shows superseded/removed documents at all.
     """
     require_super_admin(user)
     stmt = (
@@ -90,17 +134,101 @@ async def search_public_documents(
         .limit(50)
     )
     results = db.scalars(stmt).all()
-    return [
-        DocumentSummary(
-            id=doc.id,
-            title=doc.title,
-            snippet=(doc.content[:280] if doc.content else None),
-            source=doc.source,
-            doc_type=doc.doc_type,
-            municipality=doc.municipality,
+    return [_to_admin_summary(db, doc) for doc in results]
+
+
+@router.post("/documents/{document_id}/mark-superseded", response_model=list[DocumentSummary])
+async def mark_document_superseded(
+    document_id: int,
+    payload: MarkSupersededRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[DocumentSummary]:
+    """Marks an existing document (document_id) as superseded by another
+    existing document (payload.replaced_by_document_id) - the post-hoc
+    admin path for pairing two documents that already both exist, as
+    opposed to the upload-time replaces_document_id flow in
+    app/routers/documents.py (which only applies when a company re-uploads
+    a new version of its own document). Same confirmed=True gate as
+    mark-reviewed: superseding is a judgment call about content
+    equivalence a human made, not something the API can verify itself.
+    """
+    require_super_admin(user)
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm that the replacement document actually supersedes this one",
         )
-        for doc in results
-    ]
+    if payload.replaced_by_document_id == document_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A document cannot supersede itself")
+
+    old_doc = db.get(Document, document_id)
+    new_doc = db.get(Document, payload.replaced_by_document_id)
+    if not old_doc or not new_doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    if old_doc.vertical_id != new_doc.vertical_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Both documents must belong to the same vertical"
+        )
+
+    new_doc.replaces_document_id = old_doc.id
+    old_doc.status = "superseded"
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="document_marked_superseded",
+        resource_type="document",
+        resource_id=old_doc.id,
+        metadata={"replaced_by_document_id": new_doc.id},
+    )
+    db.commit()
+    db.refresh(old_doc)
+    db.refresh(new_doc)
+    return [_to_admin_summary(db, old_doc), _to_admin_summary(db, new_doc)]
+
+
+@router.post("/documents/{document_id}/undo-supersede", response_model=list[DocumentSummary])
+async def undo_document_supersede(
+    document_id: int,
+    payload: UndoSupersedeRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[DocumentSummary]:
+    """Reverses mark-superseded: document_id is the OLD (superseded)
+    document - restores its status to active and clears replaces_document_id
+    on whichever document was superseding it. The escape hatch for an
+    accidental supersede pairing."""
+    require_super_admin(user)
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="Confirm you want to undo this supersede"
+        )
+
+    old_doc = db.get(Document, document_id)
+    if not old_doc or old_doc.status != "superseded":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Superseded document not found")
+    new_doc = db.scalar(select(Document).where(Document.replaces_document_id == old_doc.id))
+
+    old_doc.status = "active"
+    if new_doc:
+        new_doc.replaces_document_id = None
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="document_supersede_undone",
+        resource_type="document",
+        resource_id=old_doc.id,
+        metadata={"undone_replaced_by_document_id": new_doc.id if new_doc else None},
+    )
+    db.commit()
+    db.refresh(old_doc)
+    results = [_to_admin_summary(db, old_doc)]
+    if new_doc:
+        db.refresh(new_doc)
+        results.append(_to_admin_summary(db, new_doc))
+    return results
 
 
 @router.post("/documents/{document_id}/remove", status_code=status.HTTP_204_NO_CONTENT)
@@ -192,13 +320,15 @@ async def mark_document_reviewed(
     db.commit()
 
 
-@router.get("/stats", response_model=AdminStatsResponse)
+@router.get("/stats", response_model=AdminStatsByVerticalResponse)
 async def platform_stats(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-) -> AdminStatsResponse:
+) -> AdminStatsByVerticalResponse:
     """Live-queried, not cached - this is a soft-launch-scale dashboard
-    (see KNOWN_DECISIONS.md on when to revisit), not a metrics pipeline."""
+    (see KNOWN_DECISIONS.md on when to revisit), not a metrics pipeline.
+    by_vertical breaks the same totals down per vertical - N+1 queries per
+    vertical is fine at today's scale (2 verticals, soft-launch traffic)."""
     require_super_admin(user)
     total_messages = db.scalar(select(func.count()).select_from(ChatSession)) or 0
     gap_count = db.scalar(select(func.count()).select_from(ChatSession).where(ChatSession.gap.is_(True))) or 0
@@ -210,12 +340,287 @@ async def platform_stats(
     negative_feedback = (
         db.scalar(select(func.count()).select_from(MessageFeedback).where(MessageFeedback.rating == "negative")) or 0
     )
-    return AdminStatsResponse(
+    total = AdminStatsResponse(
         total_messages=total_messages,
         gap_rate=gap_rate,
         active_documents=active_documents,
         positive_feedback=positive_feedback,
         negative_feedback=negative_feedback,
+    )
+
+    by_vertical = []
+    for v in db.scalars(select(Vertical).order_by(Vertical.id)):
+        v_messages = (
+            db.scalar(
+                select(func.count())
+                .select_from(ChatSession)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id)
+            )
+            or 0
+        )
+        v_gap = (
+            db.scalar(
+                select(func.count())
+                .select_from(ChatSession)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id, ChatSession.gap.is_(True))
+            )
+            or 0
+        )
+        v_docs = (
+            db.scalar(
+                select(func.count())
+                .select_from(Document)
+                .where(Document.vertical_id == v.id, Document.status == "active")
+            )
+            or 0
+        )
+        v_companies = (
+            db.scalar(
+                select(func.count())
+                .select_from(Company)
+                .where(Company.vertical_id == v.id, Company.is_suspended.is_(False))
+            )
+            or 0
+        )
+        by_vertical.append(
+            VerticalStatsEntry(
+                slug=v.slug,
+                messages=v_messages,
+                gap_rate=round(v_gap / v_messages * 100, 1) if v_messages else 0.0,
+                active_documents=v_docs,
+                active_companies=v_companies,
+            )
+        )
+
+    return AdminStatsByVerticalResponse(total=total, by_vertical=by_vertical)
+
+
+def _to_data_source_summary(ds: DataSource) -> DataSourceSummary:
+    return DataSourceSummary(
+        id=ds.id,
+        name=ds.name,
+        base_url=ds.base_url,
+        source_type=ds.source_type,
+        crawl_frequency_type=ds.crawl_frequency_type,
+        crawl_frequency_days=ds.crawl_frequency_days,
+        last_crawled_at=ds.last_crawled_at,
+        next_crawl_at=ds.next_crawl_at,
+        last_crawl_status=ds.last_crawl_status,
+        last_crawl_document_count=ds.last_crawl_document_count,
+        last_crawl_error=ds.last_crawl_error,
+        is_active=ds.is_active,
+        notes=ds.notes,
+    )
+
+
+@router.get("/data-sources", response_model=list[DataSourcesByVertical])
+async def list_data_sources(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[DataSourcesByVertical]:
+    require_super_admin(user)
+    result = []
+    for v in db.scalars(select(Vertical).order_by(Vertical.id)):
+        sources = db.scalars(select(DataSource).where(DataSource.vertical_id == v.id).order_by(DataSource.name)).all()
+        result.append(
+            DataSourcesByVertical(
+                vertical_slug=v.slug,
+                vertical_display_name=v.display_name,
+                sources=[_to_data_source_summary(s) for s in sources],
+            )
+        )
+    return result
+
+
+@router.patch("/data-sources/{source_id}", response_model=DataSourceSummary)
+async def update_data_source(
+    source_id: int,
+    payload: DataSourceUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DataSourceSummary:
+    require_super_admin(user)
+    source = db.get(DataSource, source_id)
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+
+    if payload.name is not None:
+        source.name = payload.name
+    if payload.is_active is not None:
+        source.is_active = payload.is_active
+    if payload.notes is not None:
+        source.notes = payload.notes
+
+    frequency_changed = payload.crawl_frequency_type is not None or payload.crawl_frequency_days is not None
+    if payload.crawl_frequency_type is not None:
+        source.crawl_frequency_type = payload.crawl_frequency_type
+    if payload.crawl_frequency_days is not None:
+        source.crawl_frequency_days = payload.crawl_frequency_days
+    elif payload.crawl_frequency_type is not None and payload.crawl_frequency_type in _FREQUENCY_DAYS:
+        # A named frequency (daily/weekly/monthly) implies its day count even
+        # if the caller didn't also pass crawl_frequency_days explicitly -
+        # 'custom' has no implied value, so crawl_frequency_days must be
+        # given for that one.
+        source.crawl_frequency_days = _FREQUENCY_DAYS[payload.crawl_frequency_type]
+
+    if payload.next_crawl_at is not None:
+        # Explicit manual override always wins, even if frequency also changed.
+        source.next_crawl_at = payload.next_crawl_at
+    elif frequency_changed:
+        base = source.last_crawled_at or datetime.utcnow()
+        source.next_crawl_at = base + timedelta(days=source.crawl_frequency_days)
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="data_source_updated",
+        resource_type="data_source",
+        resource_id=source.id,
+    )
+    db.commit()
+    db.refresh(source)
+    return _to_data_source_summary(source)
+
+
+@router.post("/data-sources/{source_id}/sync", response_model=DataSourceSyncStatus)
+async def sync_data_source(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DataSourceSyncStatus:
+    """Updates crawl-scheduling bookkeeping for this source. Honest scope
+    note: this does NOT invoke the actual crawler - there is no existing
+    per-row dispatch from a data_sources entry to the specific scraper
+    function that crawls its base_url (the crawler's scrapers are matched
+    by source_name, wired at the module level, not looked up dynamically by
+    id). Wiring a real "re-crawl this one source now" trigger would need
+    that dispatch table built first; deferred rather than faked here.
+    """
+    require_super_admin(user)
+    source = db.get(DataSource, source_id)
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+
+    now = datetime.utcnow()
+    source.last_crawled_at = now
+    source.next_crawl_at = now + timedelta(days=source.crawl_frequency_days)
+    source.last_crawl_status = "manual_sync_scheduled_only"
+    source.last_crawl_error = None
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="data_source_sync_triggered",
+        resource_type="data_source",
+        resource_id=source.id,
+    )
+    db.commit()
+    db.refresh(source)
+    return DataSourceSyncStatus(
+        id=source.id,
+        last_crawled_at=source.last_crawled_at,
+        next_crawl_at=source.next_crawl_at,
+        last_crawl_status=source.last_crawl_status,
+        last_crawl_document_count=source.last_crawl_document_count,
+        last_crawl_error=source.last_crawl_error,
+    )
+
+
+@router.get("/data-sources/{source_id}/sync-status", response_model=DataSourceSyncStatus)
+async def data_source_sync_status(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DataSourceSyncStatus:
+    require_super_admin(user)
+    source = db.get(DataSource, source_id)
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+    return DataSourceSyncStatus(
+        id=source.id,
+        last_crawled_at=source.last_crawled_at,
+        next_crawl_at=source.next_crawl_at,
+        last_crawl_status=source.last_crawl_status,
+        last_crawl_document_count=source.last_crawl_document_count,
+        last_crawl_error=source.last_crawl_error,
+    )
+
+
+@router.get("/verticals", response_model=list[VerticalSummary])
+async def list_verticals(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[VerticalSummary]:
+    require_super_admin(user)
+    verticals = db.scalars(select(Vertical).order_by(Vertical.id)).all()
+    return [
+        VerticalSummary(
+            id=v.id,
+            slug=v.slug,
+            display_name=v.display_name,
+            tagline=v.tagline,
+            welcome_message=v.welcome_message,
+            disclaimer_text=v.disclaimer_text,
+            system_prompt_override=v.system_prompt_override,
+            off_topic_hint=v.off_topic_hint,
+            uses_regional_scoping=v.uses_regional_scoping,
+            status=v.status,
+        )
+        for v in verticals
+    ]
+
+
+@router.patch("/verticals/{vertical_id}", response_model=VerticalSummary)
+async def update_vertical(
+    vertical_id: int,
+    payload: VerticalUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> VerticalSummary:
+    """Editable fields take effect on the next chat request with no restart
+    needed - get_system_prompt()/get_disclaimer()/get_topic_guard_prompt()
+    in app/routers/chat.py all read straight from this row per-request,
+    never cached at startup."""
+    require_super_admin(user)
+    vertical = db.get(Vertical, vertical_id)
+    if not vertical:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vertical not found")
+
+    if payload.tagline is not None:
+        vertical.tagline = payload.tagline
+    if payload.welcome_message is not None:
+        vertical.welcome_message = payload.welcome_message
+    if payload.disclaimer_text is not None:
+        vertical.disclaimer_text = payload.disclaimer_text
+    if payload.system_prompt_override is not None:
+        vertical.system_prompt_override = payload.system_prompt_override
+    if payload.off_topic_hint is not None:
+        vertical.off_topic_hint = payload.off_topic_hint
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="vertical_updated",
+        resource_type="vertical",
+        resource_id=vertical.id,
+    )
+    db.commit()
+    db.refresh(vertical)
+    return VerticalSummary(
+        id=vertical.id,
+        slug=vertical.slug,
+        display_name=vertical.display_name,
+        tagline=vertical.tagline,
+        welcome_message=vertical.welcome_message,
+        disclaimer_text=vertical.disclaimer_text,
+        system_prompt_override=vertical.system_prompt_override,
+        off_topic_hint=vertical.off_topic_hint,
+        uses_regional_scoping=vertical.uses_regional_scoping,
+        status=vertical.status,
     )
 
 

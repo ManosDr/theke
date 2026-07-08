@@ -131,16 +131,26 @@ def insert_document(
     content_hash_value: str | None = None,
     source_name: str | None = None,
     needs_review: bool = False,
+    vertical_slug: str = "construction",
 ) -> int:
+    # embed_pending_documents() (backend/app/services/embeddings.py) only
+    # picks up extraction_status='full_text' rows - without this, ingested
+    # documents silently never get embedded/searchable.
+    extraction_status = "full_text" if content else "reference_only"
+
     with conn.cursor() as cur:
+        # vertical_slug is resolved by slug rather than a hardcoded id, since
+        # row ids aren't guaranteed stable across envs. Defaults to
+        # construction since every call site predates the tax vertical
+        # except crawler/tax_laws.py, which passes vertical_slug explicitly.
         cur.execute(
             """
             INSERT INTO documents
-                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash, source_name, last_verified_at, needs_review)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s, %s, CURRENT_DATE, %s)
+                (title, doc_type, identifier, issue_number, series, date, source, language, content, content_hash, source_name, last_verified_at, needs_review, vertical_id, extraction_status)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, 'el', %s, %s, %s, CURRENT_DATE, %s, (SELECT id FROM verticals WHERE slug = %s), %s)
             RETURNING id
             """,
-            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value, source_name, needs_review),
+            (title, doc_type, identifier, issue_number, series, doc_date, source, content, content_hash_value, source_name, needs_review, vertical_slug, extraction_status),
         )
         row = cur.fetchone()
         assert row is not None
@@ -288,7 +298,9 @@ def extract_article_text(html: str) -> ExtractedContent:
     return ExtractedContent(None)
 
 
-def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_name: str) -> int | None:
+def ingest_html_page(
+    conn: psycopg.Connection, *, url: str, title: str, source_name: str, vertical_slug: str = "construction"
+) -> int | None:
     """For sources whose content IS the page itself (FAQ/guide pages) rather
     than a listing of linked PDFs, e.g. e-ΕΦΚΑ's ΑΠΔ guidance pages. Re-crawling
     monthly and comparing content_hash surfaces silent edits to the guidance.
@@ -319,6 +331,7 @@ def ingest_html_page(conn: psycopg.Connection, *, url: str, title: str, source_n
         content_hash_value=hash_value,
         source_name=source_name,
         needs_review=extracted.ambiguous,
+        vertical_slug=vertical_slug,
     )
     print(f"  inserted document id={doc_id} ({len(extracted.text)} chars) [{source_name}]")
     return doc_id

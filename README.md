@@ -87,6 +87,14 @@ The crawler pulls from official sources, deduplicating by content hash so re-cra
 
 Adding a new region is meant to be mostly data, not code: a `regions` + `utility_providers` row and a couple of crawler source entries reusing the existing generic page-scraping logic. In practice this has held for straightforward WordPress-templated municipal sites; a Joomla site and a site whose theme injects decoy `<article>` tags both required a manual research/judgment call instead of a clean drop-in (see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md)).
 
+## Multi-vertical architecture
+
+theke now serves more than one professional domain from the same codebase. A `verticals` table (currently `construction` and `tax_accounting`) drives per-vertical system prompts, off-topic guards, disclaimers, and knowledge-base scoping - every `Company` and `Document` belongs to exactly one vertical, and registration requires picking a valid vertical slug. A super admin can edit each vertical's tagline/welcome message/disclaimer/system-prompt override live from `/admin` (takes effect on the next request, no restart).
+
+**Tax & accounting KB**: the core tax codes - Κώδικας Φορολογίας Εισοδήματος (ΚΦΕ, Ν.4172/2013), Κώδικας Φορολογικής Διαδικασίας (ΚΦΔ, Ν.4174/2013), the current VAT code (Ν.5144/2024 - its predecessor Ν.2859/2000 was repealed in 2024), and ΕΝΦΙΑ (Ν.4223/2013) - plus myAADE/ΑΑΔΕ-circular/ΕΦΚΑ/ΔΕΔ procedural guidance and a handful of curated bridge documents for facts (current rates, deadlines, penalty amounts) that don't sit cleanly inside a single statute article. `crawler/crawler/tax_laws.py` scrapes lawspot.gr's full inline article text where available and falls back to the original ΦΕΚ enactment PDF (via the same et.gr blob storage the construction crawler uses) where it isn't - see [KNOWN_DECISIONS.md](KNOWN_DECISIONS.md) for exactly which laws use which source and why.
+
+**Client-scoped documents**: any vertical can create a project marked `is_client=true` (the default for tax_accounting, since it has no regional-scoping concept) and upload private, project-only documents (PDF/DOCX/TXT) to it - a chat scoped to that project sees both the public vertical KB and that project's private uploads; a chat without a project only sees the public KB.
+
 ## Authentication
 
 Registration (create a company or join via invite), login, and JWTs (15-minute

@@ -8,7 +8,7 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { AlertIcon, ClockIcon, FlagIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
-import type { AdminStats, AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
+import type { AdminStatsByVertical, AuditLogEntry, CompanySummary, DocumentSummary, StaleDocumentSummary } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { AttentionCard } from "./AttentionCard";
 import { SentimentDonut } from "./SentimentDonut";
@@ -207,7 +207,7 @@ export function SuperAdminDashboard() {
   const [kbSearched, setKbSearched] = useState(false);
 
   const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
-  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
 
@@ -217,7 +217,7 @@ export function SuperAdminDashboard() {
         api.get<CompanySummary[]>("/admin/companies", token),
         api.get<AuditLogEntry[]>("/admin/audit-log", token),
         api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
-        api.get<AdminStats>("/admin/stats", token),
+        api.get<AdminStatsByVertical>("/admin/stats", token),
       ]);
       setCompanies(companiesData);
       setAuditLog(auditData);
@@ -262,12 +262,12 @@ export function SuperAdminDashboard() {
   const municipalityCount = companies.filter((c) => c.type === "municipality").length;
   const suspendedCount = companies.filter((c) => c.is_suspended).length;
 
-  const gapRate = stats?.gap_rate ?? 0;
+  const gapRate = stats?.total.gap_rate ?? 0;
   const gapTone = gapRate >= 50 ? "danger" : gapRate >= 20 ? "warning" : "success";
   const staleTone = staleDocs.length > 0 ? "warning" : "success";
   const suspendedTone = suspendedCount > 0 ? "danger" : "success";
 
-  const totalFeedback = (stats?.positive_feedback ?? 0) + (stats?.negative_feedback ?? 0);
+  const totalFeedback = (stats?.total.positive_feedback ?? 0) + (stats?.total.negative_feedback ?? 0);
 
   return (
     <div>
@@ -320,24 +320,24 @@ export function SuperAdminDashboard() {
             <>
               <div className={styles.kbHealthStats}>
                 <div>
-                  <span className={styles.value}>{stats.total_messages}</span>
+                  <span className={styles.value}>{stats.total.total_messages}</span>
                   <span className={styles.label}>{t("dash.super.totalMessages")}</span>
                 </div>
                 <div>
-                  <span className={styles.value}>{stats.active_documents}</span>
+                  <span className={styles.value}>{stats.total.active_documents}</span>
                   <span className={styles.label}>{t("dash.super.activeDocuments")}</span>
                 </div>
               </div>
               <div className={styles.sentimentRow}>
-                <SentimentDonut positive={stats.positive_feedback} negative={stats.negative_feedback} />
+                <SentimentDonut positive={stats.total.positive_feedback} negative={stats.total.negative_feedback} />
                 <div>
                   <div className={styles.sentimentLabel}>{t("dash.super.sentiment")}</div>
                   <div className={styles.sentimentCaption}>
                     {totalFeedback === 0
                       ? t("dash.super.feedbackCaptionEmpty")
                       : t("dash.super.feedbackCaption", {
-                          up: stats.positive_feedback,
-                          down: stats.negative_feedback,
+                          up: stats.total.positive_feedback,
+                          down: stats.total.negative_feedback,
                         })}
                   </div>
                 </div>

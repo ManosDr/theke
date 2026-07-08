@@ -167,13 +167,18 @@ def embed_pending_documents(db: Session) -> dict[str, int]:
     Run at backend startup and periodically (see app/main.py) rather than
     hooked directly into the crawler, since the crawler is a separate
     process/dependency stack with no OpenAI client of its own."""
-    already_embedded = select(Embedding.document_id).distinct()
+    # NOT EXISTS rather than `id.notin_(select(Embedding.document_id))`: the
+    # latter silently matches zero rows if that subquery ever returns a NULL
+    # (standard SQL NOT IN + NULL gotcha) - already bitten once by 2 orphaned
+    # embedding rows with no document_id, which made this sweep a no-op for
+    # however long they existed. NOT EXISTS has no such failure mode.
+    already_embedded = select(Embedding.id).where(Embedding.document_id == Document.id)
     stmt = select(Document).where(
         Document.status == "active",
         Document.extraction_status == "full_text",
         Document.needs_review.is_(False),
         Document.content.isnot(None),
-        Document.id.notin_(already_embedded),
+        ~already_embedded.exists(),
     )
     pending = db.scalars(stmt).all()
 

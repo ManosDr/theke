@@ -7,6 +7,45 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 
+class Vertical(Base):
+    __tablename__ = "verticals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(Text, unique=True)
+    display_name: Mapped[str] = mapped_column(Text)
+    tagline: Mapped[str | None] = mapped_column(Text)
+    welcome_message: Mapped[str | None] = mapped_column(Text)
+    disclaimer_text: Mapped[str | None] = mapped_column(Text)
+    system_prompt_override: Mapped[str | None] = mapped_column(Text)
+    off_topic_hint: Mapped[str | None] = mapped_column(Text)
+    uses_regional_scoping: Mapped[bool] = mapped_column(default=True)
+    status: Mapped[str] = mapped_column(Text, default="active")
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DataSource(Base):
+    __tablename__ = "data_sources"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"))
+    name: Mapped[str] = mapped_column(Text)
+    base_url: Mapped[str] = mapped_column(Text)
+    source_type: Mapped[str] = mapped_column(Text, default="html_page")
+    crawl_frequency_type: Mapped[str] = mapped_column(Text, default="monthly")  # 'daily', 'weekly', 'monthly', 'custom'
+    crawl_frequency_days: Mapped[int] = mapped_column(Integer, default=30)
+    last_crawled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Authoritative "when will this next run" regardless of frequency_type -
+    # always read this field for scheduling, never re-derive from frequency
+    # alone (an admin can override it manually via PATCH).
+    next_crawl_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_crawl_status: Mapped[str | None] = mapped_column(Text)
+    last_crawl_document_count: Mapped[int | None] = mapped_column(Integer)
+    last_crawl_error: Mapped[str | None] = mapped_column(Text)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Company(Base):
     __tablename__ = "companies"
 
@@ -15,6 +54,7 @@ class Company(Base):
     type: Mapped[str] = mapped_column(Text, default="construction")  # 'construction', 'municipality'
     logo_path: Mapped[str | None] = mapped_column(Text)
     is_suspended: Mapped[bool] = mapped_column(default=False)
+    vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -28,6 +68,9 @@ class Invite(Base):
     role: Mapped[str] = mapped_column(Text, default="member")
     status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'accepted', 'revoked'
     invited_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    # Derived from company.vertical_id at invite-creation time, never chosen
+    # manually - see app/routers/admin.py's invite-creation endpoint.
+    vertical_id: Mapped[int | None] = mapped_column(ForeignKey("verticals.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     accepted_at: Mapped[datetime | None] = mapped_column(DateTime)
@@ -78,7 +121,18 @@ class Document(Base):
     municipality: Mapped[str | None] = mapped_column(Text)
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
     status: Mapped[str] = mapped_column(Text, default="active")  # 'active', 'superseded', 'removed'
+    # Lives on the NEW document, points at the OLD document it supersedes -
+    # not the reverse. When set, the referenced document's status must be
+    # 'superseded'; enforced at the application layer (see
+    # app/routers/documents.py and app/routers/admin.py's
+    # mark-superseded/undo-supersede endpoints), not a DB trigger.
     replaces_document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
+    vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"))
+    # Set only for client/project-scoped uploads (e.g. a client's tax
+    # records, a specific building's plans) - private to that project, never
+    # returned by a query that doesn't explicitly scope to it. NULL means a
+    # normal public/company KB document.
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # National/regional tier + classification metadata (see docs/kb-architecture -
@@ -183,6 +237,10 @@ class Project(Base):
     municipality: Mapped[str | None] = mapped_column(Text)
     region_id: Mapped[str | None] = mapped_column(ForeignKey("regions.region_id"))
     address: Mapped[str | None] = mapped_column(Text)
+    # True for a client engagement (chiefly the tax vertical, but available
+    # to both) - in that case `name` is treated as the client's name.
+    is_client: Mapped[bool] = mapped_column(default=False)
+    client_notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

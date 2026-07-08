@@ -9,10 +9,11 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, Invite, PasswordResetToken, User
+from app.models import Company, Invite, PasswordResetToken, User, Vertical
 from app.schemas import (
     ForgotPasswordRequest,
     ForgotPasswordResponse,
+    InviteInfoResponse,
     LoginRequest,
     RegisterRequest,
     ResetPasswordRequest,
@@ -28,6 +29,30 @@ from app.services.rate_limit import record_login_failure, reset_login_failures, 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+@router.get("/invite-info/{token}", response_model=InviteInfoResponse)
+async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
+    """Lets the registration frontend pre-populate and lock the company and
+    vertical fields for an invite-based signup, so the invitee only ever
+    fills in name/email/password - never re-picks a company or vertical
+    that's already determined by who invited them. Same validity checks as
+    /register's invite_token path (pending, unexpired), but doesn't require
+    the email to match anything yet since no email has been submitted here."""
+    invite = db.scalar(select(Invite).where(Invite.token == token))
+    if not invite or invite.status != "pending" or invite.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite")
+
+    company = db.get(Company, invite.company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite")
+    vertical = db.get(Vertical, company.vertical_id)
+
+    return InviteInfoResponse(
+        company_name=company.name,
+        vertical_display_name=vertical.display_name if vertical else "",
+        role=invite.role,
+    )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
@@ -69,7 +94,20 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A company with this name already exists - ask an admin there for an invite",
             )
-        company = Company(name=payload.company_name, type=payload.company_type)
+        if not payload.vertical_slug:
+            valid_slugs = list(db.scalars(select(Vertical.slug).where(Vertical.status == "active")))
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"message": "vertical_slug is required when creating a new company", "valid_slugs": valid_slugs},
+            )
+        vertical = db.scalar(select(Vertical).where(Vertical.slug == payload.vertical_slug, Vertical.status == "active"))
+        if not vertical:
+            valid_slugs = list(db.scalars(select(Vertical.slug).where(Vertical.status == "active")))
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail={"message": f"Unknown vertical_slug '{payload.vertical_slug}'", "valid_slugs": valid_slugs},
+            )
+        company = Company(name=payload.company_name, type=payload.company_type, vertical_id=vertical.id)
         db.add(company)
         db.flush()
         role = "admin"

@@ -6,7 +6,8 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.dependencies import CurrentUser, get_current_user
+from app.dependencies import CurrentUser, get_company_vertical, get_current_user
+from app.models import Vertical
 from app.schemas import SearchRequest, SearchResponse, SearchResultItem
 from app.services.rag import search_documents
 
@@ -24,6 +25,7 @@ def search(
     payload: SearchRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    vertical: Vertical = Depends(get_company_vertical),
 ) -> SearchResponse:
     """Semantic (embedding) search only - no completion is generated here,
     deliberately: this stays a lightweight introspection endpoint (real
@@ -38,7 +40,9 @@ def search(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=QUERY_TOO_LONG_MESSAGE)
 
     try:
-        outcome = search_documents(db, user, payload.query, region_id=payload.region_id, top_k=payload.top_k)
+        outcome = search_documents(
+            db, user, payload.query, vertical.id, region_id=payload.region_id, top_k=payload.top_k
+        )
     except OpenAIError as exc:
         logger.error("OpenAI embedding failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc

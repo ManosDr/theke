@@ -18,7 +18,7 @@ from sqlalchemy import text
 from app.config import settings
 from app.database import SessionLocal
 from app.main import app
-from app.models import Company, Document, Project, User
+from app.models import Company, Document, Project, User, Vertical
 from app.security import create_access_token, hash_password
 from app.services.embeddings import embed_document
 
@@ -37,9 +37,13 @@ KNOWN_DOCUMENT_QUERY = (
 )
 
 
+def _construction_vertical_id(db) -> int:
+    return db.query(Vertical).filter(Vertical.slug == "construction").one().id
+
+
 def _make_company_and_user(db, region_id: str | None) -> tuple[Company, User, Project | None, str]:
     unique = uuid.uuid4().hex[:8]
-    company = Company(name=f"Test Co {unique}", type="construction")
+    company = Company(name=f"Test Co {unique}", type="construction", vertical_id=_construction_vertical_id(db))
     db.add(company)
     db.flush()
 
@@ -156,6 +160,7 @@ def test_needs_review_document_never_appears_in_search():
         scope="national",
         extraction_status="full_text",
         needs_review=True,
+        vertical_id=_construction_vertical_id(db),
     )
     db.add(doc)
     db.commit()

@@ -87,7 +87,9 @@ def _retrieve(
     user: CurrentUser,
     query: str,
     top_k: int,
+    vertical_id: int,
     region_id: str | None = None,
+    project_id: int | None = None,
 ) -> list[RetrievedChunk]:
     """Shared retrieval core for both the chat pipeline and the standalone
     /search endpoint: hybrid search combining vector cosine similarity and
@@ -119,7 +121,7 @@ def _retrieve(
     # bigger and full-list probing stops being cheap.
     db.execute(text("SET LOCAL ivfflat.probes = 128"))
 
-    visibility = visible_documents_filter(db, user)
+    visibility = visible_documents_filter(db, user, vertical_id, project_id=project_id)
 
     # --- Query A: vector cosine similarity ---
     distance = Embedding.embedding.cosine_distance(query_vector)
@@ -238,16 +240,23 @@ def _passes_hybrid_threshold(hit: RetrievedChunk) -> bool:
     return hit.distance <= settings.rag_max_distance or hit.keyword_rank is not None
 
 
-def search_regulation(db: Session, user: CurrentUser, query: str, top_k: int | None = None) -> list[RetrievedChunk]:
+def search_regulation(
+    db: Session,
+    user: CurrentUser,
+    query: str,
+    vertical_id: int,
+    top_k: int | None = None,
+    project_id: int | None = None,
+) -> list[RetrievedChunk]:
     """Returns the top_k hybrid-ranked chunks, restricted to documents
-    visible to this user (region-scoped access, needs_review suppression -
-    the same visible_documents_filter used everywhere else), and further
-    filtered by the hybrid threshold (see _passes_hybrid_threshold). An
-    empty result means "nothing relevant enough was found," not "nothing
-    exists" - the caller (chat.py) treats that as an honest gap, not a
-    reason to lower the bar.
+    visible to this user (vertical/region-scoped access, needs_review
+    suppression - the same visible_documents_filter used everywhere else),
+    and further filtered by the hybrid threshold (see
+    _passes_hybrid_threshold). An empty result means "nothing relevant
+    enough was found," not "nothing exists" - the caller (chat.py) treats
+    that as an honest gap, not a reason to lower the bar.
     """
-    hits = _retrieve(db, user, query, top_k or settings.rag_top_k)
+    hits = _retrieve(db, user, query, top_k or settings.rag_top_k, vertical_id, project_id=project_id)
     return [h for h in hits if _passes_hybrid_threshold(h)]
 
 
@@ -255,6 +264,7 @@ def search_documents(
     db: Session,
     user: CurrentUser,
     query: str,
+    vertical_id: int,
     region_id: str | None = None,
     top_k: int | None = None,
 ) -> SearchOutcome:
@@ -264,7 +274,7 @@ def search_documents(
     at all vs. candidates that were all too weak) instead of returning a
     bare empty list either way.
     """
-    hits = _retrieve(db, user, query, top_k or settings.rag_top_k, region_id=region_id)
+    hits = _retrieve(db, user, query, top_k or settings.rag_top_k, vertical_id, region_id=region_id)
     best_distance = hits[0].distance if hits else None
     return SearchOutcome(
         hits=[h for h in hits if _passes_hybrid_threshold(h)],

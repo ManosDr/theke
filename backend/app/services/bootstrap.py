@@ -2,7 +2,7 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import SessionLocal
-from app.models import Company, Project, User
+from app.models import Company, Project, User, Vertical
 from app.security import hash_password
 
 
@@ -50,13 +50,18 @@ def seed_demo_data() -> None:
         if db.scalar(select(User).where(User.email == DEMO_ACCOUNTS[0][0])):
             return  # already seeded
 
+        # Demo accounts only ever seed construction-vertical companies -
+        # no demo tax_accounting company exists yet (see Phase 6 tax KB
+        # ingestion for when one gets added).
+        construction_vertical_id = db.scalar(select(Vertical.id).where(Vertical.slug == "construction"))
+
         companies_by_name: dict[str, Company] = {}
         for email, role, company_name, company_type in DEMO_ACCOUNTS:
             company_id = None
             if company_name:
                 company = companies_by_name.get(company_name)
                 if not company:
-                    company = Company(name=company_name, type=company_type)
+                    company = Company(name=company_name, type=company_type, vertical_id=construction_vertical_id)
                     db.add(company)
                     db.flush()
                     companies_by_name[company_name] = company

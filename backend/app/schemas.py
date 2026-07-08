@@ -19,6 +19,11 @@ class RegisterRequest(BaseModel):
     invite_token: str | None = None
     company_name: str | None = None
     company_type: str = "construction"
+    # Required only on the company_name (new-company) path - validated
+    # against the verticals table in the endpoint itself (not here), since
+    # a Pydantic-level check has no DB access. Ignored on the invite_token
+    # path, where the vertical is inherited from the inviting company.
+    vertical_slug: str | None = None
     preferred_locale: str | None = None  # UI language active at signup time, if any
 
     @field_validator("company_type")
@@ -27,6 +32,12 @@ class RegisterRequest(BaseModel):
         if v not in COMPANY_TYPES:
             raise ValueError(f"company_type must be one of {COMPANY_TYPES}")
         return v
+
+
+class InviteInfoResponse(BaseModel):
+    company_name: str
+    vertical_display_name: str
+    role: str
 
 
 class LoginRequest(BaseModel):
@@ -164,6 +175,11 @@ class ChatHistoryResponse(BaseModel):
     items: list[ChatHistoryItem]
 
 
+class DocumentReplacementRef(BaseModel):
+    id: int
+    title: str | None = None
+
+
 class DocumentSummary(BaseModel):
     id: int
     title: str | None = None
@@ -181,6 +197,13 @@ class DocumentSummary(BaseModel):
     authority: str | None = None
     content_type: str | None = None
     extraction_status: str | None = None
+    # Populated only by admin KB management (GET /admin/documents) - the
+    # replacement chain a superseded/replacement document sits in. None for
+    # every other caller (tenant search/browse never sees superseded docs
+    # at all - see visible_documents_filter).
+    status: str | None = None
+    replaced_by: DocumentReplacementRef | None = None
+    replaces: DocumentReplacementRef | None = None
 
 
 class SourceGroupSummary(BaseModel):
@@ -278,9 +301,14 @@ class RemovalRequestSummary(BaseModel):
 
 class ProjectCreateRequest(BaseModel):
     name: str
-    municipality: str
+    # Required for construction-vertical projects (validated server-side,
+    # not by this schema, since the requirement depends on the requester's
+    # company vertical - see POST /projects). Optional/meaningless for a
+    # tax-vertical client engagement, which has no municipality concept.
+    municipality: str | None = None
     region_id: str | None = None  # links to regions.region_id, gates access to that region's KB documents
     address: str | None = None
+    client_notes: str | None = None
 
 
 class ProjectSummary(BaseModel):
@@ -290,6 +318,24 @@ class ProjectSummary(BaseModel):
     region_id: str | None = None
     address: str | None
     is_default: bool = False
+    is_client: bool = False
+    client_notes: str | None = None
+
+
+class ProjectDocumentSummary(BaseModel):
+    id: int
+    title: str | None
+    extraction_status: str | None
+    created_at: datetime
+    chunk_count: int
+
+
+class ProjectDocumentUploadResult(BaseModel):
+    filename: str
+    document_id: int | None
+    extraction_status: str
+    chunk_count: int
+    error: str | None = None
 
 
 class RegionSummary(BaseModel):
@@ -347,6 +393,80 @@ class AdminStatsResponse(BaseModel):
     negative_feedback: int
 
 
+class VerticalStatsEntry(BaseModel):
+    slug: str
+    messages: int
+    gap_rate: float
+    active_documents: int
+    active_companies: int
+
+
+class AdminStatsByVerticalResponse(BaseModel):
+    total: AdminStatsResponse
+    by_vertical: list[VerticalStatsEntry]
+
+
+class DataSourceSummary(BaseModel):
+    id: int
+    name: str
+    base_url: str
+    source_type: str
+    crawl_frequency_type: str
+    crawl_frequency_days: int
+    last_crawled_at: datetime | None
+    next_crawl_at: datetime | None
+    last_crawl_status: str | None
+    last_crawl_document_count: int | None
+    last_crawl_error: str | None
+    is_active: bool
+    notes: str | None = None
+
+
+class DataSourcesByVertical(BaseModel):
+    vertical_slug: str
+    vertical_display_name: str
+    sources: list[DataSourceSummary]
+
+
+class DataSourceUpdateRequest(BaseModel):
+    name: str | None = None
+    crawl_frequency_type: str | None = None  # 'daily', 'weekly', 'monthly', 'custom'
+    crawl_frequency_days: int | None = None
+    next_crawl_at: datetime | None = None  # manual override of the next scheduled run
+    is_active: bool | None = None
+    notes: str | None = None
+
+
+class DataSourceSyncStatus(BaseModel):
+    id: int
+    last_crawled_at: datetime | None
+    next_crawl_at: datetime | None
+    last_crawl_status: str | None
+    last_crawl_document_count: int | None
+    last_crawl_error: str | None
+
+
+class VerticalSummary(BaseModel):
+    id: int
+    slug: str
+    display_name: str
+    tagline: str | None
+    welcome_message: str | None
+    disclaimer_text: str | None
+    system_prompt_override: str | None
+    off_topic_hint: str | None
+    uses_regional_scoping: bool
+    status: str
+
+
+class VerticalUpdateRequest(BaseModel):
+    tagline: str | None = None
+    welcome_message: str | None = None
+    disclaimer_text: str | None = None
+    system_prompt_override: str | None = None
+    off_topic_hint: str | None = None
+
+
 class GapQueryEntry(BaseModel):
     id: int
     message: str
@@ -360,4 +480,16 @@ class MarkReviewedRequest(BaseModel):
     # confirmation is the only correctness gate that exists (see
     # KNOWN_DECISIONS.md). Enforced server-side, not just as a disabled
     # frontend button, so a direct API call can't skip it either.
+    confirmed: bool
+
+
+class MarkSupersededRequest(BaseModel):
+    replaced_by_document_id: int
+    # Same server-side gate as MarkReviewedRequest - superseding a document
+    # is a judgment call about content equivalence a human made, not
+    # something the API can verify on its own.
+    confirmed: bool
+
+
+class UndoSupersedeRequest(BaseModel):
     confirmed: bool

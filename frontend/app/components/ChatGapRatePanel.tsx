@@ -5,20 +5,20 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { AdminStats, GapQueryEntry } from "../lib/types";
+import type { AdminStatsByVertical, GapQueryEntry } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
 
 export function ChatGapRatePanel() {
   const { user } = useAuth();
   const { t } = useLocale();
-  const [stats, setStats] = useState<AdminStats | null>(null);
+  const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [queries, setQueries] = useState<GapQueryEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (!user?.token) return;
     Promise.all([
-      api.get<AdminStats>("/admin/stats", user.token),
+      api.get<AdminStatsByVertical>("/admin/stats", user.token),
       api.get<GapQueryEntry[]>("/admin/gap-queries", user.token),
     ])
       .then(([statsData, gapData]) => {
@@ -35,7 +35,7 @@ export function ChatGapRatePanel() {
 
       {stats && (
         <p style={{ marginTop: "var(--space-2)", fontWeight: 600, color: "var(--color-danger)" }}>
-          {t("admin.chatGapRate.currentRate")}: {stats.gap_rate}%
+          {t("admin.chatGapRate.currentRate")}: {stats.total.gap_rate}%
         </p>
       )}
 

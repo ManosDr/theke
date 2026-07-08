@@ -5,7 +5,7 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Company, User
+from app.models import Company, User, Vertical
 from app.security import decode_access_token
 
 bearer_scheme = HTTPBearer()
@@ -49,3 +49,23 @@ def get_current_user(
         role=user.role,
         company_type=company_type,
     )
+
+
+def get_company_vertical(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Vertical:
+    """The vertical (construction, tax_accounting, ...) of the current
+    user's company. Used by chat, search, and admin endpoints to scope
+    which documents are visible and which system prompt/disclaimer applies.
+    Raises 403 for a super_admin (company_id is None) or a company whose
+    vertical_id somehow doesn't resolve - both endpoints requiring a
+    vertical assume the caller belongs to exactly one company/vertical,
+    never a platform-wide account."""
+    if user.company_id is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires a company account")
+    company = db.get(Company, user.company_id)
+    vertical = db.get(Vertical, company.vertical_id) if company else None
+    if not vertical:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company has no assigned vertical")
+    return vertical

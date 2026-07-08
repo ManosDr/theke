@@ -31,7 +31,13 @@ def company_region_ids(db: Session, user: CurrentUser) -> list[str]:
     return list(db.scalars(stmt).all())
 
 
-def visible_documents_filter(db: Session, user: CurrentUser, municipality: str | None = None) -> ColumnElement[bool]:
+def visible_documents_filter(
+    db: Session,
+    user: CurrentUser,
+    vertical_id: int,
+    municipality: str | None = None,
+    project_id: int | None = None,
+) -> ColumnElement[bool]:
     """
     - Public/crawled national-scope docs (company_id IS NULL, scope != 'regional'):
       always visible.
@@ -52,6 +58,19 @@ def visible_documents_filter(db: Session, user: CurrentUser, municipality: str |
       and KB management search (GET /admin/documents) query Document directly
       instead of through this filter, specifically so flagged rows stay
       visible there.
+    - `vertical_id` scopes every branch above to one vertical - a construction
+      company can never see a tax_accounting document and vice versa,
+      regardless of company/municipality/region matching.
+    - `status == 'superseded'` documents never appear here - they're
+      retired-but-kept-for-history, visible only in admin KB management
+      (which queries Document directly, same reasoning as needs_review).
+    - Client/project-scoped documents (project_id set on the row) are
+      invisible by default (project_id IS NULL keeps the general/public KB
+      as the only thing a no-project query ever sees) - but when the caller
+      explicitly scopes to a project_id, that project's own private
+      documents are ADDED to the visible set, not substituted for it, so
+      "ask about this client" can draw on both public law and the client's
+      uploaded documents in the same answer.
     """
     region_ids = company_region_ids(db, user)
 
@@ -66,4 +85,21 @@ def visible_documents_filter(db: Session, user: CurrentUser, municipality: str |
         conditions.append(Document.company_id == user.company_id)
     if municipality:
         conditions.append(Document.municipality == municipality)
-    return or_(*conditions) & Document.needs_review.is_(False)
+
+    project_condition = Document.project_id.is_(None)
+    if project_id:
+        # Belt-and-suspenders on company ownership even though callers (e.g.
+        # chat.py's _resolve_project) already 403 a project_id belonging to
+        # another company before it ever reaches here - this filter should
+        # stay correct on its own if a future caller skips that pre-check.
+        project_condition = project_condition | (
+            (Document.project_id == project_id) & (Document.company_id == user.company_id)
+        )
+
+    return (
+        or_(*conditions)
+        & Document.needs_review.is_(False)
+        & (Document.status != "superseded")
+        & (Document.vertical_id == vertical_id)
+        & project_condition
+    )

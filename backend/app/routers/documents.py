@@ -6,8 +6,8 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, Document, DocumentRemovalRequest
+from app.dependencies import CurrentUser, get_company_vertical, get_current_user
+from app.models import Company, Document, DocumentRemovalRequest, Vertical
 from app.schemas import (
     BrowseResponse,
     DocumentDetail,
@@ -67,6 +67,7 @@ async def search_documents(
     municipality: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    vertical: Vertical = Depends(get_company_vertical),
 ) -> list[DocumentSummary]:
     stmt = (
         select(Document)
@@ -74,7 +75,7 @@ async def search_documents(
             text("to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)")
         )
         .where(Document.status == "active")
-        .where(visible_documents_filter(db, user, municipality=municipality))
+        .where(visible_documents_filter(db, user, vertical.id, municipality=municipality))
         .params(q=q)
         .limit(20)
     )
@@ -84,7 +85,9 @@ async def search_documents(
 
 @router.get("/sources", response_model=list[SourceGroupSummary])
 async def list_sources(
-    db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    vertical: Vertical = Depends(get_company_vertical),
 ) -> list[SourceGroupSummary]:
     """Distinct crawl sources with counts, grouped for the Sources page's
     buttons (e.g. both e-ΕΦΚΑ pages count under one 'e-ΕΦΚΑ' button).
@@ -95,7 +98,7 @@ async def list_sources(
     rows = db.execute(
         select(Document.source_name, func.count())
         .where(Document.status == "active", Document.source_name.isnot(None))
-        .where(visible_documents_filter(db, user))
+        .where(visible_documents_filter(db, user, vertical.id))
         .group_by(Document.source_name)
     ).all()
 
@@ -122,6 +125,7 @@ async def browse_documents(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    vertical: Vertical = Depends(get_company_vertical),
 ) -> BrowseResponse:
     """Listing/filtering endpoint behind both the Sources drill-down (filter
     by `group`) and the Search page (any combination of filters, `q` optional
@@ -129,7 +133,11 @@ async def browse_documents(
     here regardless of any filter - visible_documents_filter excludes them
     unconditionally (see app/services/visibility.py).
     """
-    stmt = select(Document).where(Document.status == "active").where(visible_documents_filter(db, user, municipality=municipality))
+    stmt = (
+        select(Document)
+        .where(Document.status == "active")
+        .where(visible_documents_filter(db, user, vertical.id, municipality=municipality))
+    )
 
     if group:
         names = source_names_for_group(group)
@@ -190,10 +198,8 @@ async def upload_document(
 
     text_content = extract_text(pdf_bytes)
 
-    municipality = None
-    if user.company_type == "municipality":
-        company = db.get(Company, user.company_id)
-        municipality = company.name if company else None
+    company = db.get(Company, user.company_id)
+    municipality = company.name if company and user.company_type == "municipality" else None
 
     company_dir = os.path.join(UPLOAD_DIR, str(user.company_id))
     os.makedirs(company_dir, exist_ok=True)
@@ -211,6 +217,7 @@ async def upload_document(
         municipality=municipality,
         uploaded_by=user.user_id,
         replaces_document_id=replaces_document_id,
+        vertical_id=company.vertical_id,
     )
     db.add(doc)
     db.flush()
@@ -431,13 +438,14 @@ async def get_document(
     document_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
+    vertical: Vertical = Depends(get_company_vertical),
 ) -> DocumentDetail:
     doc = db.get(Document, document_id)
     if not doc or doc.status != "active":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     visible_ids = db.scalars(
-        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(db, user))
+        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(db, user, vertical.id))
     ).all()
     if not visible_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")

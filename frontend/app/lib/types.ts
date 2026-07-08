@@ -167,6 +167,21 @@ export interface AdminStats {
   negative_feedback: number;
 }
 
+export interface VerticalStatsEntry {
+  slug: string;
+  messages: number;
+  gap_rate: number;
+  active_documents: number;
+  active_companies: number;
+}
+
+// GET /admin/stats now returns this shape - `total` carries the same fields
+// AdminStats always had, `by_vertical` is new.
+export interface AdminStatsByVertical {
+  total: AdminStats;
+  by_vertical: VerticalStatsEntry[];
+}
+
 export interface GapQueryEntry {
   id: number;
   message: string;

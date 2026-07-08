@@ -108,12 +108,17 @@ async def create_invite(
     if db.scalar(select(User).where(User.email == payload.email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="That email is already registered")
 
+    company = db.get(Company, user.company_id)
     invite = Invite(
         company_id=user.company_id,
         email=payload.email,
         token=secrets.token_urlsafe(24),
         role=payload.role,
         invited_by=user.user_id,
+        # Derived from the inviting company, never chosen manually - see
+        # GET /auth/invite-info/{token}, which is what the invitee's
+        # registration form reads this back through.
+        vertical_id=company.vertical_id if company else None,
         expires_at=datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS),
     )
     db.add(invite)

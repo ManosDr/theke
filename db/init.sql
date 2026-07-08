@@ -201,7 +201,12 @@ CREATE INDEX IF NOT EXISTS idx_documents_content_fts ON documents USING gin(to_t
 -- Embeddings (for vector search)
 CREATE TABLE IF NOT EXISTS embeddings (
     id SERIAL PRIMARY KEY,
-    document_id INT REFERENCES documents(id) ON DELETE CASCADE,
+    -- NOT NULL: a NULL here poisons any `NOT IN (SELECT document_id FROM
+    -- embeddings)` query (embed_pending_documents' catch-up sweep used
+    -- exactly this shape) into matching zero rows, silently breaking the
+    -- entire embedding backfill - discovered via 2 orphaned test rows that
+    -- had slipped in with no document_id at all.
+    document_id INT NOT NULL REFERENCES documents(id) ON DELETE CASCADE,
     chunk_index INT,
     chunk_text TEXT,
     embedding VECTOR(1536)
@@ -343,3 +348,122 @@ CREATE TABLE IF NOT EXISTS notifications (
 );
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
+
+-- ============================================================
+-- Multi-vertical architecture: theke serves more than one professional
+-- domain (construction permits today, tax/accounting next) from the same
+-- codebase. A vertical scopes which documents a company can see, which
+-- system prompt/disclaimer a chat answer uses, and whether regional
+-- scoping (ΥΔΟΜ/ΔΕΥΑ/ΔΕΔΔΗΕ, construction-only) applies at all.
+-- ============================================================
+
+CREATE TABLE IF NOT EXISTS verticals (
+    id SERIAL PRIMARY KEY,
+    slug VARCHAR NOT NULL UNIQUE,
+    display_name VARCHAR NOT NULL,
+    tagline TEXT,
+    welcome_message TEXT,
+    disclaimer_text TEXT,
+    system_prompt_override TEXT,
+    off_topic_hint TEXT,
+    uses_regional_scoping BOOLEAN NOT NULL DEFAULT true,
+    status VARCHAR NOT NULL DEFAULT 'active',
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+INSERT INTO verticals (
+    slug, display_name, tagline, welcome_message, disclaimer_text, uses_regional_scoping
+) VALUES (
+    'construction',
+    'Θήκη Κατασκευών',
+    'Η γνωσιακή βάση για αδειοδότηση και κανονισμούς δόμησης',
+    'Ρωτήστε για απαιτήσεις αδείας δόμησης, έλεγχο εγγράφων, ή διαδικασίες ΥΔΟΜ για την περιοχή σας.',
+    'Οι παραπάνω πληροφορίες είναι για ενημέρωση μόνο. Συμβουλευτείτε αδειούχο μηχανικό για το συγκεκριμένο έργο σας.',
+    true
+) ON CONFLICT (slug) DO NOTHING;
+
+INSERT INTO verticals (
+    slug, display_name, tagline, welcome_message, disclaimer_text, uses_regional_scoping
+) VALUES (
+    'tax_accounting',
+    'Θήκη Λογιστικής & Φορολογίας',
+    'Η γνωσιακή βάση για φορολογική νομοθεσία και λογιστικές διαδικασίες',
+    'Ρωτήστε για φορολογικές υποχρεώσεις, εγκυκλίους ΑΑΔΕ, ΦΠΑ, ΕΝΦΙΑ, ή οποιοδήποτε φορολογικό θέμα.',
+    'Οι παραπάνω πληροφορίες είναι για ενημέρωση μόνο. Συμβουλευτείτε αδειούχο λογιστή ή φοροτεχνικό για το συγκεκριμένο ζήτημά σας.',
+    false
+) ON CONFLICT (slug) DO NOTHING;
+
+-- Every company belongs to exactly one vertical (a firm doing both
+-- construction and tax work would need two companies/tenants, not a
+-- multi-vertical company row - keeps document/chat scoping unambiguous).
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS vertical_id INTEGER REFERENCES verticals(id);
+UPDATE companies SET vertical_id = (SELECT id FROM verticals WHERE slug = 'construction') WHERE vertical_id IS NULL;
+ALTER TABLE companies ALTER COLUMN vertical_id SET NOT NULL;
+
+-- Every document belongs to exactly one vertical, same rationale as above.
+-- NULL company_id (public/crawled) documents still carry a vertical_id -
+-- "public" only ever meant "public within this vertical."
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS vertical_id INTEGER REFERENCES verticals(id);
+UPDATE documents SET vertical_id = (SELECT id FROM verticals WHERE slug = 'construction') WHERE vertical_id IS NULL;
+ALTER TABLE documents ALTER COLUMN vertical_id SET NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_documents_vertical ON documents(vertical_id);
+
+-- documents.status valid values: 'active', 'superseded', 'removed'. No enum
+-- change needed (status is VARCHAR) - 'superseded' was already a valid value
+-- written by the upload-replace flow below; this comment just makes all
+-- three values explicit in one place.
+--
+-- documents.replaces_document_id direction: this column lives on the NEW
+-- document and points at the OLD document it supersedes (not the reverse).
+-- When set, the referenced (old) document's status must be 'superseded'.
+-- This consistency rule is enforced at the application layer (see
+-- app/routers/documents.py's upload-replace path and app/routers/admin.py's
+-- mark-superseded/undo-supersede endpoints), not a DB trigger - a trigger
+-- would need to reach across two rows atomically in a way that's simpler
+-- to guarantee inside a single backend transaction that already owns both
+-- writes.
+
+CREATE TABLE IF NOT EXISTS data_sources (
+    id SERIAL PRIMARY KEY,
+    vertical_id INTEGER NOT NULL REFERENCES verticals(id),
+    name VARCHAR NOT NULL,
+    base_url VARCHAR NOT NULL,
+    source_type VARCHAR NOT NULL DEFAULT 'html_page',
+    crawl_frequency_type VARCHAR NOT NULL DEFAULT 'monthly',  -- 'daily', 'weekly', 'monthly', 'custom'
+    crawl_frequency_days INTEGER NOT NULL DEFAULT 30,
+    last_crawled_at TIMESTAMP,
+    -- Authoritative "when will this next run" regardless of frequency_type -
+    -- always read this field for scheduling, never re-derive from frequency
+    -- alone (an admin can override it manually via PATCH).
+    next_crawl_at TIMESTAMP,
+    last_crawl_status VARCHAR,
+    last_crawl_document_count INTEGER,
+    last_crawl_error TEXT,
+    is_active BOOLEAN NOT NULL DEFAULT true,
+    notes TEXT,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_data_sources_vertical ON data_sources(vertical_id);
+
+-- Every invite is scoped to the same vertical as the company it invites
+-- into - derived from company_id, never chosen separately at invite-creation
+-- time (see app/routers/admin.py's invite-creation endpoint).
+ALTER TABLE invites ADD COLUMN IF NOT EXISTS vertical_id INTEGER REFERENCES verticals(id);
+UPDATE invites SET vertical_id = (SELECT c.vertical_id FROM companies c WHERE c.id = invites.company_id) WHERE vertical_id IS NULL;
+
+-- projects.region_id is already nullable (construction-only concept; a tax
+-- engagement has no region). is_client flags a project as a client
+-- engagement (chiefly for the tax vertical, but available to both) - in
+-- that case `projects.name` is treated as the client's name.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS is_client BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_notes TEXT;
+
+-- Client/project-scoped documents (e.g. a client's uploaded tax records or
+-- a specific building's uploaded plans) live alongside public KB documents
+-- in the same table, distinguished by project_id being set. Visibility:
+-- only surfaced when a chat/search request is scoped to that project AND
+-- the requester belongs to the document's company - see
+-- app/services/visibility.py's visible_documents_filter().
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id);
+CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id);

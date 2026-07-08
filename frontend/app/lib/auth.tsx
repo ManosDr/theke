@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { api } from "./api";
 
-export type CompanyType = "construction" | "municipality";
+export type CompanyType = "construction" | "municipality" | "accounting";
 export type Role = "super_admin" | "admin" | "member";
 
 export interface AuthUser {

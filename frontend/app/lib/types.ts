@@ -20,7 +20,7 @@ export interface AuditLogEntry {
 export interface CompanySummary {
   id: number;
   name: string;
-  type: "construction" | "municipality";
+  type: "construction" | "municipality" | "accounting";
   is_suspended: boolean;
   created_at: string;
   vertical_id: number | null;
@@ -53,7 +53,7 @@ export interface CompanyDetail extends CompanySummary {
 export interface MyCompanySummary {
   id: number;
   name: string;
-  type: "construction" | "municipality";
+  type: "construction" | "municipality" | "accounting";
   has_logo: boolean;
 }
 

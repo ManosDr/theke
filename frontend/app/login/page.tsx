@@ -20,6 +20,8 @@ const DEMO_ACCOUNTS: { labelKey: TranslationKey; email: string }[] = [
   { labelKey: "login.demo.constructionMember", email: "demo-member@construction.theke.gr" },
   { labelKey: "login.demo.municipalityAdmin", email: "demo-admin@municipality.theke.gr" },
   { labelKey: "login.demo.municipalityMember", email: "demo-member@municipality.theke.gr" },
+  { labelKey: "login.demo.accountingAdmin", email: "demo-admin@accounting.theke.gr" },
+  { labelKey: "login.demo.accountingMember", email: "demo-member@accounting.theke.gr" },
 ];
 
 function LoginContent() {
@@ -30,6 +32,7 @@ function LoginContent() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [demoEmail, setDemoEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // A boolean, not the translated string itself - t() is called at render
@@ -63,6 +66,11 @@ function LoginContent() {
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     doLogin(email, password);
+  }
+
+  function handleDemoSignIn() {
+    if (!demoEmail) return;
+    doLogin(demoEmail, DEMO_PASSWORD);
   }
 
   return (
@@ -117,18 +125,28 @@ function LoginContent() {
 
         <div className={styles.divider}>{t("login.orDemo")}</div>
 
-        <div className={styles.demoGrid}>
-          {DEMO_ACCOUNTS.map((account) => (
-            <button
-              key={account.email}
-              type="button"
-              className="btn btn-secondary"
-              disabled={loading}
-              onClick={() => doLogin(account.email, DEMO_PASSWORD)}
-            >
-              {t(account.labelKey)}
-            </button>
-          ))}
+        <div className={styles.demoRow}>
+          <select
+            className="input"
+            value={demoEmail}
+            onChange={(e) => setDemoEmail(e.target.value)}
+            aria-label={t("login.demo.selectPlaceholder")}
+          >
+            <option value="">{t("login.demo.selectPlaceholder")}</option>
+            {DEMO_ACCOUNTS.map((account) => (
+              <option key={account.email} value={account.email}>
+                {t(account.labelKey)}
+              </option>
+            ))}
+          </select>
+          <button
+            type="button"
+            className="btn btn-secondary"
+            disabled={loading || !demoEmail}
+            onClick={handleDemoSignIn}
+          >
+            {t("login.demo.signIn")}
+          </button>
         </div>
 
         <p className={styles.footerLink}>

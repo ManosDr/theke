@@ -190,7 +190,9 @@ function ChatContent() {
       ? "register.typeMunicipality"
       : user?.companyType === "construction"
         ? "register.typeConstruction"
-        : "dash.super.platform";
+        : user?.companyType === "accounting"
+          ? "register.typeAccounting"
+          : "dash.super.platform";
 
   return (
     <div className={styles.layout}>

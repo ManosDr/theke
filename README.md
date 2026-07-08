@@ -32,7 +32,7 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Postgres: localhost:5432 (pgvector enabled)
 
-With `SEED_DEMO_DATA=true`, you get 5 fixed demo accounts on first startup - password `demo1234` for all:
+With `SEED_DEMO_DATA=true`, you get 7 fixed demo accounts on first startup - password `demo1234` for all:
 
 | Email | Role |
 |---|---|
@@ -41,8 +41,10 @@ With `SEED_DEMO_DATA=true`, you get 5 fixed demo accounts on first startup - pas
 | `demo-member@construction.theke.gr` | Construction company member |
 | `demo-admin@municipality.theke.gr` | Municipality admin |
 | `demo-member@municipality.theke.gr` | Municipality member |
+| `demo-admin@accounting.theke.gr` | Accounting firm admin (tax_accounting vertical) |
+| `demo-member@accounting.theke.gr` | Accounting firm member (tax_accounting vertical) |
 
-The login page has one-click buttons for all five, so you can try each role's experience without typing credentials.
+The login page has a dropdown listing all seven plus a "Sign in as demo" button, so you can try each role's experience without typing credentials.
 
 The crawler and scheduler don't need to be started manually - `docker compose up` brings up a `scheduler` service that runs the crawler monthly via supercronic. To trigger an ingestion run on demand:
 

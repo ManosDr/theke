@@ -157,6 +157,7 @@ async def update_project(
     project.name = payload.name
     project.customer_name = payload.customer_name
     project.customer_notes = payload.customer_notes
+    project.client_notes = payload.client_notes
     db.commit()
     db.refresh(project)
 

@@ -7,17 +7,19 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 40px;
-  height: 40px;
+  width: 34px;
+  height: 34px;
   border: none;
-  border-radius: var(--radius-sm);
-  background: var(--color-surface-alt);
-  color: var(--color-text);
+  /* Matches the topbar's other icon-pill controls (language, font-scale,
+     theme toggle) exactly, so all four sit on the same background/shape. */
+  border-radius: 20px;
+  background: var(--admin-chip-bg);
+  color: var(--admin-navy);
   cursor: pointer;
 }
 
 .trigger:hover {
-  background: var(--color-border);
+  filter: brightness(0.96);
 }
 
 .dot {

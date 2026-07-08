@@ -202,7 +202,11 @@ a {
   text-decoration: none;
 }
 
-a:hover {
+/* :not(.btn) so this doesn't fight a .btn-*:hover rule's own background -
+   without it, a Link-rendered button (e.g. "Open chat") got background AND
+   text both set to --color-primary-hover on hover (same dark green),
+   making the label unreadable. */
+a:not(.btn):hover {
   color: var(--color-primary-hover);
 }
 

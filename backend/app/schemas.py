@@ -385,6 +385,7 @@ class UpdateProjectMetadataRequest(BaseModel):
     name: str
     customer_name: str | None = None
     customer_notes: str | None = None
+    client_notes: str | None = None
 
 
 class ResolveLocationRequest(BaseModel):

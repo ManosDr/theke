@@ -10,7 +10,7 @@ import type { PinState } from "../../components/MapPicker";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
-import type { ProjectSummary, ResolveLocationResponse } from "../../lib/types";
+import type { MyCompanySummary, ProjectSummary, ResolveLocationResponse } from "../../lib/types";
 import styles from "./page.module.css";
 
 const MapPicker = dynamic(() => import("../../components/MapPicker"), { ssr: false });
@@ -23,6 +23,7 @@ function ProjectDetailContent() {
   const params = useParams<{ id: string }>();
   const token = user?.token ?? null;
 
+  const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [project, setProject] = useState<ProjectSummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>("info");
@@ -31,11 +32,22 @@ function ProjectDetailContent() {
   const [editName, setEditName] = useState("");
   const [editCustomerName, setEditCustomerName] = useState("");
   const [editCustomerNotes, setEditCustomerNotes] = useState("");
+  const [editClientNotes, setEditClientNotes] = useState("");
 
   const [editingLocation, setEditingLocation] = useState(false);
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolved, setResolved] = useState<ResolveLocationResponse | null>(null);
+
+  const usesRegionalScoping = company?.vertical_uses_regional_scoping ?? true;
+
+  useEffect(() => {
+    if (!token) return;
+    api
+      .get<MyCompanySummary>("/companies/me", token)
+      .then(setCompany)
+      .catch(() => setCompany(null));
+  }, [token]);
 
   function load() {
     if (!token) return;
@@ -46,6 +58,7 @@ function ProjectDetailContent() {
         setEditName(p.name ?? "");
         setEditCustomerName(p.customer_name ?? "");
         setEditCustomerNotes(p.customer_notes ?? "");
+        setEditClientNotes(p.client_notes ?? "");
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : t("project.detail.notFound")));
   }
@@ -56,7 +69,9 @@ function ProjectDetailContent() {
     e.preventDefault();
     const updated = await api.patch<ProjectSummary>(
       `/projects/${params.id}`,
-      { name: editName.trim(), customer_name: editCustomerName.trim() || undefined, customer_notes: editCustomerNotes.trim() || undefined },
+      usesRegionalScoping
+        ? { name: editName.trim(), customer_name: editCustomerName.trim() || undefined, customer_notes: editCustomerNotes.trim() || undefined }
+        : { name: editName.trim(), client_notes: editClientNotes.trim() || undefined },
       token
     );
     setProject(updated);
@@ -114,6 +129,49 @@ function ProjectDetailContent() {
   if (!project) return <p className="text-muted">{t("common.loading")}</p>;
 
   const hasLocation = project.lat != null && project.lon != null;
+
+  if (!usesRegionalScoping) {
+    return (
+      <div>
+        <div className={styles.header}>
+          <h1>{project.name}</h1>
+        </div>
+
+        <div className="card" style={{ padding: "var(--space-4)" }}>
+          {editing ? (
+            <form onSubmit={saveMetadata}>
+              <label className={styles.field}>
+                {t("project.new.clientName")}
+                <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+              </label>
+              <label className={styles.field}>
+                {t("dash.member.colClientNotes")}
+                <textarea className="input" rows={3} value={editClientNotes} onChange={(e) => setEditClientNotes(e.target.value)} />
+              </label>
+              <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                <button type="submit" className="btn btn-primary">{t("common.save")}</button>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
+              </div>
+            </form>
+          ) : (
+            <>
+              <dl className={styles.metaGrid}>
+                <dt>{t("dash.member.colClientNotes")}</dt>
+                <dd>{project.client_notes || "—"}</dd>
+              </dl>
+              <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+                {t("project.detail.edit")}
+              </button>
+            </>
+          )}
+        </div>
+
+        <Link href="/dashboard" className={styles.backLink}>
+          {t("project.new.back")}
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div>

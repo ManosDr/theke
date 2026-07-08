@@ -284,14 +284,13 @@ company (see §3).
   Projects list (name, municipality, default flag, region-based creation
   form); accounting members see a Clients list (name, notes, simpler
   creation form, no region selector) instead.
-- **Known remaining gap**: the `/projects/new` and `/projects/[id]` pages
-  (map picker, plot/GIS fields, customer info) are still construction/GIS-
-  oriented regardless of vertical. An accounting member who clicks through
-  to a client's detail page from the dashboard will see plot-location and
-  map UI that makes no sense for a client engagement — this was not in
-  scope for the fix just made (which covered the dashboard-level entry
-  point only) and should be treated as a known, open gap during testing,
-  not a fresh bug to report as new.
+- `/projects/new` and `/projects/[id]` are also vertical-aware now: an
+  accounting/tax member gets a simple name+notes client form/detail view
+  (no map, no region, no customer fields); construction/municipality
+  members see the unchanged map+plot+customer UI. Editing a client's notes
+  from the detail page persists via `PATCH /projects/{id}` (`client_notes`
+  was added to that endpoint's accepted fields to make this possible — it
+  previously only accepted `name`/`customer_name`/`customer_notes`).
 - **Sources / Search pages**: browse and full-text-search the same public
   KB the chat page retrieves from, with the same vertical/region scoping.
 - **i18n**: full Greek/English toggle, persisted per-user (logged in) or to
@@ -348,6 +347,6 @@ cadastral parcel lookup (nowhere), TEE zone lookup (nowhere), archaeological
 flag (Kavala/Panagia only), regional building-coefficient data (0 of 5
 regions have real figures), "Sync now" (bookkeeping only, no real re-crawl).
 
-**Known open gap, not a regression**: project/client detail pages
-(`/projects/[id]`, `/projects/new`) are still construction/GIS-flavored for
-every vertical.
+Project/client detail pages (`/projects/[id]`, `/projects/new`) are now
+vertical-aware too (simple client form for accounting/tax, unchanged
+map+plot form for construction/municipality) — no longer a listed gap.

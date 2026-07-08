@@ -1,9 +1,21 @@
+/* One neutral card background for every tone - only the icon carries the
+   tone color - so a stat tile no longer adds its own distinct background
+   hue to the page (it used to tint the whole card, which is what produced
+   the 3-4 different background colors on the dashboard). */
 .statCard {
   padding: var(--space-4);
   display: flex;
-  flex-direction: column;
-  gap: var(--space-2);
-  border: none;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  background: var(--color-surface);
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  min-width: 0;
 }
 
 .icon {
@@ -14,12 +26,14 @@
   height: 40px;
   border-radius: 999px;
   color: #ffffff;
+  flex-shrink: 0;
 }
 
 .value {
-  font-size: 2rem;
-  font-weight: 700;
+  font-size: 2.25rem;
+  font-weight: 800;
   line-height: 1;
+  flex-shrink: 0;
 }
 
 .label {
@@ -27,37 +41,22 @@
   font-size: 0.85rem;
 }
 
-.tone-primary {
-  background: var(--color-success-bg);
-}
 .tone-primary .icon {
   background: var(--color-primary);
 }
 
-.tone-info {
-  background: var(--color-info-bg);
-}
 .tone-info .icon {
   background: var(--color-info);
 }
 
-.tone-accent {
-  background: var(--color-warning-bg);
-}
 .tone-accent .icon {
   background: var(--color-accent);
 }
 
-.tone-purple {
-  background: var(--color-purple-bg);
-}
 .tone-purple .icon {
   background: var(--color-purple);
 }
 
-.tone-danger {
-  background: var(--color-danger-bg);
-}
 .tone-danger .icon {
   background: var(--color-danger);
 }

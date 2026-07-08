@@ -1,7 +1,12 @@
 .shell {
   display: flex;
   min-height: 100dvh;
-  background: var(--color-bg);
+  /* Matches the admin sidebar/top-bar's own background family
+     (--admin-parchment is the same token Documents/Data Sources/Vertical
+     Editor panels use) rather than the older, cooler-toned --color-bg -
+     keeps the whole post-login shell to one background family instead of
+     clashing warm (chrome) vs cool (page) whites. */
+  background: var(--admin-parchment);
 }
 
 .content {

@@ -17,9 +17,11 @@ export function StatCard({
 }) {
   return (
     <div className={`card ${styles.statCard} ${styles[`tone-${tone}`]}`}>
-      <span className={styles.icon}>{icon}</span>
+      <div className={styles.left}>
+        <span className={styles.icon}>{icon}</span>
+        <span className={styles.label}>{label}</span>
+      </div>
       <span className={styles.value}>{value}</span>
-      <span className={styles.label}>{label}</span>
     </div>
   );
 }

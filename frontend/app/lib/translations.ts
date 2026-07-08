@@ -518,6 +518,8 @@ export const translations = {
 
     // project creation/detail
     "project.new.title": "New Project",
+    "project.new.clientTitle": "New Client",
+    "project.new.clientName": "Client name",
     "project.new.customerSection": "Customer Details",
     "project.new.customerName": "Customer name",
     "project.new.customerNotes": "Customer notes",
@@ -1067,6 +1069,8 @@ export const translations = {
 
     // project creation/detail
     "project.new.title": "Νέο Έργο",
+    "project.new.clientTitle": "Νέος Πελάτης",
+    "project.new.clientName": "Όνομα πελάτη",
     "project.new.customerSection": "Στοιχεία Πελάτη",
     "project.new.customerName": "Ονοματεπώνυμο/Επωνυμία Πελάτη",
     "project.new.customerNotes": "Σημειώσεις Πελάτη",

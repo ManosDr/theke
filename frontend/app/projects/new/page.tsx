@@ -10,7 +10,7 @@ import type { PinState } from "../../components/MapPicker";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
-import type { ProjectSummary, RegionSummary, ResolveLocationResponse } from "../../lib/types";
+import type { MyCompanySummary, ProjectSummary, RegionSummary, ResolveLocationResponse } from "../../lib/types";
 import styles from "./page.module.css";
 
 // react-leaflet touches `window` at import time - must be loaded client-only.
@@ -58,10 +58,12 @@ function NewProjectContent() {
   const router = useRouter();
   const token = user?.token ?? null;
 
+  const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
   const [customerName, setCustomerName] = useState("");
   const [customerNotes, setCustomerNotes] = useState("");
   const [name, setName] = useState("");
+  const [clientNotes, setClientNotes] = useState("");
   const [regionId, setRegionId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -70,13 +72,26 @@ function NewProjectContent() {
   const [resolving, setResolving] = useState(false);
   const [resolved, setResolved] = useState<ResolveLocationResponse | null>(null);
 
+  // Defaults to true (the construction map+plot form) while the company
+  // hasn't loaded yet, matching this page's original construction-only
+  // behavior - flips to the simpler client form once we know the vertical.
+  const usesRegionalScoping = company?.vertical_uses_regional_scoping ?? true;
+
   useEffect(() => {
     if (!token) return;
+    api
+      .get<MyCompanySummary>("/companies/me", token)
+      .then(setCompany)
+      .catch(() => setCompany(null));
+  }, [token]);
+
+  useEffect(() => {
+    if (!token || !usesRegionalScoping) return;
     api
       .get<RegionSummary[]>("/projects/regions", token)
       .then(setRegions)
       .catch(() => setRegions([]));
-  }, [token]);
+  }, [token, usesRegionalScoping]);
 
   async function handlePick(lat: number, lon: number) {
     setPin({ lat, lon });
@@ -105,6 +120,16 @@ function NewProjectContent() {
     setSaving(true);
     setError(null);
     try {
+      if (!usesRegionalScoping) {
+        await api.post<ProjectSummary>(
+          "/projects",
+          { name: name.trim(), client_notes: clientNotes.trim() || undefined },
+          token
+        );
+        router.push("/dashboard");
+        return;
+      }
+
       const region = regions.find((r) => r.region_id === regionId);
       const project = await api.post<ProjectSummary>(
         "/projects",
@@ -144,6 +169,46 @@ function NewProjectContent() {
     } finally {
       setSaving(false);
     }
+  }
+
+  if (!usesRegionalScoping) {
+    return (
+      <div>
+        <Link href="/dashboard" className={styles.backLink}>
+          {t("project.new.back")}
+        </Link>
+        <h1>{t("project.new.clientTitle")}</h1>
+
+        <form onSubmit={handleSave} className={styles.formColumn}>
+          <section className="card" style={{ padding: "var(--space-4)" }}>
+            <label className={styles.field}>
+              {t("project.new.clientName")}
+              <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+            </label>
+            <label className={styles.field}>
+              {t("dash.member.colClientNotes")}
+              <textarea
+                className="input"
+                rows={3}
+                placeholder={t("dash.member.clientNotesPlaceholder")}
+                value={clientNotes}
+                onChange={(e) => setClientNotes(e.target.value)}
+              />
+            </label>
+          </section>
+
+          {error && (
+            <p className="text-muted" style={{ color: "var(--color-danger)", marginTop: "var(--space-3)" }}>
+              {error}
+            </p>
+          )}
+
+          <button type="submit" className="btn btn-primary" style={{ width: "100%", marginTop: "var(--space-4)" }} disabled={saving}>
+            {t("dash.member.addClient")}
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (

@@ -6,12 +6,16 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import AuditLog, ChatSession, Company, DataSource, Document, MessageFeedback, Vertical
+from app.models import AuditLog, ChatSession, Company, DataSource, Document, MessageFeedback, Project, User, Vertical
 from app.schemas import (
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
     AuditLogEntry,
+    BrowseResponse,
+    CompanyDetail,
+    CompanyProjectSummary,
     CompanySummary,
+    CompanyUserSummary,
     DataSourceSummary,
     DataSourceSyncStatus,
     DataSourceUpdateRequest,
@@ -21,6 +25,7 @@ from app.schemas import (
     GapQueryEntry,
     MarkReviewedRequest,
     MarkSupersededRequest,
+    ReassignVerticalRequest,
     StaleDocumentSummary,
     UndoSupersedeRequest,
     VerticalStatsEntry,
@@ -36,17 +41,131 @@ _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def _to_company_summary(db: Session, c: Company, vertical_slugs: dict[int, str]) -> CompanySummary:
+    users_count = db.scalar(
+        select(func.count()).select_from(User).where(User.company_id == c.id, User.is_active.is_(True))
+    ) or 0
+    projects_count = db.scalar(select(func.count()).select_from(Project).where(Project.company_id == c.id)) or 0
+    return CompanySummary(
+        id=c.id,
+        name=c.name,
+        type=c.type,
+        is_suspended=c.is_suspended,
+        created_at=c.created_at,
+        vertical_id=c.vertical_id,
+        vertical_slug=vertical_slugs.get(c.vertical_id),
+        active_users_count=users_count,
+        active_projects_count=projects_count,
+    )
+
+
 @router.get("/companies", response_model=list[CompanySummary])
 async def list_companies(
+    vertical_id: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[CompanySummary]:
     require_super_admin(user)
-    companies = db.scalars(select(Company)).all()
-    return [
-        CompanySummary(id=c.id, name=c.name, type=c.type, is_suspended=c.is_suspended, created_at=c.created_at)
-        for c in companies
-    ]
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    stmt = select(Company)
+    if vertical_id is not None:
+        stmt = stmt.where(Company.vertical_id == vertical_id)
+    companies = db.scalars(stmt.order_by(Company.created_at.desc())).all()
+    return [_to_company_summary(db, c, vertical_slugs) for c in companies]
+
+
+@router.get("/companies/{company_id}", response_model=CompanyDetail)
+async def get_company_detail(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> CompanyDetail:
+    require_super_admin(user)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    summary = _to_company_summary(db, company, vertical_slugs)
+
+    users = db.scalars(select(User).where(User.company_id == company.id).order_by(User.email)).all()
+    projects = db.scalars(select(Project).where(Project.company_id == company.id).order_by(Project.created_at.desc())).all()
+
+    since_30d = datetime.utcnow() - timedelta(days=30)
+    messages_30d = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.company_id == company.id, ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
+    gap_30d = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(
+                ChatSession.company_id == company.id,
+                ChatSession.created_at >= since_30d,
+                ChatSession.gap.is_(True),
+            )
+        )
+        or 0
+    )
+
+    return CompanyDetail(
+        **summary.model_dump(),
+        users=[CompanyUserSummary(id=u.id, email=u.email, role=u.role, is_active=u.is_active) for u in users],
+        projects=[
+            CompanyProjectSummary(id=p.id, name=p.name, municipality=p.municipality, is_client=p.is_client)
+            for p in projects
+        ],
+        messages_30d=messages_30d,
+        gap_rate=round(gap_30d / messages_30d * 100, 1) if messages_30d else 0.0,
+    )
+
+
+@router.post("/companies/{company_id}/reassign-vertical", response_model=CompanySummary)
+async def reassign_company_vertical(
+    company_id: int,
+    payload: ReassignVerticalRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> CompanySummary:
+    """Moving a company to a different vertical instantly cuts it off from
+    every document in its old vertical (visible_documents_filter matches on
+    Document.vertical_id == company's vertical) - same confirmed=True gate
+    as the other judgment-call admin actions, since the frontend can compute
+    and show the affected-document count itself (GET /admin/stats) before
+    the admin commits."""
+    require_super_admin(user)
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm the vertical reassignment - the company will lose access to its current vertical's documents",
+        )
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    new_vertical = db.get(Vertical, payload.vertical_id)
+    if not new_vertical:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Vertical not found")
+
+    old_vertical_id = company.vertical_id
+    company.vertical_id = new_vertical.id
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company.id,
+        action="company_vertical_reassigned",
+        resource_type="company",
+        resource_id=company.id,
+        metadata={"old_vertical_id": old_vertical_id, "new_vertical_id": new_vertical.id},
+    )
+    db.commit()
+    db.refresh(company)
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return _to_company_summary(db, company, vertical_slugs)
 
 
 @router.post("/companies/{company_id}/suspend", status_code=status.HTTP_204_NO_CONTENT)
@@ -81,7 +200,7 @@ async def unsuspend_company(
     db.commit()
 
 
-def _to_admin_summary(db: Session, doc: Document) -> DocumentSummary:
+def _to_admin_summary(db: Session, doc: Document, vertical_slugs: dict[int, str] | None = None) -> DocumentSummary:
     """Same fields as the tenant-facing DocumentSummary, plus the
     replacement-chain fields only admin KB management ever populates - see
     Document.replaces_document_id's direction note in db/init.sql (lives on
@@ -104,37 +223,70 @@ def _to_admin_summary(db: Session, doc: Document) -> DocumentSummary:
         source=doc.source,
         doc_type=doc.doc_type,
         municipality=doc.municipality,
+        region_id=doc.region_id,
+        date=doc.date,
+        identifier=doc.identifier,
+        series=doc.series,
+        issue_number=doc.issue_number,
+        source_name=doc.source_name,
+        authority=doc.authority,
+        content_type=doc.content_type,
+        extraction_status=doc.extraction_status,
         status=doc.status,
         replaced_by=replaced_by,
         replaces=replaces,
+        vertical_id=doc.vertical_id,
+        vertical_slug=(vertical_slugs or {}).get(doc.vertical_id),
+        last_verified_at=doc.last_verified_at,
+        needs_review=doc.needs_review,
     )
 
 
-@router.get("/documents", response_model=list[DocumentSummary])
-async def search_public_documents(
-    q: str,
+@router.get("/documents", response_model=BrowseResponse)
+async def list_admin_documents(
+    q: str | None = None,
+    vertical_id: int | None = None,
+    status_filter: str | None = None,
+    authority: str | None = None,
+    content_type: str | None = None,
+    superseded_only: bool = False,
+    limit: int = 50,
+    offset: int = 0,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-) -> list[DocumentSummary]:
-    """Search the crawled public knowledge base (company_id IS NULL) - the
-    only management surface a super_admin has over it, since the crawler is
-    otherwise the sole writer. Includes non-active docs (including
-    superseded, with their replacement chain populated) so a bad removal or
-    supersede can be reviewed/audited, unlike the tenant-facing
-    /documents/search which never shows superseded/removed documents at all.
+) -> BrowseResponse:
+    """Browses/filters the crawled public knowledge base (company_id IS
+    NULL) - the only management surface a super_admin has over it, since
+    the crawler is otherwise the sole writer. Includes non-active docs
+    (including superseded, with their replacement chain populated) so a bad
+    removal or supersede can be reviewed/audited, unlike the tenant-facing
+    /documents/search which never shows superseded/removed documents at
+    all. `q` is optional (unlike the old search-only endpoint) so the KB
+    management screen can browse the full corpus, not just search results.
     """
     require_super_admin(user)
-    stmt = (
-        select(Document)
-        .where(Document.company_id.is_(None))
-        .where(
-            text("to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)")
-        )
-        .params(q=q)
-        .limit(50)
-    )
-    results = db.scalars(stmt).all()
-    return [_to_admin_summary(db, doc) for doc in results]
+    stmt = select(Document).where(Document.company_id.is_(None))
+    if q:
+        stmt = stmt.where(
+            text(
+                "to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)"
+            )
+        ).params(q=q)
+    if vertical_id is not None:
+        stmt = stmt.where(Document.vertical_id == vertical_id)
+    if superseded_only:
+        stmt = stmt.where(Document.status == "superseded")
+    elif status_filter:
+        stmt = stmt.where(Document.status == status_filter)
+    if authority:
+        stmt = stmt.where(Document.authority == authority)
+    if content_type:
+        stmt = stmt.where(Document.content_type == content_type)
+
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    results = db.scalars(stmt.order_by(Document.created_at.desc()).limit(limit).offset(offset)).all()
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return BrowseResponse(total=total, items=[_to_admin_summary(db, doc, vertical_slugs) for doc in results])
 
 
 @router.post("/documents/{document_id}/mark-superseded", response_model=list[DocumentSummary])

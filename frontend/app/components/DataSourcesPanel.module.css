@@ -1,0 +1,193 @@
+.categoryGroup {
+  margin-bottom: var(--space-4);
+}
+
+.categoryHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  border: none;
+  background: none;
+  padding: var(--space-2) 0;
+  font-size: 0.95rem;
+  font-weight: 700;
+  color: var(--admin-navy);
+  width: 100%;
+  text-align: left;
+}
+
+.categoryCount {
+  display: inline-flex;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: var(--admin-chip-bg);
+  color: var(--admin-stone);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.sourceCard {
+  display: grid;
+  grid-template-columns: 1.2fr 1.4fr auto;
+  gap: var(--space-4);
+  align-items: start;
+  padding: var(--space-4);
+  margin-bottom: var(--space-3);
+  border-left: 5px solid var(--admin-stone);
+  overflow-x: hidden;
+}
+
+.sourceCard > div {
+  min-width: 0;
+}
+
+.sourceCard.healthy {
+  border-left-color: var(--admin-success);
+}
+
+.sourceCard.overdue {
+  border-left-color: var(--admin-warning);
+}
+
+.sourceCard.failed {
+  border-left-color: var(--admin-danger);
+}
+
+.sourceCard.syncing {
+  border-left-color: var(--admin-info);
+  animation: pulseBorder 1.8s ease-in-out infinite;
+}
+
+.sourceCard.inactive,
+.sourceCard.never_synced {
+  border-left-color: var(--admin-stone);
+}
+
+@keyframes pulseBorder {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+.sourceName {
+  margin: 0 0 4px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--admin-navy);
+}
+
+.sourceUrl {
+  display: block;
+  font-family: monospace;
+  font-size: 0.75rem;
+  color: var(--admin-stone);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  margin-bottom: var(--space-2);
+}
+
+.pillRow {
+  display: flex;
+  gap: var(--space-2);
+}
+
+.pill {
+  display: inline-flex;
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  background: var(--admin-neutral-bg);
+  color: var(--admin-neutral);
+}
+
+.pill.accentConstruction {
+  background: var(--admin-construction-bg);
+  color: var(--admin-construction);
+}
+
+.pill.accentTax {
+  background: var(--admin-tax-bg);
+  color: var(--admin-tax);
+}
+
+.statusLine {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.85rem;
+  margin: 4px 0;
+}
+
+.statusLine.healthy { color: var(--admin-success); }
+.statusLine.overdue { color: var(--admin-warning); }
+.statusLine.failed { color: var(--admin-danger); }
+.statusLine.syncing { color: var(--admin-info); }
+.statusLine.inactive, .statusLine.never_synced { color: var(--admin-stone); }
+
+.freqPill {
+  display: inline-flex;
+  margin-top: var(--space-2);
+  padding: 2px var(--space-2);
+  border-radius: 999px;
+  background: var(--admin-chip-bg);
+  color: var(--admin-stone);
+  font-size: 0.7rem;
+}
+
+.actionsCol {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  align-items: flex-end;
+}
+
+.settingsLink {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.cadenceEditor {
+  grid-column: 1 / -1;
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--admin-row-border);
+}
+
+.freqButtonGroup {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+}
+
+.freqButton {
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--admin-card-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: 0.82rem;
+  font-weight: 600;
+}
+
+.freqButtonActive {
+  background: var(--admin-navy-solid);
+  color: #ffffff;
+  border-color: var(--admin-navy-solid);
+}
+
+.editorRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.editorActions {
+  display: flex;
+  gap: var(--space-2);
+}

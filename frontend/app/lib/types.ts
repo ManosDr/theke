@@ -23,6 +23,31 @@ export interface CompanySummary {
   type: "construction" | "municipality";
   is_suspended: boolean;
   created_at: string;
+  vertical_id: number | null;
+  vertical_slug: string | null;
+  active_users_count: number;
+  active_projects_count: number;
+}
+
+export interface CompanyUserSummary {
+  id: number;
+  email: string;
+  role: string;
+  is_active: boolean;
+}
+
+export interface CompanyProjectSummary {
+  id: number;
+  name: string | null;
+  municipality: string | null;
+  is_client: boolean;
+}
+
+export interface CompanyDetail extends CompanySummary {
+  users: CompanyUserSummary[];
+  projects: CompanyProjectSummary[];
+  messages_30d: number;
+  gap_rate: number;
 }
 
 export interface MyCompanySummary {
@@ -114,6 +139,20 @@ export interface StaleDocumentSummary {
   last_verified_at: string | null;
 }
 
+export interface DocumentReplacementRef {
+  id: number;
+  title: string | null;
+}
+
+export type DocumentStatus =
+  | "active"
+  | "superseded"
+  | "needs_review"
+  | "manual_entry"
+  | "reference_only"
+  | "manual_entry_pending"
+  | "removed";
+
 export interface DocumentSummary {
   id: number;
   title: string | null;
@@ -131,6 +170,13 @@ export interface DocumentSummary {
   authority: string | null;
   content_type: string | null;
   extraction_status: string | null;
+  status: string | null;
+  replaced_by: DocumentReplacementRef | null;
+  replaces: DocumentReplacementRef | null;
+  vertical_id: number | null;
+  vertical_slug: string | null;
+  last_verified_at: string | null;
+  needs_review: boolean;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -222,4 +268,48 @@ export interface GapQueryEntry {
   message: string;
   company_name: string | null;
   created_at: string;
+}
+
+export interface VerticalSummary {
+  id: number;
+  slug: string;
+  display_name: string;
+  tagline: string | null;
+  welcome_message: string | null;
+  disclaimer_text: string | null;
+  system_prompt_override: string | null;
+  off_topic_hint: string | null;
+  uses_regional_scoping: boolean;
+  status: string;
+}
+
+export interface DataSourceSummary {
+  id: number;
+  name: string;
+  base_url: string;
+  source_type: string;
+  crawl_frequency_type: "daily" | "weekly" | "monthly" | "custom";
+  crawl_frequency_days: number;
+  last_crawled_at: string | null;
+  next_crawl_at: string | null;
+  last_crawl_status: string | null;
+  last_crawl_document_count: number | null;
+  last_crawl_error: string | null;
+  is_active: boolean;
+  notes: string | null;
+}
+
+export interface DataSourcesByVertical {
+  vertical_slug: string;
+  vertical_display_name: string;
+  sources: DataSourceSummary[];
+}
+
+export interface DataSourceSyncStatus {
+  id: number;
+  last_crawled_at: string | null;
+  next_crawl_at: string | null;
+  last_crawl_status: string | null;
+  last_crawl_document_count: number | null;
+  last_crawl_error: string | null;
 }

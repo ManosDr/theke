@@ -204,6 +204,10 @@ class DocumentSummary(BaseModel):
     status: str | None = None
     replaced_by: DocumentReplacementRef | None = None
     replaces: DocumentReplacementRef | None = None
+    vertical_id: int | None = None
+    vertical_slug: str | None = None
+    last_verified_at: date_type | None = None
+    needs_review: bool = False
 
 
 class SourceGroupSummary(BaseModel):
@@ -281,6 +285,40 @@ class CompanySummary(BaseModel):
     type: str
     is_suspended: bool
     created_at: datetime
+    vertical_id: int | None = None
+    vertical_slug: str | None = None
+    active_users_count: int = 0
+    active_projects_count: int = 0
+
+
+class CompanyUserSummary(BaseModel):
+    id: int
+    email: str
+    role: str
+    is_active: bool
+
+
+class CompanyProjectSummary(BaseModel):
+    id: int
+    name: str | None = None
+    municipality: str | None = None
+    is_client: bool
+
+
+class CompanyDetail(CompanySummary):
+    users: list[CompanyUserSummary] = []
+    projects: list[CompanyProjectSummary] = []
+    messages_30d: int = 0
+    gap_rate: float = 0.0
+
+
+class ReassignVerticalRequest(BaseModel):
+    vertical_id: int
+    # Same confirmed=True gate used elsewhere for judgment-call actions -
+    # reassignment removes the company's access to every document in its
+    # current vertical, which the frontend must show a count for before
+    # this is set to true.
+    confirmed: bool
 
 
 class MyCompanySummary(BaseModel):

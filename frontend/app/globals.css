@@ -49,6 +49,40 @@
 
   --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
+  /* Admin-redesign palette (Theke Admin design handoff) - scoped to the
+     super-admin screens (dashboard/documents/sources/companies/verticals),
+     not a retheme of the whole app. Sidebar/top-bar chrome intentionally
+     keeps the existing --gradient-sidebar/--color-* tokens above per the
+     handoff's own "Deviations from the original brief" section. */
+  --admin-navy: #1b2a4a;
+  /* Always dark navy regardless of theme - unlike --admin-navy (which
+     inverts to a light cream in dark mode for text-on-card use), this is
+     for surfaces that must stay dark/navy in both themes (e.g. the system
+     prompt textarea's "advanced/raw" signal per the design handoff). */
+  --admin-navy-solid: #1b2a4a;
+  --admin-stone: #8c8680;
+  --admin-parchment: #f5f0e8;
+  --admin-card-border: #e4dccc;
+  --admin-row-border: #f0eae0;
+  --admin-chip-bg: #f0eae0;
+  --admin-construction: #2d5016;
+  --admin-construction-on-dark: #2d5016;
+  --admin-construction-bg: #eaf1e4;
+  --admin-tax: #8b5e3c;
+  --admin-tax-on-dark: #8b5e3c;
+  --admin-tax-bg: #f3e9e0;
+  --admin-neutral: #1b2a4a;
+  --admin-neutral-bg: #eaecf1;
+  --admin-success: #2e7d32;
+  --admin-warning: #f57f17;
+  --admin-warning-bg: #fff4de;
+  --admin-warning-border: #f5d999;
+  --admin-danger: #c62828;
+  --admin-info: #2a6fdb;
+  --admin-shadow-card: 0 1px 2px rgba(27, 42, 74, 0.04);
+  --admin-shadow-modal: 0 20px 60px rgba(27, 42, 74, 0.3);
+  --admin-shadow-drawer: -8px 0 24px rgba(27, 42, 74, 0.2);
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -93,6 +127,31 @@
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
   --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
+
+  /* Dark-mode admin palette, per the handoff's [data-app-theme="dark"] token
+     set. The two vertical accents get brighter variants specifically for
+     text-on-dark-card use (e.g. "View details →" links) - see
+     --admin-construction-on-dark/--admin-tax-on-dark below - while badges/
+     pills keep the base accent tinted against a *-bg tone, same as light mode. */
+  --admin-navy: #f1efe9;
+  --admin-stone: #a6adc2;
+  --admin-parchment: #111a2e;
+  --admin-card-border: #2c3a57;
+  --admin-row-border: #23304a;
+  --admin-chip-bg: #23304a;
+  --admin-construction: #7fc77f;
+  --admin-construction-on-dark: #7fc77f;
+  --admin-construction-bg: #1c2e1c;
+  --admin-tax: #d9a468;
+  --admin-tax-on-dark: #d9a468;
+  --admin-tax-bg: #332319;
+  --admin-neutral: #f1efe9;
+  --admin-neutral-bg: #23304a;
+  --admin-warning-bg: #3a2f0a;
+  --admin-warning-border: #5a4a1a;
+  --admin-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --admin-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
+  --admin-shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.4);
 }
 
 /* Deliberately no `@media (prefers-color-scheme: dark)` fallback: light is

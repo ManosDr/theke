@@ -49,6 +49,110 @@
   color: var(--color-text-on-primary);
 }
 
+/* Vertical switcher - 3-segment control, per the admin redesign handoff.
+   Active segment fills solid with the vertical's accent + white text;
+   inactive segments sit transparent on a light neutral track. */
+.verticalSwitcher {
+  display: flex;
+  gap: 2px;
+  padding: 3px;
+  border-radius: var(--radius-sm);
+  background: var(--admin-chip-bg);
+  margin: 0 var(--space-2);
+}
+
+.verticalSegment {
+  flex: 1;
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-1);
+  border-radius: 6px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--admin-stone);
+  white-space: nowrap;
+}
+
+.verticalSegment_construction {
+  background: var(--admin-construction);
+  color: #ffffff;
+}
+
+.verticalSegment_tax_accounting {
+  background: var(--admin-tax);
+  color: #ffffff;
+}
+
+.verticalSegment_all {
+  background: var(--admin-neutral);
+  color: #ffffff;
+}
+
+.navSection {
+  display: flex;
+  flex-direction: column;
+}
+
+.navSectionHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  border-radius: var(--radius-md);
+  color: var(--color-text-muted);
+  font-weight: 600;
+  font-size: 0.92rem;
+  text-align: left;
+  width: 100%;
+}
+
+.navSectionHeader:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.navSectionHeader span:nth-child(2) {
+  flex: 1;
+}
+
+.chevron {
+  display: inline-flex;
+  transition: transform 0.15s ease;
+}
+
+.chevronOpen {
+  transform: rotate(90deg);
+}
+
+.navChildren {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: var(--space-6);
+}
+
+.navChildItem {
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--radius-sm);
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.navChildItem:hover {
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+}
+
+.navChildItemActive,
+.navChildItemActive:hover {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
 @media (max-width: 900px) {
   .sidebar {
     width: 76px;

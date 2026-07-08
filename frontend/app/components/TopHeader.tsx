@@ -11,6 +11,10 @@ import styles from "./TopHeader.module.css";
 import { UserMenu } from "./UserMenu";
 
 function pageTitleKey(pathname: string): TranslationKey {
+  if (pathname === "/admin/documents") return "nav.documents";
+  if (pathname === "/admin/data-sources") return "nav.dataSources";
+  if (pathname === "/admin/companies") return "nav.companies";
+  if (pathname === "/admin/verticals") return "nav.verticalsContent";
   if (pathname.startsWith("/sources") || pathname.startsWith("/documents")) return "nav.sources";
   if (pathname === "/search") return "nav.search";
   if (pathname === "/chat") return "nav.chat";

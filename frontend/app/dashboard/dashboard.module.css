@@ -111,6 +111,135 @@
   margin-bottom: 4px;
 }
 
+.verticalCardsRow {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.verticalCardsRow:has(.verticalCardFull) {
+  grid-template-columns: 1fr;
+}
+
+@media (max-width: 900px) {
+  .verticalCardsRow {
+    grid-template-columns: 1fr;
+  }
+}
+
+.verticalCard {
+  padding: var(--space-4) var(--space-5);
+  border-left: 5px solid var(--admin-neutral);
+}
+
+.verticalCard.accentConstruction {
+  border-left-color: var(--admin-construction);
+}
+
+.verticalCard.accentTax {
+  border-left-color: var(--admin-tax);
+}
+
+.verticalCardHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.verticalCardName {
+  margin: 0;
+  font-size: 1.05rem;
+  color: var(--admin-navy);
+}
+
+.verticalCardTagline {
+  margin: 2px 0 0;
+  font-size: 0.8rem;
+  color: var(--admin-stone);
+}
+
+.verticalPill {
+  flex-shrink: 0;
+  padding: 3px var(--space-3);
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  background: var(--admin-neutral-bg);
+  color: var(--admin-neutral);
+}
+
+.verticalPill.accentConstruction {
+  background: var(--admin-construction-bg);
+  color: var(--admin-construction);
+}
+
+.verticalPill.accentTax {
+  background: var(--admin-tax-bg);
+  color: var(--admin-tax);
+}
+
+.verticalStatsGrid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-3);
+}
+
+.verticalStatsGridFull {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+  max-width: 480px;
+}
+
+.verticalStat .value {
+  display: block;
+  font-size: 1.3rem;
+  font-weight: 800;
+  color: var(--admin-navy);
+}
+
+.verticalStat .label {
+  font-size: 0.72rem;
+  color: var(--admin-stone);
+}
+
+.gapSuccess {
+  color: var(--admin-success) !important;
+}
+
+.gapWarning {
+  color: var(--admin-warning) !important;
+}
+
+.gapDanger {
+  color: var(--admin-danger) !important;
+}
+
+.verticalCardFooter {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: var(--space-4);
+  padding-top: var(--space-3);
+  border-top: 1px solid var(--admin-row-border);
+}
+
+.verticalCardLink {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-weight: 600;
+  font-size: 0.85rem;
+  padding: 0;
+}
+
+.verticalCardLink:hover {
+  color: var(--color-primary-hover);
+}
+
 .tenantsStrip {
   padding: var(--space-4) var(--space-5);
   margin-bottom: var(--space-4);

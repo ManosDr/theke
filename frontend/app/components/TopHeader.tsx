@@ -8,6 +8,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useTheme } from "../lib/theme";
 import { NotificationBell } from "./NotificationBell";
+import { MoonIcon, SunIcon } from "./StatIcons";
 import styles from "./TopHeader.module.css";
 
 function pageTitleKey(pathname: string): TranslationKey {
@@ -95,7 +96,7 @@ export function TopHeader() {
           title={t("topbar.toggleTheme")}
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
-          {theme === "dark" ? "☀️" : "🌙"}
+          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
         </button>
 
         <NotificationBell />

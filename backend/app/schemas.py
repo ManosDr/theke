@@ -326,6 +326,12 @@ class MyCompanySummary(BaseModel):
     name: str
     type: str
     has_logo: bool
+    vertical_slug: str
+    vertical_display_name: str
+    vertical_tagline: str | None
+    vertical_welcome_message: str | None
+    vertical_disclaimer_text: str | None
+    vertical_uses_regional_scoping: bool
 
 
 class RemovalRequestSummary(BaseModel):

@@ -55,6 +55,12 @@ export interface MyCompanySummary {
   name: string;
   type: "construction" | "municipality" | "accounting";
   has_logo: boolean;
+  vertical_slug: string;
+  vertical_display_name: string;
+  vertical_tagline: string | null;
+  vertical_welcome_message: string | null;
+  vertical_disclaimer_text: string | null;
+  vertical_uses_regional_scoping: boolean;
 }
 
 export interface RemovalRequestSummary {

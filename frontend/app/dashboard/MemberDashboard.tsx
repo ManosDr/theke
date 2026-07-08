@@ -15,13 +15,24 @@ export function MemberDashboard() {
   const { user } = useAuth();
   const { t } = useLocale();
   const token = user?.token ?? null;
-  const isConstruction = user?.companyType !== "municipality";
+  const isMunicipality = user?.companyType === "municipality";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
   const [newName, setNewName] = useState("");
   const [newRegionId, setNewRegionId] = useState("");
   const [newAddress, setNewAddress] = useState("");
+  const [newClientNotes, setNewClientNotes] = useState("");
+
+  // The construction vertical's "Projects" (region/plot-based) and the tax
+  // vertical's "Clients" (name + notes, no region) are the same backend
+  // model (Project, is_client auto-set server-side per vertical) - which
+  // form/labels to show is driven by the company's actual vertical, not
+  // the cruder companyType !== "municipality" check this used to use
+  // (that treated any non-municipality company, including "accounting",
+  // as construction).
+  const usesRegionalScoping = company?.vertical_uses_regional_scoping ?? !isMunicipality;
+  const showProjectSection = !isMunicipality && company !== null;
 
   function refreshProjects() {
     if (!token) return;
@@ -32,14 +43,16 @@ export function MemberDashboard() {
   }
 
   useEffect(() => {
-    if (!token || !isConstruction) return;
+    if (!token || isMunicipality) return;
     refreshProjects();
-    api
-      .get<RegionSummary[]>("/projects/regions", token)
-      .then(setRegions)
-      .catch(() => setRegions([]));
+    if (usesRegionalScoping) {
+      api
+        .get<RegionSummary[]>("/projects/regions", token)
+        .then(setRegions)
+        .catch(() => setRegions([]));
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, isConstruction]);
+  }, [token, isMunicipality, usesRegionalScoping]);
 
   useEffect(() => {
     if (!token) return;
@@ -55,17 +68,23 @@ export function MemberDashboard() {
     try {
       await api.post<ProjectSummary>(
         "/projects",
-        {
-          name: newName.trim(),
-          municipality: region?.region_name_el ?? "",
-          region_id: newRegionId || undefined,
-          address: newAddress.trim() || undefined,
-        },
+        usesRegionalScoping
+          ? {
+              name: newName.trim(),
+              municipality: region?.region_name_el ?? "",
+              region_id: newRegionId || undefined,
+              address: newAddress.trim() || undefined,
+            }
+          : {
+              name: newName.trim(),
+              client_notes: newClientNotes.trim() || undefined,
+            },
         token
       );
       setNewName("");
       setNewRegionId("");
       setNewAddress("");
+      setNewClientNotes("");
       refreshProjects();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : t("dash.member.failedToCreateProject"));
@@ -90,34 +109,53 @@ export function MemberDashboard() {
       )}
       <h1>{t("dash.member.welcome")}</h1>
       <p className="text-muted">
-        {user?.companyType === "municipality"
+        {isMunicipality
           ? t("dash.member.signedInAsMunicipality", { name: company?.name ?? "" })
-          : t("dash.member.signedInAsConstruction")}
+          : usesRegionalScoping
+            ? t("dash.member.signedInAsConstruction")
+            : t("dash.member.signedInAsAccounting")}
       </p>
 
-      {isConstruction && (
+      {showProjectSection && (
         <>
           <div className={styles.grid}>
-            <StatCard tone="primary" icon={<BuildingIcon />} value={projects.length} label={t("dash.member.projects")} />
-            <StatCard tone="info" icon={<FlagIcon />} value={defaultProjects.length} label={t("dash.member.defaultMunicipalities")} />
+            <StatCard
+              tone="primary"
+              icon={<BuildingIcon />}
+              value={projects.length}
+              label={usesRegionalScoping ? t("dash.member.projects") : t("dash.member.clients")}
+            />
+            {usesRegionalScoping && (
+              <StatCard tone="info" icon={<FlagIcon />} value={defaultProjects.length} label={t("dash.member.defaultMunicipalities")} />
+            )}
           </div>
 
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
-              <h2>{t("dash.member.yourProjects")}</h2>
-              <Link href="/projects/new" className="btn btn-primary">
-                {t("project.new.title")}
-              </Link>
+              <h2>{usesRegionalScoping ? t("dash.member.yourProjects") : t("dash.member.yourClients")}</h2>
+              {usesRegionalScoping && (
+                <Link href="/projects/new" className="btn btn-primary">
+                  {t("project.new.title")}
+                </Link>
+              )}
             </div>
             {projects.length === 0 ? (
-              <p className={styles.emptyState}>{t("dash.member.noProjects")}</p>
+              <p className={styles.emptyState}>
+                {usesRegionalScoping ? t("dash.member.noProjects") : t("dash.member.noClients")}
+              </p>
             ) : (
               <table className={styles.table}>
                 <thead>
                   <tr>
                     <th>{t("dash.member.colName")}</th>
-                    <th>{t("dash.member.colMunicipality")}</th>
-                    <th>{t("dash.member.colDefault")}</th>
+                    {usesRegionalScoping ? (
+                      <>
+                        <th>{t("dash.member.colMunicipality")}</th>
+                        <th>{t("dash.member.colDefault")}</th>
+                      </>
+                    ) : (
+                      <th>{t("dash.member.colClientNotes")}</th>
+                    )}
                   </tr>
                 </thead>
                 <tbody>
@@ -131,16 +169,22 @@ export function MemberDashboard() {
                           </span>
                         )}
                       </td>
-                      <td>{p.municipality}</td>
-                      <td>
-                        {p.is_default ? (
-                          <span className="badge badge-success">{t("dash.member.default")}</span>
-                        ) : (
-                          <button type="button" className="btn btn-secondary" onClick={() => setDefault(p.id)}>
-                            {t("dash.member.setDefault")}
-                          </button>
-                        )}
-                      </td>
+                      {usesRegionalScoping ? (
+                        <>
+                          <td>{p.municipality}</td>
+                          <td>
+                            {p.is_default ? (
+                              <span className="badge badge-success">{t("dash.member.default")}</span>
+                            ) : (
+                              <button type="button" className="btn btn-secondary" onClick={() => setDefault(p.id)}>
+                                {t("dash.member.setDefault")}
+                              </button>
+                            )}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="text-muted">{p.client_notes ?? "—"}</td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
@@ -151,35 +195,47 @@ export function MemberDashboard() {
               <input
                 className="input"
                 type="text"
-                placeholder={t("dash.member.projectNamePlaceholder")}
+                placeholder={usesRegionalScoping ? t("dash.member.projectNamePlaceholder") : t("dash.member.clientNamePlaceholder")}
                 value={newName}
                 onChange={(e) => setNewName(e.target.value)}
                 required
               />
-              <select
-                className="input"
-                value={newRegionId}
-                onChange={(e) => setNewRegionId(e.target.value)}
-                required
-              >
-                <option value="" disabled>
-                  {t("dash.member.selectMunicipality")}
-                </option>
-                {regions.map((r) => (
-                  <option key={r.region_id} value={r.region_id}>
-                    {r.region_name_el}
-                  </option>
-                ))}
-              </select>
-              <input
-                className="input"
-                type="text"
-                placeholder={t("dash.member.addressPlaceholder")}
-                value={newAddress}
-                onChange={(e) => setNewAddress(e.target.value)}
-              />
+              {usesRegionalScoping ? (
+                <>
+                  <select
+                    className="input"
+                    value={newRegionId}
+                    onChange={(e) => setNewRegionId(e.target.value)}
+                    required
+                  >
+                    <option value="" disabled>
+                      {t("dash.member.selectMunicipality")}
+                    </option>
+                    {regions.map((r) => (
+                      <option key={r.region_id} value={r.region_id}>
+                        {r.region_name_el}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className="input"
+                    type="text"
+                    placeholder={t("dash.member.addressPlaceholder")}
+                    value={newAddress}
+                    onChange={(e) => setNewAddress(e.target.value)}
+                  />
+                </>
+              ) : (
+                <input
+                  className="input"
+                  type="text"
+                  placeholder={t("dash.member.clientNotesPlaceholder")}
+                  value={newClientNotes}
+                  onChange={(e) => setNewClientNotes(e.target.value)}
+                />
+              )}
               <button type="submit" className="btn btn-primary">
-                {t("dash.member.addProject")}
+                {usesRegionalScoping ? t("dash.member.addProject") : t("dash.member.addClient")}
               </button>
             </form>
           </section>

@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import AuditLog, Company, Invite, User
+from app.models import AuditLog, Company, Invite, User, Vertical
 from app.schemas import AuditLogEntry, InviteCreateRequest, InviteSummary, MyCompanySummary, RoleChangeRequest, UserSummary
 from app.services.audit import log_action
 from app.services.authorization import require_company_admin
@@ -37,8 +37,20 @@ async def get_my_company(
     if not company:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
+    vertical = db.get(Vertical, company.vertical_id)
     has_logo = bool(company.logo_path and os.path.exists(company.logo_path))
-    return MyCompanySummary(id=company.id, name=company.name, type=company.type, has_logo=has_logo)
+    return MyCompanySummary(
+        id=company.id,
+        name=company.name,
+        type=company.type,
+        has_logo=has_logo,
+        vertical_slug=vertical.slug if vertical else "construction",
+        vertical_display_name=vertical.display_name if vertical else "",
+        vertical_tagline=vertical.tagline if vertical else None,
+        vertical_welcome_message=vertical.welcome_message if vertical else None,
+        vertical_disclaimer_text=vertical.disclaimer_text if vertical else None,
+        vertical_uses_regional_scoping=vertical.uses_regional_scoping if vertical else True,
+    )
 
 
 @router.post("/logo", status_code=status.HTTP_204_NO_CONTENT)

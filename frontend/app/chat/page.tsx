@@ -13,6 +13,7 @@ import type {
   ChatMessageResponse,
   DocumentSummary,
   FeedbackRating,
+  MyCompanySummary,
   ProjectSummary,
   RegionSummary,
 } from "../lib/types";
@@ -55,6 +56,15 @@ function ChatContent() {
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
   const [kbQuery, setKbQuery] = useState("");
   const [kbResults, setKbResults] = useState<DocumentSummary[]>([]);
+  const [company, setCompany] = useState<MyCompanySummary | null>(null);
+
+  useEffect(() => {
+    if (!token || !user?.companyId) return;
+    api
+      .get<MyCompanySummary>("/companies/me", token)
+      .then(setCompany)
+      .catch(() => setCompany(null));
+  }, [token, user?.companyId]);
 
   // Collapse preference persists per session (not permanently) - a user who
   // knows their location data doesn't want it taking space every visit,
@@ -197,7 +207,7 @@ function ChatContent() {
   return (
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
-        <div className={styles.disclaimerBanner}>{t("chat.disclaimer")}</div>
+        <div className={styles.disclaimerBanner}>{company?.vertical_disclaimer_text || t("chat.disclaimer")}</div>
 
         {selectedProject && (
           <div className={styles.projectContextBar}>
@@ -252,7 +262,9 @@ function ChatContent() {
 
         <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
-          {!historyLoading && messages.length === 0 && <p className="text-muted">{t("chat.placeholder")}</p>}
+          {!historyLoading && messages.length === 0 && (
+            <p className="text-muted">{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+          )}
           {messages.map((m, i) => (
             <div
               key={i}

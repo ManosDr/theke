@@ -5,6 +5,7 @@ import type { ReactNode } from "react";
 import { RegisterServiceWorker } from "./components/RegisterServiceWorker";
 import { Providers } from "./providers";
 import "./globals.css";
+import "leaflet/dist/leaflet.css";
 
 // Inter, not the reference design's exact face (unrecoverable from a
 // vector-only export - text was already converted to paths), chosen because

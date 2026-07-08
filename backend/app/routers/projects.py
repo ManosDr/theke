@@ -1,4 +1,5 @@
 import os
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from sqlalchemy import func, select
@@ -13,6 +14,8 @@ from app.schemas import (
     ProjectDocumentUploadResult,
     ProjectSummary,
     RegionSummary,
+    UpdateProjectLocationRequest,
+    UpdateProjectMetadataRequest,
 )
 from app.services.documents import (
     SUPPORTED_PROJECT_UPLOAD_EXTENSIONS,
@@ -37,6 +40,19 @@ def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
         is_default=is_default,
         is_client=p.is_client,
         client_notes=p.client_notes,
+        customer_name=p.customer_name,
+        customer_notes=p.customer_notes,
+        plot_address=p.plot_address,
+        plot_municipality=p.plot_municipality,
+        lat=float(p.lat) if p.lat is not None else None,
+        lon=float(p.lon) if p.lon is not None else None,
+        kaek=p.kaek,
+        plot_area_sqm=float(p.plot_area_sqm) if p.plot_area_sqm is not None else None,
+        gis_zone_name=p.gis_zone_name,
+        gis_zone_source=p.gis_zone_source,
+        archaeological_flag=p.archaeological_flag,
+        archaeological_notes=p.archaeological_notes,
+        location_resolved_at=p.location_resolved_at,
     )
 
 
@@ -70,6 +86,8 @@ async def create_project(
         # what "project" means there.
         is_client=not vertical.uses_regional_scoping,
         client_notes=payload.client_notes,
+        customer_name=payload.customer_name,
+        customer_notes=payload.customer_notes,
     )
     db.add(project)
     db.commit()
@@ -110,6 +128,42 @@ async def list_regions(db: Session = Depends(get_db)) -> list[RegionSummary]:
         )
         for r in regions
     ]
+
+
+@router.get("/{project_id}", response_model=ProjectSummary)
+async def get_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProjectSummary:
+    project = _require_project_membership(db, user, project_id)
+    default_ids = set(
+        db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
+    )
+    return _to_project_summary(project, is_default=project.id in default_ids)
+
+
+@router.patch("/{project_id}", response_model=ProjectSummary)
+async def update_project(
+    project_id: int,
+    payload: UpdateProjectMetadataRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProjectSummary:
+    """Edits the project's own metadata (name, customer details) - separate
+    from PATCH /{project_id}/location, which only ever touches GIS fields."""
+    project = _require_project_membership(db, user, project_id)
+
+    project.name = payload.name
+    project.customer_name = payload.customer_name
+    project.customer_notes = payload.customer_notes
+    db.commit()
+    db.refresh(project)
+
+    default_ids = set(
+        db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
+    )
+    return _to_project_summary(project, is_default=project.id in default_ids)
 
 
 @router.post("/{project_id}/default", status_code=status.HTTP_204_NO_CONTENT)
@@ -291,3 +345,38 @@ async def delete_project_document(
 
     db.delete(doc)
     db.commit()
+
+
+@router.patch("/{project_id}/location", response_model=ProjectSummary)
+async def update_project_location(
+    project_id: int,
+    payload: UpdateProjectLocationRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProjectSummary:
+    """Persists a resolved location onto a project - the frontend calls
+    POST /gis/resolve-location first to get address/cadastral/zone/
+    archaeological info for a dropped pin, then this to save it. Kept as a
+    separate step (not folded into resolve-location) so a user can preview a
+    pin before committing it to the project."""
+    project = _require_project_membership(db, user, project_id)
+
+    project.lat = payload.lat
+    project.lon = payload.lon
+    project.plot_address = payload.plot_address
+    project.plot_municipality = payload.plot_municipality
+    project.kaek = payload.kaek
+    project.plot_area_sqm = payload.plot_area_sqm
+    project.parcel_geometry = payload.parcel_geometry
+    project.gis_zone_name = payload.gis_zone_name
+    project.gis_zone_source = payload.gis_zone_source
+    project.archaeological_flag = payload.archaeological_flag
+    project.archaeological_notes = payload.archaeological_notes
+    project.location_resolved_at = datetime.utcnow()
+    db.commit()
+    db.refresh(project)
+
+    default_project_ids = set(
+        db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
+    )
+    return _to_project_summary(project, is_default=project.id in default_project_ids)

@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, Date, DateTime, ForeignKey, Integer, JSON, Text, UniqueConstraint
+from sqlalchemy import ARRAY, Date, DateTime, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -241,6 +241,30 @@ class Project(Base):
     # to both) - in that case `name` is treated as the client's name.
     is_client: Mapped[bool] = mapped_column(default=False)
     client_notes: Mapped[str | None] = mapped_column(Text)
+    # The plot's actual owner - distinct from is_client/client_notes above,
+    # which describe the engagement, not the person.
+    customer_name: Mapped[str | None] = mapped_column(Text)
+    customer_notes: Mapped[str | None] = mapped_column(Text)
+    # Plot location, set via POST /gis/resolve-location once a user drops a
+    # pin - NULL means "no location set yet", not "location at 0,0".
+    plot_address: Mapped[str | None] = mapped_column(Text)
+    plot_municipality: Mapped[str | None] = mapped_column(Text)
+    lat: Mapped[float | None] = mapped_column(Numeric(10, 7))
+    lon: Mapped[float | None] = mapped_column(Numeric(10, 7))
+    # Cadastral fields - best-effort/nullable, since the public Ktimatologio
+    # WFS that would populate these is confirmed dead (see KNOWN_DECISIONS.md).
+    kaek: Mapped[str | None] = mapped_column(Text)
+    plot_area_sqm: Mapped[float | None] = mapped_column(Numeric)
+    parcel_geometry: Mapped[dict | None] = mapped_column(JSON)
+    # gis_zone_source records provenance (e.g. 'manual_entry') so a displayed
+    # zone name is never presented as if it came from a live lookup when it didn't.
+    gis_zone_name: Mapped[str | None] = mapped_column(Text)
+    gis_zone_source: Mapped[str | None] = mapped_column(Text)
+    # Set by services/gis.py's check_archaeological_flag() - a RAG query
+    # against ingested content, not a live API (see KNOWN_DECISIONS.md).
+    archaeological_flag: Mapped[bool] = mapped_column(default=False)
+    archaeological_notes: Mapped[str | None] = mapped_column(Text)
+    location_resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

@@ -1,0 +1,99 @@
+.backLink {
+  display: inline-block;
+  margin-bottom: var(--space-3);
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 2fr 3fr;
+  gap: var(--space-5);
+  margin-top: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 900px) {
+  .layout {
+    grid-template-columns: 1fr;
+  }
+}
+
+.sectionHeader {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-3);
+}
+
+.field .input,
+.field input,
+.field select,
+.field textarea {
+  font-weight: 400;
+  color: var(--color-text);
+}
+
+.saveHint {
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  text-align: center;
+  margin-top: var(--space-2);
+}
+
+.mapColumn {
+  min-width: 0;
+}
+
+.locationPanel {
+  margin-top: var(--space-3);
+  padding: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.locationRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-3);
+  font-size: 13.5px;
+}
+
+.locationRow > span:first-child {
+  color: var(--color-text-muted);
+  font-weight: 600;
+}
+
+.archaeologicalCard {
+  margin-top: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-warning-bg);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-sm);
+  color: var(--color-text);
+}
+
+.archaeologicalCard strong {
+  color: var(--color-warning);
+}
+
+.archaeologicalCard p {
+  margin: var(--space-2) 0 0;
+  font-size: 13px;
+}
+
+.partialNote {
+  font-style: italic;
+  color: var(--color-text-muted);
+  font-size: 12.5px;
+  margin: var(--space-1) 0 0;
+}

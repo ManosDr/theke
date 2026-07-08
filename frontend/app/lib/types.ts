@@ -58,6 +58,41 @@ export interface ProjectSummary {
   region_id: string | null;
   address: string | null;
   is_default: boolean;
+  is_client?: boolean;
+  client_notes?: string | null;
+  customer_name?: string | null;
+  customer_notes?: string | null;
+  plot_address?: string | null;
+  plot_municipality?: string | null;
+  lat?: number | null;
+  lon?: number | null;
+  kaek?: string | null;
+  plot_area_sqm?: number | null;
+  gis_zone_name?: string | null;
+  gis_zone_source?: string | null;
+  archaeological_flag?: boolean;
+  archaeological_notes?: string | null;
+  location_resolved_at?: string | null;
+}
+
+export interface ServicesAvailable {
+  geocoding: boolean;
+  cadastral: boolean;
+  gis_zone: boolean;
+}
+
+export interface ResolveLocationResponse {
+  lat: number;
+  lon: number;
+  address: string | null;
+  municipality: string | null;
+  kaek: string | null;
+  plot_area_sqm: number | null;
+  parcel_geometry: Record<string, unknown> | null;
+  gis_zone_name: string | null;
+  archaeological_flag: boolean;
+  archaeological_notes: string | null;
+  services_available: ServicesAvailable;
 }
 
 export interface RegionSummary {

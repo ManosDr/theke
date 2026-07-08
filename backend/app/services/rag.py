@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import CurrentUser
-from app.models import Document, Embedding
+from app.models import Document, Embedding, Project
 from app.services.embeddings import embed_texts
 from app.services.visibility import visible_documents_filter
 
@@ -238,6 +238,49 @@ def _passes_hybrid_threshold(hit: RetrievedChunk) -> bool:
     original threshold check unchanged.
     """
     return hit.distance <= settings.rag_max_distance or hit.keyword_rank is not None
+
+
+def build_location_context(project: Project | None) -> str | None:
+    """Renders a project's resolved plot location as a Greek prose block for
+    injection into the chat system prompt - returns None when the project
+    has no lat/lon yet (nothing to say), rather than an empty/placeholder
+    section."""
+    if project is None or project.lat is None or project.lon is None:
+        return None
+
+    lines = [f"Συντεταγμένες: {project.lat}, {project.lon}"]
+    if project.plot_address:
+        lines.append(f"Διεύθυνση οικοπέδου: {project.plot_address}")
+    if project.plot_municipality:
+        lines.append(f"Δήμος: {project.plot_municipality}")
+    if project.kaek:
+        lines.append(f"ΚΑΕΚ: {project.kaek}")
+    if project.plot_area_sqm:
+        lines.append(f"Εμβαδόν οικοπέδου: {project.plot_area_sqm} τ.μ.")
+    if project.gis_zone_name:
+        lines.append(f"Πολεοδομική ζώνη: {project.gis_zone_name}")
+    if project.archaeological_flag:
+        lines.append(f"⚠ Αρχαιολογική ζώνη: {project.archaeological_notes or 'πιθανή αρχαιολογική ζώνη στην περιοχή'}")
+
+    return "\n".join(lines)
+
+
+def enrich_query_with_location(query: str, project: Project | None) -> str:
+    """Appends the plot's municipality and GIS zone to the retrieval query
+    (only if not already present in the user's own wording) so a question
+    like "τι συντελεστή δόμησης έχω;" without a named place still retrieves
+    municipality/zone-specific documents when a project location is set.
+    Never mutates the query shown to the model in the answer - this is
+    embedding input only."""
+    if project is None:
+        return query
+
+    additions = []
+    for value in (project.plot_municipality, project.gis_zone_name):
+        if value and value not in query:
+            additions.append(value)
+
+    return f"{query} {' '.join(additions)}" if additions else query
 
 
 def search_regulation(

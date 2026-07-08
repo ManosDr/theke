@@ -467,3 +467,47 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS client_notes TEXT;
 -- app/services/visibility.py's visible_documents_filter().
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS project_id INTEGER REFERENCES projects(id);
 CREATE INDEX IF NOT EXISTS idx_documents_project ON documents(project_id);
+
+-- GIS/location fields on projects. customer_name/customer_notes are
+-- deliberately separate from the existing is_client/client_notes pair
+-- (Phase 3 above): is_client flags the engagement type, client_notes is
+-- freeform notes about it, while these two describe the actual person/entity
+-- who owns the plot - useful even outside a "client engagement" (e.g. a
+-- construction firm's own project still has a property owner).
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_name TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_notes TEXT;
+
+-- Plot location. lat/lon are nullable - a project only gets them once a user
+-- drops a pin (see POST /gis/resolve-location); NULL means "no location set
+-- yet", not "location at 0,0". decimal(10,7) gives ~1cm precision, matching
+-- GPS/OSM convention.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS plot_address TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS plot_municipality VARCHAR;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS lat DECIMAL(10,7);
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS lon DECIMAL(10,7);
+
+-- Cadastral fields. All nullable/best-effort: the public Ktimatologio WFS
+-- that would populate these automatically is confirmed dead (see GIS Phase 0
+-- / KNOWN_DECISIONS.md) - these are populated when available, left NULL
+-- otherwise, never faked.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS kaek VARCHAR;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS plot_area_sqm DECIMAL;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS parcel_geometry JSONB;
+
+-- Building-coefficient zone. gis_zone_source records where the value came
+-- from (e.g. 'manual_entry', 'sdig' if that ever becomes queryable) so a
+-- displayed zone name is never presented as if it came from a live
+-- authoritative lookup when it didn't.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS gis_zone_name VARCHAR;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS gis_zone_source VARCHAR;
+
+-- Archaeological zone flag - set by app/services/gis.py's
+-- check_archaeological_flag() (a RAG query against ingested content, not a
+-- live API - see KNOWN_DECISIONS.md), never left silently false when unknown.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_flag BOOLEAN NOT NULL DEFAULT false;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_notes TEXT;
+
+-- Set whenever POST /gis/resolve-location successfully runs for this
+-- project, regardless of which individual sub-lookups succeeded - lets the
+-- UI show "location last checked X" separately from "location set".
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS location_resolved_at TIMESTAMP;

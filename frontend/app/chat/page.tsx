@@ -56,6 +56,22 @@ function ChatContent() {
   const [kbQuery, setKbQuery] = useState("");
   const [kbResults, setKbResults] = useState<DocumentSummary[]>([]);
 
+  // Collapse preference persists per session (not permanently) - a user who
+  // knows their location data doesn't want it taking space every visit,
+  // but a fresh session defaults back to showing it once.
+  const [locationExpanded, setLocationExpanded] = useState(true);
+  const [archaeologicalExpanded, setArchaeologicalExpanded] = useState(false);
+  useEffect(() => {
+    const stored = sessionStorage.getItem("theke-location-strip-expanded");
+    if (stored !== null) setLocationExpanded(stored === "true");
+  }, []);
+  function toggleLocationStrip() {
+    setLocationExpanded((prev) => {
+      sessionStorage.setItem("theke-location-strip-expanded", String(!prev));
+      return !prev;
+    });
+  }
+
   useEffect(() => {
     if (!token) return;
     api
@@ -111,8 +127,8 @@ function ChatContent() {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
-  async function sendMessage() {
-    const question = input.trim();
+  async function sendMessage(overrideText?: string) {
+    const question = (overrideText ?? input).trim();
     if (!question || loading) return;
 
     const history = messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({ role: m.role, content: m.text }));
@@ -188,6 +204,46 @@ function ChatContent() {
               <>
                 {" "}| {t("chat.regionLabel")}: {selectedRegionName}
               </>
+            )}
+          </div>
+        )}
+
+        {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
+          <div className={styles.locationStrip}>
+            <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
+              📍{locationExpanded ? ` ${t("chat.locationStrip.collapse")}` : ""}
+            </button>
+            {locationExpanded && (
+              <span className={styles.locationStripBody}>
+                {selectedProject.plot_address ?? "—"}
+                {" · "}
+                {t("map.kaek")}: {selectedProject.kaek ?? "—"}
+                {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
+                {selectedProject.archaeological_flag && (
+                  <>
+                    {" · "}
+                    <button
+                      type="button"
+                      className={styles.archaeologicalBadge}
+                      onClick={() => setArchaeologicalExpanded((v) => !v)}
+                    >
+                      ⚠ {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
+                    </button>
+                  </>
+                )}
+              </span>
+            )}
+            {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
+              <div className={styles.archaeologicalPanel}>
+                {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
+                >
+                  {t("chat.locationStrip.askAboutZone")}
+                </button>
+              </div>
             )}
           </div>
         )}
@@ -275,7 +331,7 @@ function ChatContent() {
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder={t("chat.inputPlaceholder")}
           />
-          <button className="btn btn-primary" onClick={sendMessage} disabled={loading}>
+          <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading}>
             {t("chat.send")}
           </button>
         </div>

@@ -309,6 +309,8 @@ class ProjectCreateRequest(BaseModel):
     region_id: str | None = None  # links to regions.region_id, gates access to that region's KB documents
     address: str | None = None
     client_notes: str | None = None
+    customer_name: str | None = None
+    customer_notes: str | None = None
 
 
 class ProjectSummary(BaseModel):
@@ -320,6 +322,64 @@ class ProjectSummary(BaseModel):
     is_default: bool = False
     is_client: bool = False
     client_notes: str | None = None
+    customer_name: str | None = None
+    customer_notes: str | None = None
+    plot_address: str | None = None
+    plot_municipality: str | None = None
+    lat: float | None = None
+    lon: float | None = None
+    kaek: str | None = None
+    plot_area_sqm: float | None = None
+    gis_zone_name: str | None = None
+    gis_zone_source: str | None = None
+    archaeological_flag: bool = False
+    archaeological_notes: str | None = None
+    location_resolved_at: datetime | None = None
+
+
+class UpdateProjectMetadataRequest(BaseModel):
+    name: str
+    customer_name: str | None = None
+    customer_notes: str | None = None
+
+
+class ResolveLocationRequest(BaseModel):
+    lat: float
+    lon: float
+
+
+class ServicesAvailable(BaseModel):
+    geocoding: bool
+    cadastral: bool
+    gis_zone: bool
+
+
+class ResolveLocationResponse(BaseModel):
+    lat: float
+    lon: float
+    address: str | None = None
+    municipality: str | None = None
+    kaek: str | None = None
+    plot_area_sqm: float | None = None
+    parcel_geometry: dict | None = None
+    gis_zone_name: str | None = None
+    archaeological_flag: bool = False
+    archaeological_notes: str | None = None
+    services_available: ServicesAvailable
+
+
+class UpdateProjectLocationRequest(BaseModel):
+    lat: float
+    lon: float
+    plot_address: str | None = None
+    plot_municipality: str | None = None
+    kaek: str | None = None
+    plot_area_sqm: float | None = None
+    parcel_geometry: dict | None = None
+    gis_zone_name: str | None = None
+    gis_zone_source: str | None = None
+    archaeological_flag: bool = False
+    archaeological_notes: str | None = None
 
 
 class ProjectDocumentSummary(BaseModel):

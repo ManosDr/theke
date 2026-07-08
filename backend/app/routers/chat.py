@@ -20,7 +20,13 @@ from app.schemas import (
     ChatRequest,
     ChatResponse,
 )
-from app.services.rag import _passes_hybrid_threshold, _retrieve, search_regulation
+from app.services.rag import (
+    _passes_hybrid_threshold,
+    _retrieve,
+    build_location_context,
+    enrich_query_with_location,
+    search_regulation,
+)
 from app.services.rate_limit import check_chat_rate_limit
 
 logger = logging.getLogger(__name__)
@@ -360,8 +366,9 @@ async def chat_message(
             )
             return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
+        retrieval_query = enrich_query_with_location(question, project)
         raw_hits = _retrieve(
-            db, user, question, settings.rag_top_k, vertical.id, region_id=region_id, project_id=payload.project_id
+            db, user, retrieval_query, settings.rag_top_k, vertical.id, region_id=region_id, project_id=payload.project_id
         )
         hits = [h for h in raw_hits if _passes_hybrid_threshold(h)]
 
@@ -379,7 +386,16 @@ async def chat_message(
         # low confidence (thinner or weaker-than-usual support), not absence.
         is_low_confidence = len(hits) < settings.rag_top_k or any(h.distance > settings.rag_warn_distance for h in hits)
 
-        messages: list[dict] = [{"role": "system", "content": get_system_prompt(vertical)}]
+        system_prompt = get_system_prompt(vertical)
+        location_context = build_location_context(project)
+        if location_context:
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                "ΣΤΟΙΧΕΙΑ ΤΟΠΟΘΕΣΙΑΣ ΟΙΚΟΠΕΔΟΥ (χρησιμοποιήστε τα όπου σχετίζονται με την ερώτηση, "
+                "χωρίς να τα αναφέρετε αν η ερώτηση δεν αφορά την τοποθεσία):\n"
+                f"{location_context}"
+            )
+        messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for turn in payload.conversation_history:
             if turn.role in ("user", "assistant"):
                 messages.append({"role": turn.role, "content": turn.content})

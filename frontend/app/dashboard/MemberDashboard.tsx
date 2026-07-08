@@ -105,6 +105,9 @@ export function MemberDashboard() {
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
               <h2>{t("dash.member.yourProjects")}</h2>
+              <Link href="/projects/new" className="btn btn-primary">
+                {t("project.new.title")}
+              </Link>
             </div>
             {projects.length === 0 ? (
               <p className={styles.emptyState}>{t("dash.member.noProjects")}</p>
@@ -120,7 +123,14 @@ export function MemberDashboard() {
                 <tbody>
                   {projects.map((p) => (
                     <tr key={p.id}>
-                      <td>{p.name}</td>
+                      <td>
+                        <Link href={`/projects/${p.id}`}>{p.name}</Link>
+                        {p.lat != null && p.lon != null && (
+                          <span title={p.plot_address ?? t("project.list.hasLocation")} style={{ marginLeft: 6 }}>
+                            📍
+                          </span>
+                        )}
+                      </td>
                       <td>{p.municipality}</td>
                       <td>
                         {p.is_default ? (

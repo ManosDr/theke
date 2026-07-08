@@ -44,6 +44,13 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[origin.strip() for origin in settings.cors_origins.split(",") if origin.strip()],
+    # Dev-only convenience: the preview tool's autoPort assigns a fresh
+    # random localhost port per session (whenever :3000 is already taken by
+    # the real docker-compose frontend), so a fixed allow_origins entry
+    # would need updating every time. Regex-matching any localhost port is
+    # never enabled in production - the explicit allow_origins list above
+    # is what actually matters there.
+    allow_origin_regex=None if _is_production else r"http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

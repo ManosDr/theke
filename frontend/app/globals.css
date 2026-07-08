@@ -44,24 +44,41 @@
   --radius-md: 16px;
   --radius-lg: 24px;
 
-  /* Sidebar gradient stops taken directly from the reference design's own SVG export */
-  --gradient-sidebar: linear-gradient(180deg, #ffffff 48%, #7dc8ad 100%);
+  /* Sidebar gradient - the exact stops from the Theke Admin design
+     prototype's own [data-app-theme="light"] --sidebar-grad token. The
+     shell chrome (sidebar/top bar) now follows this design directly rather
+     than the app's older gradient, per explicit direction to recreate the
+     handoff's sidebar/top-bar rather than keep the pre-existing chrome. */
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #eaf4ee 75%, #eaf4ee 100%);
 
   --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
-  /* Admin-redesign palette (Theke Admin design handoff) - scoped to the
-     super-admin screens (dashboard/documents/sources/companies/verticals),
-     not a retheme of the whole app. Sidebar/top-bar chrome intentionally
-     keeps the existing --gradient-sidebar/--color-* tokens above per the
-     handoff's own "Deviations from the original brief" section. */
+  /* Admin-redesign palette (Theke Admin design handoff), now used for the
+     app's global sidebar/top-bar chrome as well as the super-admin screens
+     (dashboard/documents/sources/companies/verticals) - all sourced from
+     the prototype's own [data-app-theme] CSS custom properties, not
+     eyeballed. */
   --admin-navy: #1b2a4a;
-  /* Always dark navy regardless of theme - unlike --admin-navy (which
-     inverts to a light cream in dark mode for text-on-card use), this is
-     for surfaces that must stay dark/navy in both themes (e.g. the system
-     prompt textarea's "advanced/raw" signal per the design handoff). */
+  /* Matches the prototype's --accent-navy exactly: it's theme-adaptive
+     (not a fixed color) but on a different curve than --admin-navy - light
+     mode uses the same dark navy, dark mode brightens to a lighter navy
+     for contrast against an already-dark page, rather than inverting to a
+     near-white the way text colors do. Used for filled/active surfaces:
+     sidebar footer, active nav-child pill, "Όλα" vertical accent, sync-now
+     buttons. */
+  --admin-accent-navy: #1b2a4a;
+  /* A literal constant, unlike the two tokens above - the prototype hardcodes
+     #1B2A4A (not a var()) for the vertical-editor's system-prompt textarea
+     background specifically, so it stays dark in both themes to keep that
+     "advanced/raw" signal legible even against a lightened dark-mode page. */
   --admin-navy-solid: #1b2a4a;
   --admin-stone: #8c8680;
+  /* The prototype's --text-body: a third text tone distinct from
+     --admin-navy (headings) and --admin-stone (muted labels) - used for
+     default/inactive body text like nav item labels and switcher segments. */
+  --admin-text-body: #4a4a4a;
   --admin-parchment: #f5f0e8;
+  --admin-topbar-bg: #ffffff;
   --admin-card-border: #e4dccc;
   --admin-row-border: #f0eae0;
   --admin-chip-bg: #f0eae0;
@@ -126,7 +143,7 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
-  --gradient-sidebar: linear-gradient(180deg, #163451 48%, #24485d 70%, #7dc8ad 100%);
+  --gradient-sidebar: linear-gradient(180deg, #1a2439 0%, #1a2439 55%, #16233c 75%, #16233c 100%);
 
   /* Dark-mode admin palette, per the handoff's [data-app-theme="dark"] token
      set. The two vertical accents get brighter variants specifically for
@@ -134,18 +151,21 @@
      --admin-construction-on-dark/--admin-tax-on-dark below - while badges/
      pills keep the base accent tinted against a *-bg tone, same as light mode. */
   --admin-navy: #f1efe9;
+  --admin-accent-navy: #3e5a9e;
   --admin-stone: #a6adc2;
+  --admin-text-body: #d7dae6;
   --admin-parchment: #111a2e;
+  --admin-topbar-bg: #1a2439;
   --admin-card-border: #2c3a57;
-  --admin-row-border: #23304a;
-  --admin-chip-bg: #23304a;
+  --admin-row-border: #26314c;
+  --admin-chip-bg: #243252;
   --admin-construction: #7fc77f;
   --admin-construction-on-dark: #7fc77f;
   --admin-construction-bg: #1c2e1c;
   --admin-tax: #d9a468;
   --admin-tax-on-dark: #d9a468;
   --admin-tax-bg: #332319;
-  --admin-neutral: #f1efe9;
+  --admin-neutral: #3e5a9e;
   --admin-neutral-bg: #23304a;
   --admin-warning-bg: #3a2f0a;
   --admin-warning-border: #5a4a1a;

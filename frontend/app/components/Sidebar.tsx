@@ -1,46 +1,68 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
-import { useState } from "react";
+import { useRouter, usePathname } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
-import { Logo } from "./Logo";
+import { LogoMark } from "./Logo";
 import {
   ChatIcon,
-  ChevronIcon,
   CompaniesIcon,
-  DashboardIcon,
-  DataSourcesIcon,
-  DocumentsIcon,
+  NavDashboardIcon,
+  NavKnowledgeBaseIcon,
   SearchIcon,
   SettingsIcon,
   SourcesIcon,
 } from "./NavIcons";
+import { LogoutIcon } from "./StatIcons";
 import styles from "./Sidebar.module.css";
 
 const NAV_ITEMS = [
-  { href: "/dashboard", labelKey: "nav.dashboard", Icon: DashboardIcon, match: (p: string) => p === "/dashboard" },
+  { href: "/dashboard", labelKey: "nav.dashboard", Icon: NavDashboardIcon, match: (p: string) => p === "/dashboard" },
   { href: "/sources", labelKey: "nav.sources", Icon: SourcesIcon, match: (p: string) => p.startsWith("/sources") || p.startsWith("/documents") },
   { href: "/search", labelKey: "nav.search", Icon: SearchIcon, match: (p: string) => p === "/search" },
   { href: "/chat", labelKey: "nav.chat", Icon: ChatIcon, match: (p: string) => p === "/chat" },
 ] as const;
 
-// Section headers with children, per the admin redesign's nav tree
-// (Γνωσιακή Βάση / Ρυθμίσεις Συστήματος). "Εταιρείες & Χρήστες" in the
-// design brief collapses to a flat "Εταιρείες" item here - user/invite
-// management lives inside the company detail modal instead of separate
-// cross-tenant Χρήστες/Προσκλήσεις screens (see KNOWN_DECISIONS.md).
+// Nav tree per the Theke Admin design handoff's own sidebar structure
+// (Theke Admin.dc.html) - "Χρήστες"/"Προσκλήσεις"/"Γενικές Ρυθμίσεις" route
+// to the same screen as their sibling in the prototype itself (it never
+// builds separate screens for them either), so pointing them at the
+// existing Companies/Verticals pages is a faithful reproduction, not a
+// shortcut - see KNOWN_DECISIONS.md.
 const ADMIN_SECTIONS = [
   {
-    key: "knowledgeBase",
+    key: "kb",
     labelKey: "nav.knowledgeBase",
-    Icon: DocumentsIcon,
+    Icon: NavKnowledgeBaseIcon,
+    match: (p: string) => p === "/admin/documents" || p === "/admin/data-sources",
     children: [
       { href: "/admin/documents", labelKey: "nav.documents", match: (p: string) => p === "/admin/documents" },
       { href: "/admin/data-sources", labelKey: "nav.dataSources", match: (p: string) => p === "/admin/data-sources" },
+    ],
+  },
+  {
+    key: "org",
+    labelKey: "nav.companiesUsers",
+    Icon: CompaniesIcon,
+    match: (p: string) => p === "/admin/companies",
+    children: [
+      { href: "/admin/companies", labelKey: "nav.companies", match: (p: string) => p === "/admin/companies" },
+      { href: "/admin/companies", labelKey: "nav.users", match: () => false },
+      { href: "/admin/companies", labelKey: "nav.invites", match: () => false },
+    ],
+  },
+  {
+    key: "settings",
+    labelKey: "nav.systemSettings",
+    Icon: SettingsIcon,
+    match: (p: string) => p === "/admin/verticals",
+    children: [
+      { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
+      { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
     ],
   },
 ] as const;
@@ -51,58 +73,124 @@ const VERTICAL_OPTIONS: { value: SelectedVertical; labelKey: "vertical.construct
   { value: "all", labelKey: "vertical.all" },
 ];
 
-function VerticalSwitcher() {
+const ACCENT_VAR: Record<SelectedVertical, string> = {
+  construction: "var(--admin-construction)",
+  tax_accounting: "var(--admin-tax)",
+  all: "var(--admin-accent-navy)",
+};
+
+const COLLAPSE_STORAGE_KEY = "theke_sidebar_collapsed";
+
+function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
   const { selectedVertical, setSelectedVertical } = useVertical();
   const { t } = useLocale();
 
   return (
-    <div className={styles.verticalSwitcher} role="tablist" aria-label={t("nav.knowledgeBase")}>
-      {VERTICAL_OPTIONS.map((opt) => {
-        const active = selectedVertical === opt.value;
-        return (
-          <button
-            key={opt.value}
-            type="button"
-            role="tab"
-            aria-selected={active}
-            className={`${styles.verticalSegment} ${active ? styles[`verticalSegment_${opt.value}`] : ""}`}
-            onClick={() => setSelectedVertical(opt.value)}
-          >
-            {t(opt.labelKey)}
-          </button>
-        );
-      })}
+    <div className={styles.switcherBlock}>
+      {!collapsed && <div className={styles.switcherLabel}>{t("docs.filterVertical")}</div>}
+      <div className={collapsed ? styles.switcherDots : styles.switcherStack}>
+        {VERTICAL_OPTIONS.map((opt) => {
+          const active = selectedVertical === opt.value;
+          const accent = ACCENT_VAR[opt.value];
+          if (collapsed) {
+            return (
+              <button
+                key={opt.value}
+                type="button"
+                title={t(opt.labelKey)}
+                className={styles.switcherDot}
+                style={{ borderColor: active ? accent : "#d8d0c2", background: active ? accent : "transparent" }}
+                onClick={() => setSelectedVertical(opt.value)}
+              />
+            );
+          }
+          return (
+            <button
+              key={opt.value}
+              type="button"
+              className={styles.switcherSegment}
+              style={{ background: active ? accent : "transparent", color: active ? "#fff" : "var(--admin-text-body)" }}
+              onClick={() => setSelectedVertical(opt.value)}
+            >
+              <span className={styles.switcherDotInline} style={{ background: active ? "#fff" : accent }} />
+              <span>{t(opt.labelKey)}</span>
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }
 
 export function Sidebar() {
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
   const { t } = useLocale();
+  const router = useRouter();
   const pathname = usePathname() ?? "";
-  const [openSections, setOpenSections] = useState<Record<string, boolean>>({ knowledgeBase: true, systemSettings: true });
+  const [collapsed, setCollapsed] = useState(false);
+  const [navOpen, setNavOpen] = useState<Record<string, boolean>>({ kb: true, org: false, settings: false });
+
+  useEffect(() => {
+    setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === "true");
+  }, []);
+
+  function toggleCollapsed() {
+    setCollapsed((prev) => {
+      const next = !prev;
+      localStorage.setItem(COLLAPSE_STORAGE_KEY, String(next));
+      return next;
+    });
+  }
 
   const isSuperAdmin = user?.role === "super_admin";
 
-  function toggleSection(key: string) {
-    setOpenSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  function handleSectionClick(section: (typeof ADMIN_SECTIONS)[number]) {
+    if (collapsed) {
+      router.push(section.children[0].href);
+      return;
+    }
+    setNavOpen((prev) => ({ ...prev, [section.key]: !prev[section.key] }));
   }
 
-  return (
-    <aside className={styles.sidebar}>
-      <Link href="/dashboard" className={styles.logoLink}>
-        <Logo size={32} />
-      </Link>
+  function handleLogout() {
+    logout();
+    router.push("/login");
+  }
 
-      {isSuperAdmin && <VerticalSwitcher />}
+  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+
+  return (
+    <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}>
+      <div className={styles.wordmarkRow}>
+        {collapsed ? (
+          <LogoMark size={24} />
+        ) : (
+          <div>
+            <div className={styles.wordmarkText}>theke</div>
+            <div className={styles.wordmarkSub}>{t("sidebar.adminLabel")}</div>
+          </div>
+        )}
+        <button
+          type="button"
+          className={styles.collapseToggle}
+          onClick={toggleCollapsed}
+          title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+        >
+          {collapsed ? "›" : "‹"}
+        </button>
+      </div>
+
+      {isSuperAdmin && <VerticalSwitcher collapsed={collapsed} />}
 
       <nav className={styles.nav}>
         {NAV_ITEMS.map(({ href, labelKey, Icon, match }) => {
           const active = match(pathname);
           return (
-            <Link key={href} href={href} className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}>
-              <Icon />
-              <span>{t(labelKey)}</span>
+            <Link key={href} href={href} title={t(labelKey)} className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}>
+              <span className={styles.navIconBox}>
+                <Icon />
+              </span>
+              {!collapsed && <span className={styles.navLabel}>{t(labelKey)}</span>}
             </Link>
           );
         })}
@@ -110,25 +198,35 @@ export function Sidebar() {
         {isSuperAdmin && (
           <>
             {ADMIN_SECTIONS.map((section) => {
-              const open = openSections[section.key];
+              const open = navOpen[section.key];
+              const active = section.match(pathname);
               return (
-                <div key={section.key} className={styles.navSection}>
-                  <button type="button" className={styles.navSectionHeader} onClick={() => toggleSection(section.key)}>
-                    <section.Icon />
-                    <span>{t(section.labelKey)}</span>
-                    <span className={`${styles.chevron} ${open ? styles.chevronOpen : ""}`}>
-                      <ChevronIcon size={14} />
+                <div key={section.key} className={styles.navSectionWrap}>
+                  <button
+                    type="button"
+                    title={t(section.labelKey)}
+                    className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
+                    onClick={() => handleSectionClick(section)}
+                  >
+                    <span className={styles.navIconBox}>
+                      <section.Icon />
                     </span>
+                    {!collapsed && (
+                      <>
+                        <span className={styles.navLabel}>{t(section.labelKey)}</span>
+                        <span className={styles.chevron}>{open ? "▾" : "▸"}</span>
+                      </>
+                    )}
                   </button>
-                  {open && (
+                  {!collapsed && open && (
                     <div className={styles.navChildren}>
-                      {section.children.map((child) => {
-                        const active = child.match(pathname);
+                      {section.children.map((child, i) => {
+                        const childActive = child.match(pathname);
                         return (
                           <Link
-                            key={child.href}
+                            key={`${child.href}-${i}`}
                             href={child.href}
-                            className={`${styles.navChildItem} ${active ? styles.navChildItemActive : ""}`}
+                            className={`${styles.navChildItem} ${childActive ? styles.navChildItemActive : ""}`}
                           >
                             {t(child.labelKey)}
                           </Link>
@@ -139,41 +237,26 @@ export function Sidebar() {
                 </div>
               );
             })}
-
-            <Link
-              href="/admin/companies"
-              className={`${styles.navItem} ${pathname === "/admin/companies" ? styles.navItemActive : ""}`}
-            >
-              <CompaniesIcon />
-              <span>{t("nav.companies")}</span>
-            </Link>
-
-            <div className={styles.navSection}>
-              <button
-                type="button"
-                className={styles.navSectionHeader}
-                onClick={() => toggleSection("systemSettings")}
-              >
-                <SettingsIcon />
-                <span>{t("nav.systemSettings")}</span>
-                <span className={`${styles.chevron} ${openSections.systemSettings ? styles.chevronOpen : ""}`}>
-                  <ChevronIcon size={14} />
-                </span>
-              </button>
-              {openSections.systemSettings && (
-                <div className={styles.navChildren}>
-                  <Link
-                    href="/admin/verticals"
-                    className={`${styles.navChildItem} ${pathname === "/admin/verticals" ? styles.navChildItemActive : ""}`}
-                  >
-                    {t("nav.verticalsContent")}
-                  </Link>
-                </div>
-              )}
-            </div>
           </>
         )}
       </nav>
+
+      <div className={styles.footer}>
+        <div className={styles.footerRow}>
+          <div className={styles.avatar}>{initial}</div>
+          {!collapsed && (
+            <>
+              <div className={styles.footerInfo}>
+                <div className={styles.footerEmail}>{user?.email}</div>
+                <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
+              </div>
+              <button type="button" className={styles.signOutButton} title={t("nav.signOut")} onClick={handleLogout}>
+                <LogoutIcon size={15} />
+              </button>
+            </>
+          )}
+        </div>
+      </div>
     </aside>
   );
 }

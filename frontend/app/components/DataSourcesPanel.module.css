@@ -174,9 +174,9 @@
 }
 
 .freqButtonActive {
-  background: var(--admin-navy-solid);
+  background: var(--admin-accent-navy);
   color: #ffffff;
-  border-color: var(--admin-navy-solid);
+  border-color: var(--admin-accent-navy);
 }
 
 .editorRow {

@@ -1,14 +1,14 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
-import { useState } from "react";
+import { usePathname } from "next/navigation";
 
+import { useAuth } from "../lib/auth";
+import { useFontScale } from "../lib/fontScale";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { useTheme } from "../lib/theme";
 import { NotificationBell } from "./NotificationBell";
-import { SearchIcon } from "./NavIcons";
 import styles from "./TopHeader.module.css";
-import { UserMenu } from "./UserMenu";
 
 function pageTitleKey(pathname: string): TranslationKey {
   if (pathname === "/admin/documents") return "nav.documents";
@@ -21,39 +21,86 @@ function pageTitleKey(pathname: string): TranslationKey {
   return "nav.dashboard";
 }
 
+// Breadcrumb strings per the Theke Admin design handoff's own `breadcrumbs`
+// map (Theke Admin.dc.html) for admin routes; the tenant-facing pages
+// (Sources/Search/Chat) aren't part of that design at all, so they get a
+// plain "Αρχική / <page>" trail in the same style rather than nothing.
+const BREADCRUMB_KEYS: Record<string, TranslationKey> = {
+  "/dashboard": "breadcrumb.dashboard",
+  "/sources": "breadcrumb.sources",
+  "/search": "breadcrumb.search",
+  "/chat": "breadcrumb.chat",
+  "/admin/documents": "breadcrumb.documents",
+  "/admin/data-sources": "breadcrumb.dataSources",
+  "/admin/companies": "breadcrumb.companies",
+  "/admin/verticals": "breadcrumb.verticals",
+};
+
+function LanguageSelect() {
+  const { locale, locales, setLocale } = useLocale();
+  return (
+    <div className={styles.selectWrap}>
+      <select className={styles.languageSelect} value={locale} onChange={(e) => setLocale(e.target.value)}>
+        {locales.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.name}
+          </option>
+        ))}
+      </select>
+      <svg className={styles.selectChevron} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="6 9 12 15 18 9" />
+      </svg>
+    </div>
+  );
+}
+
 export function TopHeader() {
   const { t } = useLocale();
-  const router = useRouter();
+  const { user } = useAuth();
+  const { theme, setTheme } = useTheme();
+  const { scale, increase, decrease } = useFontScale();
   const pathname = usePathname() ?? "/dashboard";
-  const [query, setQuery] = useState("");
 
-  function handleSearchSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    if (!query.trim()) {
-      router.push("/search");
-      return;
-    }
-    router.push(`/search?q=${encodeURIComponent(query.trim())}`);
-  }
+  const breadcrumbKey = BREADCRUMB_KEYS[pathname];
+  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
     <header className={styles.header}>
-      <h1 className={styles.title}>{t(pageTitleKey(pathname))}</h1>
-
-      <form className={styles.searchForm} onSubmit={handleSearchSubmit}>
-        <SearchIcon size={18} />
-        <input
-          className={styles.searchInput}
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder={t("common.searchPlaceholder")}
-          aria-label={t("common.searchPlaceholder")}
-        />
-      </form>
+      <div className={styles.titleGroup}>
+        <h1 className={styles.title}>{t(pageTitleKey(pathname))}</h1>
+        {breadcrumbKey && <span className={styles.breadcrumb}>{t(breadcrumbKey)}</span>}
+      </div>
 
       <div className={styles.actions}>
+        <div className={styles.fontScaleGroup}>
+          <button type="button" className={styles.fontScaleButton} title={t("topbar.decreaseFont")} onClick={decrease}>
+            A-
+          </button>
+          <span className={styles.fontScalePct}>{scale}%</span>
+          <button
+            type="button"
+            className={`${styles.fontScaleButton} ${styles.fontScaleButtonBig}`}
+            title={t("topbar.increaseFont")}
+            onClick={increase}
+          >
+            A+
+          </button>
+        </div>
+
+        <LanguageSelect />
+
+        <button
+          type="button"
+          className={styles.iconPill}
+          title={t("topbar.toggleTheme")}
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+
         <NotificationBell />
-        <UserMenu />
+
+        <div className={styles.avatar}>{initial}</div>
       </div>
     </header>
   );

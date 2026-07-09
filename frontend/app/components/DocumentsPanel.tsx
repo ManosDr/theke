@@ -74,6 +74,9 @@ export function DocumentsPanel() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [drawerDoc, setDrawerDoc] = useState<DocumentSummary | null>(null);
   const [supersedeTarget, setSupersedeTarget] = useState<DocumentSummary | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<DocumentSummary | null>(null);
+  const [undoConfirmId, setUndoConfirmId] = useState<number | null>(null);
+  const [undoChecked, setUndoChecked] = useState(false);
 
   useEffect(() => {
     if (!token) return;
@@ -139,17 +142,10 @@ export function DocumentsPanel() {
 
   async function undoSupersede(doc: DocumentSummary) {
     if (!token) return;
-    if (!window.confirm(t("docs.confirmUndo"))) return;
     await api.post(`/admin/documents/${doc.id}/undo-supersede`, { confirmed: true }, token);
     setOpenMenuId(null);
-    refresh();
-  }
-
-  async function removeDoc(doc: DocumentSummary) {
-    if (!token) return;
-    if (!window.confirm(t("docs.confirmRemove"))) return;
-    await api.post(`/admin/documents/${doc.id}/remove`, undefined, token);
-    setOpenMenuId(null);
+    setUndoConfirmId(null);
+    setUndoChecked(false);
     refresh();
   }
 
@@ -285,7 +281,11 @@ export function DocumentsPanel() {
                         <button
                           type="button"
                           className={styles.rowMenuButton}
-                          onClick={() => setOpenMenuId(openMenuId === doc.id ? null : doc.id)}
+                          onClick={() => {
+                            setOpenMenuId(openMenuId === doc.id ? null : doc.id);
+                            setUndoConfirmId(null);
+                            setUndoChecked(false);
+                          }}
                         >
                           ⋯
                         </button>
@@ -305,11 +305,37 @@ export function DocumentsPanel() {
                               </button>
                             )}
                             {eff === "superseded" && (
-                              <button className={styles.rowMenuItem} onClick={() => undoSupersede(doc)}>
-                                {t("docs.menuUndoSupersede")}
-                              </button>
+                              undoConfirmId === doc.id ? (
+                                <div className={styles.rowMenuConfirm}>
+                                  <label>
+                                    <input
+                                      type="checkbox"
+                                      checked={undoChecked}
+                                      onChange={(e) => setUndoChecked(e.target.checked)}
+                                    />
+                                    {t("docs.confirmUndo")}
+                                  </label>
+                                  <button
+                                    className={styles.rowMenuItem}
+                                    disabled={!undoChecked}
+                                    onClick={() => undoSupersede(doc)}
+                                  >
+                                    {t("docs.menuUndoSupersede")}
+                                  </button>
+                                </div>
+                              ) : (
+                                <button
+                                  className={styles.rowMenuItem}
+                                  onClick={() => { setUndoConfirmId(doc.id); setUndoChecked(false); }}
+                                >
+                                  {t("docs.menuUndoSupersede")}
+                                </button>
+                              )
                             )}
-                            <button className={`${styles.rowMenuItem} ${styles.rowMenuItemDanger}`} onClick={() => removeDoc(doc)}>
+                            <button
+                              className={`${styles.rowMenuItem} ${styles.rowMenuItemDanger}`}
+                              onClick={() => { setRemoveTarget(doc); setOpenMenuId(null); }}
+                            >
                               {t("docs.menuRemove")}
                             </button>
                           </div>
@@ -428,6 +454,18 @@ export function DocumentsPanel() {
           }}
         />
       )}
+
+      {removeTarget && (
+        <RemoveModal
+          target={removeTarget}
+          token={token}
+          onClose={() => setRemoveTarget(null)}
+          onDone={() => {
+            setRemoveTarget(null);
+            refresh();
+          }}
+        />
+      )}
     </div>
   );
 }
@@ -518,6 +556,62 @@ function SupersedeModal({
           </button>
         </div>
         <p className={styles.modalHelper}>{t("docs.supersede.helper")}</p>
+      </div>
+    </div>
+  );
+}
+
+function RemoveModal({
+  target,
+  token,
+  onClose,
+  onDone,
+}: {
+  target: DocumentSummary;
+  token: string | null;
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useLocale();
+  const [submitting, setSubmitting] = useState(false);
+
+  async function confirmRemove() {
+    if (!token) return;
+    setSubmitting(true);
+    try {
+      await api.post(`/admin/documents/${target.id}/remove`, undefined, token);
+      onDone();
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className={styles.modalScrim} onClick={onClose}>
+      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
+        <h2>{t("docs.remove.title")}</h2>
+        <div className={styles.targetCard}>
+          <strong>{target.title}</strong>
+          <div className="text-muted">{target.authority ?? "—"}</div>
+        </div>
+
+        <p className={styles.modalHelper} style={{ color: "var(--admin-danger)" }}>
+          {t("docs.remove.warning")}
+        </p>
+
+        <div className={styles.modalActions}>
+          <button className="btn btn-secondary" onClick={onClose}>
+            {t("docs.supersede.cancel")}
+          </button>
+          <button
+            className="btn"
+            style={{ background: "var(--admin-danger)", color: "#fff", borderColor: "var(--admin-danger)" }}
+            disabled={submitting}
+            onClick={confirmRemove}
+          >
+            {t("docs.remove.confirmButton")}
+          </button>
+        </div>
       </div>
     </div>
   );

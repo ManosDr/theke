@@ -175,6 +175,20 @@
   color: var(--admin-danger);
 }
 
+.rowMenuConfirm {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+}
+
+.rowMenuConfirm label {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: 0.8rem;
+}
+
 .pagination {
   display: flex;
   align-items: center;

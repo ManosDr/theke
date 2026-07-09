@@ -265,24 +265,6 @@ def build_location_context(project: Project | None) -> str | None:
     return "\n".join(lines)
 
 
-def enrich_query_with_location(query: str, project: Project | None) -> str:
-    """Appends the plot's municipality and GIS zone to the retrieval query
-    (only if not already present in the user's own wording) so a question
-    like "τι συντελεστή δόμησης έχω;" without a named place still retrieves
-    municipality/zone-specific documents when a project location is set.
-    Never mutates the query shown to the model in the answer - this is
-    embedding input only."""
-    if project is None:
-        return query
-
-    additions = []
-    for value in (project.plot_municipality, project.gis_zone_name):
-        if value and value not in query:
-            additions.append(value)
-
-    return f"{query} {' '.join(additions)}" if additions else query
-
-
 def search_regulation(
     db: Session,
     user: CurrentUser,

@@ -24,7 +24,6 @@ from app.services.rag import (
     _passes_hybrid_threshold,
     _retrieve,
     build_location_context,
-    enrich_query_with_location,
     search_regulation,
 )
 from app.services.rate_limit import check_chat_rate_limit
@@ -356,6 +355,11 @@ async def chat_message(
 
     project = _resolve_project(db, user, payload.project_id)
     region_id = project.region_id if project else None
+    # Built before retrieval (not after) so a project's resolved location
+    # facts - notably the archaeological flag - are available on the gap
+    # path too, not just when KB retrieval happens to succeed. These are
+    # project-level metadata, valid regardless of retrieval outcome.
+    location_context = build_location_context(project)
 
     try:
         client = OpenAI(api_key=settings.openai_api_key)
@@ -366,13 +370,29 @@ async def chat_message(
             )
             return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
-        retrieval_query = enrich_query_with_location(question, project)
         raw_hits = _retrieve(
-            db, user, retrieval_query, settings.rag_top_k, vertical.id, region_id=region_id, project_id=payload.project_id
+            db, user, question, settings.rag_top_k, vertical.id, region_id=region_id, project_id=payload.project_id
         )
         hits = [h for h in raw_hits if _passes_hybrid_threshold(h)]
 
         if not hits:
+            if (
+                location_context
+                and project
+                and project.archaeological_flag
+                and project.archaeological_notes
+            ):
+                gap_answer = (
+                    "Δεν βρέθηκαν σχετικά έγγραφα στη βάση γνώσης για αυτό το "
+                    "ερώτημα. Ωστόσο, με βάση τα αποθηκευμένα δεδομένα τοποθεσίας "
+                    f"του έργου:\n\n{project.archaeological_notes}\n\n"
+                    f"{get_disclaimer(vertical)}"
+                )
+                session_id = _log_session(
+                    db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True
+                )
+                return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
+
             contact_lines = _gap_contact_lines(db, region_id)
             gap_answer = (
                 f"{CHAT_MESSAGE_GAP_RESPONSE}\n\nΣτοιχεία επικοινωνίας:\n{contact_lines}"
@@ -387,7 +407,6 @@ async def chat_message(
         is_low_confidence = len(hits) < settings.rag_top_k or any(h.distance > settings.rag_warn_distance for h in hits)
 
         system_prompt = get_system_prompt(vertical)
-        location_context = build_location_context(project)
         if location_context:
             system_prompt = (
                 f"{system_prompt}\n\n"

@@ -250,7 +250,9 @@ function ProjectDetailContent() {
         <div>
           <h1>{project.name}</h1>
           <p className="text-muted">
-            {project.customer_name && <span>{t("project.detail.customer")}: {project.customer_name} · </span>}
+            {(customerDetail?.name || project.customer_name) && (
+              <span>{t("project.detail.customer")}: {customerDetail?.name || project.customer_name} · </span>
+            )}
             {project.municipality && <span className="badge badge-success">{project.municipality}</span>}
           </p>
         </div>
@@ -305,7 +307,7 @@ function ProjectDetailContent() {
               <>
                 <dl className={styles.metaGrid}>
                   <dt>{t("project.detail.customer")}</dt>
-                  <dd>{project.customer_name || "—"}</dd>
+                  <dd>{customerDetail?.name || project.customer_name || "—"}</dd>
                   <dt>{t("project.detail.region")}</dt>
                   <dd>{project.municipality || "—"}</dd>
                   {project.customer_notes && (

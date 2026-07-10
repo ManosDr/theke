@@ -154,7 +154,13 @@ class Document(Base):
     # instead of recomputing "is this stale" on every page load.
     needs_review: Mapped[bool] = mapped_column(default=False)
 
-    embeddings: Mapped[list["Embedding"]] = relationship(back_populates="document")
+    # passive_deletes=True: trust the DB's ON DELETE CASCADE on
+    # embeddings.document_id (see Embedding below) instead of SQLAlchemy's
+    # default behavior of UPDATE-ing each embedding's document_id to NULL
+    # before the delete - which fails outright since that column is
+    # NOT NULL, surfacing as a raw connection error to the client rather
+    # than a clean response.
+    embeddings: Mapped[list["Embedding"]] = relationship(back_populates="document", passive_deletes=True)
 
 
 class UtilityProvider(Base):

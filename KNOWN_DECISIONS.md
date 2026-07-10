@@ -273,6 +273,49 @@ back into it because the text-extraction half turned out to be easy.
 
 **Update: partially addressed for archaeological zones specifically, not for building-coefficient zones.** Section 7 pre-release testing replaced `check_archaeological_flag()`'s municipality-name text matching with real coordinate-proximity detection (Haversine distance against a curated `archaeological_sites` table - see "GIS / map & location integration" below). This *is* a form of point-in-zone matching, but a narrower and structurally simpler one than what this entry describes: a handful of curated point+radius records, not real surveyed zone polygons, and radii are disclosed estimates rather than authoritative boundaries. The harder problem this entry is actually about - resolving *building-coefficient* zones from the multi-megabyte GIS/CAD files on kavala.gov.gr, then correctly applying conditional legal text to whichever zone a plot falls into - remains fully out of scope and unstarted.
 
+## Εντός/εκτός σχεδίου auto-detection investigated and rejected - toggle stays manual
+
+**What was investigated:** whether the "Ζώνη οικισμού" (εντός/εκτός σχεδίου)
+toggle on project creation/edit could be pre-filled automatically instead of
+requiring the engineer to set it by hand, using signal already available
+from the two GIS calls the app already makes per plot.
+
+**ArcGIS (`GEOTEMAXIA_LEITOURGOUN_ON_gdb`, the cadastral FeatureServer this
+app already queries for KAEK lookup):** the layer has no field encoding
+planning-zone status at all. `MAIN_USE`/`DESCR` exist but are Κτηματολόγιο
+land-use survey categories ("Δενδρώδης-Ελαιώνας", "Κατοικία ≥80%",
+"Ακάλυπτη έκταση"), not municipal planning designations, and were `null` for
+the KAEK tested. There is also only one layer on this service (`LEITOURGOUN`,
+id 0) - no sibling layers carry additional attributes.
+
+**Nominatim (already used for reverse geocoding):** tested the hypothesis
+that presence of a `road` field in the reverse-geocode response indicates
+εντός σχεδίου. It held for an initial pair of test points, but broke on
+further testing - a highway-adjacent hamlet returned `road: "Εγνατία Οδός"`
+despite almost certainly being εκτός σχεδίου, and named villages routinely
+return with no `road` field regardless of actual planning status. More
+fundamentally, Greek planning law has a third category the binary toggle
+doesn't represent - "εντός οικισμού" (traditional settlement boundary),
+which is legally εκτός σχεδίου for permitting purposes despite usually
+having named streets in OSM/Nominatim data. Road-presence cannot distinguish
+"εντός σχεδίου πόλεως" from "εντός οικισμού," so it would misclassify
+settlement-boundary parcels as in-plan.
+
+**Why rejected rather than shipped with a caveat:** this toggle directly
+drives which building regulations the chat assistant surfaces
+(`map.zoneToggleNote` says so explicitly in the UI). A heuristic that's
+wrong on hamlets and highway-adjacent parcels - not a rare edge case in a
+regional-unit-wide product - risks surfacing incorrect regulatory guidance
+with no visible sign it was guessed rather than confirmed. That failure mode
+is worse than the status quo (engineer sets it manually, informed by
+`map.zoneToggleManualHelp`'s pointer to Κτηματολόγιο/ΥΔΟΜ).
+
+**Revisit when:** a data source that directly encodes the ΓΠΣ/settlement
+boundary becomes available (e.g. if kavala.gov.gr's zone GIS/CAD files,
+already noted as out of scope above for coefficient lookup, are ever
+ingested as real polygons - at which point point-in-polygon against that
+data would answer this reliably, unlike either heuristic tested here).
+
 ## Current, explicit product framing: zone law, not plot answers
 
 Worth stating plainly rather than letting the data imply more precision

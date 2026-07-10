@@ -41,6 +41,22 @@ export interface CompanyDocumentSummary {
   created_at: string;
 }
 
+export interface ProjectDocumentSummary {
+  id: number;
+  title: string;
+  extraction_status: string;
+  created_at: string;
+  chunk_count: number;
+}
+
+export interface ProjectDocumentUploadResult {
+  filename: string;
+  document_id: number | null;
+  extraction_status: string;
+  chunk_count: number;
+  error: string | null;
+}
+
 export interface KbSourceStatusEntry {
   source_name: string;
   document_count: number;

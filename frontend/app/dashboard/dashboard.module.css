@@ -1,8 +1,17 @@
+/* Flexbox, not grid: with a fixed but non-round card count (5 on the
+   company admin overview), a fixed-track grid leaves a genuinely empty
+   cell whenever the count doesn't divide evenly into a row (3+2 leaves one
+   slot empty). Flex-wrap lets the last row's actual cards grow to fill the
+   remaining width instead of leaving a gap, for any card count. */
 .grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4);
   margin-bottom: var(--space-5);
+}
+
+.grid > * {
+  flex: 1 1 220px;
 }
 
 .overviewHeader {
@@ -21,7 +30,9 @@
 
 .attentionRow {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  /* Always exactly 4 AttentionCards (suspended/gap-rate/stale-docs/cost) -
+     4 equal columns, not 3, so the last card never falls onto its own row. */
+  grid-template-columns: repeat(4, 1fr);
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
@@ -343,6 +354,26 @@
 
 .table tr:last-child td {
   border-bottom: none;
+}
+
+/* Applied to wide tables (many columns, each holding a select/button, not
+   just text) that were overflowing their card and triggering the card's
+   overflow-x:auto scrollbar. Tighter padding/font brings total table width
+   back under the card's available width instead of scrolling. */
+.tableCompact th,
+.tableCompact td {
+  padding: var(--space-2);
+}
+
+.tableCompact td {
+  max-width: 180px;
+  overflow-wrap: anywhere;
+}
+
+.tableCompact td :global(.input),
+.tableCompact td :global(.btn) {
+  padding: 4px 8px;
+  font-size: 0.82rem;
 }
 
 .rowActions {

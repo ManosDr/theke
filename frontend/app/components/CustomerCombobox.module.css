@@ -107,8 +107,6 @@
   flex: 1;
 }
 
-.afmError {
-  color: var(--color-danger);
-  font-size: 0.78rem;
-  margin: 0;
+.newField input[aria-invalid="true"] {
+  border-color: var(--error-red, #c62828);
 }

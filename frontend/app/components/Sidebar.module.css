@@ -195,7 +195,13 @@
 
 .navItemActive,
 .navItemActive:hover {
-  background: #eaf1e4;
+  /* Was #eaf1e4 - literally --admin-construction-bg, the construction-
+     vertical badge tint, reused here by accident. Selected-nav-item
+     background should read as part of the sidebar's own navy identity
+     (matching --gradient-sidebar/--admin-accent-navy), not a vertical
+     badge color - a light tint of --admin-accent-navy instead, consistent
+     with the dark-theme override below which is already blue-toned. */
+  background: color-mix(in srgb, var(--admin-accent-navy) 12%, white);
   color: var(--admin-navy);
   font-weight: 700;
 }

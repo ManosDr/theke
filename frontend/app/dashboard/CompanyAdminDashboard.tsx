@@ -23,6 +23,7 @@ import type {
   InviteSummary,
   KbSourceStatusEntry,
   MyCompanySummary,
+  ProjectSummary,
   RemovalRequestSummary,
   UserSummary,
 } from "../lib/types";
@@ -294,7 +295,7 @@ function UsersTab({ token }: { token: string | null }) {
         {users.length === 0 ? (
           <p className={styles.emptyState}>{t("companies.noUsers")}</p>
         ) : (
-          <table className={styles.table}>
+          <table className={`${styles.table} ${styles.tableCompact}`}>
             <thead>
               <tr>
                 <th>{t("dash.company.colName")}</th>
@@ -387,18 +388,21 @@ function DocumentsTab({ token }: { token: string | null }) {
   const [docs, setDocs] = useState<CompanyDocumentSummary[]>([]);
   const [sources, setSources] = useState<KbSourceStatusEntry[]>([]);
   const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
+  const [firstProjectId, setFirstProjectId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
     if (!token) return;
-    const [docsData, sourcesData, removalData] = await Promise.all([
+    const [docsData, sourcesData, removalData, projectsData] = await Promise.all([
       api.get<CompanyDocumentSummary[]>("/companies/me/documents", token),
       api.get<KbSourceStatusEntry[]>("/companies/me/kb-status", token),
       api.get<RemovalRequestSummary[]>("/documents/removal-requests", token),
+      api.get<ProjectSummary[]>("/projects", token),
     ]);
     setDocs(docsData);
     setSources(sourcesData);
     setRemovalRequests(removalData);
+    setFirstProjectId(projectsData[0]?.id ?? null);
     setLoading(false);
   }
 
@@ -458,6 +462,15 @@ function DocumentsTab({ token }: { token: string | null }) {
         <div className={styles.sectionHeader}>
           <h2>{t("dash.company.privateDocs")}</h2>
         </div>
+        <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+          {t("project.company.documentsHint")}
+          {firstProjectId != null && (
+            <>
+              {" "}
+              <Link href={`/projects/${firstProjectId}`}>{t("project.company.documentsHintLink")}</Link>
+            </>
+          )}
+        </p>
         {docs.length === 0 ? (
           <p className={styles.emptyState}>{t("dash.company.noDocuments")}</p>
         ) : (

@@ -8,6 +8,9 @@ import { useEffect, useState } from "react";
 import { AppShell } from "../../components/AppShell";
 import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
 import type { PinState } from "../../components/MapPicker";
+import ProjectDocumentsPanel from "../../components/ProjectDocumentsPanel";
+import { InfoIcon } from "../../components/StatIcons";
+import Tooltip from "../../components/Tooltip";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
@@ -167,7 +170,6 @@ function ProjectDetailContent() {
     if (resolving) return "loading";
     if (!resolved) return "resolved";
     if (resolved.archaeological_flag) return "archaeological";
-    if (!resolved.services_available.cadastral || !resolved.services_available.gis_zone) return "partial";
     return "resolved";
   }
 
@@ -192,14 +194,10 @@ function ProjectDetailContent() {
           </button>
         </div>
 
-        {tab === "documents" && (
-          <div className="card" style={{ padding: "var(--space-5)" }}>
-            <p className="text-muted">{t("project.detail.documentsNotAvailable")}</p>
-          </div>
-        )}
+        {tab === "documents" && <ProjectDocumentsPanel projectId={Number(params.id)} token={token} />}
 
         {tab === "info" && (
-          <div className="card" style={{ padding: "var(--space-4)" }}>
+          <div className={`card ${styles.customerCard}`} style={{ padding: "var(--space-4)" }}>
             {editing ? (
               <form onSubmit={saveMetadata}>
                 <label className={styles.field}>
@@ -275,11 +273,7 @@ function ProjectDetailContent() {
         </button>
       </div>
 
-      {tab === "documents" && (
-        <div className="card" style={{ padding: "var(--space-5)" }}>
-          <p className="text-muted">{t("project.detail.documentsNotAvailable")}</p>
-        </div>
-      )}
+      {tab === "documents" && <ProjectDocumentsPanel projectId={Number(params.id)} token={token} />}
 
       {tab === "info" && (
         <div className={styles.layout}>
@@ -358,7 +352,12 @@ function ProjectDetailContent() {
                     <span>{project.plot_area_sqm != null ? `${project.plot_area_sqm} ${t("map.areaUnit")}` : t("map.notAvailable")}</span>
                   </div>
                   <div className={styles.locationRow}>
-                    <span>🗺 {t("map.zone")}</span>
+                    <span>
+                      🗺 {t("map.zone")}
+                      <Tooltip text={t("map.zoneTooltip")}>
+                        <InfoIcon size={13} />
+                      </Tooltip>
+                    </span>
                     <span>{project.gis_zone_name ?? t("map.notDetermined")}</span>
                   </div>
                   <div className={styles.locationRow}>
@@ -447,6 +446,9 @@ function ProjectDetailContent() {
                     </div>
                     <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-2)", marginBottom: 0 }}>
                       {t("map.zoneToggleNote")}
+                    </p>
+                    <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)", marginBottom: 0 }}>
+                      {t("map.zoneToggleManualHelp")}
                     </p>
                   </div>
                 )}

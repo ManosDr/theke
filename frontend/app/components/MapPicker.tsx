@@ -19,32 +19,54 @@ const DEFAULT_CENTER: [number, number] = [40.9397, 24.4132];
 // overlay is wired here, not a "Κτηματολόγιο" toggle.
 const AERIAL_WMS_URL = "http://gis.ktimanet.gr/wms/wmsopen/wmsserver.aspx";
 
-export type PinState = "idle" | "loading" | "resolved" | "archaeological" | "partial";
+// Resolution status - drives fill color + whether the glyph is fixed
+// (loading/archaeological) or origin-dependent (resolved).
+export type PinState = "loading" | "resolved" | "archaeological";
+// How the pin was placed - only matters while state is "resolved", where it
+// picks the glyph (checkmark vs house) and size (KAEK results render larger
+// to stand out from an ordinary manual pin drop).
+type PinOrigin = "click" | "kaek" | "address";
 
-// Icon+color+text pairing, never color alone (per design spec): each state
-// gets a distinct glyph, not just a different color.
-function pinIcon(state: PinState): L.DivIcon {
-  const glyph: Record<Exclude<PinState, "idle">, string> = {
-    loading: "",
-    resolved: "&#10003;",
-    archaeological: "&#9888;",
-    partial: "?",
-  };
-  const color: Record<Exclude<PinState, "idle">, string> = {
-    loading: "var(--color-primary)",
-    resolved: "var(--color-primary)",
-    archaeological: "var(--color-warning)",
-    partial: "var(--color-text-muted)",
-  };
-  const key = state === "idle" ? "resolved" : state;
-  const spin = state === "loading" ? `${styles.pinSpin}` : "";
+const PIN_NAVY = "#1B2A4A";
+const PIN_AMBER = "#F57F17";
+
+function pinInnerIcon(state: PinState, origin: PinOrigin): string {
+  if (state === "loading") {
+    return `<circle cx="12" cy="12" r="4" fill="#fff" class="${styles.pinPulse}"/>`;
+  }
+  if (state === "archaeological") {
+    return `<rect x="10.4" y="6.2" width="3.2" height="9" rx="1.6" fill="#fff"/><circle cx="12" cy="17.8" r="1.8" fill="#fff"/>`;
+  }
+  if (origin === "address") {
+    return (
+      `<path d="M6.5 17V11.8L12 7.2L17.5 11.8V17H6.5Z" fill="none" stroke="#fff" stroke-width="1.6" stroke-linejoin="round"/>` +
+      `<line x1="6.5" y1="17" x2="17.5" y2="17" stroke="#fff" stroke-width="1.6"/>`
+    );
+  }
+  // Manual click or KAEK search - both resolved via checkmark, distinguished
+  // by size only (set in pinIcon below).
+  return `<path d="M7 12.6l3.3 3.3L17.3 8.6" fill="none" stroke="#fff" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round"/>`;
+}
+
+// The teardrop is drawn on a 24x36 (2:3) viewBox - width is derived from
+// the requested height to keep it proportional rather than stretching it
+// into a square.
+function pinIcon(state: PinState, origin: PinOrigin): L.DivIcon {
+  const fill = state === "archaeological" ? PIN_AMBER : PIN_NAVY;
+  const height = state === "resolved" && origin === "kaek" ? 32 : 28;
+  const width = Math.round(height * (24 / 36));
+
+  const html = `<svg viewBox="0 0 24 36" xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}">
+    <path d="M12 0C5.373 0 0 5.373 0 12c0 9 12 24 12 24S24 21 24 12C24 5.373 18.627 0 12 0z" fill="${fill}"/>
+    ${pinInnerIcon(state, origin)}
+  </svg>`;
 
   return L.divIcon({
     className: styles.pinIconWrapper,
-    html: `<div class="${styles.pin} ${spin}" style="background:${color[key]}">${glyph[key]}</div><div class="${styles.pinTail}" style="border-top-color:${color[key]}"></div>`,
-    iconSize: [30, 38],
-    iconAnchor: [15, 38],
-    popupAnchor: [0, -38],
+    html,
+    iconSize: [width, height],
+    iconAnchor: [width / 2, height],
+    popupAnchor: [0, -height],
   });
 }
 
@@ -113,6 +135,7 @@ export default function MapPicker({
   const [addressResults, setAddressResults] = useState<GeocodeResult[]>([]);
 
   const [flyTarget, setFlyTarget] = useState<{ lat: number; lon: number; token: number } | null>(null);
+  const [pinOrigin, setPinOrigin] = useState<PinOrigin>("click");
 
   // A second location method firing after coordinates are already resolved
   // doesn't overwrite silently - it's queued here and only runs once the
@@ -164,6 +187,7 @@ export default function MapPicker({
       }
       setKtimatologioLink(result.ktimatologio_link ?? null);
       setFlyTarget({ lat: result.centroid_lat, lon: result.centroid_lon, token: Date.now() });
+      setPinOrigin("kaek");
       onPick(result.centroid_lat, result.centroid_lon, result.kaek);
     } catch {
       setKaekError(t("map.kaekServiceUnavailable"));
@@ -208,6 +232,7 @@ export default function MapPicker({
       setParcelBoundary(null);
       setKtimatologioLink(null);
       setFlyTarget({ lat: result.lat, lon: result.lon, token: Date.now() });
+      setPinOrigin("address");
       onPick(result.lat, result.lon);
     }
     // Selecting a dropdown result is itself the second step of an
@@ -218,7 +243,10 @@ export default function MapPicker({
   }
 
   function handleMapClick(clickLat: number, clickLon: number) {
-    runOrConfirm(() => onPick(clickLat, clickLon));
+    runOrConfirm(() => {
+      setPinOrigin("click");
+      onPick(clickLat, clickLon);
+    });
   }
 
   return (
@@ -359,7 +387,7 @@ export default function MapPicker({
             )}
             <ClickHandler onPick={handleMapClick} />
             {hasPin && (
-              <Marker position={[lat, lon]} icon={pinIcon(pinState)}>
+              <Marker position={[lat, lon]} icon={pinIcon(pinState, pinOrigin)}>
                 {popupContent && <Popup className={styles.popup}>{popupContent}</Popup>}
               </Marker>
             )}

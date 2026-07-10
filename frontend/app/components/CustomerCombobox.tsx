@@ -6,6 +6,7 @@ import { api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
 import type { CustomerSummary } from "../lib/types";
 import styles from "./CustomerCombobox.module.css";
+import FieldError from "./FieldError";
 
 export interface NewCustomerDraft {
   name: string;
@@ -26,11 +27,16 @@ export interface CustomerComboboxState {
 interface CustomerComboboxProps {
   token: string | null;
   onChange: (state: CustomerComboboxState) => void;
+  // Bumped by the parent form on a failed submit attempt, so this component
+  // can surface its own field errors (new-customer name/AFM) at the same
+  // moment - without the parent needing to reach into this component's
+  // internal draft state.
+  validateSignal?: number;
 }
 
 const AFM_PATTERN = /^\d{9}$/;
 
-export default function CustomerCombobox({ token, onChange }: CustomerComboboxProps) {
+export default function CustomerCombobox({ token, onChange, validateSignal }: CustomerComboboxProps) {
   const { t } = useLocale();
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<CustomerSummary[]>([]);
@@ -39,7 +45,13 @@ export default function CustomerCombobox({ token, onChange }: CustomerComboboxPr
   const [creatingNew, setCreatingNew] = useState(false);
   const [draft, setDraft] = useState<NewCustomerDraft>({ name: "", afm: "", phone: "", email: "" });
   const [afmError, setAfmError] = useState<string | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!validateSignal) return;
+    if (creatingNew && !draft.name.trim()) setNameError(t("customer.errorName"));
+  }, [validateSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!token || selected || creatingNew || query.trim().length < 1) {
@@ -96,6 +108,9 @@ export default function CustomerCombobox({ token, onChange }: CustomerComboboxPr
     if (field === "afm") {
       setAfmError(value && !AFM_PATTERN.test(value) ? t("customer.afmInvalid") : null);
     }
+    if (field === "name" && value.trim()) {
+      setNameError(null);
+    }
     onChange({ customerId: null, newCustomer: next });
   }
 
@@ -105,6 +120,7 @@ export default function CustomerCombobox({ token, onChange }: CustomerComboboxPr
     setQuery("");
     setResults([]);
     setAfmError(null);
+    setNameError(null);
     onChange({ customerId: null, newCustomer: null });
   }
 
@@ -182,13 +198,22 @@ export default function CustomerCombobox({ token, onChange }: CustomerComboboxPr
               type="text"
               value={draft.name}
               onChange={(e) => updateDraft("name", e.target.value)}
-              required
+              aria-invalid={!!nameError}
             />
+            {nameError && <FieldError message={nameError} />}
           </label>
           <div className={styles.newFieldRow}>
             <label className={styles.newField}>
               {t("customer.afm")}
-              <input className="input" type="text" value={draft.afm} onChange={(e) => updateDraft("afm", e.target.value)} maxLength={9} />
+              <input
+                className="input"
+                type="text"
+                value={draft.afm}
+                onChange={(e) => updateDraft("afm", e.target.value)}
+                maxLength={9}
+                aria-invalid={!!afmError}
+              />
+              {afmError && <FieldError message={afmError} />}
             </label>
             <label className={styles.newField}>
               {t("customer.phone")}
@@ -199,7 +224,6 @@ export default function CustomerCombobox({ token, onChange }: CustomerComboboxPr
             {t("customer.email")}
             <input className="input" type="email" value={draft.email} onChange={(e) => updateDraft("email", e.target.value)} />
           </label>
-          {afmError && <p className={styles.afmError}>{afmError}</p>}
         </div>
       )}
     </div>

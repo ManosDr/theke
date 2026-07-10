@@ -46,6 +46,15 @@
   }
 }
 
+/* See identical rule in projects/new/page.module.css - the global .card's
+   overflow-x: auto forces overflow-y to compute as auto too, so this card
+   would gain an independent vertical scrollbar once the inline
+   new-customer sub-form grows past available space. */
+.customerCard {
+  overflow: visible;
+  height: auto;
+}
+
 .field {
   display: flex;
   flex-direction: column;

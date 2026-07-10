@@ -21,6 +21,11 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  /* Flex children default to min-width:auto, which refuses to shrink below
+     the (nowrap) text's intrinsic width - the ellipsis above never actually
+     engaged as a result, so a long label (e.g. the token-count-suffixed
+     cost label) just forced the whole card to overflow horizontally. */
+  min-width: 0;
 }
 
 .iconBadge {
@@ -37,13 +42,15 @@
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
 }
 
 .value {
   font-size: 1.9rem;
   font-weight: 800;
   line-height: 1;
+  min-width: 0;
 }
 
 .cta {
@@ -52,7 +59,8 @@
   padding: 0;
   font-size: 0.8rem;
   font-weight: 600;
-  white-space: nowrap;
+  text-align: right;
+  min-width: 0;
 }
 
 .tone-success {

@@ -30,6 +30,9 @@
   --color-warning-bg: #fff4de;
   --color-danger: #f64e60;
   --color-danger-bg: #ffe2e5;
+  /* Distinct from --color-danger (used for banners/badges) - reserved for
+     inline field-validation messages per the design spec. */
+  --error-red: #c62828;
 
   /* Extra tones for stat tiles/badges, taken from the reference's own palette */
   --color-info: #0095ff;

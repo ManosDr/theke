@@ -24,6 +24,17 @@
   font-size: 15px;
 }
 
+/* The global .card class sets overflow-x: auto, which per the CSS overflow
+   spec forces the other axis's default "visible" to compute as "auto" too -
+   so this card would silently gain its own internal vertical scrollbar
+   once the inline new-customer sub-form pushed its content taller than
+   available space, instead of the page just growing. Overridden back to
+   visible/auto height so it never scrolls independently. */
+.customerCard {
+  overflow: visible;
+  height: auto;
+}
+
 .field {
   display: flex;
   flex-direction: column;
@@ -40,6 +51,11 @@
 .field textarea {
   font-weight: 400;
   color: var(--color-text);
+}
+
+.field input[aria-invalid="true"],
+.field select[aria-invalid="true"] {
+  border-color: var(--error-red, #c62828);
 }
 
 .saveHint {

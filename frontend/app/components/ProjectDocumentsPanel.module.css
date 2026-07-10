@@ -1,0 +1,92 @@
+.uploadCard {
+  padding: var(--space-4);
+}
+
+.listCard {
+  padding: var(--space-4);
+  margin-top: var(--space-4);
+}
+
+.cardTitle {
+  margin: 0 0 var(--space-3);
+  font-size: 15px;
+}
+
+.uploadRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.fileInfo {
+  margin: var(--space-2) 0 0;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.uploadError {
+  margin: var(--space-2) 0 0;
+  font-size: 0.85rem;
+  color: var(--error-red, #c62828);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.table th {
+  text-align: left;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  font-size: 0.9rem;
+  vertical-align: middle;
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.actionsCell {
+  text-align: right;
+}
+
+.confirmRow {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.confirmCheckboxRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.cancelLink {
+  background: none;
+  border: none;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+  padding: 0;
+}
+
+.cancelLink:hover {
+  color: var(--color-primary);
+}

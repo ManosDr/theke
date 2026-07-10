@@ -7,7 +7,10 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
 import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
+import FieldError from "../../components/FieldError";
 import type { PinState } from "../../components/MapPicker";
+import { InfoIcon } from "../../components/StatIcons";
+import Tooltip from "../../components/Tooltip";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
@@ -39,7 +42,12 @@ function LocationSummary({ resolving, resolved }: { resolving: boolean; resolved
         <span>{resolved.plot_area_sqm != null ? `${resolved.plot_area_sqm} ${t("map.areaUnit")}` : t("map.notAvailable")}</span>
       </div>
       <div className={styles.locationRow}>
-        <span>🗺 {t("map.zone")}</span>
+        <span>
+          🗺 {t("map.zone")}
+          <Tooltip text={t("map.zoneTooltip")}>
+            <InfoIcon size={13} />
+          </Tooltip>
+        </span>
         <span>{resolved.gis_zone_name ?? t("map.notDetermined")}</span>
       </div>
       {resolved.archaeological_flag && (
@@ -75,6 +83,11 @@ function NewProjectContent() {
   const [regionId, setRegionId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; region?: string; customer?: string }>({});
+  // Bumped on every failed submit attempt so child fields (e.g. the
+  // customer sub-form's own name/AFM checks) know to display their
+  // validation state, without us lifting that state up into this component.
+  const [validateSignal, setValidateSignal] = useState(0);
 
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
   const [resolving, setResolving] = useState(false);
@@ -120,12 +133,25 @@ function NewProjectContent() {
     if (resolving) return "loading";
     if (!resolved) return "resolved";
     if (resolved.archaeological_flag) return "archaeological";
-    if (!resolved.services_available.cadastral || !resolved.services_available.gis_zone) return "partial";
+    // Incomplete-service results still get the "resolved" checkmark - the
+    // pin only communicates loading/resolved/archaeological; incompleteness
+    // is surfaced via the partialNote text in LocationSummary instead.
     return "resolved";
+  }
+
+  function validate(): boolean {
+    const errors: typeof fieldErrors = {};
+    if (!name.trim()) errors.name = t("project.new.errorTitle");
+    if (usesRegionalScoping && !regionId) errors.region = t("project.new.errorRegion");
+    if (!customerState.customerId && !customerState.newCustomer) errors.customer = t("project.new.errorCustomer");
+    setFieldErrors(errors);
+    setValidateSignal((n) => n + 1);
+    return Object.keys(errors).length === 0;
   }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
+    if (!validate()) return;
     setSaving(true);
     setError(null);
     try {
@@ -216,15 +242,33 @@ function NewProjectContent() {
         </Link>
         <h1>{t("project.new.clientTitle")}</h1>
 
-        <form onSubmit={handleSave} className={styles.formColumn}>
-          <section className="card" style={{ padding: "var(--space-4)" }}>
+        <form onSubmit={handleSave} className={styles.formColumn} noValidate>
+          <section className={`card ${styles.customerCard}`} style={{ padding: "var(--space-4)" }}>
             <label className={styles.field}>
               {t("project.new.clientName")}
-              <CustomerCombobox token={token} onChange={setCustomerState} />
+              <CustomerCombobox
+                token={token}
+                onChange={(state) => {
+                  setCustomerState(state);
+                  if (state.customerId || state.newCustomer) setFieldErrors((prev) => ({ ...prev, customer: undefined }));
+                }}
+                validateSignal={validateSignal}
+              />
+              {fieldErrors.customer && <FieldError message={fieldErrors.customer} />}
             </label>
             <label className={styles.field}>
               {t("project.new.projectName")}
-              <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+              <input
+                className="input"
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.name}
+              />
+              {fieldErrors.name && <FieldError message={fieldErrors.name} />}
             </label>
             <label className={styles.field}>
               {t("dash.member.colClientNotes")}
@@ -259,13 +303,21 @@ function NewProjectContent() {
       </Link>
       <h1>{t("project.new.title")}</h1>
 
-      <form onSubmit={handleSave} className={styles.layout}>
+      <form onSubmit={handleSave} className={styles.layout} noValidate>
         <div className={styles.formColumn}>
-          <section className="card" style={{ padding: "var(--space-4)" }}>
+          <section className={`card ${styles.customerCard}`} style={{ padding: "var(--space-4)" }}>
             <h2 className={styles.sectionHeader}>{t("project.new.customerSection")}</h2>
             <label className={styles.field}>
               {t("project.new.customerName")}
-              <CustomerCombobox token={token} onChange={setCustomerState} />
+              <CustomerCombobox
+                token={token}
+                onChange={(state) => {
+                  setCustomerState(state);
+                  if (state.customerId || state.newCustomer) setFieldErrors((prev) => ({ ...prev, customer: undefined }));
+                }}
+                validateSignal={validateSignal}
+              />
+              {fieldErrors.customer && <FieldError message={fieldErrors.customer} />}
             </label>
           </section>
 
@@ -273,11 +325,29 @@ function NewProjectContent() {
             <h2 className={styles.sectionHeader}>{t("project.new.projectSection")}</h2>
             <label className={styles.field}>
               {t("project.new.projectName")}
-              <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
+              <input
+                className="input"
+                type="text"
+                value={name}
+                onChange={(e) => {
+                  setName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, name: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.name}
+              />
+              {fieldErrors.name && <FieldError message={fieldErrors.name} />}
             </label>
             <label className={styles.field}>
               {t("project.detail.region")}
-              <select className="input" value={regionId} onChange={(e) => setRegionId(e.target.value)} required>
+              <select
+                className="input"
+                value={regionId}
+                onChange={(e) => {
+                  setRegionId(e.target.value);
+                  if (e.target.value) setFieldErrors((prev) => ({ ...prev, region: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.region}
+              >
                 <option value="" disabled>
                   {t("dash.member.selectMunicipality")}
                 </option>
@@ -287,6 +357,7 @@ function NewProjectContent() {
                   </option>
                 ))}
               </select>
+              {fieldErrors.region && <FieldError message={fieldErrors.region} />}
             </label>
           </section>
 
@@ -362,6 +433,9 @@ function NewProjectContent() {
               </div>
               <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-2)", marginBottom: 0 }}>
                 {t("map.zoneToggleNote")}
+              </p>
+              <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)", marginBottom: 0 }}>
+                {t("map.zoneToggleManualHelp")}
               </p>
             </div>
           )}

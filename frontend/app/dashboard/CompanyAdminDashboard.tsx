@@ -1,62 +1,220 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
+import { Fragment, useEffect, useState } from "react";
 
-import { API_URL, ApiError, api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import { ClockIcon, MailIcon, ShieldCheckIcon, UsersIcon } from "../components/StatIcons";
-import type { AuditLogEntry, InviteSummary, MyCompanySummary, RemovalRequestSummary, UserSummary } from "../lib/types";
-import { ActivityChart } from "./ActivityChart";
+import type { TranslationKey } from "../lib/translations";
+import {
+  ClockIcon,
+  CoinIcon,
+  ShieldCheckIcon,
+  UsersIcon,
+} from "../components/StatIcons";
+import { DocumentsIcon } from "../components/NavIcons";
+import type {
+  ActivityEventEntry,
+  CompanyDocumentSummary,
+  CompanyOverviewResponse,
+  CustomerDetailResponse,
+  CustomerSummary,
+  InviteSummary,
+  KbSourceStatusEntry,
+  MyCompanySummary,
+  RemovalRequestSummary,
+  UserSummary,
+} from "../lib/types";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
+import tabStyles from "./CompanyAdminDashboard.module.css";
+
+const TABS = ["overview", "users", "documents", "customers"] as const;
+type Tab = (typeof TABS)[number];
+
+function timeAgo(iso: string, locale: string): string {
+  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  const isGreek = locale.startsWith("el");
+  if (diffMin < 1) return isGreek ? "τώρα" : "just now";
+  if (diffMin < 60) return `${diffMin}${isGreek ? "λ" : "m"}`;
+  const diffHr = Math.round(diffMin / 60);
+  if (diffHr < 24) return `${diffHr}${isGreek ? "ω" : "h"}`;
+  const diffDay = Math.round(diffHr / 24);
+  return `${diffDay}${isGreek ? "η" : "d"}`;
+}
+
+const EVENT_ICON: Record<ActivityEventEntry["type"], string> = {
+  chat_message: "💬",
+  document_uploaded: "📄",
+  project_created: "🏗",
+  customer_added: "👤",
+  user_joined: "✉",
+};
 
 export function CompanyAdminDashboard() {
   const { user } = useAuth();
   const { t } = useLocale();
   const token = user?.token ?? null;
 
+  const [tab, setTab] = useState<Tab>("overview");
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
-  const [users, setUsers] = useState<UserSummary[]>([]);
-  const [invites, setInvites] = useState<InviteSummary[]>([]);
-  const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
-  const [auditLog, setAuditLog] = useState<AuditLogEntry[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
+  useEffect(() => {
+    if (!token) return;
+    api
+      .get<MyCompanySummary>("/companies/me", token)
+      .then(setCompany)
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load company"))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+  if (error) return <p className={styles.emptyState}>{error}</p>;
+
+  return (
+    <div className={tabStyles.wrapper}>
+      <div className={tabStyles.header}>
+        <h1>
+          {company?.type === "municipality"
+            ? t("dash.company.titleMunicipality", { name: company.name })
+            : t("dash.company.title")}
+        </h1>
+      </div>
+
+      <div className={tabStyles.tabBar} role="tablist">
+        {TABS.map((tKey) => (
+          <button
+            key={tKey}
+            type="button"
+            role="tab"
+            aria-selected={tab === tKey}
+            className={`${tabStyles.tabButton} ${tab === tKey ? tabStyles.tabButtonActive : ""}`}
+            onClick={() => setTab(tKey)}
+          >
+            {t(`dash.company.tab${tKey.charAt(0).toUpperCase() + tKey.slice(1)}` as TranslationKey)}
+          </button>
+        ))}
+      </div>
+
+      <div className={tabStyles.tabContent}>
+        {tab === "overview" && <OverviewTab token={token} />}
+        {tab === "users" && <UsersTab token={token} />}
+        {tab === "documents" && <DocumentsTab token={token} />}
+        {tab === "customers" && <CustomersTab token={token} />}
+      </div>
+    </div>
+  );
+}
+
+function OverviewTab({ token }: { token: string | null }) {
+  const { t, locale } = useLocale();
+  const [data, setData] = useState<CompanyOverviewResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    api.get<CompanyOverviewResponse>("/companies/me/overview", token).then(setData).finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+  if (!data) return null;
+
+  return (
+    <div className={tabStyles.scrollPane}>
+      <div className={styles.grid}>
+        <StatCard
+          tone="primary"
+          icon={<UsersIcon />}
+          value={`${data.users_total}`}
+          label={`${t("dash.company.statUsers")} · ${t("dash.company.statUsersSub", { active: data.users_active_30d })}`}
+        />
+        <StatCard
+          tone="info"
+          icon={<ShieldCheckIcon />}
+          value={`${data.messages_30d}`}
+          label={t("dash.company.statChatSub", { count: data.messages_30d, rate: data.gap_rate })}
+        />
+        <StatCard
+          tone="accent"
+          icon={<ClockIcon />}
+          value={`${data.customers_total}/${data.projects_total}`}
+          label={t("dash.company.statCustomersProjectsSub", { customers: data.customers_total, projects: data.projects_total })}
+        />
+        <StatCard
+          tone="purple"
+          icon={<DocumentsIcon />}
+          value={`${data.private_documents_count}/${data.public_documents_count}`}
+          label={t("dash.company.statDocumentsSub", { private: data.private_documents_count, public: data.public_documents_count })}
+        />
+        <StatCard
+          tone="danger"
+          icon={<CoinIcon />}
+          value={data.total_tokens_30d.toLocaleString()}
+          label={`${t("dash.company.statTokens")} · €${data.estimated_cost_eur_30d.toFixed(2)}`}
+        />
+      </div>
+
+      <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.activity")}</h2>
+        </div>
+        {data.activity.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.company.activityEmpty")}</p>
+        ) : (
+          <ul className={tabStyles.activityList}>
+            {data.activity.map((ev, i) => (
+              <li key={i} className={tabStyles.activityItem}>
+                <span className={tabStyles.activityIcon}>{EVENT_ICON[ev.type]}</span>
+                <span className={tabStyles.activityDesc}>
+                  {ev.actor_name ? (
+                    <>
+                      <strong>{ev.actor_name}</strong> {t(`dash.company.event.${ev.type}` as TranslationKey)}
+                      {ev.description ? `: ${ev.description}` : ""}
+                    </>
+                  ) : (
+                    <>
+                      {t(`dash.company.event.${ev.type}` as TranslationKey)}
+                      {ev.description ? `: ${ev.description}` : ""}
+                    </>
+                  )}
+                </span>
+                <span className={tabStyles.activityTime}>{timeAgo(ev.created_at, locale)}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function UsersTab({ token }: { token: string | null }) {
+  const { t } = useLocale();
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [invites, setInvites] = useState<InviteSummary[]>([]);
+  const [loading, setLoading] = useState(true);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [newInviteToken, setNewInviteToken] = useState<string | null>(null);
 
-  const logoInputRef = useRef<HTMLInputElement>(null);
-  const [logoStatus, setLogoStatus] = useState<string | null>(null);
-  const [logoVersion, setLogoVersion] = useState(0);
-
   async function refresh() {
-    try {
-      const [usersData, invitesData, removalData, auditData, companyData] = await Promise.all([
-        api.get<UserSummary[]>("/companies/me/users", token),
-        api.get<InviteSummary[]>("/companies/me/invites", token),
-        api.get<RemovalRequestSummary[]>("/documents/removal-requests", token),
-        api.get<AuditLogEntry[]>("/companies/me/audit-log", token),
-        api.get<MyCompanySummary>("/companies/me", token),
-      ]);
-      setUsers(usersData);
-      setInvites(invitesData);
-      setRemovalRequests(removalData);
-      setAuditLog(auditData);
-      setCompany(companyData);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Failed to load company data");
-    } finally {
-      setLoading(false);
-    }
+    if (!token) return;
+    const [usersData, invitesData] = await Promise.all([
+      api.get<UserSummary[]>("/companies/me/users", token),
+      api.get<InviteSummary[]>("/companies/me/invites", token),
+    ]);
+    setUsers(usersData);
+    setInvites(invitesData);
+    setLoading(false);
   }
 
   useEffect(() => {
     refresh();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [token]);
 
   async function changeRole(target: UserSummary, role: "admin" | "member") {
     try {
@@ -81,11 +239,7 @@ export function CompanyAdminDashboard() {
     e.preventDefault();
     setNewInviteToken(null);
     try {
-      const invite = await api.post<InviteSummary>(
-        "/companies/me/invites",
-        { email: inviteEmail, role: inviteRole },
-        token
-      );
+      const invite = await api.post<InviteSummary>("/companies/me/invites", { email: inviteEmail, role: inviteRole }, token);
       setNewInviteToken(invite.token);
       setInviteEmail("");
       refresh();
@@ -99,257 +253,426 @@ export function CompanyAdminDashboard() {
     refresh();
   }
 
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+  const pendingInvites = invites.filter((i) => i.status === "pending");
+
+  return (
+    <div className={tabStyles.scrollPane}>
+      <section className={`card ${styles.section}`}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.inviteTeammate")}</h2>
+        </div>
+        <form className={styles.inlineForm} onSubmit={createInvite}>
+          <input
+            className="input"
+            type="email"
+            placeholder={t("dash.company.inviteEmailPlaceholder")}
+            value={inviteEmail}
+            onChange={(e) => setInviteEmail(e.target.value)}
+            required
+          />
+          <select className="input" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "member")} style={{ width: "auto" }}>
+            <option value="member">{t("role.member")}</option>
+            <option value="admin">{t("role.admin")}</option>
+          </select>
+          <button type="submit" className="btn btn-primary">
+            {t("dash.company.sendInvite")}
+          </button>
+        </form>
+        {newInviteToken && (
+          <div className={styles.tokenBox}>
+            {t("dash.company.shareInviteCode")} <br />
+            {newInviteToken}
+          </div>
+        )}
+      </section>
+
+      <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.team")}</h2>
+        </div>
+        {users.length === 0 ? (
+          <p className={styles.emptyState}>{t("companies.noUsers")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colName")}</th>
+                <th>{t("dash.company.colEmail")}</th>
+                <th>{t("dash.company.colPhone")}</th>
+                <th>{t("dash.company.colRole")}</th>
+                <th>{t("dash.company.colLastLogin")}</th>
+                <th>{t("dash.company.colMessages30d")}</th>
+                <th>{t("dash.company.colStatus")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {users.map((u) => (
+                <tr key={u.id}>
+                  <td>{u.name ?? "—"}</td>
+                  <td>{u.email}</td>
+                  <td>{u.phone ?? "—"}</td>
+                  <td>
+                    <select
+                      className="input"
+                      value={u.role}
+                      onChange={(e) => changeRole(u, e.target.value as "admin" | "member")}
+                      style={{ width: "auto" }}
+                    >
+                      <option value="admin">{t("role.admin")}</option>
+                      <option value="member">{t("role.member")}</option>
+                    </select>
+                  </td>
+                  <td className="text-muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}</td>
+                  <td>{u.messages_30d}</td>
+                  <td>
+                    <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>
+                      {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
+                    </span>
+                  </td>
+                  <td>
+                    <button className="btn btn-secondary" onClick={() => toggleActive(u)}>
+                      {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.pendingInvitesHeading")}</h2>
+        </div>
+        {pendingInvites.length === 0 ? (
+          <p className={styles.emptyState}>—</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colEmail")}</th>
+                <th>{t("dash.company.colRole")}</th>
+                <th>{t("dash.company.colCreated")}</th>
+                <th>{t("dash.company.colExpires")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingInvites.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{inv.email}</td>
+                  <td>{t(`role.${inv.role}` as TranslationKey)}</td>
+                  <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
+                  <td>
+                    <button className="btn btn-secondary" onClick={() => revokeInvite(inv.id)}>
+                      {t("dash.company.cancelInvite")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  );
+}
+
+function DocumentsTab({ token }: { token: string | null }) {
+  const { t } = useLocale();
+  const [docs, setDocs] = useState<CompanyDocumentSummary[]>([]);
+  const [sources, setSources] = useState<KbSourceStatusEntry[]>([]);
+  const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  async function refresh() {
+    if (!token) return;
+    const [docsData, sourcesData, removalData] = await Promise.all([
+      api.get<CompanyDocumentSummary[]>("/companies/me/documents", token),
+      api.get<KbSourceStatusEntry[]>("/companies/me/kb-status", token),
+      api.get<RemovalRequestSummary[]>("/documents/removal-requests", token),
+    ]);
+    setDocs(docsData);
+    setSources(sourcesData);
+    setRemovalRequests(removalData);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function deleteDoc(d: CompanyDocumentSummary) {
+    if (!d.project_id) return;
+    await api.del(`/projects/${d.project_id}/documents/${d.id}`, token);
+    refresh();
+  }
+
   async function decideRemoval(id: number, decision: "approve" | "reject") {
     await api.post(`/documents/removal-requests/${id}/${decision}`, undefined, token);
     refresh();
   }
 
-  async function uploadLogo(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const formData = new FormData();
-    formData.append("file", file);
-    try {
-      await api.upload("/companies/me/logo", formData, token);
-      setLogoStatus(t("dash.company.logoUpdated"));
-      setLogoVersion((v) => v + 1);
-      refresh();
-    } catch (err) {
-      setLogoStatus(err instanceof ApiError ? err.message : "Failed to upload logo");
-    } finally {
-      if (logoInputRef.current) logoInputRef.current.value = "";
-    }
-  }
-
-  async function removeLogo() {
-    try {
-      await api.del("/companies/me/logo", token);
-      setLogoStatus(t("dash.company.logoRemoved"));
-      setLogoVersion((v) => v + 1);
-      refresh();
-    } catch (err) {
-      setLogoStatus(err instanceof ApiError ? err.message : "Failed to remove logo");
-    }
-  }
-
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
-  if (error) return <p className={styles.emptyState}>{error}</p>;
-
-  const activeUsers = users.filter((u) => u.is_active).length;
   const pendingRemovals = removalRequests.filter((r) => r.status === "pending");
 
   return (
-    <div>
-      <h1>
-        {company?.type === "municipality"
-          ? t("dash.company.titleMunicipality", { name: company.name })
-          : t("dash.company.title")}
-      </h1>
-
-      <div className={styles.grid}>
-        <StatCard tone="primary" icon={<UsersIcon />} value={users.length} label={t("dash.company.teamMembers")} />
-        <StatCard tone="info" icon={<ShieldCheckIcon />} value={activeUsers} label={t("dash.company.activeAccess")} />
-        <StatCard
-          tone={pendingRemovals.length > 0 ? "accent" : "primary"}
-          icon={<ClockIcon />}
-          value={pendingRemovals.length}
-          label={t("dash.company.pendingApprovals")}
-        />
-        <StatCard
-          tone="purple"
-          icon={<MailIcon />}
-          value={invites.filter((i) => i.status === "pending").length}
-          label={t("dash.company.pendingInvites")}
-        />
-      </div>
-
-      <div className={styles.twoCol}>
-        <div>
-          <section className={`card ${styles.section}`}>
-            <div className={styles.sectionHeader}>
-              <h2>{t("dash.company.activity")}</h2>
-            </div>
-            <ActivityChart entries={auditLog} />
-          </section>
-
-          {pendingRemovals.length > 0 && (
-            <section className={`card ${styles.section}`}>
-              <div className={styles.sectionHeader}>
-                <h2>{t("dash.company.pendingRemovals")}</h2>
-              </div>
-              <table className={styles.table}>
-                <thead>
-                  <tr>
-                    <th>{t("dash.company.colDocument")}</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {pendingRemovals.map((r) => (
-                    <tr key={r.id}>
-                      <td>{r.document_title ?? `Document #${r.document_id}`}</td>
-                      <td className={styles.rowActions}>
-                        <button className="btn btn-primary" onClick={() => decideRemoval(r.id, "approve")}>
-                          {t("dash.company.approve")}
-                        </button>
-                        <button className="btn btn-secondary" onClick={() => decideRemoval(r.id, "reject")}>
-                          {t("dash.company.reject")}
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </section>
-          )}
-
-          <section className={`card ${styles.section}`}>
-            <div className={styles.sectionHeader}>
-              <h2>{t("dash.company.team")}</h2>
-            </div>
-            <table className={styles.table}>
-              <thead>
-                <tr>
-                  <th>{t("dash.company.colEmail")}</th>
-                  <th>{t("dash.company.colRole")}</th>
-                  <th>{t("dash.company.colStatus")}</th>
-                  <th></th>
+    <div className={tabStyles.scrollPane}>
+      {pendingRemovals.length > 0 && (
+        <section className={`card ${styles.section}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.company.pendingRemovals")}</h2>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colDocument")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {pendingRemovals.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.document_title ?? `Document #${r.document_id}`}</td>
+                  <td className={styles.rowActions}>
+                    <button className="btn btn-primary" onClick={() => decideRemoval(r.id, "approve")}>
+                      {t("dash.company.approve")}
+                    </button>
+                    <button className="btn btn-secondary" onClick={() => decideRemoval(r.id, "reject")}>
+                      {t("dash.company.reject")}
+                    </button>
+                  </td>
                 </tr>
-              </thead>
-              <tbody>
-                {users.map((u) => (
-                  <tr key={u.id}>
-                    <td>{u.email}</td>
-                    <td>
-                      <select
-                        className="input"
-                        value={u.role}
-                        onChange={(e) => changeRole(u, e.target.value as "admin" | "member")}
-                        style={{ width: "auto" }}
-                      >
-                        <option value="admin">{t("role.admin")}</option>
-                        <option value="member">{t("role.member")}</option>
-                      </select>
-                    </td>
-                    <td>
-                      <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>
-                        {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
-                      </span>
-                    </td>
-                    <td>
-                      <button className="btn btn-secondary" onClick={() => toggleActive(u)}>
-                        {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </section>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
+      <section className={`card ${styles.section}`} style={{ marginTop: pendingRemovals.length > 0 ? "var(--space-4)" : 0 }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.privateDocs")}</h2>
         </div>
+        {docs.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.company.noDocuments")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colDocument")}</th>
+                <th>{t("dash.company.colProject")}</th>
+                <th>{t("dash.company.colType")}</th>
+                <th>{t("dash.company.colExtraction")}</th>
+                <th>{t("dash.company.colDate")}</th>
+                <th>{t("dash.company.colActions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {docs.map((d) => (
+                <tr key={d.id}>
+                  <td>{d.title ?? "—"}</td>
+                  <td>{d.project_name ?? "—"}</td>
+                  <td>
+                    <span className="badge badge-success">{d.doc_type ?? "—"}</span>
+                  </td>
+                  <td>
+                    <span className={`badge ${d.extraction_status === "full_text" ? "badge-success" : "badge-warning"}`}>
+                      {d.extraction_status ?? "—"}
+                    </span>
+                  </td>
+                  <td className="text-muted">{new Date(d.created_at).toLocaleDateString()}</td>
+                  <td>
+                    <button className="btn btn-secondary" onClick={() => deleteDoc(d)}>
+                      {t("dash.company.delete")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
-        <div>
-          <section className={`card ${styles.section}`}>
-            <div className={styles.sectionHeader}>
-              <h2>{t("dash.company.inviteTeammate")}</h2>
-            </div>
-            <form className={styles.inlineForm} onSubmit={createInvite}>
-              <input
-                className="input"
-                type="email"
-                placeholder={t("dash.company.inviteEmailPlaceholder")}
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                required
-              />
-              <select
-                className="input"
-                value={inviteRole}
-                onChange={(e) => setInviteRole(e.target.value as "admin" | "member")}
-                style={{ width: "auto" }}
-              >
-                <option value="member">{t("role.member")}</option>
-                <option value="admin">{t("role.admin")}</option>
-              </select>
-              <button type="submit" className="btn btn-primary">
-                {t("dash.company.sendInvite")}
-              </button>
-            </form>
+      <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.publicKb")}</h2>
+        </div>
+        {sources.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.company.noSources")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colSource")}</th>
+                <th>{t("dash.company.colDocCount")}</th>
+                <th>{t("dash.company.colLastSync")}</th>
+                <th>{t("dash.company.colNextSync")}</th>
+                <th>{t("dash.company.colHealth")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sources.map((s, i) => (
+                <tr key={i}>
+                  <td>{s.source_name}</td>
+                  <td>{s.document_count}</td>
+                  <td className="text-muted">{s.last_crawled_at ? new Date(s.last_crawled_at).toLocaleDateString() : "—"}</td>
+                  <td className="text-muted">{s.next_crawl_at ? new Date(s.next_crawl_at).toLocaleDateString() : "—"}</td>
+                  <td>
+                    <span
+                      className={`badge ${s.health === "healthy" ? "badge-success" : s.health === "failed" ? "badge-danger" : "badge-warning"}`}
+                    >
+                      {t(`adminSources.health.${s.health}` as TranslationKey)}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+    </div>
+  );
+}
 
-            {newInviteToken && (
-              <div className={styles.tokenBox}>
-                {t("dash.company.shareInviteCode")} <br />
-                {newInviteToken}
-              </div>
-            )}
+function CustomersTab({ token }: { token: string | null }) {
+  const { t } = useLocale();
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [expanded, setExpanded] = useState<Record<number, CustomerDetailResponse | undefined>>({});
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState("");
+  const [newAfm, setNewAfm] = useState("");
 
-            {invites.length > 0 && (
-              <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
-                <thead>
-                  <tr>
-                    <th>{t("dash.company.colEmail")}</th>
-                    <th>{t("dash.company.colStatus")}</th>
-                    <th></th>
+  async function refresh() {
+    if (!token) return;
+    const data = await api.get<CustomerSummary[]>("/customers", token);
+    setCustomers(data);
+    setLoading(false);
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
+  async function toggleExpand(c: CustomerSummary) {
+    if (expanded[c.id]) {
+      setExpanded((prev) => ({ ...prev, [c.id]: undefined }));
+      return;
+    }
+    const detail = await api.get<CustomerDetailResponse>(`/customers/${c.id}`, token);
+    setExpanded((prev) => ({ ...prev, [c.id]: detail }));
+  }
+
+  async function createCustomer(e: React.FormEvent) {
+    e.preventDefault();
+    if (!token || !newName.trim()) return;
+    await api.post("/customers", { name: newName.trim(), afm: newAfm.trim() || undefined }, token);
+    setNewName("");
+    setNewAfm("");
+    setCreating(false);
+    refresh();
+  }
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+
+  return (
+    <div className={tabStyles.scrollPane}>
+      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+        <button type="button" className="btn btn-primary" onClick={() => setCreating((c) => !c)}>
+          + {t("dash.company.newCustomer")}
+        </button>
+      </div>
+
+      {creating && (
+        <form className={styles.inlineForm} onSubmit={createCustomer} style={{ marginBottom: "var(--space-4)" }}>
+          <input className="input" placeholder={t("account.name")} value={newName} onChange={(e) => setNewName(e.target.value)} required />
+          <input className="input" placeholder={t("dash.company.colAfm")} value={newAfm} onChange={(e) => setNewAfm(e.target.value)} />
+          <button type="submit" className="btn btn-primary">
+            {t("common.save")}
+          </button>
+        </form>
+      )}
+
+      <section className={`card ${styles.section}`}>
+        {customers.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.company.noCustomers")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.colName")}</th>
+                <th>{t("dash.company.colAfm")}</th>
+                <th>{t("dash.company.colPhone")}</th>
+                <th>{t("dash.company.colEmail")}</th>
+                <th>{t("dash.company.colProjectsCount")}</th>
+                <th>{t("dash.company.colLastProject")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {customers.map((c) => (
+                <Fragment key={c.id}>
+                  <tr onClick={() => toggleExpand(c)} style={{ cursor: "pointer" }}>
+                    <td>{c.name}</td>
+                    <td>{c.afm ?? "—"}</td>
+                    <td>{c.phone ?? "—"}</td>
+                    <td>{c.email ?? "—"}</td>
+                    <td>{c.project_count}</td>
+                    <td className="text-muted">{c.last_project_at ? new Date(c.last_project_at).toLocaleDateString() : "—"}</td>
+                    <td>{expanded[c.id] ? "▾" : "▸"}</td>
                   </tr>
-                </thead>
-                <tbody>
-                  {invites.map((inv) => (
-                    <tr key={inv.id}>
-                      <td>{inv.email}</td>
-                      <td>
-                        <span
-                          className={`badge ${
-                            inv.status === "accepted"
-                              ? "badge-success"
-                              : inv.status === "revoked"
-                                ? "badge-danger"
-                                : "badge-warning"
-                          }`}
-                        >
-                          {inv.status === "accepted"
-                            ? t("dash.company.inviteAccepted")
-                            : inv.status === "revoked"
-                              ? t("dash.company.inviteRevoked")
-                              : t("dash.company.invitePending")}
-                        </span>
-                      </td>
-                      <td>
-                        {inv.status === "pending" && (
-                          <button className="btn btn-secondary" onClick={() => revokeInvite(inv.id)}>
-                            {t("dash.company.revoke")}
-                          </button>
-                        )}
+                  {expanded[c.id] && (
+                    <tr key={`${c.id}-detail`}>
+                      <td colSpan={7} style={{ padding: 0 }}>
+                        <div className={tabStyles.subTableWrap}>
+                          {expanded[c.id]!.projects.length === 0 ? (
+                            <p className="text-muted" style={{ padding: "var(--space-3)" }}>
+                              {t("companies.noProjects")}
+                            </p>
+                          ) : (
+                            <table className={styles.table}>
+                              <thead>
+                                <tr>
+                                  <th>{t("dash.company.colName")}</th>
+                                  <th>{t("dash.company.colProject")}</th>
+                                  <th>{t("dash.company.colCreated")}</th>
+                                  <th>{t("dash.company.colDocCount")}</th>
+                                  <th></th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {expanded[c.id]!.projects.map((p) => (
+                                  <tr key={p.id}>
+                                    <td>{p.name ?? "—"}</td>
+                                    <td>{p.region_name_el ?? t("project.detail.customer")}</td>
+                                    <td className="text-muted">{new Date(p.created_at).toLocaleDateString()}</td>
+                                    <td>{p.document_count}</td>
+                                    <td>
+                                      <Link href={`/projects/${p.id}`} className="btn btn-secondary">
+                                        {t("dash.company.viewProject")}
+                                      </Link>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          )}
+                        </div>
                       </td>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            )}
-          </section>
-
-          <section className={`card ${styles.section}`}>
-            <div className={styles.sectionHeader}>
-              <h2>{t("dash.company.logo")}</h2>
-            </div>
-            {company?.has_logo && (
-              <img
-                src={`${API_URL}/companies/${company.id}/logo?v=${logoVersion}`}
-                alt={t("dash.company.logoAlt", { name: company.name })}
-                className={styles.logoPreview}
-              />
-            )}
-            <div className={styles.logoControls}>
-              <input ref={logoInputRef} type="file" accept="image/png,image/jpeg,image/webp,image/svg+xml" onChange={uploadLogo} />
-              {company?.has_logo && (
-                <button className="btn btn-danger" onClick={removeLogo}>
-                  {t("dash.company.removeLogo")}
-                </button>
-              )}
-            </div>
-            {logoStatus && <p className="text-muted" style={{ marginTop: "var(--space-2)" }}>{logoStatus}</p>}
-          </section>
-        </div>
-      </div>
+                  )}
+                </Fragment>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
     </div>
   );
 }

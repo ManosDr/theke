@@ -122,18 +122,59 @@
   font-size: 15px;
 }
 
+.userMenuWrap {
+  position: relative;
+  flex-shrink: 0;
+}
+
 .avatar {
   width: 34px;
   height: 34px;
   border-radius: 50%;
   background: #2a6fdb;
   color: #fff;
+  border: none;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 13px;
   flex-shrink: 0;
+  cursor: pointer;
+}
+
+.userMenu {
+  position: absolute;
+  top: calc(100% + 10px);
+  right: 0;
+  min-width: 180px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  box-shadow: var(--shadow-md);
+  overflow: hidden;
+  z-index: 30;
+}
+
+.userMenuItem {
+  display: block;
+  width: 100%;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  color: var(--color-text);
+  text-align: left;
+  font-size: 0.86rem;
+  cursor: pointer;
+}
+
+.userMenuItem:hover {
+  background: var(--color-surface-alt);
+}
+
+.userMenuDivider {
+  height: 1px;
+  background: var(--color-border);
 }
 
 @media (max-width: 900px) {

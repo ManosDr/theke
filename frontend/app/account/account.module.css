@@ -1,0 +1,100 @@
+.fieldGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--admin-stone);
+}
+
+.saveRow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}
+
+.savedTag {
+  color: var(--color-success);
+  font-size: 0.85rem;
+  font-weight: 600;
+}
+
+.strengthTag {
+  font-size: 0.72rem;
+  font-weight: 700;
+  align-self: flex-start;
+}
+
+.strength_weak {
+  color: var(--color-danger);
+}
+
+.strength_ok {
+  color: var(--color-warning);
+}
+
+.strength_strong {
+  color: var(--color-success);
+}
+
+.forgotLink {
+  margin-top: var(--space-4);
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.linkButton {
+  border: none;
+  background: none;
+  color: var(--color-primary);
+  font-size: 0.85rem;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+}
+
+.logoSection {
+  margin-top: var(--space-4);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--admin-row-border);
+}
+
+.logoSection h3 {
+  margin: 0 0 var(--space-3);
+  font-size: 0.85rem;
+}
+
+.logoPreview {
+  display: block;
+  max-height: 120px;
+  max-width: 100%;
+  object-fit: contain;
+  margin-bottom: var(--space-3);
+}
+
+.logoControls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.formatNote {
+  margin-top: var(--space-2);
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+@media (max-width: 720px) {
+  .fieldGrid {
+    grid-template-columns: 1fr;
+  }
+}

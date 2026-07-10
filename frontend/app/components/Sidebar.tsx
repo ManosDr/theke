@@ -4,7 +4,9 @@ import Link from "next/link";
 import { useRouter, usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { useCompany } from "../lib/company";
 import { useLocale } from "../lib/i18n";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
 import { LogoMark } from "./Logo";
@@ -59,10 +61,11 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals",
+    match: (p: string) => p === "/admin/verticals" || p === "/admin/regions",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
+      { href: "/admin/regions", labelKey: "nav.regionsProviders", match: (p: string) => p === "/admin/regions" },
     ],
   },
 ] as const;
@@ -118,6 +121,19 @@ function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
           );
         })}
       </div>
+    </div>
+  );
+}
+
+function CompanyBranding({ collapsed }: { collapsed: boolean }) {
+  const { company } = useCompany();
+
+  if (collapsed || !company?.has_logo || !company.logo_url) return null;
+
+  return (
+    <div className={styles.brandingBlock}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img src={`${API_URL}${company.logo_url}`} alt={company.name} className={styles.brandingLogo} />
     </div>
   );
 }
@@ -180,13 +196,21 @@ export function Sidebar() {
         </button>
       </div>
 
+      {!isSuperAdmin && <CompanyBranding collapsed={collapsed} />}
+
       {isSuperAdmin && <VerticalSwitcher collapsed={collapsed} />}
 
       <nav className={styles.nav}>
         {NAV_ITEMS.map(({ href, labelKey, Icon, match }) => {
           const active = match(pathname);
           return (
-            <Link key={href} href={href} title={t(labelKey)} className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}>
+            <Link
+              key={href}
+              href={href}
+              title={t(labelKey)}
+              aria-current={active ? "page" : undefined}
+              className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
+            >
               <span className={styles.navIconBox}>
                 <Icon />
               </span>
@@ -205,6 +229,8 @@ export function Sidebar() {
                   <button
                     type="button"
                     title={t(section.labelKey)}
+                    aria-expanded={collapsed ? undefined : open}
+                    aria-current={active ? "page" : undefined}
                     className={`${styles.navItem} ${active ? styles.navItemActive : ""}`}
                     onClick={() => handleSectionClick(section)}
                   >
@@ -226,6 +252,7 @@ export function Sidebar() {
                           <Link
                             key={`${child.href}-${i}`}
                             href={child.href}
+                            aria-current={childActive ? "page" : undefined}
                             className={`${styles.navChildItem} ${childActive ? styles.navChildItemActive : ""}`}
                           >
                             {t(child.labelKey)}

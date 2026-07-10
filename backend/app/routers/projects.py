@@ -7,13 +7,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_company_vertical, get_current_user
-from app.models import Document, Embedding, Project, Region, UserDefaultProject, Vertical
+from app.models import Customer, Document, Embedding, Project, Region, UserDefaultProject, Vertical
 from app.schemas import (
     ProjectCreateRequest,
     ProjectDocumentSummary,
     ProjectDocumentUploadResult,
     ProjectSummary,
     RegionSummary,
+    UpdatePlotInPlanRequest,
     UpdateProjectLocationRequest,
     UpdateProjectMetadataRequest,
 )
@@ -40,6 +41,7 @@ def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
         is_default=is_default,
         is_client=p.is_client,
         client_notes=p.client_notes,
+        customer_id=p.customer_id,
         customer_name=p.customer_name,
         customer_notes=p.customer_notes,
         plot_address=p.plot_address,
@@ -52,6 +54,9 @@ def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
         gis_zone_source=p.gis_zone_source,
         archaeological_flag=p.archaeological_flag,
         archaeological_notes=p.archaeological_notes,
+        archaeological_site_name=p.archaeological_site_name,
+        archaeological_distance_m=p.archaeological_distance_m,
+        plot_in_plan=p.plot_in_plan,
         location_resolved_at=p.location_resolved_at,
     )
 
@@ -73,6 +78,8 @@ async def create_project(
         )
     if payload.region_id and not db.get(Region, payload.region_id):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown region")
+    if payload.customer_id is not None:
+        _require_customer_membership(db, user, payload.customer_id)
 
     project = Project(
         company_id=user.company_id,
@@ -86,6 +93,12 @@ async def create_project(
         # what "project" means there.
         is_client=not vertical.uses_regional_scoping,
         client_notes=payload.client_notes,
+        # customer_id (a real, reusable contact record) takes precedence
+        # over the freeform customer_name/customer_notes pair when both are
+        # given - it's the authoritative link; the freeform fields remain
+        # available for a one-off customer that isn't worth creating a
+        # record for.
+        customer_id=payload.customer_id,
         customer_name=payload.customer_name,
         customer_notes=payload.customer_notes,
     )
@@ -153,8 +166,11 @@ async def update_project(
     """Edits the project's own metadata (name, customer details) - separate
     from PATCH /{project_id}/location, which only ever touches GIS fields."""
     project = _require_project_membership(db, user, project_id)
+    if payload.customer_id is not None:
+        _require_customer_membership(db, user, payload.customer_id)
 
     project.name = payload.name
+    project.customer_id = payload.customer_id
     project.customer_name = payload.customer_name
     project.customer_notes = payload.customer_notes
     project.client_notes = payload.client_notes
@@ -199,6 +215,13 @@ def _require_project_membership(db: Session, user: CurrentUser, project_id: int)
     if not project or project.company_id != user.company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found in your company")
     return project
+
+
+def _require_customer_membership(db: Session, user: CurrentUser, customer_id: int) -> Customer:
+    customer = db.get(Customer, customer_id)
+    if not customer or customer.company_id != user.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Customer not found in your company")
+    return customer
 
 
 @router.post("/{project_id}/documents/upload", response_model=list[ProjectDocumentUploadResult])
@@ -373,7 +396,33 @@ async def update_project_location(
     project.gis_zone_source = payload.gis_zone_source
     project.archaeological_flag = payload.archaeological_flag
     project.archaeological_notes = payload.archaeological_notes
+    project.archaeological_site_name = payload.archaeological_site_name
+    project.archaeological_distance_m = payload.archaeological_distance_m
+    project.plot_in_plan = payload.plot_in_plan
     project.location_resolved_at = datetime.utcnow()
+    db.commit()
+    db.refresh(project)
+
+    default_project_ids = set(
+        db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
+    )
+    return _to_project_summary(project, is_default=project.id in default_project_ids)
+
+
+@router.patch("/{project_id}/plot-in-plan", response_model=ProjectSummary)
+async def update_plot_in_plan(
+    project_id: int,
+    payload: UpdatePlotInPlanRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ProjectSummary:
+    """Standalone endpoint for correcting εντός/εκτός σχεδίου after the
+    fact (the project detail page's inline-editable badge) - separate from
+    PATCH /{project_id}/location so fixing this one field doesn't require
+    re-sending the entire resolved-location payload."""
+    project = _require_project_membership(db, user, project_id)
+
+    project.plot_in_plan = payload.plot_in_plan
     db.commit()
     db.refresh(project)
 

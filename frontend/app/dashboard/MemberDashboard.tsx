@@ -7,7 +7,7 @@ import { API_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { BuildingIcon, FlagIcon } from "../components/StatIcons";
-import type { MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
+import type { CustomerSummary, MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 
@@ -23,6 +23,7 @@ export function MemberDashboard() {
   const [newRegionId, setNewRegionId] = useState("");
   const [newAddress, setNewAddress] = useState("");
   const [newClientNotes, setNewClientNotes] = useState("");
+  const [customers, setCustomers] = useState<CustomerSummary[]>([]);
 
   // The construction vertical's "Projects" (region/plot-based) and the tax
   // vertical's "Clients" (name + notes, no region) are the same backend
@@ -61,6 +62,20 @@ export function MemberDashboard() {
       .then(setCompany)
       .catch(() => setCompany(null));
   }, [token]);
+
+  function refreshCustomers() {
+    if (!token) return;
+    api
+      .get<CustomerSummary[]>("/customers", token)
+      .then(setCustomers)
+      .catch(() => setCustomers([]));
+  }
+
+  useEffect(() => {
+    if (!token || isMunicipality) return;
+    refreshCustomers();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, isMunicipality]);
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault();
@@ -240,6 +255,40 @@ export function MemberDashboard() {
             </form>
           </section>
         </>
+      )}
+
+      {!isMunicipality && company !== null && (
+        <section className={`card ${styles.section}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("customer.customersTab")}</h2>
+          </div>
+          {customers.length === 0 ? (
+            <p className={styles.emptyState}>{t("customer.customersEmpty")}</p>
+          ) : (
+            <table className={styles.table}>
+              <thead>
+                <tr>
+                  <th>{t("customer.colName")}</th>
+                  <th>{t("customer.colAfm")}</th>
+                  <th>{t("customer.colProjects")}</th>
+                  <th>{t("customer.colLastProject")}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {customers.map((c) => (
+                  <tr key={c.id}>
+                    <td>
+                      <Link href={`/customers/${c.id}`}>{c.name}</Link>
+                    </td>
+                    <td>{c.afm ?? "—"}</td>
+                    <td>{c.project_count}</td>
+                    <td>{c.last_project_at ? new Date(c.last_project_at).toLocaleDateString() : "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </section>
       )}
 
       <section className={`card ${styles.section}`} style={{ textAlign: "center" }}>

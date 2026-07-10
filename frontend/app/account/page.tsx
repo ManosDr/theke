@@ -1,0 +1,334 @@
+"use client";
+
+import { useEffect, useRef, useState } from "react";
+
+import { AppShell } from "../components/AppShell";
+import { LanguageToggle } from "../components/LanguageToggle";
+import { ThemeToggle } from "../components/ThemeToggle";
+import { API_URL, ApiError, api } from "../lib/api";
+import { RequireAuth, useAuth } from "../lib/auth";
+import { useCompany } from "../lib/company";
+import { useLocale } from "../lib/i18n";
+import type { MeSummary } from "../lib/types";
+import dashStyles from "../dashboard/dashboard.module.css";
+import styles from "./account.module.css";
+
+function passwordStrength(password: string): "weak" | "ok" | "strong" | null {
+  if (!password) return null;
+  let score = 0;
+  if (password.length >= 8) score++;
+  if (password.length >= 12) score++;
+  if (/[A-Z]/.test(password) && /[a-z]/.test(password)) score++;
+  if (/[0-9]/.test(password)) score++;
+  if (/[^A-Za-z0-9]/.test(password)) score++;
+  if (score <= 2) return "weak";
+  if (score <= 3) return "ok";
+  return "strong";
+}
+
+function AccountContent() {
+  const { user } = useAuth();
+  const { company, refresh: refreshCompany } = useCompany();
+  const { t } = useLocale();
+  const token = user?.token ?? null;
+
+  const [me, setMe] = useState<MeSummary | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    api.get<MeSummary>("/users/me", token).then(setMe).finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading || !me) return <p className="text-muted">{t("common.loading")}</p>;
+
+  return (
+    <div>
+      <h1>{t("account.title")}</h1>
+
+      <SectionAccount me={me} token={token} onUpdated={setMe} />
+      <SectionSecurity token={token} email={me.email} />
+      {user?.role === "admin" && company && <SectionCompany token={token} company={company} onLogoChanged={refreshCompany} />}
+    </div>
+  );
+}
+
+function SectionAccount({
+  me,
+  token,
+  onUpdated,
+}: {
+  me: MeSummary;
+  token: string | null;
+  onUpdated: (me: MeSummary) => void;
+}) {
+  const { t } = useLocale();
+  const [name, setName] = useState(me.name ?? "");
+  const [phone, setPhone] = useState(me.phone ?? "");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  async function save() {
+    if (!token) return;
+    setSaving(true);
+    try {
+      const updated = await api.patch<MeSummary>("/users/me", { name, phone }, token);
+      onUpdated(updated);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionAccount")}</h2>
+      <div className={styles.fieldGrid}>
+        <label className={styles.field}>
+          {t("account.name")}
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          {t("account.email")}
+          <input className="input" value={me.email} disabled />
+        </label>
+        <label className={styles.field}>
+          {t("account.phone")}
+          <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} />
+        </label>
+        <div className={styles.field}>
+          {t("account.language")}
+          <div>
+            <LanguageToggle />
+          </div>
+        </div>
+        <div className={styles.field}>
+          {t("account.theme")}
+          <div>
+            <ThemeToggle />
+          </div>
+        </div>
+      </div>
+      <div className={styles.saveRow}>
+        <button type="button" className="btn btn-primary" onClick={save} disabled={saving}>
+          {t("account.save")}
+        </button>
+        {saved && <span className={styles.savedTag}>{t("account.saved")}</span>}
+      </div>
+    </section>
+  );
+}
+
+function SectionSecurity({ token, email }: { token: string | null; email: string }) {
+  const { t } = useLocale();
+  const [currentPassword, setCurrentPassword] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [forgotSent, setForgotSent] = useState(false);
+
+  const strength = passwordStrength(newPassword);
+  const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
+
+  async function submit(e: React.FormEvent) {
+    e.preventDefault();
+    setError(null);
+    setSuccess(false);
+    if (newPassword !== confirmPassword) {
+      setError(t("account.passwordMismatch"));
+      return;
+    }
+    if (!token) return;
+    setSubmitting(true);
+    try {
+      await api.post("/auth/change-password", { current_password: currentPassword, new_password: newPassword }, token);
+      setSuccess(true);
+      setCurrentPassword("");
+      setNewPassword("");
+      setConfirmPassword("");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function sendForgotLink() {
+    await api.post("/auth/forgot-password", { email });
+    setForgotSent(true);
+  }
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionSecurity")}</h2>
+      <form onSubmit={submit} className={styles.fieldGrid}>
+        {error && <p style={{ color: "var(--color-danger)", gridColumn: "1 / -1" }}>{error}</p>}
+        {success && <p style={{ color: "var(--color-success)", gridColumn: "1 / -1" }}>{t("account.passwordChanged")}</p>}
+        <label className={styles.field}>
+          {t("account.currentPassword")}
+          <input
+            className="input"
+            type="password"
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+            required
+          />
+        </label>
+        <label className={styles.field}>
+          {t("account.newPassword")}
+          <input
+            className="input"
+            type="password"
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+            minLength={8}
+            required
+          />
+          {strength && (
+            <span className={`${styles.strengthTag} ${styles[`strength_${strength}`]}`}>
+              {t(`account.passwordStrength${strength === "weak" ? "Weak" : strength === "ok" ? "Ok" : "Strong"}` as never)}
+            </span>
+          )}
+        </label>
+        <label className={styles.field}>
+          {t("account.confirmPassword")}
+          <input
+            className="input"
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            required
+          />
+          {mismatch && <span className={styles.strengthTag + " " + styles.strength_weak}>{t("account.passwordMismatch")}</span>}
+        </label>
+      </form>
+      <div className={styles.saveRow}>
+        <button type="button" className="btn btn-primary" onClick={submit} disabled={submitting || mismatch}>
+          {t("account.changePassword")}
+        </button>
+      </div>
+
+      <p className={styles.forgotLink}>
+        {forgotSent ? (
+          t("account.forgotSent", { email })
+        ) : (
+          <button type="button" className={styles.linkButton} onClick={sendForgotLink}>
+            {t("account.forgotLink", { email })}
+          </button>
+        )}
+      </p>
+    </section>
+  );
+}
+
+function SectionCompany({
+  token,
+  company,
+  onLogoChanged,
+}: {
+  token: string | null;
+  company: { id: number; name: string; has_logo: boolean; logo_url: string | null };
+  onLogoChanged: () => Promise<void>;
+}) {
+  const { t } = useLocale();
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    setError(null);
+    if (!file) return;
+    if (file.size > 2 * 1024 * 1024) {
+      setError(t("account.logoTooLarge"));
+      return;
+    }
+    setPendingFile(file);
+    const reader = new FileReader();
+    reader.onload = () => setPreview(reader.result as string);
+    reader.readAsDataURL(file);
+  }
+
+  async function saveLogo() {
+    if (!token || !pendingFile) return;
+    setSaving(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", pendingFile);
+      await api.upload("/companies/me/logo", formData, token);
+      setPendingFile(null);
+      setPreview(null);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+      await onLogoChanged();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function removeLogo() {
+    if (!token) return;
+    await api.del("/companies/me/logo", token);
+    await onLogoChanged();
+  }
+
+  const displayedLogo = preview ?? (company.has_logo && company.logo_url ? `${API_URL}${company.logo_url}` : null);
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionCompany")}</h2>
+      <label className={styles.field}>
+        {t("account.companyName")}
+        <input className="input" value={company.name} disabled />
+      </label>
+
+      <div className={styles.logoSection}>
+        <h3>{t("account.logo")}</h3>
+        {displayedLogo ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={displayedLogo} alt={company.name} className={styles.logoPreview} />
+        ) : (
+          <p className="text-muted">{t("account.logoNotSet")}</p>
+        )}
+
+        {error && <p style={{ color: "var(--color-danger)" }}>{error}</p>}
+
+        <div className={styles.logoControls}>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/png,image/jpeg,image/webp,image/svg+xml"
+            onChange={handleFileSelect}
+          />
+          {pendingFile && (
+            <button type="button" className="btn btn-primary" onClick={saveLogo} disabled={saving}>
+              {t("account.logoSave")}
+            </button>
+          )}
+          {company.has_logo && !pendingFile && (
+            <button type="button" className="btn btn-secondary" onClick={removeLogo}>
+              {t("account.logoRemove")}
+            </button>
+          )}
+        </div>
+        <p className={styles.formatNote}>{t("account.logoFormatNote")}</p>
+      </div>
+    </section>
+  );
+}
+
+export default function AccountPage() {
+  return (
+    <RequireAuth>
+      <AppShell>
+        <AccountContent />
+      </AppShell>
+    </RequireAuth>
+  );
+}

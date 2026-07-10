@@ -7,7 +7,7 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, ClockIcon, FlagIcon } from "../components/StatIcons";
+import { AlertIcon, ClockIcon, CoinIcon, FlagIcon } from "../components/StatIcons";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type {
   AdminStatsByVertical,
@@ -259,6 +259,13 @@ export function SuperAdminDashboard() {
 
   const totalFeedback = (stats?.total.positive_feedback ?? 0) + (stats?.total.negative_feedback ?? 0);
 
+  const platformTokens30d = stats?.total.platform_tokens_30d ?? 0;
+  const platformCost30d = stats?.total.platform_cost_eur_30d ?? 0;
+  const platformTokensLabel =
+    platformTokens30d >= 1_000_000
+      ? t("dash.super.tokensMillions", { count: (platformTokens30d / 1_000_000).toFixed(1) })
+      : t("dash.super.tokensCount", { count: platformTokens30d.toLocaleString() });
+
   return (
     <div>
       <div className={styles.overviewHeader}>
@@ -302,6 +309,14 @@ export function SuperAdminDashboard() {
           label={t("dash.super.staleDocs")}
           cta={t("dash.super.reviewQueue")}
           onCtaClick={() => router.push("/admin/stale-documents")}
+        />
+        <AttentionCard
+          tone="warning"
+          icon={<CoinIcon size={14} />}
+          value={`€${platformCost30d.toFixed(2)}`}
+          label={t("dash.super.platformCost", { tokens: platformTokensLabel })}
+          cta={t("dash.super.reviewCosts")}
+          onCtaClick={() => router.push("/admin/companies")}
         />
       </div>
 

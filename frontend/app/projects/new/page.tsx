@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
+import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
 import type { PinState } from "../../components/MapPicker";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
@@ -45,7 +46,15 @@ function LocationSummary({ resolving, resolved }: { resolving: boolean; resolved
         <div className={styles.archaeologicalCard}>
           <strong>⚠ {t("map.archaeologicalWarning")}</strong>
           {resolved.archaeological_notes && <p>{resolved.archaeological_notes}</p>}
+          <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+            {t("map.archaeologicalDisclaimer")}
+          </p>
         </div>
+      )}
+      {!resolved.archaeological_flag && (
+        <p className="text-muted" style={{ fontSize: "0.78rem" }}>
+          {t("map.noArchaeologicalDataNote")}
+        </p>
       )}
       {partial && !resolved.archaeological_flag && <p className={styles.partialNote}>{t("map.partialNote")}</p>}
     </div>
@@ -60,8 +69,7 @@ function NewProjectContent() {
 
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
-  const [customerName, setCustomerName] = useState("");
-  const [customerNotes, setCustomerNotes] = useState("");
+  const [customerState, setCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
   const [name, setName] = useState("");
   const [clientNotes, setClientNotes] = useState("");
   const [regionId, setRegionId] = useState("");
@@ -71,6 +79,7 @@ function NewProjectContent() {
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolved, setResolved] = useState<ResolveLocationResponse | null>(null);
+  const [plotInPlan, setPlotInPlan] = useState<boolean | null>(null);
 
   // Defaults to true (the construction map+plot form) while the company
   // hasn't loaded yet, matching this page's original construction-only
@@ -93,12 +102,12 @@ function NewProjectContent() {
       .catch(() => setRegions([]));
   }, [token, usesRegionalScoping]);
 
-  async function handlePick(lat: number, lon: number) {
+  async function handlePick(lat: number, lon: number, kaek?: string) {
     setPin({ lat, lon });
     setResolved(null);
     setResolving(true);
     try {
-      const result = await api.post<ResolveLocationResponse>("/gis/resolve-location", { lat, lon }, token);
+      const result = await api.post<ResolveLocationResponse>("/gis/resolve-location", { lat, lon, kaek }, token);
       setResolved(result);
     } catch {
       setResolved(null);
@@ -120,10 +129,36 @@ function NewProjectContent() {
     setSaving(true);
     setError(null);
     try {
+      // A new-customer draft is created first (atomically ahead of the
+      // project, not in parallel) so a customer-creation failure (e.g. a
+      // duplicate ΑΦΜ) is caught and shown inline before any project row
+      // exists - never a project silently left with no customer link. Same
+      // resolution for both verticals, since the combobox is shared.
+      let customerId = customerState.customerId;
+      if (customerState.newCustomer) {
+        try {
+          const created = await api.post<{ id: number }>(
+            "/customers",
+            {
+              name: customerState.newCustomer.name.trim(),
+              afm: customerState.newCustomer.afm.trim() || undefined,
+              phone: customerState.newCustomer.phone.trim() || undefined,
+              email: customerState.newCustomer.email.trim() || undefined,
+            },
+            token
+          );
+          customerId = created.id;
+        } catch (err) {
+          setError(err instanceof ApiError ? err.message : t("project.new.failed"));
+          setSaving(false);
+          return;
+        }
+      }
+
       if (!usesRegionalScoping) {
         await api.post<ProjectSummary>(
           "/projects",
-          { name: name.trim(), client_notes: clientNotes.trim() || undefined },
+          { name: name.trim(), client_notes: clientNotes.trim() || undefined, customer_id: customerId ?? undefined },
           token
         );
         router.push("/dashboard");
@@ -137,8 +172,7 @@ function NewProjectContent() {
           name: name.trim(),
           municipality: region?.region_name_el ?? "",
           region_id: regionId || undefined,
-          customer_name: customerName.trim(),
-          customer_notes: customerNotes.trim() || undefined,
+          customer_id: customerId ?? undefined,
         },
         token
       );
@@ -158,6 +192,9 @@ function NewProjectContent() {
             gis_zone_source: resolved.gis_zone_name ? "manual_entry" : null,
             archaeological_flag: resolved.archaeological_flag,
             archaeological_notes: resolved.archaeological_notes,
+            archaeological_site_name: resolved.archaeological_site_name,
+            archaeological_distance_m: resolved.archaeological_distance_m,
+            plot_in_plan: plotInPlan,
           },
           token
         );
@@ -183,6 +220,10 @@ function NewProjectContent() {
           <section className="card" style={{ padding: "var(--space-4)" }}>
             <label className={styles.field}>
               {t("project.new.clientName")}
+              <CustomerCombobox token={token} onChange={setCustomerState} />
+            </label>
+            <label className={styles.field}>
+              {t("project.new.projectName")}
               <input className="input" type="text" value={name} onChange={(e) => setName(e.target.value)} required />
             </label>
             <label className={styles.field}>
@@ -224,23 +265,7 @@ function NewProjectContent() {
             <h2 className={styles.sectionHeader}>{t("project.new.customerSection")}</h2>
             <label className={styles.field}>
               {t("project.new.customerName")}
-              <input
-                className="input"
-                type="text"
-                value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
-                required
-              />
-            </label>
-            <label className={styles.field}>
-              {t("project.new.customerNotes")}
-              <textarea
-                className="input"
-                rows={3}
-                placeholder={t("project.new.customerNotesPlaceholder")}
-                value={customerNotes}
-                onChange={(e) => setCustomerNotes(e.target.value)}
-              />
+              <CustomerCombobox token={token} onChange={setCustomerState} />
             </label>
           </section>
 
@@ -285,13 +310,17 @@ function NewProjectContent() {
             pinState={pinState()}
             onPick={handlePick}
             height={400}
+            token={token}
             popupContent={
               resolved ? (
                 <div>
                   {resolved.archaeological_flag && (
-                    <p style={{ color: "var(--color-warning)", fontWeight: 700, marginBottom: 4 }}>
-                      ⚠ {t("map.archaeologicalWarning")}
-                    </p>
+                    <>
+                      <p style={{ color: "var(--color-warning)", fontWeight: 700, marginBottom: 4 }}>
+                        ⚠ {t("map.archaeologicalWarning")}
+                      </p>
+                      <p style={{ fontSize: 11, marginBottom: 4 }}>{t("map.archaeologicalDisclaimer")}</p>
+                    </>
                   )}
                   <strong>{resolved.address ?? "—"}</strong>
                   <div style={{ fontSize: 12.5, marginTop: 4 }}>
@@ -306,6 +335,36 @@ function NewProjectContent() {
             }
           />
           <LocationSummary resolving={resolving} resolved={resolved} />
+          {resolved && (
+            <div className={`card ${styles.locationPanel}`} style={{ marginTop: "var(--space-3)" }}>
+              <span className={styles.sectionHeader} style={{ display: "block", marginBottom: "var(--space-2)" }}>
+                {t("map.zoneToggleLabel")}
+              </span>
+              <div style={{ display: "flex", gap: "var(--space-4)" }}>
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="plotInPlan"
+                    checked={plotInPlan === true}
+                    onChange={() => setPlotInPlan(true)}
+                  />
+                  {t("map.zoneInPlan")}
+                </label>
+                <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+                  <input
+                    type="radio"
+                    name="plotInPlan"
+                    checked={plotInPlan === false}
+                    onChange={() => setPlotInPlan(false)}
+                  />
+                  {t("map.zoneOutOfPlan")}
+                </label>
+              </div>
+              <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-2)", marginBottom: 0 }}>
+                {t("map.zoneToggleNote")}
+              </p>
+            </div>
+          )}
         </div>
       </form>
     </div>

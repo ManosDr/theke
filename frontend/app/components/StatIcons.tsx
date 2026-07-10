@@ -90,6 +90,17 @@ export function MailIcon({ size = 20 }: IconProps) {
   );
 }
 
+export function CoinIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...commonProps} aria-hidden="true">
+      <circle cx="12" cy="12" r="9" />
+      <path d="M9.5 15.5c0 1 1 1.5 2.5 1.5s2.5-.6 2.5-1.6c0-2.4-5-1.2-5-3.6 0-1 1-1.6 2.5-1.6s2.5.5 2.5 1.5" />
+      <line x1="12" y1="7.5" x2="12" y2="8.7" />
+      <line x1="12" y1="15.3" x2="12" y2="16.5" />
+    </svg>
+  );
+}
+
 export function GlobeIcon({ size = 18 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...commonProps} aria-hidden="true">

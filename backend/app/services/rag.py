@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.dependencies import CurrentUser
-from app.models import Document, Embedding, Project
+from app.models import Document, Embedding, Project, Region
 from app.services.embeddings import embed_texts
 from app.services.visibility import visible_documents_filter
 
@@ -90,6 +90,7 @@ def _retrieve(
     vertical_id: int,
     region_id: str | None = None,
     project_id: int | None = None,
+    plot_in_plan: bool | None = None,
 ) -> list[RetrievedChunk]:
     """Shared retrieval core for both the chat pipeline and the standalone
     /search endpoint: hybrid search combining vector cosine similarity and
@@ -106,7 +107,20 @@ def _retrieve(
     "content-quality fixes don't reliably help" entry - this is the
     intended systemic fix for that whole class of miss, not another
     one-off content edit).
+
+    plot_in_plan (a project's resolved εντός/εκτός σχεδίου status) is the
+    one case where appending to the query is correct rather than biasing -
+    unlike the removed municipality enrichment (which skewed retrieval
+    toward regional content on questions that weren't about that region at
+    all), in-plan/out-of-plan selects an entirely different regulatory
+    framework, so narrowing toward it improves precision. None (not yet
+    determined) leaves the query untouched.
     """
+    if plot_in_plan is True:
+        query = f"{query} εντός σχεδίου"
+    elif plot_in_plan is False:
+        query = f"{query} εκτός σχεδίου"
+
     query_vector = embed_texts([query])[0]
 
     # embeddings.idx_embeddings_vector is an ivfflat index, which is an
@@ -240,7 +254,7 @@ def _passes_hybrid_threshold(hit: RetrievedChunk) -> bool:
     return hit.distance <= settings.rag_max_distance or hit.keyword_rank is not None
 
 
-def build_location_context(project: Project | None) -> str | None:
+def build_location_context(db: Session, project: Project | None) -> str | None:
     """Renders a project's resolved plot location as a Greek prose block for
     injection into the chat system prompt - returns None when the project
     has no lat/lon yet (nothing to say), rather than an empty/placeholder
@@ -259,8 +273,34 @@ def build_location_context(project: Project | None) -> str | None:
         lines.append(f"Εμβαδόν οικοπέδου: {project.plot_area_sqm} τ.μ.")
     if project.gis_zone_name:
         lines.append(f"Πολεοδομική ζώνη: {project.gis_zone_name}")
+    if project.plot_in_plan is True:
+        lines.append("Ζώνη: Εντός σχεδίου πόλης")
+    elif project.plot_in_plan is False:
+        lines.append("Ζώνη: Εκτός σχεδίου πόλεως")
     if project.archaeological_flag:
-        lines.append(f"⚠ Αρχαιολογική ζώνη: {project.archaeological_notes or 'πιθανή αρχαιολογική ζώνη στην περιοχή'}")
+        # archaeological_notes (set by check_archaeological_flag()) already
+        # opens with "εντός Nμ. από τον αρχαιολογικό χώρο X" when site_name/
+        # distance_m are known, so it's used as-is rather than having this
+        # function prepend its own restatement of the same distance/site
+        # fact ahead of it.
+        lines.append(f"⚠ Αρχαιολογική Ζώνη: {project.archaeological_notes or 'πιθανή αρχαιολογική ζώνη στην περιοχή'}")
+
+    # ΥΔΟΜ contact info is curated per-region (see admin.py's
+    # /admin/regions endpoints), not part of the GIS resolve response, so
+    # it's looked up here rather than stored on the project itself - a
+    # region's curated contact details can change after the project's
+    # location was resolved, and should reflect the current value.
+    if project.region_id:
+        region = db.get(Region, project.region_id)
+        if region and (region.contact_phone or region.contact_email):
+            contact_bits = []
+            if region.ydom_authority_name:
+                contact_bits.append(region.ydom_authority_name)
+            if region.contact_phone:
+                contact_bits.append(f"τηλ. {region.contact_phone}")
+            if region.contact_email:
+                contact_bits.append(f"email {region.contact_email}")
+            lines.append(f"Στοιχεία επικοινωνίας ΥΔΟΜ: {', '.join(contact_bits)}")
 
     return "\n".join(lines)
 
@@ -272,6 +312,7 @@ def search_regulation(
     vertical_id: int,
     top_k: int | None = None,
     project_id: int | None = None,
+    plot_in_plan: bool | None = None,
 ) -> list[RetrievedChunk]:
     """Returns the top_k hybrid-ranked chunks, restricted to documents
     visible to this user (vertical/region-scoped access, needs_review
@@ -281,7 +322,9 @@ def search_regulation(
     enough was found," not "nothing exists" - the caller (chat.py) treats
     that as an honest gap, not a reason to lower the bar.
     """
-    hits = _retrieve(db, user, query, top_k or settings.rag_top_k, vertical_id, project_id=project_id)
+    hits = _retrieve(
+        db, user, query, top_k or settings.rag_top_k, vertical_id, project_id=project_id, plot_in_plan=plot_in_plan
+    )
     return [h for h in hits if _passes_hybrid_threshold(h)]
 
 

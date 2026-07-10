@@ -1,0 +1,95 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+  padding: var(--space-5);
+}
+
+.header {
+  flex-shrink: 0;
+  margin-bottom: var(--space-3);
+}
+
+.tabBar {
+  display: flex;
+  gap: var(--space-2);
+  border-bottom: 1px solid var(--admin-row-border);
+  flex-shrink: 0;
+  margin-bottom: var(--space-4);
+}
+
+.tabButton {
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tabButton:hover {
+  color: var(--admin-navy);
+}
+
+.tabButtonActive {
+  color: var(--admin-navy);
+  border-bottom-color: var(--admin-accent-navy);
+}
+
+.tabContent {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.scrollPane {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.activityList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.activityItem {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) 0;
+  border-bottom: 1px solid var(--admin-row-border);
+  font-size: 0.86rem;
+}
+
+.activityItem:last-child {
+  border-bottom: none;
+}
+
+.activityIcon {
+  flex-shrink: 0;
+}
+
+.activityDesc {
+  flex: 1;
+  min-width: 0;
+}
+
+.activityTime {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.subTableWrap {
+  background: var(--admin-chip-bg);
+  padding: var(--space-2) var(--space-4);
+}

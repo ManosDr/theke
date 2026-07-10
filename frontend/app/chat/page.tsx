@@ -248,6 +248,9 @@ function ChatContent() {
             {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
               <div className={styles.archaeologicalPanel}>
                 {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  {t("map.archaeologicalDisclaimer")}
+                </p>
                 <button
                   type="button"
                   className="btn btn-secondary"
@@ -256,6 +259,11 @@ function ChatContent() {
                   {t("chat.locationStrip.askAboutZone")}
                 </button>
               </div>
+            )}
+            {locationExpanded && !selectedProject.archaeological_flag && (
+              <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
+                {t("map.noArchaeologicalDataNote")}
+              </p>
             )}
           </div>
         )}

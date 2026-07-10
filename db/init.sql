@@ -120,6 +120,50 @@ CREATE TABLE IF NOT EXISTS regions (
 
 CREATE INDEX IF NOT EXISTS idx_regions_parent ON regions(parent_region_id);
 
+-- Known protected archaeological sites, checked by coordinate proximity
+-- (Haversine distance, see backend/app/services/gis.py's
+-- check_archaeological_flag()) rather than municipality-name text matching
+-- against the KB - the earlier approach flagged every plot anywhere in a
+-- site's whole municipality regardless of actual distance from the
+-- declared zone. Radii are conservative manually-curated estimates, not
+-- official surveyed zone boundaries - see KNOWN_DECISIONS.md.
+CREATE TABLE IF NOT EXISTS archaeological_sites (
+    id SERIAL PRIMARY KEY,
+    name_el VARCHAR NOT NULL UNIQUE,
+    name_en VARCHAR,
+    region_id VARCHAR REFERENCES regions(region_id),
+    lat DECIMAL(10, 7) NOT NULL,
+    lon DECIMAL(10, 7) NOT NULL,
+    protection_radius_m INTEGER NOT NULL DEFAULT 500,
+    protection_zone_description TEXT,
+    legal_basis VARCHAR NOT NULL DEFAULT 'Ν.3028/2002',
+    source_url VARCHAR,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+-- Seed rows for the 5 supported regions. Centroids verified via Nominatim
+-- forward geocoding (Philippi and Thassos use OSM's own archaeological_site/
+-- agora POI centroids rather than the initially-proposed points, which were
+-- off by several hundred metres - see KNOWN_DECISIONS.md).
+INSERT INTO archaeological_sites (name_el, name_en, region_id, lat, lon, protection_radius_m, protection_zone_description, source_url)
+VALUES
+    ('Παναγία Καβάλας (βυζαντινή ακρόπολη)', 'Panagia, Kavala (Byzantine acropolis)', 'kavala', 40.9334868, 24.4149126, 400,
+     'Ιστορικός τόπος και αρχαιολογική ζώνη - χερσόνησος της Παναγίας με το Κάστρο, τα Καμάρες/Υδραγωγείο και το Ιμαρέτ.',
+     'https://nominatim.openstreetmap.org/search?q=Παναγία+Καβάλα'),
+    ('Αρχαιολογικός χώρος Φιλίππων', 'Archaeological Site of Philippi', 'paggaio', 41.0132841, 24.2839744, 1500,
+     'UNESCO World Heritage Site (εγγραφή 2016) - κηρυγμένος αρχαιολογικός χώρος.',
+     'https://whc.unesco.org/en/list/1517/'),
+    ('Αρχαία Άβδηρα', 'Ancient Abdera', 'xanthi', 40.9446, 24.9746, 800,
+     'Αρχαία ελληνική αποικία - κηρυγμένος αρχαιολογικός χώρος.',
+     NULL),
+    ('Αρχαία πόλη Θάσου', 'Ancient City of Thasos', 'thassos', 40.7795291, 24.7134019, 600,
+     'Αρχαία αγορά, θέατρο και τείχη - κηρυγμένος αρχαιολογικός χώρος.',
+     NULL),
+    ('Αρχαιολογικός χώρος Αμφίπολης', 'Archaeological Site of Amphipolis', 'drama', 40.8162, 23.8523, 1000,
+     'Εκτεταμένος αρχαιολογικός χώρος (τείχη αρχαίας πόλης, Λέων της Αμφίπολης, Τύμβος Καστά) - η ακτίνα καλύπτει ενδεικτικά μόνο το κεντρικό τμήμα, καθώς ο χώρος εκτείνεται σε αρκετά χιλιόμετρα.',
+     NULL)
+ON CONFLICT (name_el) DO NOTHING;
+
 -- Documents: crawled legal texts (public) AND uploaded documents (scoped).
 -- Visibility rule, applied at query time (see backend/app/services/visibility.py):
 --   company_id IS NULL                        -> public, everyone
@@ -502,12 +546,91 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS gis_zone_name VARCHAR;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS gis_zone_source VARCHAR;
 
 -- Archaeological zone flag - set by app/services/gis.py's
--- check_archaeological_flag() (a RAG query against ingested content, not a
--- live API - see KNOWN_DECISIONS.md), never left silently false when unknown.
+-- check_archaeological_flag() (coordinate-proximity/Haversine against
+-- archaeological_sites, not a live API - see KNOWN_DECISIONS.md), never
+-- left silently false when unknown. site_name/distance_m are populated
+-- alongside the flag so build_location_context() (app/services/rag.py) can
+-- give the LLM a specific site and distance rather than just a boolean.
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_flag BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_notes TEXT;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_site_name VARCHAR;
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_distance_m INTEGER;
 
 -- Set whenever POST /gis/resolve-location successfully runs for this
 -- project, regardless of which individual sub-lookups succeeded - lets the
 -- UI show "location last checked X" separately from "location set".
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS location_resolved_at TIMESTAMP;
+
+-- Customers: a real, reusable contact record per company, replacing the
+-- freeform customer_name/customer_notes text pair above for companies that
+-- want to track repeat clients across multiple projects. The old text
+-- fields stay on `projects` (customer_id is additive, not a replacement -
+-- see POST/PATCH /projects) since a project can still be created with just
+-- a name for a one-off, no-repeat-client case.
+CREATE TABLE IF NOT EXISTS customers (
+  id          serial PRIMARY KEY,
+  company_id  integer NOT NULL REFERENCES companies(id),
+  name        text NOT NULL,
+  afm         varchar(9),
+  phone       varchar(20),
+  email       varchar(255),
+  notes       text,
+  created_at  timestamp NOT NULL DEFAULT now()
+);
+
+-- Partial (not table-level UNIQUE) because afm is optional - two customers
+-- at the same company with no AFM on file must not collide with each other.
+CREATE UNIQUE INDEX IF NOT EXISTS customers_company_afm_unique
+  ON customers(company_id, afm) WHERE afm IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_customers_company ON customers(company_id);
+
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS customer_id integer REFERENCES customers(id);
+CREATE INDEX IF NOT EXISTS idx_projects_customer ON projects(customer_id);
+
+-- Ζώνη οικισμού (in-plan vs. out-of-plan) - nullable, only meaningful once
+-- a location is set, and changes which regulatory framework applies. See
+-- build_location_context() and _retrieve()'s query-enrichment use of this
+-- in app/services/rag.py.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS plot_in_plan boolean;
+
+-- One-time backfill: every existing project with a freeform customer_name
+-- but no customer_id gets a real customers row, one per project (not
+-- deduped by name - two projects sharing a customer_name string aren't
+-- assumed to be the same real customer without stronger evidence like a
+-- matching AFM). Naturally idempotent: once a project's customer_id is
+-- set, it no longer matches the WHERE clause on the next init.sql run.
+DO $$
+DECLARE
+  proj RECORD;
+  new_customer_id INTEGER;
+BEGIN
+  FOR proj IN
+    SELECT id, company_id, customer_name
+    FROM projects
+    WHERE customer_name IS NOT NULL AND customer_id IS NULL
+  LOOP
+    INSERT INTO customers (company_id, name)
+    VALUES (proj.company_id, proj.customer_name)
+    RETURNING id INTO new_customer_id;
+
+    UPDATE projects SET customer_id = new_customer_id WHERE id = proj.id;
+  END LOOP;
+END $$;
+
+-- Direct user creation (super admin creates a company + first admin user
+-- atomically, see POST /admin/companies/create-with-admin) needs a phone
+-- field to capture, and last_login_at to show real activity in the
+-- company admin dashboard's Χρήστες tab rather than only created_at.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+
+-- Token consumption tracking, per completion call - NULL on any row where
+-- no GPT call was made at all (e.g. the off-topic-guard gap path), not
+-- just zero, so "no LLM call" and "a genuinely free response" stay
+-- distinguishable. See app/routers/chat.py's _log_session.
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS prompt_tokens integer;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS completion_tokens integer;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS total_tokens integer;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS estimated_cost_eur decimal(10, 6);

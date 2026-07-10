@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { useAuth } from "../lib/auth";
 import { useFontScale } from "../lib/fontScale";
@@ -38,32 +39,116 @@ const BREADCRUMB_KEYS: Record<string, TranslationKey> = {
 };
 
 function LanguageSelect() {
-  const { locale, locales, setLocale } = useLocale();
+  const { locale, locales, setLocale, t } = useLocale();
   return (
     <div className={styles.selectWrap}>
-      <select className={styles.languageSelect} value={locale} onChange={(e) => setLocale(e.target.value)}>
+      <select
+        className={styles.languageSelect}
+        value={locale}
+        onChange={(e) => setLocale(e.target.value)}
+        aria-label={t("topbar.language")}
+      >
         {locales.map((l) => (
           <option key={l.code} value={l.code}>
             {l.name}
           </option>
         ))}
       </select>
-      <svg className={styles.selectChevron} width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round">
+      <svg
+        className={styles.selectChevron}
+        width="11"
+        height="11"
+        viewBox="0 0 24 24"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth={2.5}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        aria-hidden="true"
+      >
         <polyline points="6 9 12 15 18 9" />
       </svg>
     </div>
   );
 }
 
+function UserMenu() {
+  const { user, logout } = useAuth();
+  const { t } = useLocale();
+  const router = useRouter();
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function handleClickOutside(e: MouseEvent) {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    document.addEventListener("keydown", handleEscape);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [open]);
+
+  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+
+  return (
+    <div className={styles.userMenuWrap} ref={wrapperRef}>
+      <button
+        type="button"
+        className={styles.avatar}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={t("sidebar.myAccount")}
+        onClick={() => setOpen((o) => !o)}
+      >
+        {initial}
+      </button>
+
+      {open && (
+        <div className={styles.userMenu} role="menu">
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.userMenuItem}
+            onClick={() => {
+              setOpen(false);
+              router.push("/account");
+            }}
+          >
+            {t("sidebar.myAccount")}
+          </button>
+          <div className={styles.userMenuDivider} />
+          <button
+            type="button"
+            role="menuitem"
+            className={styles.userMenuItem}
+            onClick={() => {
+              setOpen(false);
+              logout();
+              router.push("/login");
+            }}
+          >
+            {t("nav.signOut")}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export function TopHeader() {
   const { t } = useLocale();
-  const { user } = useAuth();
   const { theme, setTheme } = useTheme();
   const { scale, increase, decrease } = useFontScale();
   const pathname = usePathname() ?? "/dashboard";
 
   const breadcrumbKey = BREADCRUMB_KEYS[pathname];
-  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
 
   return (
     <header className={styles.header}>
@@ -94,6 +179,7 @@ export function TopHeader() {
           type="button"
           className={styles.iconPill}
           title={t("topbar.toggleTheme")}
+          aria-label={t("topbar.toggleTheme")}
           onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
         >
           {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
@@ -101,7 +187,7 @@ export function TopHeader() {
 
         <NotificationBell />
 
-        <div className={styles.avatar}>{initial}</div>
+        <UserMenu />
       </div>
     </header>
   );

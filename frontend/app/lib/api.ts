@@ -40,7 +40,16 @@ async function request<T>(path: string, options: RequestInit, token?: string | n
     let detail = res.statusText;
     try {
       const data = await res.json();
-      detail = typeof data.detail === "string" ? data.detail : JSON.stringify(data.detail);
+      if (typeof data.detail === "string") {
+        detail = data.detail;
+      } else if (data.detail && typeof data.detail.message === "string") {
+        // FastAPI's HTTPException(detail={...}) shape (e.g. auth.py's
+        // vertical_slug validation, which also carries valid_slugs for
+        // debugging) - surface the human-readable message, not raw JSON.
+        detail = data.detail.message;
+      } else {
+        detail = JSON.stringify(data.detail);
+      }
     } catch {
       // response wasn't JSON - keep statusText
     }

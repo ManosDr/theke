@@ -93,11 +93,14 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     email: Mapped[str] = mapped_column(Text, unique=True)
+    name: Mapped[str | None] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text, default="member")  # 'super_admin', 'admin', 'member'
     is_active: Mapped[bool] = mapped_column(default=True)
     password_hash: Mapped[str] = mapped_column(Text)
     preferred_locale: Mapped[str | None] = mapped_column(Text)
     preferred_theme: Mapped[str | None] = mapped_column(Text)  # 'light' or 'dark'; NULL defaults to 'light'
+    phone: Mapped[str | None] = mapped_column(Text)
+    last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -216,6 +219,28 @@ class Region(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class ArchaeologicalSite(Base):
+    """Known protected archaeological sites, checked by coordinate proximity
+    (Haversine distance) in services/gis.py's check_archaeological_flag() -
+    replaces an earlier RAG/municipality-text-matching approach that flagged
+    every plot in a site's entire municipality regardless of actual distance
+    from the declared zone (see KNOWN_DECISIONS.md)."""
+
+    __tablename__ = "archaeological_sites"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name_el: Mapped[str] = mapped_column(Text)
+    name_en: Mapped[str | None] = mapped_column(Text)
+    region_id: Mapped[str | None] = mapped_column(ForeignKey("regions.region_id"))
+    lat: Mapped[float] = mapped_column(Numeric(10, 7))
+    lon: Mapped[float] = mapped_column(Numeric(10, 7))
+    protection_radius_m: Mapped[int] = mapped_column(Integer, default=500)
+    protection_zone_description: Mapped[str | None] = mapped_column(Text)
+    legal_basis: Mapped[str] = mapped_column(Text, default="Ν.3028/2002")
+    source_url: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Embedding(Base):
     __tablename__ = "embeddings"
 
@@ -260,11 +285,34 @@ class Project(Base):
     # zone name is never presented as if it came from a live lookup when it didn't.
     gis_zone_name: Mapped[str | None] = mapped_column(Text)
     gis_zone_source: Mapped[str | None] = mapped_column(Text)
-    # Set by services/gis.py's check_archaeological_flag() - a RAG query
-    # against ingested content, not a live API (see KNOWN_DECISIONS.md).
+    # Set by services/gis.py's check_archaeological_flag() - coordinate
+    # proximity (Haversine) against the archaeological_sites table, not a
+    # live API (see KNOWN_DECISIONS.md).
     archaeological_flag: Mapped[bool] = mapped_column(default=False)
     archaeological_notes: Mapped[str | None] = mapped_column(Text)
+    archaeological_site_name: Mapped[str | None] = mapped_column(Text)
+    archaeological_distance_m: Mapped[int | None] = mapped_column(Integer)
     location_resolved_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Real, reusable contact record - additive to customer_name/customer_notes
+    # above, not a replacement (a project can still be created with just a
+    # freeform name for a one-off, no-repeat-client case). See Customer below.
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))
+    # Ζώνη οικισμού - nullable, only meaningful once a location is set. See
+    # build_location_context() and _retrieve() in app/services/rag.py.
+    plot_in_plan: Mapped[bool | None] = mapped_column()
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class Customer(Base):
+    __tablename__ = "customers"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    name: Mapped[str] = mapped_column(Text)
+    afm: Mapped[str | None] = mapped_column(Text)
+    phone: Mapped[str | None] = mapped_column(Text)
+    email: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -286,6 +334,14 @@ class ChatSession(Base):
     # /chat/history) can still show the low-confidence indicator - NULL for
     # rows written by the older POST /chat, which has no such concept.
     gap: Mapped[bool | None] = mapped_column(default=None)
+    # NULL on every row where no GPT completion call was made at all (the
+    # off-topic-guard classifier call doesn't count - see _log_session's
+    # call sites in app/routers/chat.py) - distinguishes "no LLM call" from
+    # a genuine zero-token response.
+    prompt_tokens: Mapped[int | None] = mapped_column(Integer)
+    completion_tokens: Mapped[int | None] = mapped_column(Integer)
+    total_tokens: Mapped[int | None] = mapped_column(Integer)
+    estimated_cost_eur: Mapped[float | None] = mapped_column(Numeric(10, 6))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

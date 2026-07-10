@@ -164,7 +164,17 @@ function SourceCard({
     try {
       await api.patch(
         `/admin/data-sources/${source.id}`,
-        { crawl_frequency_type: freqType, crawl_frequency_days: freqDays, is_active: isActive, notes },
+        {
+          crawl_frequency_type: freqType,
+          // Only a genuinely custom cadence carries an explicit day count -
+          // for daily/weekly/monthly, omit it so the backend's own
+          // type->days mapping (admin.py's _FREQUENCY_DAYS) applies instead
+          // of resubmitting whatever stale value was last set under a
+          // different frequency type.
+          crawl_frequency_days: freqType === "custom" ? freqDays : undefined,
+          is_active: isActive,
+          notes,
+        },
         token
       );
       onSaved();

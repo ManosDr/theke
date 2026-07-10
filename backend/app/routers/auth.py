@@ -11,6 +11,7 @@ from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Invite, PasswordResetToken, User, Vertical
 from app.schemas import (
+    ChangePasswordRequest,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     InviteInfoResponse,
@@ -175,6 +176,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This company's access is suspended")
 
     reset_login_failures(client_ip)
+    user.last_login_at = datetime.utcnow()
     log_action(db, actor_user_id=user.id, company_id=user.company_id, action="login")
     db.commit()
 
@@ -238,6 +240,23 @@ async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(ge
     user.password_hash = hash_password(payload.new_password)
     reset.used_at = datetime.utcnow()
     log_action(db, actor_user_id=user.id, company_id=user.company_id, action="password_reset")
+    db.commit()
+
+
+@router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)
+async def change_password(
+    payload: ChangePasswordRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    db_user = db.get(User, user.user_id)
+    if not verify_password(payload.current_password, db_user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Λανθασμένος τρέχων κωδικός")
+    # Existing JWTs stay valid until they naturally expire - see
+    # KNOWN_DECISIONS.md for the documented MVP limitation (no server-side
+    # token revocation exists anywhere else in this codebase either).
+    db_user.password_hash = hash_password(payload.new_password)
+    log_action(db, actor_user_id=db_user.id, company_id=db_user.company_id, action="password_changed")
     db.commit()
 
 

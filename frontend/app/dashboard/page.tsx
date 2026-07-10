@@ -15,12 +15,19 @@ function DashboardContent() {
   return <MemberDashboard />;
 }
 
+function DashboardShell() {
+  const { user } = useAuth();
+  return (
+    <AppShell fullWidth={user?.role === "admin"}>
+      <DashboardContent />
+    </AppShell>
+  );
+}
+
 export default function DashboardPage() {
   return (
     <RequireAuth>
-      <AppShell>
-        <DashboardContent />
-      </AppShell>
+      <DashboardShell />
     </RequireAuth>
   );
 }

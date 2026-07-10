@@ -1,3 +1,5 @@
+import secrets
+import string
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -6,12 +8,26 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import AuditLog, ChatSession, Company, DataSource, Document, MessageFeedback, Project, User, Vertical
+from app.models import (
+    AuditLog,
+    ChatSession,
+    Company,
+    DataSource,
+    Document,
+    MessageFeedback,
+    Project,
+    Region,
+    User,
+    UtilityProvider,
+    Vertical,
+)
 from app.schemas import (
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
     AuditLogEntry,
     BrowseResponse,
+    CompanyCreateWithAdminRequest,
+    CompanyCreateWithAdminResponse,
     CompanyDetail,
     CompanyProjectSummary,
     CompanySummary,
@@ -26,12 +42,19 @@ from app.schemas import (
     MarkReviewedRequest,
     MarkSupersededRequest,
     ReassignVerticalRequest,
+    RegionAdminSummary,
+    RegionAdminUpdateRequest,
     StaleDocumentSummary,
+    TokenUsageByUser,
+    TokenUsageSummary,
     UndoSupersedeRequest,
+    UtilityProviderAdminSummary,
+    UtilityProviderAdminUpdateRequest,
     VerticalStatsEntry,
     VerticalSummary,
     VerticalUpdateRequest,
 )
+from app.security import hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
@@ -74,6 +97,73 @@ async def list_companies(
     return [_to_company_summary(db, c, vertical_slugs) for c in companies]
 
 
+# Ambiguous characters excluded (0/O, l/1/I) - the generated password is
+# shown once and typed in manually by whoever reads it off the confirmation
+# screen, so visual ambiguity there is a real support-ticket risk.
+_PASSWORD_ALPHABET = "".join(c for c in string.ascii_uppercase + string.ascii_lowercase + string.digits if c not in "0O1lI")
+
+
+def _generate_password(length: int = 12) -> str:
+    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
+
+
+@router.post("/companies/create-with-admin", response_model=CompanyCreateWithAdminResponse, status_code=status.HTTP_201_CREATED)
+async def create_company_with_admin(
+    payload: CompanyCreateWithAdminRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> CompanyCreateWithAdminResponse:
+    require_super_admin(user)
+
+    if db.scalar(select(User).where(User.email == payload.admin_email)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
+    if db.scalar(select(Company).where(Company.name == payload.company_name)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A company with this name already exists")
+
+    vertical_slug = "tax_accounting" if payload.company_type == "accounting" else "construction"
+    vertical = db.scalar(select(Vertical).where(Vertical.slug == vertical_slug, Vertical.status == "active"))
+    if not vertical:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown or inactive vertical_slug '{vertical_slug}'"
+        )
+
+    company = Company(name=payload.company_name, type=payload.company_type, vertical_id=vertical.id)
+    db.add(company)
+    db.flush()
+
+    generated_password = _generate_password()
+    admin_user = User(
+        company_id=company.id,
+        email=payload.admin_email,
+        name=payload.admin_name,
+        role="admin",
+        password_hash=hash_password(generated_password),
+        phone=payload.admin_phone,
+    )
+    db.add(admin_user)
+    db.flush()
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company.id,
+        action="company_created_by_super_admin",
+        resource_type="company",
+        resource_id=company.id,
+        metadata={"admin_email": payload.admin_email, "message": f"Super admin created company {company.name} with admin user {payload.admin_email}"},
+    )
+    db.commit()
+
+    return CompanyCreateWithAdminResponse(
+        company_id=company.id,
+        company_name=company.name,
+        admin_user_id=admin_user.id,
+        admin_name=payload.admin_name,
+        admin_email=payload.admin_email,
+        generated_password=generated_password,
+    )
+
+
 @router.get("/companies/{company_id}", response_model=CompanyDetail)
 async def get_company_detail(
     company_id: int,
@@ -113,6 +203,8 @@ async def get_company_detail(
         or 0
     )
 
+    token_usage = _company_token_usage(db, company.id, since_30d, users)
+
     return CompanyDetail(
         **summary.model_dump(),
         users=[CompanyUserSummary(id=u.id, email=u.email, role=u.role, is_active=u.is_active) for u in users],
@@ -122,6 +214,65 @@ async def get_company_detail(
         ],
         messages_30d=messages_30d,
         gap_rate=round(gap_30d / messages_30d * 100, 1) if messages_30d else 0.0,
+        token_usage=token_usage,
+    )
+
+
+def _company_token_usage(db: Session, company_id: int, since_30d: datetime, users: list[User]) -> TokenUsageSummary:
+    """Token/cost totals for the last 30 days - NULL columns on gap rows
+    (no GPT call made, see chat.py's _log_session) are excluded by every
+    aggregate here rather than coerced to 0, so a company that only ever
+    hit the off-topic-guard path shows 0 real usage instead of a
+    misleadingly precise-looking 0.0 cost average."""
+    totals = db.execute(
+        select(
+            func.coalesce(func.sum(ChatSession.prompt_tokens), 0),
+            func.coalesce(func.sum(ChatSession.completion_tokens), 0),
+            func.coalesce(func.sum(ChatSession.total_tokens), 0),
+            func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0),
+            func.count(ChatSession.total_tokens),
+        ).where(ChatSession.company_id == company_id, ChatSession.created_at >= since_30d)
+    ).one()
+    prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, priced_message_count = totals
+
+    # message_count here is "messages that contributed to this token total"
+    # (total_tokens IS NOT NULL), not every chat_sessions row for the user -
+    # a row with no GPT call (off-topic-guard) has nothing to attribute a
+    # token/cost figure to, so it's excluded rather than diluting the
+    # per-user average with a message that cost nothing to answer.
+    by_user_rows = db.execute(
+        select(
+            ChatSession.user_id,
+            func.coalesce(func.sum(ChatSession.total_tokens), 0),
+            func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0),
+            func.count(ChatSession.id),
+        )
+        .where(
+            ChatSession.company_id == company_id,
+            ChatSession.created_at >= since_30d,
+            ChatSession.total_tokens.isnot(None),
+        )
+        .group_by(ChatSession.user_id)
+    ).all()
+    user_names = {u.id: (u.name or u.email) for u in users}
+
+    return TokenUsageSummary(
+        prompt_tokens_30d=int(prompt_tokens),
+        completion_tokens_30d=int(completion_tokens),
+        total_tokens_30d=int(total_tokens),
+        estimated_cost_eur_30d=round(float(estimated_cost_eur), 4),
+        avg_tokens_per_message=round(total_tokens / priced_message_count) if priced_message_count else 0,
+        by_user=[
+            TokenUsageByUser(
+                user_id=user_id,
+                name=user_names.get(user_id, "—"),
+                total_tokens_30d=int(user_total_tokens),
+                estimated_cost_eur_30d=round(float(user_cost), 4),
+                message_count=message_count,
+            )
+            for user_id, user_total_tokens, user_cost, message_count in by_user_rows
+            if user_id is not None
+        ],
     )
 
 
@@ -240,6 +391,24 @@ def _to_admin_summary(db: Session, doc: Document, vertical_slugs: dict[int, str]
         last_verified_at=doc.last_verified_at,
         needs_review=doc.needs_review,
     )
+
+
+@router.get("/documents/{document_id}", response_model=DocumentSummary)
+async def get_admin_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentSummary:
+    """Single-document lookup for the admin KB screen's replacement-chain
+    cross-links in the detail drawer (clicking 'replaced by' / 'replaces'
+    needs to open that document's drawer even if it isn't on the currently
+    loaded page of /documents)."""
+    require_super_admin(user)
+    doc = db.get(Document, document_id)
+    if not doc or doc.company_id is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return _to_admin_summary(db, doc, vertical_slugs)
 
 
 @router.get("/documents", response_model=BrowseResponse)
@@ -492,12 +661,27 @@ async def platform_stats(
     negative_feedback = (
         db.scalar(select(func.count()).select_from(MessageFeedback).where(MessageFeedback.rating == "negative")) or 0
     )
+    since_30d = datetime.utcnow() - timedelta(days=30)
+    platform_tokens_30d = (
+        db.scalar(
+            select(func.coalesce(func.sum(ChatSession.total_tokens), 0)).where(ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
+    platform_cost_eur_30d = (
+        db.scalar(
+            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0)).where(ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
     total = AdminStatsResponse(
         total_messages=total_messages,
         gap_rate=gap_rate,
         active_documents=active_documents,
         positive_feedback=positive_feedback,
         negative_feedback=negative_feedback,
+        platform_tokens_30d=int(platform_tokens_30d),
+        platform_cost_eur_30d=round(float(platform_cost_eur_30d), 2),
     )
 
     by_vertical = []
@@ -698,6 +882,128 @@ async def data_source_sync_status(
         last_crawl_status=source.last_crawl_status,
         last_crawl_document_count=source.last_crawl_document_count,
         last_crawl_error=source.last_crawl_error,
+    )
+
+
+@router.get("/regions", response_model=list[RegionAdminSummary])
+async def list_admin_regions(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[RegionAdminSummary]:
+    require_super_admin(user)
+    regions = db.scalars(select(Region).order_by(Region.region_name_el)).all()
+    return [
+        RegionAdminSummary(
+            region_id=r.region_id,
+            region_name_el=r.region_name_el,
+            ydom_authority_name=r.ydom_authority_name,
+            contact_phone=r.contact_phone,
+            contact_email=r.contact_email,
+            status=r.status,
+        )
+        for r in regions
+    ]
+
+
+@router.patch("/regions/{region_id}", response_model=RegionAdminSummary)
+async def update_admin_region(
+    region_id: str,
+    payload: RegionAdminUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionAdminSummary:
+    require_super_admin(user)
+    region = db.get(Region, region_id)
+    if not region:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Region not found")
+
+    fields_set = payload.model_fields_set
+    if "contact_phone" in fields_set:
+        region.contact_phone = payload.contact_phone
+    if "contact_email" in fields_set:
+        region.contact_email = payload.contact_email
+    if "ydom_authority_name" in fields_set:
+        region.ydom_authority_name = payload.ydom_authority_name
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="region_contact_info_updated",
+        resource_type="region",
+        resource_id=None,
+        metadata={"region_id": region.region_id},
+    )
+    db.commit()
+    db.refresh(region)
+    return RegionAdminSummary(
+        region_id=region.region_id,
+        region_name_el=region.region_name_el,
+        ydom_authority_name=region.ydom_authority_name,
+        contact_phone=region.contact_phone,
+        contact_email=region.contact_email,
+        status=region.status,
+    )
+
+
+@router.get("/utility-providers", response_model=list[UtilityProviderAdminSummary])
+async def list_admin_utility_providers(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[UtilityProviderAdminSummary]:
+    require_super_admin(user)
+    providers = db.scalars(select(UtilityProvider).order_by(UtilityProvider.provider_name)).all()
+    return [
+        UtilityProviderAdminSummary(
+            provider_id=p.provider_id,
+            provider_name=p.provider_name,
+            provider_type=p.provider_type,
+            coverage_region_ids=p.coverage_region_ids,
+            contact_phone=p.contact_phone,
+            contact_email=p.contact_email,
+        )
+        for p in providers
+    ]
+
+
+@router.patch("/utility-providers/{provider_id}", response_model=UtilityProviderAdminSummary)
+async def update_admin_utility_provider(
+    provider_id: str,
+    payload: UtilityProviderAdminUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> UtilityProviderAdminSummary:
+    require_super_admin(user)
+    provider = db.get(UtilityProvider, provider_id)
+    if not provider:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Utility provider not found")
+
+    fields_set = payload.model_fields_set
+    if "contact_phone" in fields_set:
+        provider.contact_phone = payload.contact_phone
+    if "contact_email" in fields_set:
+        provider.contact_email = payload.contact_email
+    if "provider_name" in fields_set:
+        provider.provider_name = payload.provider_name
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="utility_provider_contact_info_updated",
+        resource_type="utility_provider",
+        resource_id=None,
+        metadata={"provider_id": provider.provider_id},
+    )
+    db.commit()
+    db.refresh(provider)
+    return UtilityProviderAdminSummary(
+        provider_id=provider.provider_id,
+        provider_name=provider.provider_name,
+        provider_type=provider.provider_type,
+        coverage_region_ids=provider.coverage_region_ids,
+        contact_phone=provider.contact_phone,
+        contact_email=provider.contact_email,
     )
 
 

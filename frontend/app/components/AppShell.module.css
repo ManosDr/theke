@@ -25,6 +25,13 @@
   margin: 0 auto;
 }
 
+.mainFullWidth {
+  max-width: none;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
 @media (max-width: 640px) {
   .main {
     padding: var(--space-3);

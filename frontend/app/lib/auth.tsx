@@ -1,9 +1,35 @@
 "use client";
 
-import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
 import { api } from "./api";
+
+// 2 minutes before the JWT's own exp claim - gives the user a chance to
+// save work and re-login in a new tab before the hard 401 redirect (see
+// api.ts's request()) kicks in and drops whatever they were doing.
+const EXPIRY_WARNING_LEAD_MS = 120_000;
+
+// JWTs are three base64url segments; the payload (middle segment) carries
+// the standard "exp" claim in seconds since epoch. No verification needed
+// here - this is just reading a value the frontend already trusts (the
+// token came from our own login response), not authenticating anything.
+function decodeJwtExpMs(token: string): number | null {
+  try {
+    const payload = token.split(".")[1];
+    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
+    const json = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
+        .join("")
+    );
+    const decoded = JSON.parse(json);
+    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
+  } catch {
+    return null;
+  }
+}
 
 export type CompanyType = "construction" | "municipality" | "accounting";
 export type Role = "super_admin" | "admin" | "member";
@@ -34,6 +60,8 @@ interface AuthContextValue {
   logout: () => void;
   updatePreferredLocale: (locale: string) => Promise<void>;
   updatePreferredTheme: (theme: string) => Promise<void>;
+  showSessionExpiryWarning: boolean;
+  dismissSessionExpiryWarning: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -42,17 +70,35 @@ const STORAGE_KEY = "theke-auth";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
+  const [showSessionExpiryWarning, setShowSessionExpiryWarning] = useState(false);
+  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function scheduleExpiryWarning(token: string) {
+    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    setShowSessionExpiryWarning(false);
+    const expiresAtMs = decodeJwtExpMs(token);
+    if (!expiresAtMs) return;
+    const msUntilWarning = expiresAtMs - Date.now() - EXPIRY_WARNING_LEAD_MS;
+    if (msUntilWarning <= 0) return; // already inside the warning window (e.g. a stale page reload) - the 401 handler is the fallback
+    expiryTimerRef.current = setTimeout(() => setShowSessionExpiryWarning(true), msUntilWarning);
+  }
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
     if (raw) {
       try {
-        setUser(JSON.parse(raw));
+        const stored = JSON.parse(raw) as AuthUser;
+        setUser(stored);
+        scheduleExpiryWarning(stored.token);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
     setLoading(false);
+    return () => {
+      if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function login(email: string, password: string) {
@@ -68,11 +114,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
+    scheduleExpiryWarning(authUser.token);
   }
 
   function logout() {
+    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
+    setShowSessionExpiryWarning(false);
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
+  }
+
+  function dismissSessionExpiryWarning() {
+    setShowSessionExpiryWarning(false);
   }
 
   async function updatePreferredLocale(locale: string) {
@@ -92,7 +145,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   }
 
   return (
-    <AuthContext.Provider value={{ user, loading, login, logout, updatePreferredLocale, updatePreferredTheme }}>
+    <AuthContext.Provider
+      value={{
+        user,
+        loading,
+        login,
+        logout,
+        updatePreferredLocale,
+        updatePreferredTheme,
+        showSessionExpiryWarning,
+        dismissSessionExpiryWarning,
+      }}
+    >
       {children}
     </AuthContext.Provider>
   );

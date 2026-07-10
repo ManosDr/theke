@@ -267,7 +267,10 @@ async def chat(
     project = _resolve_project(db, user, payload.project_id)
 
     try:
-        hits = search_regulation(db, user, question, vertical.id, project_id=payload.project_id)
+        hits = search_regulation(
+            db, user, question, vertical.id, project_id=payload.project_id,
+            plot_in_plan=project.plot_in_plan if project else None,
+        )
     except OpenAIError as exc:
         logger.error("OpenAI embedding failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
@@ -294,6 +297,8 @@ async def chat(
             ],
         )
         answer = completion.choices[0].message.content or GAP_RESPONSE
+        prompt_tokens = completion.usage.prompt_tokens if completion.usage else None
+        completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI completion failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
@@ -320,7 +325,16 @@ async def chat(
             )
         )
 
-    _log_session(db, user, payload.project_id, question, answer, tool_used="rag")
+    _log_session(
+        db,
+        user,
+        payload.project_id,
+        question,
+        answer,
+        tool_used="rag",
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+    )
     return ChatResponse(answer=answer, citations=citations)
 
 
@@ -359,7 +373,7 @@ async def chat_message(
     # facts - notably the archaeological flag - are available on the gap
     # path too, not just when KB retrieval happens to succeed. These are
     # project-level metadata, valid regardless of retrieval outcome.
-    location_context = build_location_context(project)
+    location_context = build_location_context(db, project)
 
     try:
         client = OpenAI(api_key=settings.openai_api_key)
@@ -371,7 +385,14 @@ async def chat_message(
             return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
         raw_hits = _retrieve(
-            db, user, question, settings.rag_top_k, vertical.id, region_id=region_id, project_id=payload.project_id
+            db,
+            user,
+            question,
+            settings.rag_top_k,
+            vertical.id,
+            region_id=region_id,
+            project_id=payload.project_id,
+            plot_in_plan=project.plot_in_plan if project else None,
         )
         hits = [h for h in raw_hits if _passes_hybrid_threshold(h)]
 
@@ -382,11 +403,13 @@ async def chat_message(
                 and project.archaeological_flag
                 and project.archaeological_notes
             ):
+                archaeological_contact_lines = _gap_contact_lines(db, region_id)
                 gap_answer = (
                     "Δεν βρέθηκαν σχετικά έγγραφα στη βάση γνώσης για αυτό το "
                     "ερώτημα. Ωστόσο, με βάση τα αποθηκευμένα δεδομένα τοποθεσίας "
-                    f"του έργου:\n\n{project.archaeological_notes}\n\n"
-                    f"{get_disclaimer(vertical)}"
+                    f"του έργου:\n\n{project.archaeological_notes}"
+                    + (f"\n\nΣτοιχεία επικοινωνίας:\n{archaeological_contact_lines}" if archaeological_contact_lines else "")
+                    + f"\n\n{get_disclaimer(vertical)}"
                 )
                 session_id = _log_session(
                     db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True
@@ -427,12 +450,24 @@ async def chat_message(
 
         completion = client.chat.completions.create(model=settings.chat_model, messages=messages)
         raw_answer = (completion.choices[0].message.content or "").strip()
+        prompt_tokens = completion.usage.prompt_tokens if completion.usage else None
+        completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI call failed: %s", exc)
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
 
     if not raw_answer:
-        _log_session(db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="none", gap=True)
+        _log_session(
+            db,
+            user,
+            payload.project_id,
+            question,
+            CHAT_MESSAGE_GAP_RESPONSE,
+            tool_used="none",
+            gap=True,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+        )
         return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
 
     answer = f"{raw_answer}\n\n{get_disclaimer(vertical)}"
@@ -466,6 +501,8 @@ async def chat_message(
         tool_used="rag",
         citations=[c.model_dump() for c in citations],
         gap=is_low_confidence,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
     )
     return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id)
 
@@ -541,7 +578,18 @@ def _log_session(
     tool_used: str,
     citations: list[dict] | None = None,
     gap: bool | None = None,
+    prompt_tokens: int | None = None,
+    completion_tokens: int | None = None,
 ) -> int:
+    total_tokens = None
+    estimated_cost_eur = None
+    if prompt_tokens is not None and completion_tokens is not None:
+        total_tokens = prompt_tokens + completion_tokens
+        estimated_cost_eur = (
+            prompt_tokens / 1000 * settings.gpt4o_input_cost_per_1k
+            + completion_tokens / 1000 * settings.gpt4o_output_cost_per_1k
+        ) * settings.usd_to_eur
+
     session = ChatSession(
         company_id=user.company_id,
         user_id=user.user_id,
@@ -551,6 +599,10 @@ def _log_session(
         tool_used=tool_used,
         citations=citations,
         gap=gap,
+        prompt_tokens=prompt_tokens,
+        completion_tokens=completion_tokens,
+        total_tokens=total_tokens,
+        estimated_cost_eur=estimated_cost_eur,
     )
     db.add(session)
     db.commit()

@@ -7,7 +7,7 @@ from pydantic import BaseModel, Field, field_validator
 # this field - role/company come from the invite instead). Keep in sync with
 # any frontend company-type dropdown; "municipality" (not "municipal") matches
 # the existing Company.type value used throughout visibility/authorization.
-COMPANY_TYPES = ("construction", "architecture", "engineering", "contractor", "municipality")
+COMPANY_TYPES = ("construction", "architecture", "engineering", "contractor", "municipality", "accounting")
 
 
 class RegisterRequest(BaseModel):
@@ -248,9 +248,82 @@ class UploadResponse(BaseModel):
 class UserSummary(BaseModel):
     id: int
     email: str
+    name: str | None = None
+    phone: str | None = None
     role: str
     is_active: bool
     created_at: datetime
+    last_login_at: datetime | None = None
+    messages_30d: int = 0
+
+
+class CompanyOverviewResponse(BaseModel):
+    users_total: int
+    users_active_30d: int
+    messages_30d: int
+    gap_rate: float
+    customers_total: int
+    projects_total: int
+    private_documents_count: int
+    public_documents_count: int
+    total_tokens_30d: int
+    estimated_cost_eur_30d: float
+    activity: list["ActivityEventEntry"]
+
+
+class ActivityEventEntry(BaseModel):
+    type: str  # 'chat_message', 'document_uploaded', 'project_created', 'customer_added', 'user_joined'
+    created_at: datetime
+    description: str
+    actor_name: str | None = None
+
+
+class CompanyDocumentSummary(BaseModel):
+    id: int
+    title: str | None
+    project_id: int | None
+    project_name: str | None
+    doc_type: str | None
+    extraction_status: str | None
+    created_at: datetime
+
+
+class KbSourceStatusEntry(BaseModel):
+    source_name: str
+    document_count: int
+    last_crawled_at: datetime | None
+    next_crawl_at: datetime | None
+    health: str  # 'healthy', 'overdue', 'failed', 'never_synced'
+
+
+class CustomerProjectListEntry(BaseModel):
+    id: int
+    name: str | None
+    region_id: str | None
+    region_name_el: str | None
+    created_at: datetime
+    document_count: int
+
+
+class MeSummary(BaseModel):
+    id: int
+    email: str
+    name: str | None
+    phone: str | None
+    role: str
+    preferred_locale: str | None
+    preferred_theme: str | None
+
+
+class UpdateMeRequest(BaseModel):
+    name: str | None = None
+    phone: str | None = None
+    preferred_locale: str | None = None
+
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password: str = Field(min_length=8)
 
 
 class AuditLogEntry(BaseModel):
@@ -305,11 +378,53 @@ class CompanyProjectSummary(BaseModel):
     is_client: bool
 
 
+class CompanyCreateWithAdminRequest(BaseModel):
+    company_name: str
+    company_type: str
+    admin_name: str
+    admin_email: str
+    admin_phone: str | None = None
+
+    @field_validator("company_type")
+    @classmethod
+    def _validate_company_type(cls, v: str) -> str:
+        if v not in COMPANY_TYPES:
+            raise ValueError(f"company_type must be one of {COMPANY_TYPES}")
+        return v
+
+
+class CompanyCreateWithAdminResponse(BaseModel):
+    company_id: int
+    company_name: str
+    admin_user_id: int
+    admin_name: str
+    admin_email: str
+    generated_password: str
+
+
+class TokenUsageByUser(BaseModel):
+    user_id: int
+    name: str
+    total_tokens_30d: int
+    estimated_cost_eur_30d: float
+    message_count: int
+
+
+class TokenUsageSummary(BaseModel):
+    prompt_tokens_30d: int
+    completion_tokens_30d: int
+    total_tokens_30d: int
+    estimated_cost_eur_30d: float
+    avg_tokens_per_message: int
+    by_user: list[TokenUsageByUser]
+
+
 class CompanyDetail(CompanySummary):
     users: list[CompanyUserSummary] = []
     projects: list[CompanyProjectSummary] = []
     messages_30d: int = 0
     gap_rate: float = 0.0
+    token_usage: TokenUsageSummary
 
 
 class ReassignVerticalRequest(BaseModel):
@@ -326,6 +441,7 @@ class MyCompanySummary(BaseModel):
     name: str
     type: str
     has_logo: bool
+    logo_url: str | None = None
     vertical_slug: str
     vertical_display_name: str
     vertical_tagline: str | None
@@ -353,6 +469,10 @@ class ProjectCreateRequest(BaseModel):
     region_id: str | None = None  # links to regions.region_id, gates access to that region's KB documents
     address: str | None = None
     client_notes: str | None = None
+    # customer_id (a real, reusable contact record) takes precedence over
+    # customer_name/customer_notes (freeform text) when both are given - see
+    # POST /projects. Either, both, or neither may be omitted.
+    customer_id: int | None = None
     customer_name: str | None = None
     customer_notes: str | None = None
 
@@ -366,6 +486,7 @@ class ProjectSummary(BaseModel):
     is_default: bool = False
     is_client: bool = False
     client_notes: str | None = None
+    customer_id: int | None = None
     customer_name: str | None = None
     customer_notes: str | None = None
     plot_address: str | None = None
@@ -378,19 +499,76 @@ class ProjectSummary(BaseModel):
     gis_zone_source: str | None = None
     archaeological_flag: bool = False
     archaeological_notes: str | None = None
+    archaeological_site_name: str | None = None
+    archaeological_distance_m: int | None = None
+    plot_in_plan: bool | None = None
     location_resolved_at: datetime | None = None
 
 
 class UpdateProjectMetadataRequest(BaseModel):
     name: str
+    customer_id: int | None = None
     customer_name: str | None = None
     customer_notes: str | None = None
     client_notes: str | None = None
 
 
+class CustomerCreateRequest(BaseModel):
+    name: str
+    afm: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    notes: str | None = None
+
+
+class CustomerUpdateRequest(BaseModel):
+    name: str | None = None
+    afm: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    notes: str | None = None
+
+
+class CustomerSummary(BaseModel):
+    id: int
+    name: str
+    afm: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    project_count: int = 0
+    last_project_at: datetime | None = None
+
+
+class CustomerProjectSummary(BaseModel):
+    id: int
+    name: str | None
+    region_id: str | None = None
+    region_name_el: str | None = None
+    created_at: datetime
+    is_client: bool = False
+    document_count: int = 0
+
+
+class CustomerDetailResponse(BaseModel):
+    id: int
+    name: str
+    afm: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    notes: str | None = None
+    created_at: datetime
+    projects: list[CustomerProjectSummary] = []
+
+
 class ResolveLocationRequest(BaseModel):
     lat: float
     lon: float
+    # When provided, the cadastral lookup runs against this KAEK instead of
+    # being skipped - its centroid then also drives the reverse-geocode/
+    # archaeological check, superseding lat/lon (see POST /gis/resolve-location).
+    kaek: str | None = None
 
 
 class ServicesAvailable(BaseModel):
@@ -410,7 +588,30 @@ class ResolveLocationResponse(BaseModel):
     gis_zone_name: str | None = None
     archaeological_flag: bool = False
     archaeological_notes: str | None = None
+    archaeological_site_name: str | None = None
+    archaeological_distance_m: int | None = None
+    ktimatologio_link: str | None = None
     services_available: ServicesAvailable
+
+
+class ParcelLookupResponse(BaseModel):
+    kaek: str
+    available: bool
+    found: bool = False
+    area_sqm: float | None = None
+    perimeter_m: float | None = None
+    centroid_lat: float | None = None
+    centroid_lon: float | None = None
+    geometry: dict | None = None
+    ktimatologio_link: str | None = None
+    error: str | None = None
+
+
+class GeocodeResult(BaseModel):
+    display_name: str | None = None
+    type: str | None = None
+    lat: float
+    lon: float
 
 
 class UpdateProjectLocationRequest(BaseModel):
@@ -425,6 +626,13 @@ class UpdateProjectLocationRequest(BaseModel):
     gis_zone_source: str | None = None
     archaeological_flag: bool = False
     archaeological_notes: str | None = None
+    archaeological_site_name: str | None = None
+    archaeological_distance_m: int | None = None
+    plot_in_plan: bool | None = None
+
+
+class UpdatePlotInPlanRequest(BaseModel):
+    plot_in_plan: bool | None = None
 
 
 class ProjectDocumentSummary(BaseModel):
@@ -496,6 +704,10 @@ class AdminStatsResponse(BaseModel):
     active_documents: int
     positive_feedback: int
     negative_feedback: int
+    # Last 30 days only (unlike total_messages above, which is all-time) -
+    # the platform-wide token/cost attention-row stat.
+    platform_tokens_30d: int = 0
+    platform_cost_eur_30d: float = 0.0
 
 
 class VerticalStatsEntry(BaseModel):
@@ -549,6 +761,36 @@ class DataSourceSyncStatus(BaseModel):
     last_crawl_status: str | None
     last_crawl_document_count: int | None
     last_crawl_error: str | None
+
+
+class RegionAdminSummary(BaseModel):
+    region_id: str
+    region_name_el: str
+    ydom_authority_name: str | None
+    contact_phone: str | None
+    contact_email: str | None
+    status: str
+
+
+class RegionAdminUpdateRequest(BaseModel):
+    contact_phone: str | None = None
+    contact_email: str | None = None
+    ydom_authority_name: str | None = None
+
+
+class UtilityProviderAdminSummary(BaseModel):
+    provider_id: str
+    provider_name: str
+    provider_type: str
+    coverage_region_ids: list[str]
+    contact_phone: str | None
+    contact_email: str | None
+
+
+class UtilityProviderAdminUpdateRequest(BaseModel):
+    contact_phone: str | None = None
+    contact_email: str | None = None
+    provider_name: str | None = None
 
 
 class VerticalSummary(BaseModel):

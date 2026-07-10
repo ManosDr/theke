@@ -22,13 +22,19 @@ interface FontScaleContextValue {
 const FontScaleContext = createContext<FontScaleContextValue | null>(null);
 const STORAGE_KEY = "theke_font_scale";
 
-export function FontScaleProvider({ children }: { children: ReactNode }) {
-  const [scale, setScale] = useState(DEFAULT_SCALE);
+// Reads localStorage synchronously at init instead of via a mount-only
+// effect - a separate rehydrate effect races the persist effect below (both
+// touch STORAGE_KEY, and the persist effect fires first with the hardcoded
+// default, clobbering the real stored value before the rehydrate effect's
+// setState lands). Initializing state from storage directly closes that gap.
+function getInitialScale(): number {
+  if (typeof window === "undefined") return DEFAULT_SCALE;
+  const stored = Number(localStorage.getItem(STORAGE_KEY));
+  return stored >= MIN_SCALE && stored <= MAX_SCALE ? stored : DEFAULT_SCALE;
+}
 
-  useEffect(() => {
-    const stored = Number(localStorage.getItem(STORAGE_KEY));
-    if (stored >= MIN_SCALE && stored <= MAX_SCALE) setScale(stored);
-  }, []);
+export function FontScaleProvider({ children }: { children: ReactNode }) {
+  const [scale, setScale] = useState<number>(getInitialScale);
 
   useEffect(() => {
     document.documentElement.style.fontSize = `${scale}%`;

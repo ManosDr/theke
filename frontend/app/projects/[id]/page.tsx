@@ -6,11 +6,12 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
+import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
 import type { PinState } from "../../components/MapPicker";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
-import type { MyCompanySummary, ProjectSummary, ResolveLocationResponse } from "../../lib/types";
+import type { CustomerDetailResponse, MyCompanySummary, ProjectSummary, ResolveLocationResponse } from "../../lib/types";
 import styles from "./page.module.css";
 
 const MapPicker = dynamic(() => import("../../components/MapPicker"), { ssr: false });
@@ -33,11 +34,15 @@ function ProjectDetailContent() {
   const [editCustomerName, setEditCustomerName] = useState("");
   const [editCustomerNotes, setEditCustomerNotes] = useState("");
   const [editClientNotes, setEditClientNotes] = useState("");
+  const [editCustomerState, setEditCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
+  const [customerDetail, setCustomerDetail] = useState<CustomerDetailResponse | null>(null);
 
   const [editingLocation, setEditingLocation] = useState(false);
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
   const [resolving, setResolving] = useState(false);
   const [resolved, setResolved] = useState<ResolveLocationResponse | null>(null);
+  const [plotInPlan, setPlotInPlan] = useState<boolean | null>(null);
+  const [editingZone, setEditingZone] = useState(false);
 
   const usesRegionalScoping = company?.vertical_uses_regional_scoping ?? true;
 
@@ -59,31 +64,63 @@ function ProjectDetailContent() {
         setEditCustomerName(p.customer_name ?? "");
         setEditCustomerNotes(p.customer_notes ?? "");
         setEditClientNotes(p.client_notes ?? "");
+        setEditCustomerState({ customerId: p.customer_id ?? null, newCustomer: null });
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : t("project.detail.notFound")));
   }
 
   useEffect(load, [params.id, token]);
 
+  // Customer info (name/AFM/phone/email) shown on the tax-vertical read
+  // view comes from the linked customer record, not ProjectSummary itself
+  // (which only carries customer_id/customer_name - the latter is the
+  // legacy freeform field, not this record's actual contact details).
+  useEffect(() => {
+    if (!token || !project?.customer_id) {
+      setCustomerDetail(null);
+      return;
+    }
+    api
+      .get<CustomerDetailResponse>(`/customers/${project.customer_id}`, token)
+      .then(setCustomerDetail)
+      .catch(() => setCustomerDetail(null));
+  }, [token, project?.customer_id]);
+
   async function saveMetadata(e: React.FormEvent) {
     e.preventDefault();
+
+    let customerId = editCustomerState.customerId;
+    if (editCustomerState.newCustomer) {
+      const created = await api.post<{ id: number }>(
+        "/customers",
+        {
+          name: editCustomerState.newCustomer.name.trim(),
+          afm: editCustomerState.newCustomer.afm.trim() || undefined,
+          phone: editCustomerState.newCustomer.phone.trim() || undefined,
+          email: editCustomerState.newCustomer.email.trim() || undefined,
+        },
+        token
+      );
+      customerId = created.id;
+    }
+
     const updated = await api.patch<ProjectSummary>(
       `/projects/${params.id}`,
       usesRegionalScoping
         ? { name: editName.trim(), customer_name: editCustomerName.trim() || undefined, customer_notes: editCustomerNotes.trim() || undefined }
-        : { name: editName.trim(), client_notes: editClientNotes.trim() || undefined },
+        : { name: editName.trim(), client_notes: editClientNotes.trim() || undefined, customer_id: customerId ?? undefined },
       token
     );
     setProject(updated);
     setEditing(false);
   }
 
-  async function handlePick(lat: number, lon: number) {
+  async function handlePick(lat: number, lon: number, kaek?: string) {
     setPin({ lat, lon });
     setResolved(null);
     setResolving(true);
     try {
-      const result = await api.post<ResolveLocationResponse>("/gis/resolve-location", { lat, lon }, token);
+      const result = await api.post<ResolveLocationResponse>("/gis/resolve-location", { lat, lon, kaek }, token);
       setResolved(result);
     } catch {
       setResolved(null);
@@ -108,6 +145,9 @@ function ProjectDetailContent() {
         gis_zone_source: resolved.gis_zone_name ? "manual_entry" : null,
         archaeological_flag: resolved.archaeological_flag,
         archaeological_notes: resolved.archaeological_notes,
+        archaeological_site_name: resolved.archaeological_site_name,
+        archaeological_distance_m: resolved.archaeological_distance_m,
+        plot_in_plan: plotInPlan,
       },
       token
     );
@@ -115,6 +155,12 @@ function ProjectDetailContent() {
     setEditingLocation(false);
     setPin(null);
     setResolved(null);
+  }
+
+  async function saveZone(value: boolean) {
+    const updated = await api.patch<ProjectSummary>(`/projects/${params.id}/plot-in-plan`, { plot_in_plan: value }, token);
+    setProject(updated);
+    setEditingZone(false);
   }
 
   function pinState(): PinState {
@@ -137,34 +183,59 @@ function ProjectDetailContent() {
           <h1>{project.name}</h1>
         </div>
 
-        <div className="card" style={{ padding: "var(--space-4)" }}>
-          {editing ? (
-            <form onSubmit={saveMetadata}>
-              <label className={styles.field}>
-                {t("project.new.clientName")}
-                <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} required />
-              </label>
-              <label className={styles.field}>
-                {t("dash.member.colClientNotes")}
-                <textarea className="input" rows={3} value={editClientNotes} onChange={(e) => setEditClientNotes(e.target.value)} />
-              </label>
-              <div style={{ display: "flex", gap: "var(--space-2)" }}>
-                <button type="submit" className="btn btn-primary">{t("common.save")}</button>
-                <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
-              </div>
-            </form>
-          ) : (
-            <>
-              <dl className={styles.metaGrid}>
-                <dt>{t("dash.member.colClientNotes")}</dt>
-                <dd>{project.client_notes || "—"}</dd>
-              </dl>
-              <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
-                {t("project.detail.edit")}
-              </button>
-            </>
-          )}
+        <div className={styles.tabs}>
+          <button type="button" className={tab === "info" ? styles.tabActive : styles.tab} onClick={() => setTab("info")}>
+            {t("project.detail.tabInfo")}
+          </button>
+          <button type="button" className={tab === "documents" ? styles.tabActive : styles.tab} onClick={() => setTab("documents")}>
+            {t("project.detail.tabDocuments")}
+          </button>
         </div>
+
+        {tab === "documents" && (
+          <div className="card" style={{ padding: "var(--space-5)" }}>
+            <p className="text-muted">{t("project.detail.documentsNotAvailable")}</p>
+          </div>
+        )}
+
+        {tab === "info" && (
+          <div className="card" style={{ padding: "var(--space-4)" }}>
+            {editing ? (
+              <form onSubmit={saveMetadata}>
+                <label className={styles.field}>
+                  {t("project.new.clientName")}
+                  <CustomerCombobox token={token} onChange={setEditCustomerState} />
+                </label>
+                <label className={styles.field}>
+                  {t("dash.member.colClientNotes")}
+                  <textarea className="input" rows={3} value={editClientNotes} onChange={(e) => setEditClientNotes(e.target.value)} />
+                </label>
+                <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                  <button type="submit" className="btn btn-primary">{t("common.save")}</button>
+                  <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
+                </div>
+              </form>
+            ) : (
+              <>
+                <dl className={styles.metaGrid}>
+                  <dt>{t("customer.name")}</dt>
+                  <dd>{customerDetail?.name || project.customer_name || "—"}</dd>
+                  <dt>{t("customer.afm")}</dt>
+                  <dd>{customerDetail?.afm ?? "—"}</dd>
+                  <dt>{t("customer.phone")}</dt>
+                  <dd>{customerDetail?.phone ?? "—"}</dd>
+                  <dt>{t("customer.email")}</dt>
+                  <dd>{customerDetail?.email ?? "—"}</dd>
+                  <dt>{t("dash.member.colClientNotes")}</dt>
+                  <dd>{project.client_notes || "—"}</dd>
+                </dl>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+                  {t("project.detail.edit")}
+                </button>
+              </>
+            )}
+          </div>
+        )}
 
         <Link href="/dashboard" className={styles.backLink}>
           {t("project.new.back")}
@@ -255,7 +326,14 @@ function ProjectDetailContent() {
             {!hasLocation && !editingLocation && (
               <div className="card" style={{ padding: "var(--space-5)", textAlign: "center" }}>
                 <p className="text-muted">{t("map.notDetermined")}</p>
-                <button type="button" className="btn btn-primary" onClick={() => setEditingLocation(true)}>
+                <button
+                  type="button"
+                  className="btn btn-primary"
+                  onClick={() => {
+                    setPlotInPlan(project.plot_in_plan ?? null);
+                    setEditingLocation(true);
+                  }}
+                >
                   {t("project.detail.addLocation")}
                 </button>
               </div>
@@ -281,14 +359,59 @@ function ProjectDetailContent() {
                     <span>🗺 {t("map.zone")}</span>
                     <span>{project.gis_zone_name ?? t("map.notDetermined")}</span>
                   </div>
+                  <div className={styles.locationRow}>
+                    <span>{t("map.zoneToggleLabel")}</span>
+                    {editingZone ? (
+                      <span style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                        <button type="button" className="btn btn-secondary" onClick={() => saveZone(true)}>
+                          {t("map.zoneInPlan")}
+                        </button>
+                        <button type="button" className="btn btn-secondary" onClick={() => saveZone(false)}>
+                          {t("map.zoneOutOfPlan")}
+                        </button>
+                        <button type="button" className={styles.tab} onClick={() => setEditingZone(false)}>
+                          {t("common.cancel")}
+                        </button>
+                      </span>
+                    ) : project.plot_in_plan != null ? (
+                      <button
+                        type="button"
+                        className={project.plot_in_plan ? "badge badge-success" : "badge badge-warning"}
+                        style={{ border: "none", cursor: "pointer" }}
+                        onClick={() => setEditingZone(true)}
+                      >
+                        {project.plot_in_plan ? t("map.zoneInPlan") : t("map.zoneOutOfPlan")}
+                      </button>
+                    ) : (
+                      <button type="button" className={styles.tab} onClick={() => setEditingZone(true)}>
+                        {t("map.zoneSetLink")}
+                      </button>
+                    )}
+                  </div>
                   {project.archaeological_flag && (
                     <div className={styles.archaeologicalCard}>
                       <strong>⚠ {t("map.archaeologicalWarning")}</strong>
                       {project.archaeological_notes && <p>{project.archaeological_notes}</p>}
+                      <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                        {t("map.archaeologicalDisclaimer")}
+                      </p>
                     </div>
                   )}
+                  {!project.archaeological_flag && (
+                    <p className="text-muted" style={{ fontSize: "0.78rem" }}>
+                      {t("map.noArchaeologicalDataNote")}
+                    </p>
+                  )}
                 </div>
-                <button type="button" className="btn btn-secondary" style={{ marginTop: "var(--space-3)" }} onClick={() => setEditingLocation(true)}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  style={{ marginTop: "var(--space-3)" }}
+                  onClick={() => {
+                    setPlotInPlan(project.plot_in_plan ?? null);
+                    setEditingLocation(true);
+                  }}
+                >
                   {t("project.detail.updateLocation")}
                 </button>
               </div>
@@ -302,8 +425,29 @@ function ProjectDetailContent() {
                   pinState={pinState()}
                   onPick={handlePick}
                   height={280}
+                  token={token}
                 />
                 {resolving && <p className="text-muted">{t("map.resolving")}</p>}
+                {resolved && (
+                  <div className={`card ${styles.locationPanel}`} style={{ marginTop: "var(--space-3)" }}>
+                    <span style={{ display: "block", fontWeight: 600, marginBottom: "var(--space-2)" }}>
+                      {t("map.zoneToggleLabel")}
+                    </span>
+                    <div style={{ display: "flex", gap: "var(--space-4)" }}>
+                      <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+                        <input type="radio" name="plotInPlanEdit" checked={plotInPlan === true} onChange={() => setPlotInPlan(true)} />
+                        {t("map.zoneInPlan")}
+                      </label>
+                      <label style={{ display: "flex", alignItems: "center", gap: "var(--space-1)", cursor: "pointer" }}>
+                        <input type="radio" name="plotInPlanEdit" checked={plotInPlan === false} onChange={() => setPlotInPlan(false)} />
+                        {t("map.zoneOutOfPlan")}
+                      </label>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-2)", marginBottom: 0 }}>
+                      {t("map.zoneToggleNote")}
+                    </p>
+                  </div>
+                )}
                 <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-3)" }}>
                   <button type="button" className="btn btn-primary" disabled={!resolved} onClick={saveLocation}>
                     {t("common.save")}

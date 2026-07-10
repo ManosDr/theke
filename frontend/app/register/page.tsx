@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Logo } from "../components/Logo";
@@ -18,6 +18,12 @@ interface TokenResponse {
   role: string;
 }
 
+interface InviteInfo {
+  company_name: string;
+  vertical_display_name: string;
+  role: string;
+}
+
 export default function RegisterPage() {
   const router = useRouter();
   const { login } = useAuth();
@@ -27,10 +33,45 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [inviteToken, setInviteToken] = useState("");
+  const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
+  const [inviteInfoError, setInviteInfoError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
-  const [companyType, setCompanyType] = useState<"construction" | "municipality">("construction");
+  const [companyType, setCompanyType] = useState<"construction" | "municipality" | "accounting">("construction");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+
+  // Looks up the invite's company/vertical as soon as a plausible token is
+  // typed/pasted, so the invitee sees what they're joining before
+  // submitting - GET /auth/invite-info/{token} exists on the backend
+  // specifically for this (see its docstring) but was never wired up here.
+  useEffect(() => {
+    if (mode !== "invite" || inviteToken.trim().length < 10) {
+      setInviteInfo(null);
+      setInviteInfoError(null);
+      return;
+    }
+    let cancelled = false;
+    const timer = setTimeout(() => {
+      api
+        .get<InviteInfo>(`/auth/invite-info/${encodeURIComponent(inviteToken.trim())}`)
+        .then((info) => {
+          if (!cancelled) {
+            setInviteInfo(info);
+            setInviteInfoError(null);
+          }
+        })
+        .catch((err) => {
+          if (!cancelled) {
+            setInviteInfo(null);
+            setInviteInfoError(err instanceof ApiError ? err.message : t("register.invalidInvite"));
+          }
+        });
+    }, 300);
+    return () => {
+      cancelled = true;
+      clearTimeout(timer);
+    };
+  }, [mode, inviteToken, t]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -41,7 +82,24 @@ export default function RegisterPage() {
         email,
         password,
         preferred_locale: locale,
-        ...(mode === "invite" ? { invite_token: inviteToken } : { company_name: companyName, company_type: companyType }),
+        // Construction firm and municipality both consume the "construction"
+        // vertical's content - there is no separate "municipality" vertical
+        // (see verticals table: only "construction" and "tax_accounting"
+        // exist). Accounting firms map to "tax_accounting" - added in Phase 4
+        // alongside the "Λογιστικό γραφείο" option below (previously the
+        // only company types offered here were construction/municipality,
+        // so self-serve accounting-firm signup wasn't reachable through the
+        // UI at all - see KNOWN_DECISIONS.md). vertical_slug is required by
+        // the backend on this path and has no default - omitting it 422'd
+        // every new-company registration regardless of companyType, until
+        // that was caught live during Section 8.5 verification.
+        ...(mode === "invite"
+          ? { invite_token: inviteToken }
+          : {
+              company_name: companyName,
+              company_type: companyType,
+              vertical_slug: companyType === "accounting" ? "tax_accounting" : "construction",
+            }),
       });
       await login(email, password);
       router.push("/dashboard");
@@ -121,6 +179,13 @@ export default function RegisterPage() {
               onChange={(e) => setInviteToken(e.target.value)}
               required
             />
+            {inviteInfo && (
+              <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
+                {t("register.joiningCompany")} <strong>{inviteInfo.company_name}</strong> ·{" "}
+                {inviteInfo.vertical_display_name}
+              </p>
+            )}
+            {inviteInfoError && <p className={styles.error}>{inviteInfoError}</p>}
           </div>
         ) : (
           <>
@@ -141,10 +206,11 @@ export default function RegisterPage() {
                 id="companyType"
                 className="input"
                 value={companyType}
-                onChange={(e) => setCompanyType(e.target.value as "construction" | "municipality")}
+                onChange={(e) => setCompanyType(e.target.value as "construction" | "municipality" | "accounting")}
               >
                 <option value="construction">{t("register.typeConstruction")}</option>
                 <option value="municipality">{t("register.typeMunicipality")}</option>
+                <option value="accounting">{t("register.typeAccounting")}</option>
               </select>
             </div>
           </>

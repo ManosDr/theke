@@ -22,6 +22,14 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     chat_model: str = "gpt-4o"
 
+    # Published per-1K-token pricing, USD - used only to estimate
+    # chat_sessions.estimated_cost_eur for the admin usage screens (see
+    # app/routers/chat.py's _log_session). Not billing-accurate: OpenAI's
+    # actual invoice may differ slightly and these are not auto-updated.
+    gpt4o_input_cost_per_1k: float = 0.0025
+    gpt4o_output_cost_per_1k: float = 0.010
+    usd_to_eur: float = 0.92
+
     # Cosine distance (pgvector's <=> operator) above which a retrieved chunk
     # is considered too weak to ground an answer - see app/services/rag.py.
     # Lower is stricter. text-embedding-3-small cosine distances for genuinely

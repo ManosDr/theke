@@ -122,6 +122,18 @@ export function DocumentsPanel() {
     setOffset(0);
   }, [debouncedQ, activeVerticalId, status, authority, contentType, supersededOnly]);
 
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (removeTarget) setRemoveTarget(null);
+      else if (supersedeTarget) setSupersedeTarget(null);
+      else if (drawerDoc) setDrawerDoc(null);
+      else if (openMenuId !== null) setOpenMenuId(null);
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [removeTarget, supersedeTarget, drawerDoc, openMenuId]);
+
   const hasFilters = Boolean(debouncedQ || status || authority || contentType || supersededOnly || verticalFilter);
 
   function clearFilters() {
@@ -131,6 +143,12 @@ export function DocumentsPanel() {
     setContentType("");
     setSupersededOnly(false);
     setVerticalFilter("");
+  }
+
+  async function openDocumentById(id: number) {
+    if (!token) return;
+    const doc = await api.get<DocumentSummary>(`/admin/documents/${id}`, token);
+    setDrawerDoc(doc);
   }
 
   async function markReviewed(doc: DocumentSummary) {
@@ -281,6 +299,9 @@ export function DocumentsPanel() {
                         <button
                           type="button"
                           className={styles.rowMenuButton}
+                          aria-label={t("docs.menuActionsFor", { title: doc.title ?? `#${doc.id}` })}
+                          aria-haspopup="menu"
+                          aria-expanded={openMenuId === doc.id}
                           onClick={() => {
                             setOpenMenuId(openMenuId === doc.id ? null : doc.id);
                             setUndoConfirmId(null);
@@ -290,7 +311,7 @@ export function DocumentsPanel() {
                           ⋯
                         </button>
                         {openMenuId === doc.id && (
-                          <div className={styles.rowMenu}>
+                          <div className={styles.rowMenu} role="menu">
                             <button className={styles.rowMenuItem} onClick={() => { setDrawerDoc(doc); setOpenMenuId(null); }}>
                               {t("docs.menuView")}
                             </button>
@@ -299,7 +320,7 @@ export function DocumentsPanel() {
                                 {t("docs.menuMarkReviewed")}
                               </button>
                             )}
-                            {eff === "active" && (
+                            {doc.status === "active" && (
                               <button className={styles.rowMenuItem} onClick={() => { setSupersedeTarget(doc); setOpenMenuId(null); }}>
                                 {t("docs.menuMarkSuperseded")}
                               </button>
@@ -375,10 +396,10 @@ export function DocumentsPanel() {
       {drawerDoc && (
         <>
           <div className={styles.scrim} onClick={() => setDrawerDoc(null)} />
-          <div className={styles.drawer}>
+          <div className={styles.drawer} role="dialog" aria-modal="true" aria-labelledby="doc-drawer-title">
             <div className={styles.drawerHeader}>
               <div>
-                <h2>{drawerDoc.title}</h2>
+                <h2 id="doc-drawer-title">{drawerDoc.title}</h2>
                 <div className={styles.drawerBadges}>
                   <span className={`${styles.verticalBadge} ${ACCENT_CLASS[drawerDoc.vertical_slug ?? ""] ?? ""}`}>
                     {drawerDoc.vertical_slug ? t(`vertical.${drawerDoc.vertical_slug}` as TranslationKey) : "—"}
@@ -392,6 +413,37 @@ export function DocumentsPanel() {
                 {t("docs.drawer.close")}
               </button>
             </div>
+
+            {(drawerDoc.replaced_by || drawerDoc.replaces) && (
+              <p>
+                {drawerDoc.replaced_by && (
+                  <span className={styles.metaLabel}>
+                    {t("docs.drawer.replacedByLabel")}:{" "}
+                    <button
+                      type="button"
+                      className={styles.titleText}
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => openDocumentById(drawerDoc.replaced_by!.id)}
+                    >
+                      {drawerDoc.replaced_by.title ?? `#${drawerDoc.replaced_by.id}`}
+                    </button>
+                  </span>
+                )}
+                {drawerDoc.replaces && (
+                  <span className={styles.metaLabel}>
+                    {t("docs.drawer.replacesLabel")}:{" "}
+                    <button
+                      type="button"
+                      className={styles.titleText}
+                      style={{ background: "none", border: "none", padding: 0, cursor: "pointer", textDecoration: "underline" }}
+                      onClick={() => openDocumentById(drawerDoc.replaces!.id)}
+                    >
+                      {drawerDoc.replaces.title ?? `#${drawerDoc.replaces.id}`}
+                    </button>
+                  </span>
+                )}
+              </p>
+            )}
 
             <div className={styles.metadataGrid}>
               <div className={styles.metadataItem}>
@@ -513,8 +565,8 @@ function SupersedeModal({
 
   return (
     <div className={styles.modalScrim} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <h2>{t("docs.supersede.title")}</h2>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="supersede-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="supersede-modal-title">{t("docs.supersede.title")}</h2>
         <div className={styles.targetCard}>
           <strong>{target.title}</strong>
           <div className="text-muted">{target.authority ?? "—"}</div>
@@ -588,8 +640,8 @@ function RemoveModal({
 
   return (
     <div className={styles.modalScrim} onClick={onClose}>
-      <div className={styles.modal} onClick={(e) => e.stopPropagation()}>
-        <h2>{t("docs.remove.title")}</h2>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="remove-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="remove-modal-title">{t("docs.remove.title")}</h2>
         <div className={styles.targetCard}>
           <strong>{target.title}</strong>
           <div className="text-muted">{target.authority ?? "—"}</div>

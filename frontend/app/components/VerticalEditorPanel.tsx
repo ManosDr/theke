@@ -67,10 +67,20 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
       await api.patch(
         `/admin/verticals/${vertical.id}`,
         {
-          tagline,
-          welcome_message: welcomeMessage,
-          disclaimer_text: disclaimerText,
-          off_topic_hint: offTopicHint,
+          // `?? ""` on load turns a NULL db value into "" for the controlled
+          // inputs below - sending "" back (rather than null) would then
+          // permanently overwrite that NULL with an empty string on *any*
+          // save, even one that only touched an unrelated field, since the
+          // backend only skips a field when it's exactly `None`. `|| null`
+          // undoes that on the way out for every field, not just this one
+          // (system_prompt_override already had this guard; found live during
+          // Section 11 KNOWN_DECISIONS.md audit - off_topic_hint is
+          // currently NULL for tax_accounting and would have been silently
+          // blanked by the next unrelated save).
+          tagline: tagline || null,
+          welcome_message: welcomeMessage || null,
+          disclaimer_text: disclaimerText || null,
+          off_topic_hint: offTopicHint || null,
           system_prompt_override: systemPromptOverride || null,
         },
         token

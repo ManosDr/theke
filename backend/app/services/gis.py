@@ -1,37 +1,40 @@
-"""Location services for project plots: reverse geocoding, cadastral/zone
-lookups, and archaeological-zone flagging.
+"""Location services for project plots: reverse geocoding, cadastral parcel
+lookup, GIS zone lookup, and archaeological-zone flagging.
 
-Two of these (cadastral parcel + GIS zone) are honest stubs, not "not yet
-implemented" placeholders - GIS Phase 0's live API investigation confirmed
-the public Ktimatologio cadastral WFS is dead (404, despite being the exact
-URL registered in the government's own INSPIRE metadata) and TEE's SDIG has
-no public WMS/WFS endpoint at all (see KNOWN_DECISIONS.md). Both functions
-return `available: False` rather than attempting a call that's confirmed to
-fail, or silently returning nothing.
+lookup_gis_zone() remains an honest stub - TEE's SDIG (Ενιαίος Ψηφιακός
+Χάρτης) has no public WMS/WFS endpoint at all (GIS Phase 0; only a
+phone/email support contact is documented). lookup_cadastral_parcel() is NOT
+a stub: the public Ktimatologio cadastral WFS at gis.ktimanet.gr is
+confirmed dead (404), but the ArcGIS FeatureServer that powers the official
+maps.ktimatologio.gr viewer itself is live and public - discovered by
+observing that viewer's own network requests (see KNOWN_DECISIONS.md).
 """
 
+import json
 import logging
+import math
 
 import httpx
 
-from app.dependencies import CurrentUser
-from app.models import Vertical
-from app.services.rag import search_documents
+from app.models import ArchaeologicalSite
 from sqlalchemy.orm import Session
 
 logger = logging.getLogger(__name__)
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
+NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
 NOMINATIM_USER_AGENT = "Theke/1.0 (contact@theke.gr)"
 KTIMATOLOGIO_WMS_URL = "http://gis.ktimanet.gr/wms/wmsopen/wmsserver.aspx"
 
-# A synthetic system-level caller for check_archaeological_flag()'s internal
-# RAG query - company_id=None restricts it to public/national-scope KB
-# content only, which is exactly the archaeological-zone documents this
-# queries for; there's no real end user behind this specific lookup.
-_SYSTEM_USER = CurrentUser(user_id=0, company_id=None, role="super_admin", company_type=None)
-
-_ARCHAEOLOGICAL_DISTANCE_THRESHOLD = 0.45
+# The FeatureServer behind maps.ktimatologio.gr's own KAEK search (confirmed
+# by watching its network requests during a live search for a real KAEK -
+# see KNOWN_DECISIONS.md). Public, unauthenticated, CORS-open. Not an
+# official/documented API - no published ToS or SLA, hence the timeout +
+# graceful-fallback treatment below rather than treating it as guaranteed.
+CADASTRAL_FEATURESERVER = (
+    "https://services-eu1.arcgis.com/40tFGWzosjaLJpmn/arcgis/rest/services"
+    "/GEOTEMAXIA_LEITOURGOUN_ON_gdb/FeatureServer/0/query"
+)
 
 
 async def reverse_geocode(lat: float, lon: float) -> dict | None:
@@ -67,13 +70,149 @@ async def reverse_geocode(lat: float, lon: float) -> dict | None:
         return None
 
 
-async def lookup_cadastral_parcel(lat: float, lon: float) -> dict:
-    """Stub: the public Ktimatologio cadastral-parcel WFS
-    (gis.ktimanet.gr/inspire/.../InspireFeatureDownload/service) returns 404
-    - confirmed dead in GIS Phase 0, despite being the exact URL the
-    government's own INSPIRE geoportal lists as authoritative. Returns an
-    honest unavailable status rather than attempting a call known to fail."""
-    return {"available": False, "reason": "Η υπηρεσία WFS γεωτεμαχίων του Κτηματολογίου δεν είναι διαθέσιμη."}
+async def forward_geocode(query: str) -> list[dict]:
+    """Resolves a free-text address to candidate coordinates via Nominatim's
+    /search endpoint, for the address-search field in the project location
+    section. Proxied server-side (not called directly from the browser)
+    specifically so the required custom User-Agent (Nominatim's usage
+    policy) can actually be set - browsers refuse to let client-side JS
+    override the User-Agent header at all, so a direct frontend call could
+    never comply with the same policy reverse_geocode() above already
+    honours. Returns an empty list on any failure rather than raising, same
+    graceful-degradation shape as the rest of this module."""
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(
+                NOMINATIM_SEARCH_URL,
+                params={"q": query, "format": "json", "addressdetails": 1, "countrycodes": "gr", "limit": 5},
+                headers={"User-Agent": NOMINATIM_USER_AGENT},
+            )
+        resp.raise_for_status()
+        results = resp.json()
+    except Exception:
+        logger.exception("forward_geocode failed for query %r", query)
+        return []
+
+    return [
+        {
+            "display_name": r.get("display_name"),
+            "type": r.get("type"),
+            "lat": float(r["lat"]),
+            "lon": float(r["lon"]),
+        }
+        for r in results
+        if "lat" in r and "lon" in r
+    ]
+
+
+def _webmercator_to_wgs84(x: float, y: float) -> tuple[float, float]:
+    """Convert EPSG:3857 (Web Mercator, what the FeatureServer returns) to
+    WGS84 (lon, lat)."""
+    lon = x / 20037508.342 * 180
+    lat = math.degrees(2 * math.atan(math.exp(y / 20037508.342 * math.pi)) - math.pi / 2)
+    return lon, lat
+
+
+def _parse_parcel_feature(feat: dict) -> dict:
+    """Shared shape for a single FeatureServer feature, used by both the
+    by-KAEK and by-point lookups below."""
+    attrs = feat.get("attributes", {})
+    rings = feat.get("geometry", {}).get("rings", [[]])[0]
+
+    wgs84_ring = [_webmercator_to_wgs84(x, y) for x, y in rings]
+
+    lons = [p[0] for p in wgs84_ring]
+    lats = [p[1] for p in wgs84_ring]
+    centroid_lon = sum(lons) / len(lons)
+    centroid_lat = sum(lats) / len(lats)
+
+    return {
+        "kaek": attrs.get("KAEK"),
+        "available": True,
+        "found": True,
+        "area_sqm": round(attrs.get("AREA", 0), 2),
+        "perimeter_m": round(attrs.get("PERIMETER", 0), 2),
+        "centroid_lat": round(centroid_lat, 7),
+        "centroid_lon": round(centroid_lon, 7),
+        "geometry": {"type": "Polygon", "coordinates": [wgs84_ring]},
+        "ktimatologio_link": attrs.get("LINK"),
+    }
+
+
+async def lookup_cadastral_parcel(kaek: str) -> dict:
+    """Queries the Ktimatologio ArcGIS FeatureServer for a parcel by KAEK -
+    the same public, unauthenticated endpoint the official maps.ktimatologio.gr
+    viewer itself calls for its own KAEK search (see KNOWN_DECISIONS.md for
+    how this was discovered and the dependency-risk tradeoff). Not an
+    official/documented API, hence the timeout + broad exception handling:
+    a service interruption degrades to `available: False` rather than
+    crashing the feature, the same fallback pattern already used for
+    Nominatim.
+
+    Normalises the KAEK by stripping any trailing /N/N suffix (the format a
+    user might copy from an official document, e.g. '210183315011/0/0')
+    before querying - the FeatureServer's own KAEK field is the bare
+    12-digit code only.
+    """
+    normalised = kaek.split("/")[0].strip()
+
+    params = {
+        "f": "json",
+        "where": f"KAEK='{normalised}'",
+        "outFields": "*",
+        "returnGeometry": "true",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(CADASTRAL_FEATURESERVER, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.exception("lookup_cadastral_parcel failed for KAEK %s", normalised)
+        return {"kaek": normalised, "available": False, "error": str(e)}
+
+    features = data.get("features", [])
+    if not features:
+        return {"kaek": normalised, "available": True, "found": False}
+
+    result = _parse_parcel_feature(features[0])
+    result["kaek"] = normalised  # the queried KAEK, not attrs.get("KAEK") - same value, but avoids relying on the field being echoed back
+    return result
+
+
+async def lookup_parcel_by_point(lat: float, lon: float) -> dict:
+    """Finds whichever parcel (if any) contains a given point, via a
+    point-in-polygon spatial query against the same FeatureServer
+    lookup_cadastral_parcel() uses - for the "found a KAEK from the
+    bounding box" step after an address search or a manual pin drop, where
+    the user hasn't typed a KAEK themselves. Live-verified against a known
+    parcel (KAEK 210183315011's own centroid) before shipping: the spatial
+    query returns the exact same parcel lookup_cadastral_parcel() does by
+    name, confirming the FeatureServer accepts and correctly reprojects a
+    WGS84 point despite storing geometry in Web Mercator natively."""
+    params = {
+        "f": "json",
+        "geometry": json.dumps({"x": lon, "y": lat, "spatialReference": {"wkid": 4326}}),
+        "geometryType": "esriGeometryPoint",
+        "inSR": 4326,
+        "spatialRel": "esriSpatialRelIntersects",
+        "outFields": "*",
+        "returnGeometry": "true",
+    }
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            resp = await client.get(CADASTRAL_FEATURESERVER, params=params)
+            resp.raise_for_status()
+            data = resp.json()
+    except Exception as e:
+        logger.exception("lookup_parcel_by_point failed for (%s, %s)", lat, lon)
+        return {"kaek": None, "available": False, "error": str(e)}
+
+    features = data.get("features", [])
+    if not features:
+        return {"kaek": None, "available": True, "found": False}
+
+    return _parse_parcel_feature(features[0])
 
 
 async def lookup_gis_zone(lat: float, lon: float, municipality: str | None) -> dict:
@@ -83,55 +222,49 @@ async def lookup_gis_zone(lat: float, lon: float, municipality: str | None) -> d
     return {"available": False, "reason": "Το SDIG του ΤΕΕ δεν διαθέτει δημόσιο WFS/WMS endpoint."}
 
 
-def check_archaeological_flag(db: Session, municipality: str | None) -> dict:
-    """Flags a plot as potentially in an archaeological zone by querying the
-    existing RAG infrastructure (ingested KB content) rather than a live API
-    - the Archaeological Cadastre's own developer page is a JS-only SPA with
-    no discoverable public endpoint (GIS Phase 0). Flags true only when a
-    hit clears the same confidence bar chat retrieval uses AND the document
-    actually mentions this municipality - a generic "what is an
-    archaeological zone" document should never trigger a false positive."""
-    if not municipality:
-        return {"flag": False, "notes": None}
+def haversine_distance(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
+    """Returns the great-circle distance in metres between two WGS84 points."""
+    R = 6_371_000
+    phi1, phi2 = math.radians(lat1), math.radians(lat2)
+    dphi = math.radians(lat2 - lat1)
+    dlambda = math.radians(lon2 - lon1)
+    a = math.sin(dphi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2) ** 2
+    return R * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
 
-    construction_vertical = db.query(Vertical).filter(Vertical.slug == "construction").first()
-    if construction_vertical is None:
-        return {"flag": False, "notes": None}
 
-    # Greek municipality names decline (Nominatim's "Δήμος Καβάλας" vs. a
-    # document written as "...της Καβάλας" or just "Καβάλα") - stripping the
-    # generic "Δήμος"/"Δήμου" prefix and truncating the core word's last 2
-    # characters turns an exact-phrase match into a stem match, tolerant of
-    # case endings without a full morphological analyzer. The bare "Δήμος"
-    # prefix is dropped from the search query too, not just the post-filter
-    # check - including it diluted both the embedding and the keyword match
-    # enough that the actual Panagia/Kavala document fell out of the top-k
-    # pool entirely in testing, never reaching the distance check below.
-    core = municipality
-    for prefix in ("Δήμος ", "Δήμου ", "Δήμο "):
-        if core.startswith(prefix):
-            core = core[len(prefix):]
-            break
-    stem = core[:-2] if len(core) > 4 else core
+def check_archaeological_flag(lat: float, lon: float, db: Session) -> dict:
+    """Flags a plot by coordinate proximity to a known protected
+    archaeological site (Haversine distance against archaeological_sites),
+    not by municipality-name text matching. The earlier RAG/municipality
+    approach flagged every plot anywhere in a site's entire municipality
+    regardless of actual distance from the declared zone - a false-positive
+    problem, not a coverage gap (see KNOWN_DECISIONS.md). This is honest
+    about its own limitation in the other direction: radii are conservative
+    manually-curated estimates, not official surveyed zone boundaries, so a
+    plot just outside a radius is not guaranteed clear."""
+    sites = db.query(ArchaeologicalSite).all()
+    matches = []
+    for site in sites:
+        distance_m = haversine_distance(lat, lon, float(site.lat), float(site.lon))
+        if distance_m <= site.protection_radius_m:
+            matches.append({"site": site, "distance_m": round(distance_m)})
 
-    # "αρχαιολογικοί περιορισμοί δόμησης {core}" scored measurably closer to
-    # the Panagia/Kavala document than a bare "αρχαιολογική ζώνη {core}" in
-    # testing (0.435 vs 0.549) - the construction-permit framing matches how
-    # that document (and this whole vertical) actually phrases the topic.
-    query = f"αρχαιολογικοί περιορισμοί δόμησης {core}"
-    outcome = search_documents(db, _SYSTEM_USER, query, construction_vertical.id)
+    if not matches:
+        return {"flag": False, "notes": None, "site_name": None, "distance_m": None}
 
-    # search_documents/visible_documents_filter don't filter by municipality
-    # substring match on their own (that param only narrows *uploaded*
-    # municipality documents, not manual_entry/public KB content) - so the
-    # municipality check happens here, on the hit's own text, to avoid a
-    # generic "what is an archaeological zone" document flagging every plot.
-    for hit in outcome.hits:
-        haystack = (hit.title or "") + hit.chunk_text
-        if hit.distance < _ARCHAEOLOGICAL_DISTANCE_THRESHOLD and stem in haystack:
-            return {
-                "flag": True,
-                "notes": f"Πιθανή αρχαιολογική ζώνη - βλ. \"{hit.title}\". Επιβεβαιώστε με την αρμόδια Εφορεία Αρχαιοτήτων.",
-            }
-
-    return {"flag": False, "notes": None}
+    closest = min(matches, key=lambda m: m["distance_m"])
+    site = closest["site"]
+    notes = (
+        f"Το τεμάχιο βρίσκεται εντός {closest['distance_m']}μ. από τον "
+        f"αρχαιολογικό χώρο {site.name_el}. "
+        f"{site.protection_zone_description or ''} "
+        f"Νομική βάση: {site.legal_basis}. "
+        f"Απαιτείται γνωμοδότηση από την αρμόδια Εφορεία Αρχαιοτήτων "
+        f"πριν από οποιαδήποτε εκσκαφή ή κατασκευαστική εργασία."
+    ).replace("  ", " ").strip()
+    return {
+        "flag": True,
+        "notes": notes,
+        "site_name": site.name_el,
+        "distance_m": closest["distance_m"],
+    }

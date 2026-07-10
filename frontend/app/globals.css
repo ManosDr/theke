@@ -44,12 +44,15 @@
   --radius-md: 16px;
   --radius-lg: 24px;
 
-  /* Sidebar gradient - the exact stops from the Theke Admin design
-     prototype's own [data-app-theme="light"] --sidebar-grad token. The
-     shell chrome (sidebar/top bar) now follows this design directly rather
-     than the app's older gradient, per explicit direction to recreate the
-     handoff's sidebar/top-bar rather than keep the pre-existing chrome. */
-  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #eaf4ee 75%, #eaf4ee 100%);
+  /* Sidebar gradient - originally the Theke Admin design prototype's exact
+     [data-app-theme="light"] --sidebar-grad stops (white fading to a light
+     green). Overridden per explicit direction: the footer/user-info block
+     at the bottom of the sidebar paints its own solid --admin-accent-navy
+     background on top of this gradient, so the gradient's own tail color
+     was invisible anyway - it now fades into that same navy instead of
+     green, so the color appears to originate at the footer and lighten
+     upward rather than jumping from an unrelated tint straight to navy. */
+  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #1b2a4a 85%, #1b2a4a 100%);
 
   --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
@@ -143,7 +146,12 @@
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
-  --gradient-sidebar: linear-gradient(180deg, #1a2439 0%, #1a2439 55%, #16233c 75%, #16233c 100%);
+  /* Fades into --admin-accent-navy (dark theme's value, #3e5a9e - a lighter
+     blue than the body tone below) instead of the darker #16233c it used
+     to end on, for the same reason as the light-theme override above: the
+     footer's solid navy sits right below this and should read as a
+     continuation of the gradient, not a seam. */
+  --gradient-sidebar: linear-gradient(180deg, #1a2439 0%, #1a2439 55%, #3e5a9e 85%, #3e5a9e 100%);
 
   /* Dark-mode admin palette, per the handoff's [data-app-theme="dark"] token
      set. The two vertical accents get brighter variants specifically for

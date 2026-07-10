@@ -119,7 +119,6 @@ class Document(Base):
     content: Mapped[str | None] = mapped_column(Text)
     content_hash: Mapped[str | None] = mapped_column(Text)
     source_name: Mapped[str | None] = mapped_column(Text)
-    raw_json: Mapped[dict | None] = mapped_column(JSON)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     municipality: Mapped[str | None] = mapped_column(Text)
     uploaded_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
@@ -154,11 +153,6 @@ class Document(Base):
     # request-time queries - so the review queue stays cheap and stable
     # instead of recomputing "is this stale" on every page load.
     needs_review: Mapped[bool] = mapped_column(default=False)
-    # True for procedural documents whose requirements apply to a private
-    # individual building their own home (as opposed to e.g. commercial/
-    # industrial-only procedures) - lets a future "am I affected by this"
-    # filter exist without re-classifying every document's title by hand.
-    applies_to_first_time_homeowner: Mapped[bool | None] = mapped_column(default=False)
 
     embeddings: Mapped[list["Embedding"]] = relationship(back_populates="document")
 

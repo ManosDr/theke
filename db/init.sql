@@ -190,7 +190,6 @@ CREATE TABLE IF NOT EXISTS documents (
     -- (they aren't crawled - see doc_type='upload' instead). Powers the
     -- "browse by source" UI.
     source_name VARCHAR,
-    raw_json JSONB,
     company_id INT REFERENCES companies(id),  -- NULL = public/crawled
     municipality VARCHAR,                     -- set on municipality uploads for broad visibility
     uploaded_by INT REFERENCES users(id),
@@ -218,10 +217,7 @@ CREATE TABLE IF NOT EXISTS documents (
     last_verified_at DATE,
     -- Set by the weekly staleness job (crawler/crawler/staleness.py), not
     -- computed at request time, so the review queue is a plain flag read.
-    needs_review BOOLEAN NOT NULL DEFAULT false,
-    -- True for procedural docs whose requirements apply to a private
-    -- individual building their own home - see KNOWN_DECISIONS.md.
-    applies_to_first_time_homeowner BOOLEAN DEFAULT false
+    needs_review BOOLEAN NOT NULL DEFAULT false
 );
 
 CREATE INDEX IF NOT EXISTS idx_documents_region ON documents(region_id);
@@ -634,3 +630,13 @@ ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS prompt_tokens integer;
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS completion_tokens integer;
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS total_tokens integer;
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS estimated_cost_eur decimal(10, 6);
+
+-- Dead-column cleanup (2026-07-10 session audit): both columns were
+-- write-only in practice - raw_json was populated by a one-off backfill
+-- and never read by any router/service; applies_to_first_time_homeowner
+-- was set aside for a "am I affected by this" filter that was never built.
+-- Grepped the entire codebase (backend/frontend/crawler) before dropping -
+-- zero references outside this file and the model definitions removed
+-- alongside this migration.
+ALTER TABLE documents DROP COLUMN IF EXISTS raw_json;
+ALTER TABLE documents DROP COLUMN IF EXISTS applies_to_first_time_homeowner;

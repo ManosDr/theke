@@ -167,8 +167,6 @@ export function DocumentsPanel() {
     refresh();
   }
 
-  const verticalBySlug = new Map(verticals.map((v) => [v.slug, v]));
-
   return (
     <div>
       <div className={styles.headerRow}>

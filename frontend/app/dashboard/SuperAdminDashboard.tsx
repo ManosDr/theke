@@ -22,11 +22,6 @@ import { SentimentDonut } from "./SentimentDonut";
 import { VerticalStatsCard } from "./VerticalStatsCard";
 import styles from "./dashboard.module.css";
 
-const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
-  construction: "register.typeConstruction",
-  municipality: "register.typeMunicipality",
-};
-
 const BUILTIN_TRANSLATIONS = translations as Record<string, Partial<Record<TranslationKey, string>>>;
 
 type SecondaryTab = "staleness" | "languages" | "audit";

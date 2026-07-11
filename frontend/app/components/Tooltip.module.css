@@ -19,7 +19,7 @@
 
 .trigger:hover,
 .trigger:focus-visible {
-  color: var(--color-primary);
+  color: var(--color-link);
 }
 
 .bubble {

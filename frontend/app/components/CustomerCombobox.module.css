@@ -50,7 +50,7 @@
 }
 
 .newOption {
-  color: var(--color-primary);
+  color: var(--color-link);
   font-weight: 600;
 }
 
@@ -79,7 +79,7 @@
 }
 
 .changeLink:hover {
-  color: var(--color-primary);
+  color: var(--color-link);
 }
 
 .selectedMeta {

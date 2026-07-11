@@ -71,7 +71,7 @@
   font-weight: 600;
   text-align: right;
   min-width: 0;
-  color: var(--color-primary);
+  color: var(--color-link);
 }
 
 .tone-success .iconBadge {

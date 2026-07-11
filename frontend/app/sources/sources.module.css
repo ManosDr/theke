@@ -20,11 +20,11 @@
 }
 
 .sourceButton:hover {
-  border-color: var(--color-primary);
+  border-color: var(--color-link);
 }
 
 .sourceButtonActive {
-  border-color: var(--color-primary);
+  border-color: var(--color-link);
   background: var(--color-surface-alt);
 }
 

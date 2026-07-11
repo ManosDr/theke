@@ -26,6 +26,16 @@
   --color-primary-hover: #2a6fdb;
   --color-accent: #ffa800;
   --color-accent-hover: #e69500;
+  /* For TEXT/border/outline foreground use (links, active tabs, focus
+     rings) as opposed to --color-primary's fills (buttons, active
+     backgrounds). In light mode this navy already has huge contrast
+     against white, so it's just an alias - but dark mode's brightened
+     --color-primary (#3e5a9e) still only reads ~2.5:1 against a dark
+     card, which is fine as a button fill with white text on top but
+     fails WCAG outright as foreground text/border. See dark theme
+     override below. */
+  --color-link: var(--color-primary);
+  --color-link-hover: var(--color-primary-hover);
 
   /* Feedback */
   --color-success: #27ae60;
@@ -160,6 +170,17 @@
   --color-primary-hover: #5c7dc4;
   --color-accent: #ffcf00;
   --color-accent-hover: #ffa800;
+  /* Lighter than --color-primary specifically so text/borders/focus rings
+     stay readable on dark surfaces - #3e5a9e measures ~2.5:1 against the
+     dark card background (fails WCAG AA's 4.5:1 for text and even the
+     3:1 floor for UI components like borders/outlines), which is exactly
+     the "different blues" contrast problem flagged on the register page.
+     This periwinkle tint keeps the same navy/blue hue family (~225°) but
+     lifts luminance enough to clear ~6.4:1 against the card surface;
+     the hover variant lifts further still, matching the existing
+     dark-mode "brighten on interaction" convention. */
+  --color-link: #8da3e0;
+  --color-link-hover: #aebfea;
 
   --color-success: #00d08b;
   --color-success-bg: #123b2c;
@@ -250,16 +271,19 @@
   }
 }
 
-/* Keyboard-only focus ring (not shown on mouse click) in the app's own
-   primary color, matching .input:focus below - buttons/links/tabs
-   previously fell back to each browser's native outline, which is
-   inconsistent and easy to lose track of against custom-styled controls. */
+/* Keyboard-only focus ring (not shown on mouse click) in --color-link
+   rather than --color-primary - the ring sits directly on whatever
+   surface it's focusing, so it needs the foreground-contrast-safe token
+   (see --color-link's comment above), matching .input:focus below.
+   Buttons/links/tabs previously fell back to each browser's native
+   outline, which is inconsistent and easy to lose track of against
+   custom-styled controls. */
 a:focus-visible,
 button:focus-visible,
 [role="tab"]:focus-visible,
 select:focus-visible,
 textarea:focus-visible {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-link);
   outline-offset: 2px;
 }
 
@@ -278,7 +302,7 @@ body {
 }
 
 a {
-  color: var(--color-primary);
+  color: var(--color-link);
   text-decoration: none;
 }
 
@@ -287,7 +311,7 @@ a {
    text both set to --color-primary-hover on hover (same dark green),
    making the label unreadable. */
 a:not(.btn):hover {
-  color: var(--color-primary-hover);
+  color: var(--color-link-hover);
 }
 
 mark {
@@ -372,7 +396,7 @@ button {
 }
 
 .input:focus {
-  outline: 2px solid var(--color-primary);
+  outline: 2px solid var(--color-link);
   outline-offset: 1px;
 }
 

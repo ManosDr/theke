@@ -32,7 +32,7 @@
 .clearFilters {
   border: none;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-link);
   font-size: 0.82rem;
   font-weight: 600;
   padding: 0;

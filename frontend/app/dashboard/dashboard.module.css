@@ -241,14 +241,14 @@
 .verticalCardLink {
   border: none;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-link);
   font-weight: 600;
   font-size: 0.85rem;
   padding: 0;
 }
 
 .verticalCardLink:hover {
-  color: var(--color-primary-hover);
+  color: var(--color-link-hover);
 }
 
 .tenantsStrip {
@@ -308,7 +308,7 @@
 
 .tabActive {
   color: var(--color-text);
-  border-bottom-color: var(--color-primary);
+  border-bottom-color: var(--color-link);
 }
 
 .section {

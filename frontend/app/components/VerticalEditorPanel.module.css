@@ -73,7 +73,7 @@
 .systemPromptToggle {
   border: none;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-link);
   font-weight: 600;
   font-size: 0.85rem;
   padding: 0;

@@ -54,7 +54,7 @@
 .linkButton {
   border: none;
   background: none;
-  color: var(--color-primary);
+  color: var(--color-link);
   font-size: 0.85rem;
   cursor: pointer;
   padding: 0;

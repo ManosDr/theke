@@ -166,6 +166,15 @@
   padding: 12px 8px;
 }
 
+/* The label span is removed from the DOM entirely when collapsed (see
+   Sidebar.tsx's {!collapsed && <span>...}), leaving only the icon box in
+   .navItem's flex row - its expanded-state left padding then put the icon
+   off-center instead of centered in the collapsed 48px-wide row. */
+.sidebarCollapsed .navItem {
+  justify-content: center;
+  padding: 9px 0;
+}
+
 .navSectionWrap {
   margin-bottom: 2px;
 }
@@ -287,7 +296,7 @@
   width: 32px;
   height: 32px;
   border-radius: 50%;
-  background: #2a6fdb;
+  background: var(--color-primary);
   color: #fff;
   display: flex;
   align-items: center;

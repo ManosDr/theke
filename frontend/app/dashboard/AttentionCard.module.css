@@ -1,8 +1,15 @@
+/* One neutral card background/border for every tone - same restraint as
+   StatCard.module.css's own comment describes: color lives in the icon
+   badge (and, for the genuinely urgent "danger" tone only, the value/cta
+   text), not painted across the whole card. Previously each tone tinted
+   the entire card background/border, which is what produced the
+   disconnected multi-color "rainbow" row of attention cards. */
 .card {
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: var(--space-3);
+  background: var(--color-surface);
   border: 1px solid var(--color-border);
 }
 
@@ -21,6 +28,7 @@
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--color-text-muted);
   /* Flex children default to min-width:auto, which refuses to shrink below
      the (nowrap) text's intrinsic width - the ellipsis above never actually
      engaged as a result, so a long label (e.g. the token-count-suffixed
@@ -36,6 +44,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
+  color: #ffffff;
 }
 
 .bottom {
@@ -51,6 +60,7 @@
   font-weight: 800;
   line-height: 1;
   min-width: 0;
+  color: var(--color-text);
 }
 
 .cta {
@@ -61,53 +71,22 @@
   font-weight: 600;
   text-align: right;
   min-width: 0;
-}
-
-.tone-success {
-  background: var(--color-success-bg);
-  border-color: color-mix(in srgb, var(--color-success) 30%, var(--color-border) 70%);
-}
-.tone-success .label {
-  color: color-mix(in srgb, var(--color-success) 55%, var(--color-text-muted) 45%);
-}
-.tone-success .iconBadge {
-  background: color-mix(in srgb, var(--color-success) 22%, transparent);
-  color: var(--color-success);
-}
-.tone-success .value {
-  color: var(--color-text);
-}
-.tone-success .cta {
   color: var(--color-primary);
 }
 
-.tone-warning {
-  background: var(--color-warning-bg);
-  border-color: color-mix(in srgb, var(--color-warning) 35%, var(--color-border) 65%);
-}
-.tone-warning .label {
-  color: color-mix(in srgb, var(--color-warning) 60%, var(--color-text-muted) 40%);
-}
-.tone-warning .iconBadge {
-  background: color-mix(in srgb, var(--color-warning) 25%, transparent);
-  color: var(--color-warning);
-}
-.tone-warning .value,
-.tone-warning .cta {
-  color: var(--color-warning);
+.tone-success .iconBadge {
+  background: var(--color-success);
 }
 
-.tone-danger {
-  background: var(--color-danger-bg);
-  border-color: color-mix(in srgb, var(--color-danger) 35%, var(--color-border) 65%);
+.tone-warning .iconBadge {
+  background: var(--color-warning);
 }
-.tone-danger .label {
-  color: color-mix(in srgb, var(--color-danger) 60%, var(--color-text-muted) 40%);
-}
+
 .tone-danger .iconBadge {
-  background: color-mix(in srgb, var(--color-danger) 25%, transparent);
-  color: var(--color-danger);
+  background: var(--color-danger);
 }
+
+.tone-danger .label,
 .tone-danger .value,
 .tone-danger .cta {
   color: var(--color-danger);

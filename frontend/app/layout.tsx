@@ -35,7 +35,7 @@ export const viewport: Viewport = {
   width: "device-width",
   initialScale: 1,
   viewportFit: "cover",
-  themeColor: "#0bb783",
+  themeColor: "#1b2a4a",
 };
 
 // Runs before hydration so the correct theme applies on first paint - avoids

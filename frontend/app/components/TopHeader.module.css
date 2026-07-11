@@ -131,7 +131,7 @@
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: #2a6fdb;
+  background: var(--color-primary);
   color: #fff;
   border: none;
   display: flex;

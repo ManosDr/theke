@@ -17,9 +17,13 @@
   --color-text-on-primary: #ffffff;
   --color-text-on-accent: #151d48;
 
-  /* Brand */
-  --color-primary: #0bb783;
-  --color-primary-hover: #099b6e;
+  /* Brand - matches --admin-accent-navy exactly (the sidebar's own navy)
+     so every primary action/link/chart line reads as the same identity as
+     the sidebar/avatar, instead of the old unrelated green. Hover lifts to
+     --admin-info's blue (#2a6fdb, previously only hardcoded onto the
+     avatar circle) for a clear but still same-family interactive state. */
+  --color-primary: #1b2a4a;
+  --color-primary-hover: #2a6fdb;
   --color-accent: #ffa800;
   --color-accent-hover: #e69500;
 
@@ -78,16 +82,24 @@
      background specifically, so it stays dark in both themes to keep that
      "advanced/raw" signal legible even against a lightened dark-mode page. */
   --admin-navy-solid: #1b2a4a;
-  --admin-stone: #8c8680;
+  /* Was #8c8680 (warm gray) - shifted cool to match --color-text-muted's
+     family instead of clashing with the navy/blue identity. */
+  --admin-stone: #7c8194;
   /* The prototype's --text-body: a third text tone distinct from
      --admin-navy (headings) and --admin-stone (muted labels) - used for
      default/inactive body text like nav item labels and switcher segments. */
   --admin-text-body: #4a4a4a;
-  --admin-parchment: #f5f0e8;
+  /* Was #f5f0e8 (warm cream/beige) - the whole post-login app shell reads
+     this token (see AppShell.module.css), so its warmth was the single
+     biggest source of the app feeling visually split from the navy/blue
+     chrome. Shifted to a cool near-white matching --color-bg's family. */
+  --admin-parchment: #f4f6fa;
   --admin-topbar-bg: #ffffff;
-  --admin-card-border: #e4dccc;
-  --admin-row-border: #f0eae0;
-  --admin-chip-bg: #f0eae0;
+  /* Was #e4dccc/#f0eae0/#f0eae0 (warm tan) - same reasoning, shifted to
+     match --color-border/--color-surface-alt's cool family. */
+  --admin-card-border: #e3e7f0;
+  --admin-row-border: #eef1f7;
+  --admin-chip-bg: #eef1f7;
   --admin-construction: #2d5016;
   --admin-construction-on-dark: #2d5016;
   --admin-construction-bg: #eaf1e4;
@@ -129,8 +141,13 @@
   --color-text-on-primary: #ffffff;
   --color-text-on-accent: #151d48;
 
-  --color-primary: #0bb783;
-  --color-primary-hover: #00e096;
+  /* Same navy-blue identity as light mode, riding the theme-adaptive curve
+     --admin-accent-navy already uses: brightens rather than staying at the
+     near-black light-mode value, since that would barely register against
+     an already-dark page. Hover lifts lighter still, the standard
+     dark-mode "brighten on interaction" direction. */
+  --color-primary: #3e5a9e;
+  --color-primary-hover: #5c7dc4;
   --color-accent: #ffcf00;
   --color-accent-hover: #ffa800;
 

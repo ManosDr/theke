@@ -82,6 +82,7 @@ function LoginContent() {
 
   return (
     <main className={styles.page}>
+      <h1 className="sr-only">theke — {t("login.signIn")}</h1>
       <div className={styles.themeToggle} style={{ display: "flex", gap: "var(--space-2)" }}>
         <LanguageToggle />
         <ThemeToggle />

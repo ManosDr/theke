@@ -191,8 +191,9 @@ export function Sidebar() {
           className={styles.collapseToggle}
           onClick={toggleCollapsed}
           title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+          aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
         >
-          {collapsed ? "›" : "‹"}
+          <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
         </button>
       </div>
 
@@ -277,7 +278,13 @@ export function Sidebar() {
                 <div className={styles.footerEmail}>{user?.email}</div>
                 <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
               </div>
-              <button type="button" className={styles.signOutButton} title={t("nav.signOut")} onClick={handleLogout}>
+              <button
+                type="button"
+                className={styles.signOutButton}
+                title={t("nav.signOut")}
+                aria-label={t("nav.signOut")}
+                onClick={handleLogout}
+              >
                 <LogoutIcon size={15} />
               </button>
             </>

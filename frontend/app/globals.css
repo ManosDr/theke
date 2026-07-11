@@ -45,7 +45,10 @@
   --color-purple-bg: #f3e8ff;
 
   /* Chrome */
-  --shadow-sm: 0 1px 2px rgba(21, 29, 72, 0.06);
+  /* Slightly stronger than before (was 0 1px 2px / 0.06) - .card lost its
+     1px border so this alone now has to read as "card" against the page,
+     not just add a subtle lift on top of a bordered box. */
+  --shadow-sm: 0 1px 3px rgba(21, 29, 72, 0.1), 0 1px 2px rgba(21, 29, 72, 0.06);
   --shadow-md: 0 8px 24px rgba(21, 29, 72, 0.08);
   --radius-sm: 8px;
   --radius-md: 16px;
@@ -163,7 +166,7 @@
   --color-purple: #a855f7;
   --color-purple-bg: #2a1a45;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
   /* Fades into --admin-accent-navy (dark theme's value, #3e5a9e - a lighter
@@ -209,6 +212,48 @@
 
 * {
   box-sizing: border-box;
+}
+
+/* Standard visually-hidden-but-announced pattern - for content (e.g. a
+   page's real <h1>) that screen readers need for navigation/structure but
+   the visual design doesn't call for on screen. */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Standard reduced-motion kill switch - shortens every animation/transition
+   in the app to effectively instant for users who've asked the OS for
+   reduced motion, rather than auditing each transition individually. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Keyboard-only focus ring (not shown on mouse click) in the app's own
+   primary color, matching .input:focus below - buttons/links/tabs
+   previously fell back to each browser's native outline, which is
+   inconsistent and easy to lose track of against custom-styled controls. */
+a:focus-visible,
+button:focus-visible,
+[role="tab"]:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--color-primary);
+  outline-offset: 2px;
 }
 
 html,
@@ -305,7 +350,6 @@ button {
 
 .card {
   background: var(--color-surface);
-  border: 1px solid var(--color-border);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-sm);
   overflow-x: auto;

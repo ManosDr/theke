@@ -11,8 +11,12 @@
   gap: var(--space-2);
   padding: var(--space-5);
   text-align: left;
-  border: 1px solid var(--color-border);
+  /* Transparent, not var(--color-border) - matches the rest of the app's
+     borderless cards at rest, while still reserving the 1px so hover/
+     active's colored border doesn't shift the layout. */
+  border: 1px solid transparent;
   background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .sourceButton:hover {

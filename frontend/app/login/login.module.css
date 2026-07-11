@@ -90,33 +90,51 @@
   grid-column: 1 / -1;
 }
 
-/* Register page's mode switcher - same segmented-pill pattern as the
-   project detail page's .tabs/.tab/.tabActive, so a tab control looks the
-   same everywhere in the app rather than each page inventing its own. */
+/* Register page's mode switcher - underline style, the same pattern as the
+   company admin dashboard's .tabButton/.tabButtonActive, so it reads as a
+   tab (a view selector) rather than a button (an action to trigger). */
 .modeTabs {
   display: flex;
-  gap: 2px;
-  background: var(--color-surface-alt);
-  border-radius: var(--radius-sm);
-  padding: 3px;
+  gap: var(--space-4);
+  border-bottom: 1px solid var(--color-border);
 }
 
 .modeTab {
   flex: 1;
   border: none;
   background: none;
-  font-size: 13px;
+  border-bottom: 2px solid transparent;
+  font-size: 13.5px;
   font-weight: 600;
-  padding: var(--space-2) var(--space-3);
-  border-radius: 6px;
+  padding: var(--space-2) 0 var(--space-3);
   cursor: pointer;
   color: var(--color-text-muted);
   text-align: center;
+  margin-bottom: -1px;
 }
 
-.modeTabActive {
-  background: var(--color-primary);
-  color: var(--color-text-on-primary);
+.modeTab:hover {
+  color: var(--color-text);
+}
+
+.modeTabActive,
+.modeTabActive:hover {
+  color: var(--color-primary);
+  border-bottom-color: var(--color-primary);
+}
+
+/* Animates between the two modes' differing field counts instead of the
+   form abruptly jumping height - see the ResizeObserver wiring in
+   register/page.tsx that keeps this synced to the actual content height. */
+.modeContent {
+  overflow: hidden;
+  transition: height 200ms ease;
+}
+
+.modeContentInner {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
 }
 
 .demoRow {

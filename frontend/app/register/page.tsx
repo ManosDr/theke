@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import FieldError from "../components/FieldError";
@@ -46,6 +46,22 @@ export default function RegisterPage() {
     inviteToken?: string;
     companyName?: string;
   }>({});
+
+  // Tracks the mode-dependent block's real height so .modeContent can
+  // transition to it instead of the form abruptly jumping when switching
+  // between the invite (3 fields) and new-company (4 fields) layouts.
+  const modeContentRef = useRef<HTMLDivElement>(null);
+  const [modeContentHeight, setModeContentHeight] = useState<number | undefined>(undefined);
+
+  useEffect(() => {
+    const el = modeContentRef.current;
+    if (!el) return;
+    const observer = new ResizeObserver((entries) => {
+      setModeContentHeight(entries[0].contentRect.height);
+    });
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   // Looks up the invite's company/vertical as soon as a plausible token is
   // typed/pasted, so the invitee sees what they're joining before
@@ -128,6 +144,7 @@ export default function RegisterPage() {
 
   return (
     <main className={styles.page}>
+      <h1 className="sr-only">theke — {t("register.createAccount")}</h1>
       <div className={styles.themeToggle} style={{ display: "flex", gap: "var(--space-2)" }}>
         <LanguageToggle />
         <ThemeToggle />
@@ -195,61 +212,65 @@ export default function RegisterPage() {
           {fieldErrors.password && <FieldError message={fieldErrors.password} />}
         </div>
 
-        {mode === "invite" ? (
-          <div className={styles.field}>
-            <label htmlFor="inviteToken">{t("register.inviteCode")}</label>
-            <input
-              id="inviteToken"
-              type="text"
-              className="input"
-              value={inviteToken}
-              onChange={(e) => {
-                setInviteToken(e.target.value);
-                if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, inviteToken: undefined }));
-              }}
-              aria-invalid={!!fieldErrors.inviteToken}
-            />
-            {fieldErrors.inviteToken && <FieldError message={fieldErrors.inviteToken} />}
-            {inviteInfo && (
-              <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
-                {t("register.joiningCompany")} <strong>{inviteInfo.company_name}</strong> ·{" "}
-                {inviteInfo.vertical_display_name}
-              </p>
+        <div className={styles.modeContent} style={{ height: modeContentHeight }}>
+          <div ref={modeContentRef} className={styles.modeContentInner}>
+            {mode === "invite" ? (
+              <div className={styles.field}>
+                <label htmlFor="inviteToken">{t("register.inviteCode")}</label>
+                <input
+                  id="inviteToken"
+                  type="text"
+                  className="input"
+                  value={inviteToken}
+                  onChange={(e) => {
+                    setInviteToken(e.target.value);
+                    if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, inviteToken: undefined }));
+                  }}
+                  aria-invalid={!!fieldErrors.inviteToken}
+                />
+                {fieldErrors.inviteToken && <FieldError message={fieldErrors.inviteToken} />}
+                {inviteInfo && (
+                  <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
+                    {t("register.joiningCompany")} <strong>{inviteInfo.company_name}</strong> ·{" "}
+                    {inviteInfo.vertical_display_name}
+                  </p>
+                )}
+                {inviteInfoError && <p className={styles.error}>{inviteInfoError}</p>}
+              </div>
+            ) : (
+              <>
+                <div className={styles.field}>
+                  <label htmlFor="companyName">{t("register.companyName")}</label>
+                  <input
+                    id="companyName"
+                    type="text"
+                    className="input"
+                    value={companyName}
+                    onChange={(e) => {
+                      setCompanyName(e.target.value);
+                      if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
+                    }}
+                    aria-invalid={!!fieldErrors.companyName}
+                  />
+                  {fieldErrors.companyName && <FieldError message={fieldErrors.companyName} />}
+                </div>
+                <div className={styles.field}>
+                  <label htmlFor="companyType">{t("register.accountType")}</label>
+                  <select
+                    id="companyType"
+                    className="input"
+                    value={companyType}
+                    onChange={(e) => setCompanyType(e.target.value as "construction" | "municipality" | "accounting")}
+                  >
+                    <option value="construction">{t("register.typeConstruction")}</option>
+                    <option value="municipality">{t("register.typeMunicipality")}</option>
+                    <option value="accounting">{t("register.typeAccounting")}</option>
+                  </select>
+                </div>
+              </>
             )}
-            {inviteInfoError && <p className={styles.error}>{inviteInfoError}</p>}
           </div>
-        ) : (
-          <>
-            <div className={styles.field}>
-              <label htmlFor="companyName">{t("register.companyName")}</label>
-              <input
-                id="companyName"
-                type="text"
-                className="input"
-                value={companyName}
-                onChange={(e) => {
-                  setCompanyName(e.target.value);
-                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
-                }}
-                aria-invalid={!!fieldErrors.companyName}
-              />
-              {fieldErrors.companyName && <FieldError message={fieldErrors.companyName} />}
-            </div>
-            <div className={styles.field}>
-              <label htmlFor="companyType">{t("register.accountType")}</label>
-              <select
-                id="companyType"
-                className="input"
-                value={companyType}
-                onChange={(e) => setCompanyType(e.target.value as "construction" | "municipality" | "accounting")}
-              >
-                <option value="construction">{t("register.typeConstruction")}</option>
-                <option value="municipality">{t("register.typeMunicipality")}</option>
-                <option value="accounting">{t("register.typeAccounting")}</option>
-              </select>
-            </div>
-          </>
-        )}
+        </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
           {loading ? t("register.creatingAccount") : t("register.createAccount")}

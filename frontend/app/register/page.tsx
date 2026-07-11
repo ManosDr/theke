@@ -50,18 +50,43 @@ export default function RegisterPage() {
   // Tracks the mode-dependent block's real height so .modeContent can
   // transition to it instead of the form abruptly jumping when switching
   // between the invite (3 fields) and new-company (4 fields) layouts.
+  //
+  // A ResizeObserver-based version of this used to live here, but it never
+  // produced a visible transition: ResizeObserver delivers its callback
+  // before paint, in the same frame the DOM changed, so the browser had no
+  // "old height" frame to actually paint before jumping to the new one -
+  // there was nothing for the CSS transition to interpolate between. This
+  // is the standard FLIP fix instead: lock the wrapper to its current
+  // (pre-switch) height synchronously in the tab click handler below, let
+  // React commit the mode switch against that still-locked height, then
+  // measure the new content's natural height here and apply it a frame
+  // later via requestAnimationFrame - guaranteeing two distinct painted
+  // frames for the transition to animate between.
+  const modeWrapperRef = useRef<HTMLDivElement>(null);
   const modeContentRef = useRef<HTMLDivElement>(null);
   const [modeContentHeight, setModeContentHeight] = useState<number | undefined>(undefined);
+  const modeMounted = useRef(false);
+
+  function lockModeContentHeight() {
+    const wrapper = modeWrapperRef.current;
+    if (!wrapper) return;
+    setModeContentHeight(wrapper.getBoundingClientRect().height);
+  }
 
   useEffect(() => {
-    const el = modeContentRef.current;
-    if (!el) return;
-    const observer = new ResizeObserver((entries) => {
-      setModeContentHeight(entries[0].contentRect.height);
-    });
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, []);
+    const content = modeContentRef.current;
+    if (!content) return;
+
+    if (!modeMounted.current) {
+      modeMounted.current = true;
+      setModeContentHeight(content.scrollHeight);
+      return;
+    }
+
+    const nextHeight = content.scrollHeight;
+    const frame = requestAnimationFrame(() => setModeContentHeight(nextHeight));
+    return () => cancelAnimationFrame(frame);
+  }, [mode]);
 
   // Looks up the invite's company/vertical as soon as a plausible token is
   // typed/pasted, so the invitee sees what they're joining before
@@ -163,7 +188,10 @@ export default function RegisterPage() {
             role="tab"
             aria-selected={mode === "new_company"}
             className={`${styles.modeTab} ${mode === "new_company" ? styles.modeTabActive : ""}`}
-            onClick={() => setMode("new_company")}
+            onClick={() => {
+              lockModeContentHeight();
+              setMode("new_company");
+            }}
           >
             {t("register.createCompany")}
           </button>
@@ -172,7 +200,10 @@ export default function RegisterPage() {
             role="tab"
             aria-selected={mode === "invite"}
             className={`${styles.modeTab} ${mode === "invite" ? styles.modeTabActive : ""}`}
-            onClick={() => setMode("invite")}
+            onClick={() => {
+              lockModeContentHeight();
+              setMode("invite");
+            }}
           >
             {t("register.haveInvite")}
           </button>
@@ -212,7 +243,7 @@ export default function RegisterPage() {
           {fieldErrors.password && <FieldError message={fieldErrors.password} />}
         </div>
 
-        <div className={styles.modeContent} style={{ height: modeContentHeight }}>
+        <div ref={modeWrapperRef} className={styles.modeContent} style={{ height: modeContentHeight }}>
           <div ref={modeContentRef} className={styles.modeContentInner}>
             {mode === "invite" ? (
               <div className={styles.field}>

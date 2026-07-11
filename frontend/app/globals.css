@@ -38,9 +38,16 @@
      inline field-validation messages per the design spec. */
   --error-red: #c62828;
 
-  /* Extra tones for stat tiles/badges, taken from the reference's own palette */
-  --color-info: #0095ff;
-  --color-info-bg: #e2f2ff;
+  /* Extra tones for stat tiles/badges. --color-info was a bright blue
+     (#0095ff) - fine on its own, but once --color-primary became navy
+     (see above) the two sat directly adjacent (Users/Messages, the first
+     two stat cards) as two barely-distinguishable blues, and the same
+     pairing repeats in ActivityChart's two lines. Moved to teal, clearly
+     outside the primary's blue/navy family instead of a same-hue tint of
+     it - the distinction now reads on hue, not just lightness, which also
+     holds up for blue-yellow color-blindness. */
+  --color-info: #0d9488;
+  --color-info-bg: #d9f2ef;
   --color-purple: #8950fc;
   --color-purple-bg: #f3e8ff;
 
@@ -161,8 +168,8 @@
   --color-danger: #f64e60;
   --color-danger-bg: #3a1620;
 
-  --color-info: #4079ed;
-  --color-info-bg: #0d2b45;
+  --color-info: #2dd4bf;
+  --color-info-bg: #0f2e2a;
   --color-purple: #a855f7;
   --color-purple-bg: #2a1a45;
 

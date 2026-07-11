@@ -17,6 +17,7 @@ from app.schemas import (
     ChatMessageCitation,
     ChatMessageRequest,
     ChatMessageResponse,
+    ChatRateLimitStatus,
     ChatRequest,
     ChatResponse,
 )
@@ -26,7 +27,7 @@ from app.services.rag import (
     build_location_context,
     search_regulation,
 )
-from app.services.rate_limit import check_chat_rate_limit
+from app.services.rate_limit import CHAT_MESSAGE_LIMIT, check_chat_rate_limit, get_chat_rate_limit_status
 
 logger = logging.getLogger(__name__)
 
@@ -563,10 +564,24 @@ async def submit_feedback(
         session_id=payload.session_id,
         message_index=payload.message_index,
         rating=payload.rating,
+        feedback_text=payload.feedback_text if payload.rating == "negative" else None,
     )
     db.add(feedback)
     db.commit()
     return {"id": feedback.id}
+
+
+@router.get("/rate-limit-status", response_model=ChatRateLimitStatus)
+async def rate_limit_status(user: CurrentUser = Depends(get_current_user)) -> ChatRateLimitStatus:
+    """Read-only view of the same counter POST /chat/message enforces - lets
+    the chat page warn a user before they hit the 429 wall, not just after."""
+    used, resets_in = get_chat_rate_limit_status(user.user_id)
+    return ChatRateLimitStatus(
+        used=used,
+        limit=CHAT_MESSAGE_LIMIT,
+        remaining=max(CHAT_MESSAGE_LIMIT - used, 0),
+        resets_in_seconds=resets_in,
+    )
 
 
 def _log_session(

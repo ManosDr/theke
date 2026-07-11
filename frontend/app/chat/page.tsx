@@ -1,8 +1,9 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
@@ -11,6 +12,7 @@ import type {
   ChatCitation,
   ChatHistoryResponse,
   ChatMessageResponse,
+  ChatRateLimitStatus,
   DocumentSummary,
   FeedbackRating,
   MyCompanySummary,
@@ -30,19 +32,78 @@ interface Message {
   sessionId?: number | null;
   feedback?: FeedbackRating | null;
   feedbackError?: boolean;
+  // Epoch ms - from ChatHistoryItem.created_at when restored, or Date.now()
+  // when a message is added live. Session-separator grouping and "Νέα
+  // Εκκίνηση" divider placement both key off this, not off array index.
+  createdAt: number;
 }
 
 // Messages, not conversational turns - caps what's sent to the completion
 // as context, not what's shown on screen (the full history stays visible).
 const MAX_HISTORY_MESSAGES = 10;
 
+// A gap of more than this between two consecutive messages starts a new
+// visual "session" in the timeline - purely a display grouping, computed
+// client-side from timestamps already on every message; no schema change.
+const SESSION_GAP_MS = 3 * 60 * 60 * 1000;
+
 function isUnverified(status: string | null): boolean {
   return status === "reference_only" || status === "manual_entry_pending";
 }
 
+interface Divider {
+  index: number; // renders immediately before messages[index]
+  label: string;
+}
+
+type TFunc = (key: TranslationKey, params?: Record<string, string | number>) => string;
+
+function formatSessionLabel(atMs: number, locale: string, t: TFunc): string {
+  const date = new Date(atMs);
+  const now = new Date();
+  const time = date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+  if (date.toDateString() === now.toDateString()) {
+    return `${t("chat.sessionToday")}, ${time}`;
+  }
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  if (date.toDateString() === yesterday.toDateString()) {
+    return `${t("chat.sessionYesterday")}, ${time}`;
+  }
+  const dateStr = date.toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" });
+  return `${dateStr}, ${time}`;
+}
+
+// Merges two divider sources into one sorted list: natural gaps (every
+// message run gets its own leading label, not just the ones after a gap -
+// including the very first run) and explicit "Νέα Εκκίνηση" restart points.
+// A restart at the same index as a natural gap wins - it's the more
+// specific, deliberate event.
+function computeDividers(
+  messages: Message[],
+  restarts: { index: number; at: number }[],
+  locale: string,
+  t: TFunc
+): Divider[] {
+  const byIndex = new Map<number, Divider>();
+  if (messages.length > 0) {
+    byIndex.set(0, { index: 0, label: formatSessionLabel(messages[0].createdAt, locale, t) });
+  }
+  for (let i = 1; i < messages.length; i++) {
+    if (messages[i].createdAt - messages[i - 1].createdAt > SESSION_GAP_MS) {
+      byIndex.set(i, { index: i, label: formatSessionLabel(messages[i].createdAt, locale, t) });
+    }
+  }
+  for (const r of restarts) {
+    const time = new Date(r.at).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    byIndex.set(r.index, { index: r.index, label: t("chat.newStartDivider", { time }) });
+  }
+  return Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
+}
+
 function ChatContent() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const token = user?.token ?? null;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -50,6 +111,32 @@ function ChatContent() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Session separators/restart tracking - purely frontend state, reset on
+  // every history reload (project switch, page refresh) by design: a
+  // returning engineer gets full context back, see chat page's Phase 2 spec.
+  const [restarts, setRestarts] = useState<{ index: number; at: number }[]>([]);
+  const [sessionStartIndex, setSessionStartIndex] = useState(0);
+
+  function startNewSession() {
+    setRestarts((prev) => [...prev, { index: messages.length, at: Date.now() }]);
+    setSessionStartIndex(messages.length);
+  }
+
+  // Thumbs-down opens this inline form instead of saving immediately -
+  // thumbs-up still saves right away (see the two buttons' onClick below).
+  const [dislikePromptIndex, setDislikePromptIndex] = useState<number | null>(null);
+  const [dislikeText, setDislikeText] = useState("");
+
+  const [rateLimitStatus, setRateLimitStatus] = useState<ChatRateLimitStatus | null>(null);
+  function refreshRateLimitStatus() {
+    if (!token) return;
+    api
+      .get<ChatRateLimitStatus>("/chat/rate-limit-status", token)
+      .then(setRateLimitStatus)
+      .catch(() => setRateLimitStatus(null));
+  }
+  useEffect(refreshRateLimitStatus, [token]);
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
@@ -118,20 +205,30 @@ function ChatContent() {
       .then((data) => {
         const restored: Message[] = [];
         for (const item of data.items) {
-          restored.push({ role: "user", text: item.message });
+          const createdAt = new Date(item.created_at).getTime();
+          restored.push({ role: "user", text: item.message, createdAt });
           restored.push({
             role: "assistant",
             text: item.response,
             citations: item.citations,
             gap: item.gap,
             sessionId: item.id,
+            createdAt,
           });
         }
         setMessages(restored);
+        // A returning engineer gets full history AND full LLM context back -
+        // any "Νέα Εκκίνηση" from a prior visit was frontend-only and never
+        // persisted, by design (see Phase 2 spec).
+        setRestarts([]);
+        setSessionStartIndex(0);
       })
       .catch(() => setMessages([]))
       .finally(() => setHistoryLoading(false));
   }, [token, selectedProjectId]);
+
+  const dividers = useMemo(() => computeDividers(messages, restarts, locale, t), [messages, restarts, locale, t]);
+  const dividerByIndex = useMemo(() => new Map(dividers.map((d) => [d.index, d])), [dividers]);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -141,9 +238,15 @@ function ChatContent() {
     const question = (overrideText ?? input).trim();
     if (!question || loading) return;
 
-    const history = messages.slice(-MAX_HISTORY_MESSAGES).map((m) => ({ role: m.role, content: m.text }));
+    // Only messages from the current session (after the last "Νέα
+    // Εκκίνηση") are eligible context - within that, still capped to the
+    // last MAX_HISTORY_MESSAGES for the completion's context window.
+    const history = messages
+      .slice(sessionStartIndex)
+      .slice(-MAX_HISTORY_MESSAGES)
+      .map((m) => ({ role: m.role, content: m.text }));
 
-    setMessages((prev) => [...prev, { role: "user", text: question }]);
+    setMessages((prev) => [...prev, { role: "user", text: question, createdAt: Date.now() }]);
     setInput("");
     setLoading(true);
 
@@ -159,30 +262,66 @@ function ChatContent() {
       );
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: data.answer, citations: data.citations, gap: data.gap, sessionId: data.session_id },
+        {
+          role: "assistant",
+          text: data.answer,
+          citations: data.citations,
+          gap: data.gap,
+          sessionId: data.session_id,
+          createdAt: Date.now(),
+        },
       ]);
     } catch (err) {
       setMessages((prev) => [
         ...prev,
-        { role: "assistant", text: err instanceof ApiError ? err.message : "Error reaching the backend." },
+        {
+          role: "assistant",
+          text: err instanceof ApiError ? err.message : "Error reaching the backend.",
+          createdAt: Date.now(),
+        },
       ]);
     } finally {
       setLoading(false);
+      refreshRateLimitStatus();
     }
   }
 
-  async function submitFeedback(messageIndex: number, sessionId: number, rating: FeedbackRating) {
+  async function submitFeedback(
+    messageIndex: number,
+    sessionId: number,
+    rating: FeedbackRating,
+    feedbackText?: string | null
+  ) {
     // Optimistic lock first - the buttons disable immediately on click, no
     // confirmation dialog per spec. Rolled back (feedbackError shown, lock
     // lifted) only if the request actually fails.
     setMessages((prev) => prev.map((m, i) => (i === messageIndex ? { ...m, feedback: rating, feedbackError: false } : m)));
     try {
-      await api.post("/chat/feedback", { session_id: sessionId, message_index: messageIndex, rating }, token);
+      await api.post(
+        "/chat/feedback",
+        { session_id: sessionId, message_index: messageIndex, rating, feedback_text: feedbackText ?? null },
+        token
+      );
     } catch {
       setMessages((prev) =>
         prev.map((m, i) => (i === messageIndex ? { ...m, feedback: null, feedbackError: true } : m))
       );
     }
+  }
+
+  function openDislikePrompt(messageIndex: number) {
+    setDislikePromptIndex(messageIndex);
+    setDislikeText("");
+  }
+
+  function skipDislikePrompt(messageIndex: number, sessionId: number) {
+    submitFeedback(messageIndex, sessionId, "negative", null);
+    setDislikePromptIndex(null);
+  }
+
+  function submitDislikePrompt(messageIndex: number, sessionId: number) {
+    submitFeedback(messageIndex, sessionId, "negative", dislikeText);
+    setDislikePromptIndex(null);
   }
 
   async function searchKb(e: React.FormEvent) {
@@ -209,16 +348,39 @@ function ChatContent() {
       <div className={`card ${styles.chatPanel}`}>
         <div className={styles.disclaimerBanner}>{company?.vertical_disclaimer_text || t("chat.disclaimer")}</div>
 
-        {selectedProject && (
-          <div className={styles.projectContextBar}>
-            {t("chat.projectLabel")}: {selectedProject.name}
-            {selectedRegionName && (
+        <div className={styles.chatHeaderBar}>
+          <span>
+            {selectedProject ? (
               <>
-                {" "}| {t("chat.regionLabel")}: {selectedRegionName}
+                {t("chat.projectLabel")}: {selectedProject.name}
+                {selectedRegionName && (
+                  <>
+                    {" "}| {t("chat.regionLabel")}: {selectedRegionName}
+                  </>
+                )}
               </>
+            ) : (
+              t("chat.noProjectContext")
             )}
+          </span>
+          <div className={styles.headerControls}>
+            {rateLimitStatus && rateLimitStatus.used >= 15 && (
+              <span
+                className={styles.rateLimitIndicator}
+                data-level={
+                  rateLimitStatus.remaining === 0 ? "danger" : rateLimitStatus.remaining <= 3 ? "warning" : "normal"
+                }
+              >
+                {t("chat.rateLimitLabel", { used: rateLimitStatus.used, limit: rateLimitStatus.limit })}
+                {rateLimitStatus.remaining <= 5 &&
+                  t("chat.rateLimitReset", { minutes: Math.ceil(rateLimitStatus.resets_in_seconds / 60) })}
+              </span>
+            )}
+            <button type="button" className={styles.newSessionButton} onClick={startNewSession}>
+              {t("chat.newStart")}
+            </button>
           </div>
-        )}
+        </div>
 
         {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
           <div className={styles.locationStrip}>
@@ -271,13 +433,18 @@ function ChatContent() {
         <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
           {!historyLoading && messages.length === 0 && (
-            <p className="text-muted">{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+            <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
           )}
           {messages.map((m, i) => (
-            <div
-              key={i}
-              className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}
-            >
+            <Fragment key={i}>
+              {dividerByIndex.has(i) && (
+                <div className={styles.sessionDivider}>
+                  <span>{dividerByIndex.get(i)!.label}</span>
+                </div>
+              )}
+              <div
+                className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}
+              >
               {m.gap && <div className={styles.gapBadge}>{t("chat.gapLabel")}</div>}
               {m.text}
               {m.citations && m.citations.length > 0 && (
@@ -320,27 +487,72 @@ function ChatContent() {
                 <div className={styles.feedbackRow}>
                   <button
                     type="button"
-                    className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonActive : ""}`}
+                    className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonPositive : ""} ${m.feedback === "negative" ? styles.feedbackButtonDimmed : ""}`}
                     disabled={m.feedback != null}
                     onClick={() => submitFeedback(i, m.sessionId as number, "positive")}
                     aria-label={t("chat.feedbackPositive")}
                   >
-                    👍
+                    <ThumbUpIcon size={18} />
                   </button>
                   <button
                     type="button"
-                    className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonActive : ""}`}
+                    className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonNegative : ""} ${m.feedback === "positive" ? styles.feedbackButtonDimmed : ""}`}
                     disabled={m.feedback != null}
-                    onClick={() => submitFeedback(i, m.sessionId as number, "negative")}
+                    onClick={() => openDislikePrompt(i)}
                     aria-label={t("chat.feedbackNegative")}
                   >
-                    👎
+                    <ThumbDownIcon size={18} />
                   </button>
                   {m.feedbackError && <span className={styles.feedbackError}>{t("chat.feedbackError")}</span>}
                 </div>
               )}
-            </div>
+              {dislikePromptIndex === i && m.sessionId != null && (
+                <div className={styles.dislikePrompt}>
+                  <p className={styles.dislikePromptTitle}>{t("chat.feedbackPromptTitle")}</p>
+                  <textarea
+                    className="input"
+                    rows={2}
+                    autoFocus
+                    value={dislikeText}
+                    placeholder={t("chat.feedbackPromptPlaceholder")}
+                    onChange={(e) => setDislikeText(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Escape") skipDislikePrompt(i, m.sessionId as number);
+                    }}
+                  />
+                  <div className={styles.dislikePromptActions}>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => skipDislikePrompt(i, m.sessionId as number)}
+                    >
+                      {t("chat.feedbackSkip")}
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-primary"
+                      onClick={() => submitDislikePrompt(i, m.sessionId as number)}
+                    >
+                      {t("chat.feedbackSubmit")}
+                    </button>
+                  </div>
+                </div>
+              )}
+              </div>
+            </Fragment>
           ))}
+          {/* A restart's divider index equals messages.length at the moment
+             it's clicked - nothing in the .map() above ever renders it until
+             a new message pushes the array past that point. Render it here
+             so "Νέα Εκκίνηση" shows its divider immediately, not only after
+             the next message is sent. */}
+          {dividers
+            .filter((d) => d.index >= messages.length)
+            .map((d) => (
+              <div key={`trailing-${d.index}`} className={styles.sessionDivider}>
+                <span>{d.label}</span>
+              </div>
+            ))}
           {loading && <p className="text-muted">{t("chat.thinking")}</p>}
           <div ref={messagesEndRef} />
         </div>

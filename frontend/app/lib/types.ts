@@ -401,6 +401,19 @@ export interface ChatHistoryResponse {
   items: ChatHistoryItem[];
 }
 
+export interface ChatRateLimitStatus {
+  used: number;
+  limit: number;
+  remaining: number;
+  resets_in_seconds: number;
+}
+
+export interface UserUsageSummary {
+  messages_30d: number;
+  total_tokens_30d: number;
+  estimated_cost_eur_30d: number;
+}
+
 export interface NotificationSummary {
   id: number;
   type: string;
@@ -481,6 +494,23 @@ export interface DataSourcesByVertical {
   vertical_slug: string;
   vertical_display_name: string;
   sources: DataSourceSummary[];
+}
+
+export interface FeedbackEntry {
+  id: number;
+  rating: "positive" | "negative";
+  feedback_text: string | null;
+  status: "pending" | "solved" | "rejected";
+  created_at: string;
+  question: string;
+  answer_excerpt: string;
+  user_name: string;
+  company_name: string | null;
+  vertical: string | null;
+}
+
+export interface FeedbackListResponse {
+  items: FeedbackEntry[];
 }
 
 export interface DataSourceSyncStatus {

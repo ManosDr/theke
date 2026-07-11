@@ -1,0 +1,147 @@
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.filterField {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+
+.filterField select {
+  min-width: 160px;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.88rem;
+}
+
+.table th {
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.table td {
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  vertical-align: top;
+}
+
+.questionCell {
+  max-width: 260px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.commentCell {
+  max-width: 200px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--color-text-muted);
+}
+
+.ratingPositive {
+  display: inline-flex;
+  color: var(--color-success);
+}
+
+.ratingNegative {
+  display: inline-flex;
+  color: var(--color-danger);
+}
+
+.status-pending {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.status-solved {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.status-rejected {
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+}
+
+.rowMenuWrap {
+  position: relative;
+}
+
+.rowMenuButton {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.rowMenu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+  min-width: 190px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.rowMenuItem {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.rowMenuItem:hover {
+  background: var(--color-surface-alt);
+}
+
+.detailRow {
+  background: var(--color-surface-alt);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.detailField p {
+  margin: var(--space-1) 0 0;
+}
+
+.detailLabel {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}

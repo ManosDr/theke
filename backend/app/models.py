@@ -358,6 +358,11 @@ class MessageFeedback(Base):
     # even though session_id alone already identifies which turn this is.
     message_index: Mapped[int] = mapped_column(Integer)
     rating: Mapped[str] = mapped_column(Text)  # 'positive', 'negative'
+    # Optional elaboration on a negative rating - NULL for every positive
+    # rating (never prompted) and for a negative one where the user chose
+    # "Παράλειψη" over typing anything.
+    feedback_text: Mapped[str | None] = mapped_column(Text)
+    status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'solved', 'rejected'
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

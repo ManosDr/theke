@@ -10,7 +10,7 @@ import { API_URL, ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { useCompany } from "../lib/company";
 import { useLocale } from "../lib/i18n";
-import type { MeSummary } from "../lib/types";
+import type { MeSummary, UserUsageSummary } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./account.module.css";
 
@@ -48,6 +48,7 @@ function AccountContent() {
       <h1>{t("account.title")}</h1>
 
       <SectionAccount me={me} token={token} onUpdated={setMe} />
+      {user?.companyId != null && <SectionUsage token={token} companyName={company?.name ?? null} />}
       <SectionSecurity token={token} email={me.email} />
       {user?.role === "admin" && company && <SectionCompany token={token} company={company} onLogoChanged={refreshCompany} />}
     </div>
@@ -117,6 +118,49 @@ function SectionAccount({
         </button>
         {saved && <span className={styles.savedTag}>{t("account.saved")}</span>}
       </div>
+    </section>
+  );
+}
+
+function SectionUsage({ token, companyName }: { token: string | null; companyName: string | null }) {
+  const { t } = useLocale();
+  const [usage, setUsage] = useState<UserUsageSummary | null>(null);
+
+  useEffect(() => {
+    if (!token) return;
+    api
+      .get<UserUsageSummary>("/users/me/usage", token)
+      .then(setUsage)
+      .catch(() => setUsage(null));
+  }, [token]);
+
+  if (!usage) return null;
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionUsage")}</h2>
+      <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: 0 }}>
+        {t("account.usagePeriodLabel")}
+      </p>
+      <div className={styles.fieldGrid}>
+        <div className={styles.field}>
+          {t("account.usageMessages")}
+          <strong>{usage.messages_30d}</strong>
+        </div>
+        <div className={styles.field}>
+          {t("account.usageTokens")}
+          <strong>{usage.total_tokens_30d.toLocaleString()}</strong>
+        </div>
+        <div className={styles.field}>
+          {t("account.usageCost")}
+          <strong>€{usage.estimated_cost_eur_30d.toFixed(2)}</strong>
+        </div>
+      </div>
+      {companyName && (
+        <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-3)" }}>
+          {t("account.usageManagedBy", { company: companyName })}
+        </p>
+      )}
     </section>
   );
 }

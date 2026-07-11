@@ -40,10 +40,11 @@ const ADMIN_SECTIONS = [
     key: "kb",
     labelKey: "nav.knowledgeBase",
     Icon: NavKnowledgeBaseIcon,
-    match: (p: string) => p === "/admin/documents" || p === "/admin/data-sources",
+    match: (p: string) => p === "/admin/documents" || p === "/admin/data-sources" || p === "/admin/feedback",
     children: [
       { href: "/admin/documents", labelKey: "nav.documents", match: (p: string) => p === "/admin/documents" },
       { href: "/admin/data-sources", labelKey: "nav.dataSources", match: (p: string) => p === "/admin/data-sources" },
+      { href: "/admin/feedback", labelKey: "nav.feedback", match: (p: string) => p === "/admin/feedback" },
     ],
   },
   {

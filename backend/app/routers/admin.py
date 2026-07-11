@@ -38,6 +38,9 @@ from app.schemas import (
     DataSourcesByVertical,
     DocumentReplacementRef,
     DocumentSummary,
+    FeedbackEntry,
+    FeedbackListResponse,
+    FeedbackStatusUpdateRequest,
     GapQueryEntry,
     MarkReviewedRequest,
     MarkSupersededRequest,
@@ -45,8 +48,6 @@ from app.schemas import (
     RegionAdminSummary,
     RegionAdminUpdateRequest,
     StaleDocumentSummary,
-    TokenUsageByUser,
-    TokenUsageSummary,
     UndoSupersedeRequest,
     UtilityProviderAdminSummary,
     UtilityProviderAdminUpdateRequest,
@@ -58,6 +59,7 @@ from app.security import hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
+from app.services.usage import company_token_usage
 
 _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 
@@ -203,7 +205,7 @@ async def get_company_detail(
         or 0
     )
 
-    token_usage = _company_token_usage(db, company.id, since_30d, users)
+    token_usage = company_token_usage(db, company.id, since_30d, users)
 
     return CompanyDetail(
         **summary.model_dump(),
@@ -215,64 +217,6 @@ async def get_company_detail(
         messages_30d=messages_30d,
         gap_rate=round(gap_30d / messages_30d * 100, 1) if messages_30d else 0.0,
         token_usage=token_usage,
-    )
-
-
-def _company_token_usage(db: Session, company_id: int, since_30d: datetime, users: list[User]) -> TokenUsageSummary:
-    """Token/cost totals for the last 30 days - NULL columns on gap rows
-    (no GPT call made, see chat.py's _log_session) are excluded by every
-    aggregate here rather than coerced to 0, so a company that only ever
-    hit the off-topic-guard path shows 0 real usage instead of a
-    misleadingly precise-looking 0.0 cost average."""
-    totals = db.execute(
-        select(
-            func.coalesce(func.sum(ChatSession.prompt_tokens), 0),
-            func.coalesce(func.sum(ChatSession.completion_tokens), 0),
-            func.coalesce(func.sum(ChatSession.total_tokens), 0),
-            func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0),
-            func.count(ChatSession.total_tokens),
-        ).where(ChatSession.company_id == company_id, ChatSession.created_at >= since_30d)
-    ).one()
-    prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, priced_message_count = totals
-
-    # message_count here is "messages that contributed to this token total"
-    # (total_tokens IS NOT NULL), not every chat_sessions row for the user -
-    # a row with no GPT call (off-topic-guard) has nothing to attribute a
-    # token/cost figure to, so it's excluded rather than diluting the
-    # per-user average with a message that cost nothing to answer.
-    by_user_rows = db.execute(
-        select(
-            ChatSession.user_id,
-            func.coalesce(func.sum(ChatSession.total_tokens), 0),
-            func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0),
-            func.count(ChatSession.id),
-        )
-        .where(
-            ChatSession.company_id == company_id,
-            ChatSession.created_at >= since_30d,
-            ChatSession.total_tokens.isnot(None),
-        )
-        .group_by(ChatSession.user_id)
-    ).all()
-    user_names = {u.id: (u.name or u.email) for u in users}
-
-    return TokenUsageSummary(
-        prompt_tokens_30d=int(prompt_tokens),
-        completion_tokens_30d=int(completion_tokens),
-        total_tokens_30d=int(total_tokens),
-        estimated_cost_eur_30d=round(float(estimated_cost_eur), 4),
-        avg_tokens_per_message=round(total_tokens / priced_message_count) if priced_message_count else 0,
-        by_user=[
-            TokenUsageByUser(
-                user_id=user_id,
-                name=user_names.get(user_id, "—"),
-                total_tokens_30d=int(user_total_tokens),
-                estimated_cost_eur_30d=round(float(user_cost), 4),
-                message_count=message_count,
-            )
-            for user_id, user_total_tokens, user_cost, message_count in by_user_rows
-            if user_id is not None
-        ],
     )
 
 
@@ -1134,3 +1078,72 @@ async def platform_audit_log(
         )
         for e in entries
     ]
+
+
+@router.get("/feedback", response_model=FeedbackListResponse)
+async def list_feedback(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> FeedbackListResponse:
+    """Every thumbs-up/down rating across the whole platform, most recent
+    first - the triage queue behind the Ανατροφοδότηση admin screen. One
+    joined query rather than per-row lookups since this can return every
+    rating ever recorded, unlike the single-row PATCH below."""
+    require_super_admin(user)
+    rows = db.execute(
+        select(MessageFeedback, ChatSession, User, Company, Vertical)
+        .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+        .outerjoin(User, User.id == ChatSession.user_id)
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .outerjoin(Vertical, Vertical.id == Company.vertical_id)
+        .order_by(MessageFeedback.created_at.desc())
+    ).all()
+    return FeedbackListResponse(
+        items=[
+            FeedbackEntry(
+                id=fb.id,
+                rating=fb.rating,
+                feedback_text=fb.feedback_text,
+                status=fb.status,
+                created_at=fb.created_at,
+                question=session.message or "",
+                answer_excerpt=(session.response or "")[:200],
+                user_name=(u.name or u.email) if u else "—",
+                company_name=company.name if company else None,
+                vertical=vertical.slug if vertical else None,
+            )
+            for fb, session, u, company, vertical in rows
+        ]
+    )
+
+
+@router.patch("/feedback/{feedback_id}", response_model=FeedbackEntry)
+async def update_feedback_status(
+    feedback_id: int,
+    payload: FeedbackStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> FeedbackEntry:
+    require_super_admin(user)
+    fb = db.get(MessageFeedback, feedback_id)
+    if not fb:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Feedback not found")
+    fb.status = payload.status
+    db.commit()
+
+    session = db.get(ChatSession, fb.session_id)
+    u = db.get(User, session.user_id) if session and session.user_id else None
+    company = db.get(Company, session.company_id) if session and session.company_id else None
+    vertical = db.get(Vertical, company.vertical_id) if company else None
+    return FeedbackEntry(
+        id=fb.id,
+        rating=fb.rating,
+        feedback_text=fb.feedback_text,
+        status=fb.status,
+        created_at=fb.created_at,
+        question=(session.message if session else None) or "",
+        answer_excerpt=((session.response if session else None) or "")[:200],
+        user_name=(u.name or u.email) if u else "—",
+        company_name=company.name if company else None,
+        vertical=vertical.slug if vertical else None,
+    )

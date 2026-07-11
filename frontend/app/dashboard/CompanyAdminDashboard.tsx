@@ -26,6 +26,7 @@ import type {
   MyCompanySummary,
   ProjectSummary,
   RemovalRequestSummary,
+  TokenUsageSummary,
   UserSummary,
 } from "../lib/types";
 import { StatCard } from "./StatCard";
@@ -102,7 +103,7 @@ export function CompanyAdminDashboard() {
       </div>
 
       <div className={tabStyles.tabContent}>
-        {tab === "overview" && <OverviewTab token={token} />}
+        {tab === "overview" && <OverviewTab token={token} onNavigateToUsers={() => setTab("users")} />}
         {tab === "users" && <UsersTab token={token} />}
         {tab === "documents" && <DocumentsTab token={token} />}
         {tab === "customers" && <CustomersTab token={token} />}
@@ -111,18 +112,22 @@ export function CompanyAdminDashboard() {
   );
 }
 
-function OverviewTab({ token }: { token: string | null }) {
+function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNavigateToUsers: () => void }) {
   const { t, locale } = useLocale();
   const [data, setData] = useState<CompanyOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [usage, setUsage] = useState<TokenUsageSummary | null>(null);
 
   useEffect(() => {
     if (!token) return;
     api.get<CompanyOverviewResponse>("/companies/me/overview", token).then(setData).finally(() => setLoading(false));
+    api.get<TokenUsageSummary>("/companies/me/usage", token).then(setUsage).catch(() => setUsage(null));
   }, [token]);
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (!data) return null;
+
+  const topUsers = usage ? [...usage.by_user].sort((a, b) => b.total_tokens_30d - a.total_tokens_30d).slice(0, 10) : [];
 
   return (
     <div className={tabStyles.scrollPane}>
@@ -158,6 +163,49 @@ function OverviewTab({ token }: { token: string | null }) {
           label={`${t("dash.company.statTokens")} · €${data.estimated_cost_eur_30d.toFixed(2)}`}
         />
       </div>
+
+      {topUsers.length > 0 && (
+        <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.company.usageByUser")}</h2>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("dash.company.usageColUser")}</th>
+                <th>{t("dash.company.usageColMessages")}</th>
+                <th>{t("dash.company.usageColTokens")}</th>
+                <th>{t("dash.company.usageColCost")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {topUsers.map((u) => (
+                <tr key={u.user_id}>
+                  <td>{u.name}</td>
+                  <td>{u.message_count}</td>
+                  <td>{u.total_tokens_30d.toLocaleString()}</td>
+                  <td>€{u.estimated_cost_eur_30d.toFixed(2)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <button
+            type="button"
+            onClick={onNavigateToUsers}
+            style={{
+              background: "none",
+              border: "none",
+              padding: 0,
+              marginTop: "var(--space-3)",
+              color: "var(--color-link)",
+              fontWeight: 600,
+              cursor: "pointer",
+            }}
+          >
+            {t("dash.company.usageSeeAll")}
+          </button>
+        </section>
+      )}
 
       <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <div className={styles.sectionHeader}>

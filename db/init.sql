@@ -640,3 +640,10 @@ ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS estimated_cost_eur decimal(10
 -- alongside this migration.
 ALTER TABLE documents DROP COLUMN IF EXISTS raw_json;
 ALTER TABLE documents DROP COLUMN IF EXISTS applies_to_first_time_homeowner;
+
+-- Optional free-text elaboration on a thumbs-down rating, plus a triage
+-- status for the super-admin feedback screen. feedback_text stays NULL for
+-- thumbs-up (never prompted) and for a thumbs-down where the user chose
+-- "Παράλειψη" - both are valid, distinct from an empty string.
+ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS feedback_text text;
+ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS status varchar NOT NULL DEFAULT 'pending';  -- 'pending', 'solved', 'rejected'

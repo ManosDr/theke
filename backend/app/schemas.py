@@ -169,6 +169,9 @@ class ChatFeedbackRequest(BaseModel):
     session_id: int
     message_index: int
     rating: Literal["positive", "negative"]
+    # Only ever prompted for on a negative rating - null is valid there too
+    # ("Παράλειψη"), and is the only value accepted for a positive rating.
+    feedback_text: str | None = None
 
 
 class ChatHistoryResponse(BaseModel):
@@ -840,3 +843,37 @@ class MarkSupersededRequest(BaseModel):
 
 class UndoSupersedeRequest(BaseModel):
     confirmed: bool
+
+
+class ChatRateLimitStatus(BaseModel):
+    used: int
+    limit: int
+    remaining: int
+    resets_in_seconds: int
+
+
+class UserUsageSummary(BaseModel):
+    messages_30d: int
+    total_tokens_30d: int
+    estimated_cost_eur_30d: float
+
+
+class FeedbackEntry(BaseModel):
+    id: int
+    rating: Literal["positive", "negative"]
+    feedback_text: str | None
+    status: Literal["pending", "solved", "rejected"]
+    created_at: datetime
+    question: str
+    answer_excerpt: str
+    user_name: str
+    company_name: str | None
+    vertical: str | None
+
+
+class FeedbackListResponse(BaseModel):
+    items: list[FeedbackEntry]
+
+
+class FeedbackStatusUpdateRequest(BaseModel):
+    status: Literal["solved", "rejected"]

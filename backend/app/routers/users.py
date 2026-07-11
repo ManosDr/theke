@@ -1,10 +1,13 @@
+from datetime import datetime, timedelta
+
 from fastapi import APIRouter, Depends
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import User
-from app.schemas import MeSummary, UpdateMeRequest
+from app.models import ChatSession, User
+from app.schemas import MeSummary, UpdateMeRequest, UserUsageSummary
 
 router = APIRouter(prefix="/users", tags=["users"])
 
@@ -45,3 +48,41 @@ async def update_me(
     db.commit()
     db.refresh(db_user)
     return _to_me_summary(db_user)
+
+
+@router.get("/me/usage", response_model=UserUsageSummary)
+async def get_my_usage(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> UserUsageSummary:
+    """Informational only, no hard cap per user (that's the hourly rate
+    limit's job) - lets a member see their own 30-day footprint alongside
+    the company-wide total their admin already sees."""
+    since_30d = datetime.utcnow() - timedelta(days=30)
+    messages_30d = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
+    total_tokens_30d = (
+        db.scalar(
+            select(func.coalesce(func.sum(ChatSession.total_tokens), 0))
+            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
+    estimated_cost_eur_30d = (
+        db.scalar(
+            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0))
+            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
+        )
+        or 0
+    )
+    return UserUsageSummary(
+        messages_30d=messages_30d,
+        total_tokens_30d=int(total_tokens_30d),
+        estimated_cost_eur_30d=round(float(estimated_cost_eur_30d), 4),
+    )

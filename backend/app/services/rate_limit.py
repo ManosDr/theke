@@ -77,3 +77,16 @@ def check_chat_rate_limit(user_id: int) -> bool:
     if count == 1:
         client.expire(key, CHAT_MESSAGE_WINDOW_SECONDS)
     return count <= CHAT_MESSAGE_LIMIT
+
+
+def get_chat_rate_limit_status(user_id: int) -> tuple[int, int]:
+    """(used, resets_in_seconds) for display, not enforcement - reads the
+    counter without incrementing it, unlike check_chat_rate_limit above. No
+    key yet this hour means 0 used and the full window still ahead."""
+    client = _get_client()
+    key = _chat_key(user_id)
+    count = client.get(key)
+    used = int(count) if count is not None else 0
+    ttl = client.ttl(key)
+    resets_in = ttl if ttl and ttl > 0 else CHAT_MESSAGE_WINDOW_SECONDS
+    return used, resets_in

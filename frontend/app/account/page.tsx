@@ -10,7 +10,7 @@ import { API_URL, ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { useCompany } from "../lib/company";
 import { useLocale } from "../lib/i18n";
-import type { MeSummary, UserUsageSummary } from "../lib/types";
+import type { MeSummary, SubscriptionStatusResponse, UserUsageSummary } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./account.module.css";
 
@@ -125,6 +125,7 @@ function SectionAccount({
 function SectionUsage({ token, companyName }: { token: string | null; companyName: string | null }) {
   const { t } = useLocale();
   const [usage, setUsage] = useState<UserUsageSummary | null>(null);
+  const [sub, setSub] = useState<SubscriptionStatusResponse | null>(null);
 
   useEffect(() => {
     if (!token) return;
@@ -132,9 +133,16 @@ function SectionUsage({ token, companyName }: { token: string | null; companyNam
       .get<UserUsageSummary>("/users/me/usage", token)
       .then(setUsage)
       .catch(() => setUsage(null));
+    api
+      .get<SubscriptionStatusResponse>("/subscription/status", token)
+      .then(setSub)
+      .catch(() => setSub(null));
   }, [token]);
 
   if (!usage) return null;
+
+  const trialDaysLeft =
+    sub?.status === "trial" && sub.trial_ends_at ? Math.ceil((new Date(sub.trial_ends_at).getTime() - Date.now()) / 86_400_000) : null;
 
   return (
     <section className={`card ${dashStyles.section}`}>
@@ -155,7 +163,33 @@ function SectionUsage({ token, companyName }: { token: string | null; companyNam
           {t("account.usageCost")}
           <strong>€{usage.estimated_cost_eur_30d.toFixed(2)}</strong>
         </div>
+        {sub && (
+          <div className={styles.field}>
+            {t("account.usagePlan")}
+            <strong>{sub.plan_name}</strong>
+          </div>
+        )}
+        {sub && (
+          <div className={styles.field}>
+            {t("account.usageCompanyPool")}
+            <strong>
+              {sub.is_beta ? t("account.usageCompanyPoolUnlimited") : `${sub.messages_used}/${sub.messages_limit}`}
+            </strong>
+          </div>
+        )}
       </div>
+      {trialDaysLeft != null && (
+        <p
+          style={{
+            fontSize: "0.85rem",
+            fontWeight: 600,
+            marginTop: "var(--space-3)",
+            color: trialDaysLeft <= 3 ? "var(--color-danger)" : trialDaysLeft <= 14 ? "var(--color-warning)" : undefined,
+          }}
+        >
+          {t("account.usageTrialCountdown", { days: trialDaysLeft })}
+        </p>
+      )}
       {companyName && (
         <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-3)" }}>
           {t("account.usageManagedBy", { company: companyName })}

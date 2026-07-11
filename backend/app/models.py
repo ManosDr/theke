@@ -366,6 +366,64 @@ class MessageFeedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class Plan(Base):
+    __tablename__ = "plans"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vertical_id: Mapped[int | None] = mapped_column(ForeignKey("verticals.id"))
+    name: Mapped[str] = mapped_column(Text)
+    slug: Mapped[str] = mapped_column(Text, unique=True)
+    billing_cycle: Mapped[str] = mapped_column(Text, default="monthly")
+    price_eur: Mapped[float] = mapped_column(Numeric(10, 2))
+    user_limit: Mapped[int] = mapped_column(Integer)
+    message_pool: Mapped[int] = mapped_column(Integer)
+    # Bypasses the message pool check entirely in POST /chat/message
+    # (see subscription_usage below) - unlimited usage during soft launch
+    # regardless of the message_pool number on the row.
+    is_beta: Mapped[bool] = mapped_column(default=False)
+    # False keeps a plan out of any future public pricing listing without
+    # deleting it - every beta plan is is_active=False for exactly this
+    # reason (it's an internal assignment, not something a visitor picks).
+    is_active: Mapped[bool] = mapped_column(default=True)
+    features: Mapped[dict | None] = mapped_column(JSON)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class CompanySubscription(Base):
+    __tablename__ = "company_subscriptions"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), unique=True)
+    plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    status: Mapped[str] = mapped_column(Text, default="trial")  # 'trial','active','expired','cancelled','suspended'
+    # Can diverge from the plan's own default billing_cycle - a company on
+    # the Professional plan can be billed annually even though the plan
+    # itself defaults to monthly.
+    billing_cycle: Mapped[str] = mapped_column(Text, default="monthly")
+    started_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    trial_ends_at: Mapped[datetime | None] = mapped_column(DateTime)
+    current_period_start: Mapped[datetime | None] = mapped_column(DateTime)
+    current_period_end: Mapped[datetime | None] = mapped_column(DateTime)
+    cancelled_at: Mapped[datetime | None] = mapped_column(DateTime)
+    stripe_customer_id: Mapped[str | None] = mapped_column(Text)
+    stripe_subscription_id: Mapped[str | None] = mapped_column(Text)
+    notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SubscriptionUsage(Base):
+    __tablename__ = "subscription_usage"
+    __table_args__ = (UniqueConstraint("company_id", "period_start"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    period_start: Mapped[date] = mapped_column(Date)
+    period_end: Mapped[date] = mapped_column(Date)
+    messages_used: Mapped[int] = mapped_column(Integer, default=0)
+    messages_limit: Mapped[int] = mapped_column(Integer)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class UserDefaultProject(Base):
     __tablename__ = "user_default_projects"
 

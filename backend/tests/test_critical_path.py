@@ -74,6 +74,12 @@ def _cleanup(db, company: Company, user: User, project: Project | None) -> None:
     # batched flush by; batching all three deletes into one commit let it
     # emit them in the wrong order and fail with a FK violation.
     db.execute(text("DELETE FROM chat_sessions WHERE user_id = :id"), {"id": user.id})
+    # get_or_create_subscription auto-creates a company_subscriptions row
+    # (and get_or_create_usage a subscription_usage row) the first time a
+    # test hits POST /chat/message - clear both before deleting the company
+    # or its FK blocks the delete.
+    db.execute(text("DELETE FROM subscription_usage WHERE company_id = :cid"), {"cid": company.id})
+    db.execute(text("DELETE FROM company_subscriptions WHERE company_id = :cid"), {"cid": company.id})
     db.commit()
     if project:
         db.delete(project)

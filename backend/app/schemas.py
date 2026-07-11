@@ -877,3 +877,90 @@ class FeedbackListResponse(BaseModel):
 
 class FeedbackStatusUpdateRequest(BaseModel):
     status: Literal["solved", "rejected"]
+
+
+class SubscriptionStatusResponse(BaseModel):
+    plan_name: str
+    plan_slug: str
+    is_beta: bool
+    status: Literal["trial", "active", "expired", "cancelled", "suspended"]
+    trial_ends_at: datetime | None
+    current_period_end: datetime | None
+    messages_used: int
+    messages_limit: int
+    users_count: int
+    user_limit: int
+
+
+class PlanSummary(BaseModel):
+    id: int
+    vertical_id: int | None
+    vertical_slug: str | None
+    name: str
+    slug: str
+    billing_cycle: str
+    price_eur: float
+    user_limit: int
+    message_pool: int
+    is_beta: bool
+    is_active: bool
+    subscriber_count: int
+
+
+class PlanCreateRequest(BaseModel):
+    vertical_id: int | None = None
+    name: str
+    slug: str
+    billing_cycle: str = "monthly"
+    price_eur: float
+    user_limit: int
+    message_pool: int
+    is_beta: bool = False
+    is_active: bool = True
+
+
+class PlanUpdateRequest(BaseModel):
+    name: str | None = None
+    billing_cycle: str | None = None
+    price_eur: float | None = None
+    user_limit: int | None = None
+    message_pool: int | None = None
+    is_beta: bool | None = None
+    is_active: bool | None = None
+
+
+class SubscriptionEntry(BaseModel):
+    company_id: int
+    company_name: str
+    vertical_slug: str | None
+    plan_id: int
+    plan_name: str
+    is_beta: bool
+    status: Literal["trial", "active", "expired", "cancelled", "suspended"]
+    billing_cycle: str
+    trial_ends_at: datetime | None
+    current_period_end: datetime | None
+    messages_used: int
+    messages_limit: int
+    users_count: int
+    user_limit: int
+    notes: str | None
+
+
+class SubscriptionListResponse(BaseModel):
+    items: list[SubscriptionEntry]
+
+
+class AssignPlanRequest(BaseModel):
+    plan_id: int
+    billing_cycle: str = "monthly"
+    trial_days: int | None = None
+    notes: str | None = None
+
+
+class ExtendTrialRequest(BaseModel):
+    days: int
+
+
+class AddSubscriptionNoteRequest(BaseModel):
+    notes: str

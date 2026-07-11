@@ -20,6 +20,7 @@ from app.routers import (
     notifications,
     projects,
     search,
+    subscription,
     translations,
     users,
 )
@@ -80,6 +81,7 @@ app.include_router(gis.router)
 app.include_router(notifications.router)
 app.include_router(projects.router)
 app.include_router(search.router)
+app.include_router(subscription.router)
 app.include_router(translations.router)
 app.include_router(users.router)
 

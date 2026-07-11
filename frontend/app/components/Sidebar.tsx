@@ -51,11 +51,12 @@ const ADMIN_SECTIONS = [
     key: "org",
     labelKey: "nav.companiesUsers",
     Icon: CompaniesIcon,
-    match: (p: string) => p === "/admin/companies",
+    match: (p: string) => p === "/admin/companies" || p === "/admin/subscriptions",
     children: [
       { href: "/admin/companies", labelKey: "nav.companies", match: (p: string) => p === "/admin/companies" },
       { href: "/admin/companies", labelKey: "nav.users", match: () => false },
       { href: "/admin/companies", labelKey: "nav.invites", match: () => false },
+      { href: "/admin/subscriptions", labelKey: "nav.subscriptions", match: (p: string) => p === "/admin/subscriptions" },
     ],
   },
   {

@@ -18,6 +18,7 @@ import type {
   MyCompanySummary,
   ProjectSummary,
   RegionSummary,
+  SubscriptionStatusResponse,
 } from "../lib/types";
 import styles from "./chat.module.css";
 
@@ -138,6 +139,21 @@ function ChatContent() {
   }
   useEffect(refreshRateLimitStatus, [token]);
 
+  // Monthly message-pool usage - distinct from the hourly rate limit above:
+  // that one resets every hour and applies per-user, this one resets
+  // monthly and is shared across the whole company (see check_subscription
+  // in the backend, which returns the 402 this mirrors proactively).
+  const [poolStatus, setPoolStatus] = useState<SubscriptionStatusResponse | null>(null);
+  function refreshPoolStatus() {
+    if (!token || !user?.companyId) return;
+    api
+      .get<SubscriptionStatusResponse>("/subscription/status", token)
+      .then(setPoolStatus)
+      .catch(() => setPoolStatus(null));
+  }
+  useEffect(refreshPoolStatus, [token, user?.companyId]);
+  const poolExhausted = !!poolStatus && !poolStatus.is_beta && poolStatus.messages_used >= poolStatus.messages_limit;
+
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<number | null>(null);
@@ -236,7 +252,7 @@ function ChatContent() {
 
   async function sendMessage(overrideText?: string) {
     const question = (overrideText ?? input).trim();
-    if (!question || loading) return;
+    if (!question || loading || poolExhausted) return;
 
     // Only messages from the current session (after the last "Νέα
     // Εκκίνηση") are eligible context - within that, still capped to the
@@ -283,6 +299,7 @@ function ChatContent() {
     } finally {
       setLoading(false);
       refreshRateLimitStatus();
+      refreshPoolStatus();
     }
   }
 
@@ -364,6 +381,14 @@ function ChatContent() {
             )}
           </span>
           <div className={styles.headerControls}>
+            {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
+              <span
+                className={styles.rateLimitIndicator}
+                data-level={poolExhausted ? "danger" : "warning"}
+              >
+                {t("chat.poolWarningLabel", { used: poolStatus.messages_used, limit: poolStatus.messages_limit })}
+              </span>
+            )}
             {rateLimitStatus && rateLimitStatus.used >= 15 && (
               <span
                 className={styles.rateLimitIndicator}
@@ -557,6 +582,7 @@ function ChatContent() {
           <div ref={messagesEndRef} />
         </div>
 
+        {poolExhausted && <p className={styles.poolExhaustedNotice}>{t("chat.poolExhausted")}</p>}
         <div className={styles.composer}>
           <input
             className="input"
@@ -564,8 +590,9 @@ function ChatContent() {
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && sendMessage()}
             placeholder={t("chat.inputPlaceholder")}
+            disabled={poolExhausted}
           />
-          <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading}>
+          <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || poolExhausted}>
             {t("chat.send")}
           </button>
         </div>

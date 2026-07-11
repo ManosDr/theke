@@ -414,6 +414,58 @@ export interface UserUsageSummary {
   estimated_cost_eur_30d: number;
 }
 
+export type SubscriptionStatusValue = "trial" | "active" | "expired" | "cancelled" | "suspended";
+
+export interface SubscriptionStatusResponse {
+  plan_name: string;
+  plan_slug: string;
+  is_beta: boolean;
+  status: SubscriptionStatusValue;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  messages_used: number;
+  messages_limit: number;
+  users_count: number;
+  user_limit: number;
+}
+
+export interface PlanSummary {
+  id: number;
+  vertical_id: number | null;
+  vertical_slug: string | null;
+  name: string;
+  slug: string;
+  billing_cycle: string;
+  price_eur: number;
+  user_limit: number;
+  message_pool: number;
+  is_beta: boolean;
+  is_active: boolean;
+  subscriber_count: number;
+}
+
+export interface SubscriptionEntry {
+  company_id: number;
+  company_name: string;
+  vertical_slug: string | null;
+  plan_id: number;
+  plan_name: string;
+  is_beta: boolean;
+  status: SubscriptionStatusValue;
+  billing_cycle: string;
+  trial_ends_at: string | null;
+  current_period_end: string | null;
+  messages_used: number;
+  messages_limit: number;
+  users_count: number;
+  user_limit: number;
+  notes: string | null;
+}
+
+export interface SubscriptionListResponse {
+  items: SubscriptionEntry[];
+}
+
 export interface NotificationSummary {
   id: number;
   type: string;

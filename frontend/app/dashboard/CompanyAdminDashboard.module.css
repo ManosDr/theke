@@ -93,3 +93,45 @@
   background: var(--admin-chip-bg);
   padding: var(--space-2) var(--space-4);
 }
+
+.subscriptionCountdown {
+  font-weight: 700;
+  font-size: 1.05rem;
+}
+
+.progressBar {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.progressTrack {
+  position: relative;
+  width: 200px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.progressFill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  background: var(--color-link);
+  border-radius: 999px;
+}
+
+.progressFillWarning {
+  background: var(--color-warning);
+}
+
+.progressFillDanger {
+  background: var(--color-danger);
+}
+
+.progressLabel {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}

@@ -1,6 +1,8 @@
 import logging
+from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from openai import OpenAI, OpenAIError
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -8,7 +10,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_company_vertical, get_current_user
-from app.models import ChatSession, MessageFeedback, Project, Region, UtilityProvider, Vertical
+from app.models import ChatSession, Company, MessageFeedback, Project, Region, SubscriptionUsage, UtilityProvider, Vertical
 from app.schemas import (
     ChatCitation,
     ChatFeedbackRequest,
@@ -28,6 +30,7 @@ from app.services.rag import (
     search_regulation,
 )
 from app.services.rate_limit import CHAT_MESSAGE_LIMIT, check_chat_rate_limit, get_chat_rate_limit_status
+from app.services.subscription import check_subscription
 
 logger = logging.getLogger(__name__)
 
@@ -368,6 +371,17 @@ async def chat_message(
     if not check_chat_rate_limit(user.user_id):
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=CHAT_RATE_LIMIT_MESSAGE)
 
+    # Company-level billing quota, independent of the per-user hourly rate
+    # limit above - checked before the off-topic guard so a blocked company
+    # never burns a real OpenAI call. super_admin has no company_id, so
+    # there's no subscription concept to enforce for that role.
+    usage: SubscriptionUsage | None = None
+    if user.company_id is not None:
+        company = db.get(Company, user.company_id)
+        _sub, _plan, usage, block = check_subscription(db, company)
+        if block:
+            return JSONResponse(status_code=status.HTTP_402_PAYMENT_REQUIRED, content=block)
+
     project = _resolve_project(db, user, payload.project_id)
     region_id = project.region_id if project else None
     # Built before retrieval (not after) so a project's resolved location
@@ -381,7 +395,8 @@ async def chat_message(
 
         if _is_off_topic(client, question, vertical):
             session_id = _log_session(
-                db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="off_topic_guard", gap=True
+                db, user, payload.project_id, question, CHAT_MESSAGE_GAP_RESPONSE, tool_used="off_topic_guard", gap=True,
+                usage=usage,
             )
             return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
@@ -413,7 +428,7 @@ async def chat_message(
                     + f"\n\n{get_disclaimer(vertical)}"
                 )
                 session_id = _log_session(
-                    db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True
+                    db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True, usage=usage
                 )
                 return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
@@ -423,7 +438,9 @@ async def chat_message(
                 if contact_lines
                 else CHAT_MESSAGE_GAP_RESPONSE
             )
-            session_id = _log_session(db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True)
+            session_id = _log_session(
+                db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True, usage=usage
+            )
             return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
         # A real answer is still generated from these hits - "gap" here flags
@@ -468,6 +485,7 @@ async def chat_message(
             gap=True,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            usage=usage,
         )
         return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True)
 
@@ -504,6 +522,7 @@ async def chat_message(
         gap=is_low_confidence,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
+        usage=usage,
     )
     return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id)
 
@@ -595,6 +614,7 @@ def _log_session(
     gap: bool | None = None,
     prompt_tokens: int | None = None,
     completion_tokens: int | None = None,
+    usage: SubscriptionUsage | None = None,
 ) -> int:
     total_tokens = None
     estimated_cost_eur = None
@@ -620,5 +640,15 @@ def _log_session(
         estimated_cost_eur=estimated_cost_eur,
     )
     db.add(session)
+    # Every response path in POST /chat/message that reaches this point
+    # counts as one "message" against the company's monthly pool - gap
+    # answers and off-topic-guard answers included, matching how the
+    # per-user hourly rate limit above also counts every attempt, not just
+    # ones that produced a substantive answer. usage is None for the older
+    # POST /chat endpoint's call sites, which predates subscription
+    # tracking and isn't billed against a pool.
+    if usage is not None:
+        usage.messages_used += 1
+        usage.updated_at = datetime.utcnow()
     db.commit()
     return session.id

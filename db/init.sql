@@ -647,3 +647,88 @@ ALTER TABLE documents DROP COLUMN IF EXISTS applies_to_first_time_homeowner;
 -- "Παράλειψη" - both are valid, distinct from an empty string.
 ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS feedback_text text;
 ALTER TABLE message_feedback ADD COLUMN IF NOT EXISTS status varchar NOT NULL DEFAULT 'pending';  -- 'pending', 'solved', 'rejected'
+
+-- Subscription plan management (manual, pre-Stripe). Beta plans exist so
+-- early/soft-launch companies have a real plan row (message pool
+-- enforcement needs one) without a real price or a public pricing listing -
+-- is_active=false keeps them out of any future public pricing page while
+-- is_beta=true makes them bypass the message pool check entirely in
+-- app/routers/chat.py.
+CREATE TABLE IF NOT EXISTS plans (
+  id                  serial PRIMARY KEY,
+  vertical_id         integer REFERENCES verticals(id),
+  name                varchar NOT NULL,
+  slug                varchar NOT NULL UNIQUE,
+  billing_cycle       varchar NOT NULL DEFAULT 'monthly',
+  price_eur           decimal(10, 2) NOT NULL,
+  user_limit          integer NOT NULL,
+  message_pool        integer NOT NULL,
+  is_beta             boolean NOT NULL DEFAULT false,
+  is_active           boolean NOT NULL DEFAULT true,
+  features            jsonb,
+  created_at          timestamp NOT NULL DEFAULT now()
+);
+
+-- One row per company (UNIQUE company_id) - a company has exactly one
+-- active subscription at a time, matching how billing_cycle here can
+-- diverge from the plan's own default (e.g. Professional-but-annual).
+CREATE TABLE IF NOT EXISTS company_subscriptions (
+  id                  serial PRIMARY KEY,
+  company_id          integer NOT NULL UNIQUE REFERENCES companies(id),
+  plan_id             integer NOT NULL REFERENCES plans(id),
+  status              varchar NOT NULL DEFAULT 'trial',  -- 'trial', 'active', 'expired', 'cancelled', 'suspended'
+  billing_cycle       varchar NOT NULL DEFAULT 'monthly',
+  started_at          timestamp NOT NULL DEFAULT now(),
+  trial_ends_at       timestamp,
+  current_period_start timestamp,
+  current_period_end  timestamp,
+  cancelled_at        timestamp,
+  stripe_customer_id  varchar,
+  stripe_subscription_id varchar,
+  notes               text,
+  created_at          timestamp NOT NULL DEFAULT now()
+);
+
+-- One row per company per calendar month - the message-pool counter
+-- chat.py increments on every successful completion. Not the same counter
+-- as the Redis hourly rate limit (chat_msg:{user_id}, see rate_limit.py) -
+-- that one is a per-user abuse guard, this one is a per-company billing
+-- quota, and they're checked independently in the same request.
+CREATE TABLE IF NOT EXISTS subscription_usage (
+  id                  serial PRIMARY KEY,
+  company_id          integer NOT NULL REFERENCES companies(id),
+  period_start        date NOT NULL,
+  period_end          date NOT NULL,
+  messages_used       integer NOT NULL DEFAULT 0,
+  messages_limit      integer NOT NULL,
+  updated_at          timestamp NOT NULL DEFAULT now(),
+  UNIQUE (company_id, period_start)
+);
+
+CREATE INDEX IF NOT EXISTS idx_company_subscriptions_status ON company_subscriptions(status);
+CREATE INDEX IF NOT EXISTS idx_subscription_usage_company ON subscription_usage(company_id);
+
+INSERT INTO plans (vertical_id, name, slug, billing_cycle, price_eur, user_limit, message_pool, is_beta, is_active) VALUES
+    ((SELECT id FROM verticals WHERE slug = 'construction'), 'Beta', 'construction-beta', 'monthly', 0, 3, 300, true, false),
+    ((SELECT id FROM verticals WHERE slug = 'construction'), 'Starter', 'construction-starter', 'monthly', 49, 3, 300, false, true),
+    ((SELECT id FROM verticals WHERE slug = 'construction'), 'Professional', 'construction-professional', 'monthly', 99, 10, 1000, false, true),
+    ((SELECT id FROM verticals WHERE slug = 'construction'), 'Business', 'construction-business', 'monthly', 199, 30, 3000, false, true),
+    ((SELECT id FROM verticals WHERE slug = 'tax_accounting'), 'Beta', 'tax-beta', 'monthly', 0, 3, 300, true, false),
+    ((SELECT id FROM verticals WHERE slug = 'tax_accounting'), 'Starter', 'tax-starter', 'monthly', 59, 3, 300, false, true),
+    ((SELECT id FROM verticals WHERE slug = 'tax_accounting'), 'Professional', 'tax-professional', 'monthly', 119, 10, 1000, false, true),
+    ((SELECT id FROM verticals WHERE slug = 'tax_accounting'), 'Business', 'tax-business', 'monthly', 249, 30, 3000, false, true)
+ON CONFLICT (slug) DO NOTHING;
+
+-- Every existing company starts on its vertical's Beta plan with a 60-day
+-- trial - this is a one-time backfill for companies that existed before
+-- subscription tracking did; new companies get assigned a plan explicitly
+-- going forward (see POST /admin/subscriptions/{company_id}).
+INSERT INTO company_subscriptions (company_id, plan_id, status, billing_cycle, trial_ends_at)
+SELECT c.id,
+       (SELECT p.id FROM plans p WHERE p.vertical_id = c.vertical_id AND p.is_beta = true LIMIT 1),
+       'trial',
+       'monthly',
+       now() + interval '60 days'
+FROM companies c
+WHERE NOT EXISTS (SELECT 1 FROM company_subscriptions cs WHERE cs.company_id = c.id)
+ON CONFLICT (company_id) DO NOTHING;

@@ -1,0 +1,63 @@
+.bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-4);
+  font-size: 0.85rem;
+  font-weight: 600;
+  text-align: center;
+}
+
+.bar[data-level="amber"] {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.bar[data-level="urgent"] {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}
+
+.viewPlansButton {
+  border: 1px solid currentColor;
+  background: none;
+  color: inherit;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-3);
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(21, 29, 72, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.card {
+  width: 100%;
+  max-width: 440px;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  padding: var(--space-6);
+  box-shadow: var(--shadow-md);
+  text-align: center;
+}
+
+.card h2 {
+  margin: 0 0 var(--space-3);
+}
+
+.overlayActions {
+  display: flex;
+  justify-content: center;
+  gap: var(--space-3);
+  margin-top: var(--space-5);
+}

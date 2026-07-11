@@ -1,5 +1,7 @@
 "use client";
 
+import { Suspense } from "react";
+
 import { AppShell } from "../components/AppShell";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { CompanyAdminDashboard } from "./CompanyAdminDashboard";
@@ -11,7 +13,13 @@ function DashboardContent() {
 
   if (!user) return null;
   if (user.role === "super_admin") return <SuperAdminDashboard />;
-  if (user.role === "admin") return <CompanyAdminDashboard />;
+  if (user.role === "admin") {
+    return (
+      <Suspense fallback={null}>
+        <CompanyAdminDashboard />
+      </Suspense>
+    );
+  }
   return <MemberDashboard />;
 }
 

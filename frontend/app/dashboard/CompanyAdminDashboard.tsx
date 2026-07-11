@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
@@ -26,6 +27,7 @@ import type {
   MyCompanySummary,
   ProjectSummary,
   RemovalRequestSummary,
+  SubscriptionStatusResponse,
   TokenUsageSummary,
   UserSummary,
 } from "../lib/types";
@@ -33,7 +35,7 @@ import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
 import tabStyles from "./CompanyAdminDashboard.module.css";
 
-const TABS = ["overview", "users", "documents", "customers"] as const;
+const TABS = ["overview", "users", "documents", "customers", "subscription"] as const;
 type Tab = (typeof TABS)[number];
 
 function timeAgo(iso: string, locale: string): string {
@@ -64,6 +66,16 @@ export function CompanyAdminDashboard() {
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Deep-link support for the trial banner's "Δείτε πλάνα" button - reactive
+  // (not a mount-only read of window.location.search) because the button is
+  // clicked while already sitting on /dashboard, so router.push only changes
+  // the query string without remounting this component.
+  const searchParams = useSearchParams();
+  useEffect(() => {
+    const requested = searchParams.get("tab");
+    if ((TABS as readonly string[]).includes(requested ?? "")) setTab(requested as Tab);
+  }, [searchParams]);
 
   useEffect(() => {
     if (!token) return;
@@ -107,6 +119,7 @@ export function CompanyAdminDashboard() {
         {tab === "users" && <UsersTab token={token} />}
         {tab === "documents" && <DocumentsTab token={token} />}
         {tab === "customers" && <CustomersTab token={token} />}
+        {tab === "subscription" && <SubscriptionTab token={token} />}
       </div>
     </div>
   );
@@ -610,6 +623,120 @@ function DocumentsTab({ token }: { token: string | null }) {
             </tbody>
           </table>
         )}
+      </section>
+    </div>
+  );
+}
+
+function SubscriptionTab({ token }: { token: string | null }) {
+  const { t, locale } = useLocale();
+  const [status, setStatus] = useState<SubscriptionStatusResponse | null>(null);
+  const [users, setUsers] = useState<UserSummary[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!token) return;
+    Promise.all([
+      api.get<SubscriptionStatusResponse>("/subscription/status", token),
+      api.get<UserSummary[]>("/companies/me/users", token),
+    ])
+      .then(([s, u]) => {
+        setStatus(s);
+        setUsers(u);
+      })
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+  if (!status) return <p className={styles.emptyState}>—</p>;
+
+  const pct = Math.min(100, Math.round((status.messages_used / Math.max(status.messages_limit, 1)) * 100));
+  const expiresAt = status.status === "trial" ? status.trial_ends_at : status.current_period_end;
+  const daysLeft = status.status === "trial" && status.trial_ends_at ? Math.ceil((new Date(status.trial_ends_at).getTime() - Date.now()) / 86_400_000) : null;
+  const statusBadgeClass = status.status === "active" ? "badge-success" : status.status === "trial" ? "badge-warning" : "badge-danger";
+
+  return (
+    <div className={tabStyles.scrollPane}>
+      <section className={`card ${styles.section}`}>
+        <div className={styles.sectionHeader}>
+          <h2>
+            {status.plan_name}
+            {status.is_beta && (
+              <span className="badge badge-warning" style={{ marginLeft: "var(--space-2)" }}>
+                {t("adminSubs.betaTag")}
+              </span>
+            )}
+          </h2>
+          <span className={`badge ${statusBadgeClass}`}>{t(`adminSubs.status.${status.status}` as TranslationKey)}</span>
+        </div>
+
+        {daysLeft != null && (
+          <p
+            className={tabStyles.subscriptionCountdown}
+            style={{ color: daysLeft <= 3 ? "var(--color-danger)" : daysLeft <= 14 ? "var(--color-warning)" : undefined }}
+          >
+            {t("dash.company.sub.trialCountdown", { days: daysLeft })}
+          </p>
+        )}
+        {expiresAt && (
+          <p className="text-muted" style={{ fontSize: "0.85rem" }}>
+            {status.status === "trial" ? t("dash.company.sub.trialEnds") : t("dash.company.sub.renewsOn")}:{" "}
+            {new Date(expiresAt).toLocaleDateString(locale)}
+          </p>
+        )}
+
+        <div className={tabStyles.progressBar} style={{ marginTop: "var(--space-3)" }}>
+          <div className={tabStyles.progressTrack}>
+            {!status.is_beta && (
+              <div
+                className={`${tabStyles.progressFill} ${pct >= 100 ? tabStyles.progressFillDanger : pct >= 80 ? tabStyles.progressFillWarning : ""}`}
+                style={{ width: `${pct}%` }}
+              />
+            )}
+          </div>
+          <span className={tabStyles.progressLabel}>
+            {status.is_beta ? t("dash.company.sub.unlimitedBeta") : `${status.messages_used}/${status.messages_limit}`}
+          </span>
+        </div>
+        <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-1)" }}>
+          {t("dash.company.sub.messagesThisMonth")}
+        </p>
+
+        <p style={{ marginTop: "var(--space-3)" }}>
+          {t("dash.company.sub.usersLabel")}: <strong>{status.users_count}/{status.user_limit}</strong>
+        </p>
+
+        <a
+          className="btn btn-secondary"
+          style={{ marginTop: "var(--space-4)", display: "inline-block" }}
+          href={`mailto:sales@theke.gr?subject=${encodeURIComponent("Αναβάθμιση πλάνου")}`}
+        >
+          {t("dash.company.sub.contactUpgrade")}
+        </a>
+      </section>
+
+      <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.sub.perUserHeading")}</h2>
+        </div>
+        <table className={`${styles.table} ${styles.tableCompact}`}>
+          <thead>
+            <tr>
+              <th>{t("dash.company.colName")}</th>
+              <th>{t("dash.company.colEmail")}</th>
+              <th>{t("dash.company.colMessages30d")}</th>
+            </tr>
+          </thead>
+          <tbody>
+            {users.map((u) => (
+              <tr key={u.id}>
+                <td>{u.name ?? "—"}</td>
+                <td>{u.email}</td>
+                <td>{u.messages_30d}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
       </section>
     </div>
   );

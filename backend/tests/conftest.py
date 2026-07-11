@@ -186,6 +186,15 @@ def cleanup_company(db, company: Company, user: User, project: Project | None = 
     # assertions, until this was added.
     db.execute(text("DELETE FROM audit_log WHERE actor_user_id = :id OR company_id = :cid"), {"id": user.id, "cid": company.id})
     db.execute(text("DELETE FROM chat_sessions WHERE user_id = :id"), {"id": user.id})
+    # get_or_create_subscription (app/services/subscription.py) auto-creates
+    # a company_subscriptions row - and get_or_create_usage a
+    # subscription_usage row - the first time any test hits POST
+    # /chat/message, since that endpoint now runs check_subscription() on
+    # every request. Neither is tracked by this session's identity map (it
+    # was created inside a request handler's own session), so clear both by
+    # company_id before deleting the company or its FK blocks the delete.
+    db.execute(text("DELETE FROM subscription_usage WHERE company_id = :cid"), {"cid": company.id})
+    db.execute(text("DELETE FROM company_subscriptions WHERE company_id = :cid"), {"cid": company.id})
     db.commit()
     if project:
         db.delete(project)

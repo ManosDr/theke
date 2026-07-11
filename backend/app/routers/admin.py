@@ -2,7 +2,7 @@ import secrets
 import string
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
@@ -12,18 +12,23 @@ from app.models import (
     AuditLog,
     ChatSession,
     Company,
+    CompanySubscription,
     DataSource,
     Document,
     MessageFeedback,
+    Plan,
     Project,
     Region,
+    SubscriptionUsage,
     User,
     UtilityProvider,
     Vertical,
 )
 from app.schemas import (
+    AddSubscriptionNoteRequest,
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
+    AssignPlanRequest,
     AuditLogEntry,
     BrowseResponse,
     CompanyCreateWithAdminRequest,
@@ -38,16 +43,22 @@ from app.schemas import (
     DataSourcesByVertical,
     DocumentReplacementRef,
     DocumentSummary,
+    ExtendTrialRequest,
     FeedbackEntry,
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
     MarkReviewedRequest,
     MarkSupersededRequest,
+    PlanCreateRequest,
+    PlanSummary,
+    PlanUpdateRequest,
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
     StaleDocumentSummary,
+    SubscriptionEntry,
+    SubscriptionListResponse,
     UndoSupersedeRequest,
     UtilityProviderAdminSummary,
     UtilityProviderAdminUpdateRequest,
@@ -59,6 +70,7 @@ from app.security import hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
+from app.services.subscription import get_or_create_subscription, get_or_create_usage
 from app.services.usage import company_token_usage
 
 _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
@@ -1147,3 +1159,298 @@ async def update_feedback_status(
         company_name=company.name if company else None,
         vertical=vertical.slug if vertical else None,
     )
+
+
+def _to_plan_summary(db: Session, plan: Plan, subscriber_count: int | None = None) -> PlanSummary:
+    vertical = db.get(Vertical, plan.vertical_id) if plan.vertical_id else None
+    if subscriber_count is None:
+        subscriber_count = (
+            db.scalar(select(func.count()).select_from(CompanySubscription).where(CompanySubscription.plan_id == plan.id))
+            or 0
+        )
+    return PlanSummary(
+        id=plan.id,
+        vertical_id=plan.vertical_id,
+        vertical_slug=vertical.slug if vertical else None,
+        name=plan.name,
+        slug=plan.slug,
+        billing_cycle=plan.billing_cycle,
+        price_eur=float(plan.price_eur),
+        user_limit=plan.user_limit,
+        message_pool=plan.message_pool,
+        is_beta=plan.is_beta,
+        is_active=plan.is_active,
+        subscriber_count=subscriber_count,
+    )
+
+
+@router.get("/plans", response_model=list[PlanSummary])
+async def list_plans(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[PlanSummary]:
+    require_super_admin(user)
+    plans = db.scalars(select(Plan).order_by(Plan.vertical_id, Plan.price_eur)).all()
+    subscriber_counts = dict(
+        db.execute(select(CompanySubscription.plan_id, func.count()).group_by(CompanySubscription.plan_id)).all()
+    )
+    return [_to_plan_summary(db, p, subscriber_counts.get(p.id, 0)) for p in plans]
+
+
+@router.post("/plans", response_model=PlanSummary, status_code=status.HTTP_201_CREATED)
+async def create_plan(
+    payload: PlanCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PlanSummary:
+    require_super_admin(user)
+    plan = Plan(
+        vertical_id=payload.vertical_id,
+        name=payload.name,
+        slug=payload.slug,
+        billing_cycle=payload.billing_cycle,
+        price_eur=payload.price_eur,
+        user_limit=payload.user_limit,
+        message_pool=payload.message_pool,
+        is_beta=payload.is_beta,
+        is_active=payload.is_active,
+    )
+    db.add(plan)
+    db.commit()
+    db.refresh(plan)
+    return _to_plan_summary(db, plan, subscriber_count=0)
+
+
+@router.patch("/plans/{plan_id}", response_model=PlanSummary)
+async def update_plan(
+    plan_id: int,
+    payload: PlanUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PlanSummary:
+    require_super_admin(user)
+    plan = db.get(Plan, plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+    for field in ("name", "billing_cycle", "price_eur", "user_limit", "message_pool", "is_beta", "is_active"):
+        value = getattr(payload, field)
+        if value is not None:
+            setattr(plan, field, value)
+    db.commit()
+    db.refresh(plan)
+    return _to_plan_summary(db, plan)
+
+
+def _to_subscription_entry(db: Session, sub: CompanySubscription, company: Company, plan: Plan) -> SubscriptionEntry:
+    vertical = db.get(Vertical, company.vertical_id) if company.vertical_id else None
+    usage = get_or_create_usage(db, company.id, plan.message_pool)
+    users_count = (
+        db.scalar(select(func.count()).select_from(User).where(User.company_id == company.id, User.is_active.is_(True)))
+        or 0
+    )
+    return SubscriptionEntry(
+        company_id=company.id,
+        company_name=company.name,
+        vertical_slug=vertical.slug if vertical else None,
+        plan_id=plan.id,
+        plan_name=plan.name,
+        is_beta=plan.is_beta,
+        status=sub.status,
+        billing_cycle=sub.billing_cycle,
+        trial_ends_at=sub.trial_ends_at,
+        current_period_end=sub.current_period_end,
+        messages_used=usage.messages_used,
+        messages_limit=usage.messages_limit,
+        users_count=users_count,
+        user_limit=plan.user_limit,
+        notes=sub.notes,
+    )
+
+
+def _get_subscription_or_404(db: Session, company_id: int) -> tuple[CompanySubscription, Company, Plan]:
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    sub = get_or_create_subscription(db, company)
+    plan = db.get(Plan, sub.plan_id)
+    return sub, company, plan
+
+
+@router.get("/subscriptions", response_model=SubscriptionListResponse)
+async def list_subscriptions(
+    sub_status: str | None = Query(default=None, alias="status"),
+    vertical: str | None = None,
+    plan_id: int | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionListResponse:
+    """Every company's subscription, most-recently-created company first -
+    the triage table behind the Συνδρομές admin screen's Εταιρείες tab."""
+    require_super_admin(user)
+    stmt = (
+        select(CompanySubscription, Company, Plan)
+        .join(Company, Company.id == CompanySubscription.company_id)
+        .join(Plan, Plan.id == CompanySubscription.plan_id)
+    )
+    if sub_status:
+        stmt = stmt.where(CompanySubscription.status == sub_status)
+    if plan_id:
+        stmt = stmt.where(CompanySubscription.plan_id == plan_id)
+    if vertical:
+        stmt = stmt.join(Vertical, Vertical.id == Company.vertical_id).where(Vertical.slug == vertical)
+    rows = db.execute(stmt.order_by(Company.created_at.desc())).all()
+    return SubscriptionListResponse(items=[_to_subscription_entry(db, sub, company, plan) for sub, company, plan in rows])
+
+
+@router.post("/subscriptions/{company_id}", response_model=SubscriptionEntry)
+async def assign_plan(
+    company_id: int,
+    payload: AssignPlanRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    """Assigns or changes a company's plan - the one entry point both
+    'give this new company a real plan' and 'move this company between
+    tiers' go through. trial_days present means the new assignment starts
+    as a trial (e.g. a paid-plan trial, not just the original Beta trial);
+    omitted means it's active immediately (manual, pre-Stripe billing)."""
+    require_super_admin(user)
+    company = db.get(Company, company_id)
+    if not company:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
+    plan = db.get(Plan, payload.plan_id)
+    if not plan:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
+
+    sub = db.scalar(select(CompanySubscription).where(CompanySubscription.company_id == company_id))
+    now = datetime.utcnow()
+    new_status = "trial" if payload.trial_days else "active"
+    trial_ends_at = now + timedelta(days=payload.trial_days) if payload.trial_days else None
+    period_days = 365 if payload.billing_cycle == "annual" else 30
+
+    if sub:
+        sub.plan_id = plan.id
+        sub.billing_cycle = payload.billing_cycle
+        sub.status = new_status
+        sub.trial_ends_at = trial_ends_at
+        if payload.notes is not None:
+            sub.notes = payload.notes
+        if new_status == "active":
+            sub.current_period_start = now
+            sub.current_period_end = now + timedelta(days=period_days)
+    else:
+        sub = CompanySubscription(
+            company_id=company_id,
+            plan_id=plan.id,
+            status=new_status,
+            billing_cycle=payload.billing_cycle,
+            trial_ends_at=trial_ends_at,
+            current_period_start=now if new_status == "active" else None,
+            current_period_end=now + timedelta(days=period_days) if new_status == "active" else None,
+            notes=payload.notes,
+        )
+        db.add(sub)
+    db.flush()  # populates sub.id for a brand-new row, before log_action references it
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="subscription_plan_assigned",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+    )
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.patch("/subscriptions/{company_id}/extend-trial", response_model=SubscriptionEntry)
+async def extend_trial(
+    company_id: int,
+    payload: ExtendTrialRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    # Extends from the later of "now" and the existing trial_ends_at - a
+    # trial that already expired gets N days from today, not N days added
+    # onto a date already in the past.
+    now = datetime.utcnow()
+    base = sub.trial_ends_at if sub.trial_ends_at and sub.trial_ends_at > now else now
+    sub.trial_ends_at = base + timedelta(days=payload.days)
+    if sub.status == "expired":
+        sub.status = "trial"
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="subscription_trial_extended",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+        metadata={"days": payload.days},
+    )
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.patch("/subscriptions/{company_id}/cancel", response_model=SubscriptionEntry)
+async def cancel_subscription(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    sub.status = "cancelled"
+    sub.cancelled_at = datetime.utcnow()
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="subscription_cancelled",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+    )
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.patch("/subscriptions/{company_id}/reactivate", response_model=SubscriptionEntry)
+async def reactivate_subscription(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    sub.status = "active"
+    sub.cancelled_at = None
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="subscription_reactivated",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+    )
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.patch("/subscriptions/{company_id}/notes", response_model=SubscriptionEntry)
+async def update_subscription_notes(
+    company_id: int,
+    payload: AddSubscriptionNoteRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    sub.notes = payload.notes
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)

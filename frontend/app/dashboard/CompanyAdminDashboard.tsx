@@ -14,6 +14,7 @@ import {
   UsersIcon,
 } from "../components/StatIcons";
 import { DocumentsIcon } from "../components/NavIcons";
+import FieldError from "../components/FieldError";
 import type {
   ActivityEventEntry,
   CompanyDocumentSummary,
@@ -200,6 +201,7 @@ function UsersTab({ token }: { token: string | null }) {
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [newInviteToken, setNewInviteToken] = useState<string | null>(null);
+  const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
 
   async function refresh() {
     if (!token) return;
@@ -238,6 +240,11 @@ function UsersTab({ token }: { token: string | null }) {
 
   async function createInvite(e: React.FormEvent) {
     e.preventDefault();
+    if (!inviteEmail.trim()) {
+      setInviteEmailError(t("validation.emailRequired"));
+      return;
+    }
+    setInviteEmailError(null);
     setNewInviteToken(null);
     try {
       const invite = await api.post<InviteSummary>("/companies/me/invites", { email: inviteEmail, role: inviteRole }, token);
@@ -263,15 +270,21 @@ function UsersTab({ token }: { token: string | null }) {
         <div className={styles.sectionHeader}>
           <h2>{t("dash.company.inviteTeammate")}</h2>
         </div>
-        <form className={styles.inlineForm} onSubmit={createInvite}>
-          <input
-            className="input"
-            type="email"
-            placeholder={t("dash.company.inviteEmailPlaceholder")}
-            value={inviteEmail}
-            onChange={(e) => setInviteEmail(e.target.value)}
-            required
-          />
+        <form className={styles.inlineForm} onSubmit={createInvite} noValidate>
+          <div>
+            <input
+              className="input"
+              type="email"
+              placeholder={t("dash.company.inviteEmailPlaceholder")}
+              value={inviteEmail}
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                if (e.target.value.trim()) setInviteEmailError(null);
+              }}
+              aria-invalid={!!inviteEmailError}
+            />
+            {inviteEmailError && <FieldError message={inviteEmailError} />}
+          </div>
           <select className="input" value={inviteRole} onChange={(e) => setInviteRole(e.target.value as "admin" | "member")} style={{ width: "auto" }}>
             <option value="member">{t("role.member")}</option>
             <option value="admin">{t("role.admin")}</option>
@@ -560,6 +573,7 @@ function CustomersTab({ token }: { token: string | null }) {
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState("");
   const [newAfm, setNewAfm] = useState("");
+  const [newNameError, setNewNameError] = useState<string | null>(null);
 
   async function refresh() {
     if (!token) return;
@@ -584,7 +598,12 @@ function CustomersTab({ token }: { token: string | null }) {
 
   async function createCustomer(e: React.FormEvent) {
     e.preventDefault();
-    if (!token || !newName.trim()) return;
+    if (!newName.trim()) {
+      setNewNameError(t("validation.fieldRequired"));
+      return;
+    }
+    setNewNameError(null);
+    if (!token) return;
     await api.post("/customers", { name: newName.trim(), afm: newAfm.trim() || undefined }, token);
     setNewName("");
     setNewAfm("");
@@ -603,8 +622,20 @@ function CustomersTab({ token }: { token: string | null }) {
       </div>
 
       {creating && (
-        <form className={styles.inlineForm} onSubmit={createCustomer} style={{ marginBottom: "var(--space-4)" }}>
-          <input className="input" placeholder={t("account.name")} value={newName} onChange={(e) => setNewName(e.target.value)} required />
+        <form className={styles.inlineForm} onSubmit={createCustomer} style={{ marginBottom: "var(--space-4)" }} noValidate>
+          <div>
+            <input
+              className="input"
+              placeholder={t("account.name")}
+              value={newName}
+              onChange={(e) => {
+                setNewName(e.target.value);
+                if (e.target.value.trim()) setNewNameError(null);
+              }}
+              aria-invalid={!!newNameError}
+            />
+            {newNameError && <FieldError message={newNameError} />}
+          </div>
           <input className="input" placeholder={t("dash.company.colAfm")} value={newAfm} onChange={(e) => setNewAfm(e.target.value)} />
           <button type="submit" className="btn btn-primary">
             {t("common.save")}

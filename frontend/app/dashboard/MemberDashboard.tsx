@@ -7,6 +7,7 @@ import { API_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { BuildingIcon, FlagIcon } from "../components/StatIcons";
+import FieldError from "../components/FieldError";
 import type { CustomerSummary, MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
 import styles from "./dashboard.module.css";
@@ -24,6 +25,7 @@ export function MemberDashboard() {
   const [newAddress, setNewAddress] = useState("");
   const [newClientNotes, setNewClientNotes] = useState("");
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
+  const [newFieldErrors, setNewFieldErrors] = useState<{ name?: string; region?: string }>({});
 
   // The construction vertical's "Projects" (region/plot-based) and the tax
   // vertical's "Clients" (name + notes, no region) are the same backend
@@ -79,6 +81,12 @@ export function MemberDashboard() {
 
   async function createProject(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof newFieldErrors = {};
+    if (!newName.trim()) errors.name = t("validation.fieldRequired");
+    if (usesRegionalScoping && !newRegionId) errors.region = t("validation.selectRequired");
+    setNewFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     const region = regions.find((r) => r.region_id === newRegionId);
     try {
       await api.post<ProjectSummary>(
@@ -206,32 +214,44 @@ export function MemberDashboard() {
               </table>
             )}
 
-            <form className={styles.inlineForm} onSubmit={createProject} style={{ marginTop: "var(--space-4)" }}>
-              <input
-                className="input"
-                type="text"
-                placeholder={usesRegionalScoping ? t("dash.member.projectNamePlaceholder") : t("dash.member.clientNamePlaceholder")}
-                value={newName}
-                onChange={(e) => setNewName(e.target.value)}
-                required
-              />
+            <form className={styles.inlineForm} onSubmit={createProject} style={{ marginTop: "var(--space-4)" }} noValidate>
+              <div>
+                <input
+                  className="input"
+                  type="text"
+                  placeholder={usesRegionalScoping ? t("dash.member.projectNamePlaceholder") : t("dash.member.clientNamePlaceholder")}
+                  value={newName}
+                  onChange={(e) => {
+                    setNewName(e.target.value);
+                    if (e.target.value.trim()) setNewFieldErrors((prev) => ({ ...prev, name: undefined }));
+                  }}
+                  aria-invalid={!!newFieldErrors.name}
+                />
+                {newFieldErrors.name && <FieldError message={newFieldErrors.name} />}
+              </div>
               {usesRegionalScoping ? (
                 <>
-                  <select
-                    className="input"
-                    value={newRegionId}
-                    onChange={(e) => setNewRegionId(e.target.value)}
-                    required
-                  >
-                    <option value="" disabled>
-                      {t("dash.member.selectMunicipality")}
-                    </option>
-                    {regions.map((r) => (
-                      <option key={r.region_id} value={r.region_id}>
-                        {r.region_name_el}
+                  <div>
+                    <select
+                      className="input"
+                      value={newRegionId}
+                      onChange={(e) => {
+                        setNewRegionId(e.target.value);
+                        if (e.target.value) setNewFieldErrors((prev) => ({ ...prev, region: undefined }));
+                      }}
+                      aria-invalid={!!newFieldErrors.region}
+                    >
+                      <option value="" disabled>
+                        {t("dash.member.selectMunicipality")}
                       </option>
-                    ))}
-                  </select>
+                      {regions.map((r) => (
+                        <option key={r.region_id} value={r.region_id}>
+                          {r.region_name_el}
+                        </option>
+                      ))}
+                    </select>
+                    {newFieldErrors.region && <FieldError message={newFieldErrors.region} />}
+                  </div>
                   <input
                     className="input"
                     type="text"

@@ -3,6 +3,7 @@
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import FieldError from "../components/FieldError";
 import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -42,6 +43,7 @@ function LoginContent() {
   // is a full page reload, and LocaleProvider's own locale-from-storage
   // effect isn't guaranteed to resolve before this one does).
   const [sessionExpired, setSessionExpired] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ email?: string; password?: string }>({});
 
   useEffect(() => {
     if (searchParams.get("sessionExpired")) {
@@ -65,6 +67,11 @@ function LoginContent() {
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof fieldErrors = {};
+    if (!email.trim()) errors.email = t("validation.emailRequired");
+    if (!password) errors.password = t("validation.passwordRequired");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
     doLogin(email, password);
   }
 
@@ -85,7 +92,7 @@ function LoginContent() {
         <p className={styles.tagline}>{t("login.tagline")}</p>
       </div>
 
-      <form className={`card ${styles.card}`} onSubmit={handleSubmit}>
+      <form className={`card ${styles.card}`} onSubmit={handleSubmit} noValidate>
         {sessionExpired && <p className={styles.error}>{t("login.sessionExpired")}</p>}
         {error && <p className={styles.error}>{error}</p>}
 
@@ -96,10 +103,14 @@ function LoginContent() {
             type="email"
             className="input"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.email}
             autoComplete="email"
           />
+          {fieldErrors.email && <FieldError message={fieldErrors.email} />}
         </div>
 
         <div className={styles.field}>
@@ -109,10 +120,14 @@ function LoginContent() {
             type="password"
             className="input"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (e.target.value) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.password}
             autoComplete="current-password"
           />
+          {fieldErrors.password && <FieldError message={fieldErrors.password} />}
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>

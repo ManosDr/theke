@@ -7,6 +7,7 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
+import FieldError from "./FieldError";
 import type {
   AdminStatsByVertical,
   CompanyCreateWithAdminRequest,
@@ -193,6 +194,7 @@ function CreateCompanyModal({
   const [adminPhone, setAdminPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<{ companyName?: string; adminName?: string; adminEmail?: string }>({});
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -204,6 +206,13 @@ function CreateCompanyModal({
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof fieldErrors = {};
+    if (!companyName.trim()) errors.companyName = t("validation.fieldRequired");
+    if (!adminName.trim()) errors.adminName = t("validation.fieldRequired");
+    if (!adminEmail.trim()) errors.adminEmail = t("validation.emailRequired");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     if (!token) return;
     setSubmitting(true);
     setError(null);
@@ -236,6 +245,7 @@ function CreateCompanyModal({
         aria-labelledby="create-company-title"
         onClick={(e) => e.stopPropagation()}
         onSubmit={submit}
+        noValidate
       >
         <div className={styles.modalHeader}>
           <h2 id="create-company-title" style={{ margin: 0 }}>
@@ -253,7 +263,16 @@ function CreateCompanyModal({
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.companyName")}
-              <input className="input" value={companyName} onChange={(e) => setCompanyName(e.target.value)} required />
+              <input
+                className="input"
+                value={companyName}
+                onChange={(e) => {
+                  setCompanyName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.companyName}
+              />
+              {fieldErrors.companyName && <FieldError message={fieldErrors.companyName} />}
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.companyType")}
@@ -275,7 +294,16 @@ function CreateCompanyModal({
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminName")}
-              <input className="input" value={adminName} onChange={(e) => setAdminName(e.target.value)} required />
+              <input
+                className="input"
+                value={adminName}
+                onChange={(e) => {
+                  setAdminName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, adminName: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.adminName}
+              />
+              {fieldErrors.adminName && <FieldError message={fieldErrors.adminName} />}
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminEmail")}
@@ -283,9 +311,13 @@ function CreateCompanyModal({
                 className="input"
                 type="email"
                 value={adminEmail}
-                onChange={(e) => setAdminEmail(e.target.value)}
-                required
+                onChange={(e) => {
+                  setAdminEmail(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, adminEmail: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.adminEmail}
               />
+              {fieldErrors.adminEmail && <FieldError message={fieldErrors.adminEmail} />}
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminPhone")}

@@ -325,6 +325,13 @@ button {
   outline-offset: 1px;
 }
 
+/* Global so every form's custom-validated fields get the red border
+   without each page repeating this rule in its own CSS module - set via
+   aria-invalid, not a class, so it doubles as the accessibility signal. */
+.input[aria-invalid="true"] {
+  border-color: var(--error-red, #c62828);
+}
+
 .badge {
   display: inline-flex;
   align-items: center;

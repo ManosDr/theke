@@ -326,6 +326,16 @@ export const translations = {
     "login.forgotPassword": "Forgot password?",
     "login.sessionExpired": "Your session has expired. Please sign in again.",
 
+    // Generic reusable field-validation messages - specific pages use a more
+    // tailored message where one materially helps (e.g. project.new.error*),
+    // these cover the many smaller admin/account forms that just need a
+    // non-native "fill this in" without a bespoke string per field.
+    "validation.emailRequired": "Enter your email address.",
+    "validation.passwordRequired": "Enter your password.",
+    "validation.fieldRequired": "This field is required.",
+    "validation.selectRequired": "Please make a selection.",
+    "validation.passwordTooShort": "Password must be at least 8 characters.",
+
     // forgot / reset password
     "forgotPassword.title": "Reset your password",
     "forgotPassword.instructions": "Enter your email and we'll send you a link to reset your password.",
@@ -1091,6 +1101,12 @@ export const translations = {
     "login.errorFallback": "Δεν ήταν δυνατή η σύνδεση με τον διακομιστή. Εκτελείται;",
     "login.forgotPassword": "Ξεχάσατε τον κωδικό σας;",
     "login.sessionExpired": "Η συνεδρία σας έληξε. Παρακαλώ συνδεθείτε ξανά.",
+
+    "validation.emailRequired": "Εισάγετε το email σας.",
+    "validation.passwordRequired": "Εισάγετε τον κωδικό σας.",
+    "validation.fieldRequired": "Αυτό το πεδίο είναι υποχρεωτικό.",
+    "validation.selectRequired": "Κάντε μια επιλογή.",
+    "validation.passwordTooShort": "Ο κωδικός πρέπει να έχει τουλάχιστον 8 χαρακτήρες.",
 
     // forgot / reset password
     "forgotPassword.title": "Επαναφορά κωδικού",

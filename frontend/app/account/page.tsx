@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import FieldError from "../components/FieldError";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { API_URL, ApiError, api } from "../lib/api";
@@ -129,12 +130,21 @@ function SectionSecurity({ token, email }: { token: string | null; email: string
   const [success, setSuccess] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [forgotSent, setForgotSent] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{ current?: string; next?: string; confirm?: string }>({});
 
   const strength = passwordStrength(newPassword);
   const mismatch = confirmPassword.length > 0 && newPassword !== confirmPassword;
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof fieldErrors = {};
+    if (!currentPassword) errors.current = t("validation.passwordRequired");
+    if (!newPassword) errors.next = t("validation.passwordRequired");
+    else if (newPassword.length < 8) errors.next = t("validation.passwordTooShort");
+    if (!confirmPassword) errors.confirm = t("validation.passwordRequired");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setError(null);
     setSuccess(false);
     if (newPassword !== confirmPassword) {
@@ -164,7 +174,7 @@ function SectionSecurity({ token, email }: { token: string | null; email: string
   return (
     <section className={`card ${dashStyles.section}`}>
       <h2>{t("account.sectionSecurity")}</h2>
-      <form onSubmit={submit} className={styles.fieldGrid}>
+      <form onSubmit={submit} className={styles.fieldGrid} noValidate>
         {error && <p style={{ color: "var(--color-danger)", gridColumn: "1 / -1" }}>{error}</p>}
         {success && <p style={{ color: "var(--color-success)", gridColumn: "1 / -1" }}>{t("account.passwordChanged")}</p>}
         <label className={styles.field}>
@@ -173,9 +183,13 @@ function SectionSecurity({ token, email }: { token: string | null; email: string
             className="input"
             type="password"
             value={currentPassword}
-            onChange={(e) => setCurrentPassword(e.target.value)}
-            required
+            onChange={(e) => {
+              setCurrentPassword(e.target.value);
+              if (e.target.value) setFieldErrors((prev) => ({ ...prev, current: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.current}
           />
+          {fieldErrors.current && <FieldError message={fieldErrors.current} />}
         </label>
         <label className={styles.field}>
           {t("account.newPassword")}
@@ -183,10 +197,13 @@ function SectionSecurity({ token, email }: { token: string | null; email: string
             className="input"
             type="password"
             value={newPassword}
-            onChange={(e) => setNewPassword(e.target.value)}
-            minLength={8}
-            required
+            onChange={(e) => {
+              setNewPassword(e.target.value);
+              if (e.target.value.length >= 8) setFieldErrors((prev) => ({ ...prev, next: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.next}
           />
+          {fieldErrors.next && <FieldError message={fieldErrors.next} />}
           {strength && (
             <span className={`${styles.strengthTag} ${styles[`strength_${strength}`]}`}>
               {t(`account.passwordStrength${strength === "weak" ? "Weak" : strength === "ok" ? "Ok" : "Strong"}` as never)}
@@ -199,9 +216,13 @@ function SectionSecurity({ token, email }: { token: string | null; email: string
             className="input"
             type="password"
             value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.target.value)}
-            required
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (e.target.value) setFieldErrors((prev) => ({ ...prev, confirm: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.confirm}
           />
+          {fieldErrors.confirm && <FieldError message={fieldErrors.confirm} />}
           {mismatch && <span className={styles.strengthTag + " " + styles.strength_weak}>{t("account.passwordMismatch")}</span>}
         </label>
       </form>

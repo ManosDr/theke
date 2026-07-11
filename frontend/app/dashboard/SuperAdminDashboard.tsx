@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
 import { AlertIcon, ClockIcon, CoinIcon, FlagIcon } from "../components/StatIcons";
+import FieldError from "../components/FieldError";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type {
   AdminStatsByVertical,
@@ -45,6 +46,7 @@ function LanguagesPanel() {
   const [newCode, setNewCode] = useState("");
   const [newName, setNewName] = useState("");
   const [addError, setAddError] = useState<string | null>(null);
+  const [addFieldErrors, setAddFieldErrors] = useState<{ code?: string; name?: string }>({});
 
   const [editLocale, setEditLocale] = useState("");
   const [overrides, setOverrides] = useState<Record<string, string>>({});
@@ -71,6 +73,12 @@ function LanguagesPanel() {
 
   async function addLocale(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof addFieldErrors = {};
+    if (!newCode.trim()) errors.code = t("validation.fieldRequired");
+    if (!newName.trim()) errors.name = t("validation.fieldRequired");
+    setAddFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setAddError(null);
     try {
       await api.post("/admin/locales", { code: newCode.trim(), name: newName.trim() }, token);
@@ -136,21 +144,33 @@ function LanguagesPanel() {
         </tbody>
       </table>
 
-      <form className={styles.inlineForm} onSubmit={addLocale} style={{ marginTop: "var(--space-4)" }}>
-        <input
-          className="input"
-          placeholder={t("dash.super.localeCode")}
-          value={newCode}
-          onChange={(e) => setNewCode(e.target.value)}
-          required
-        />
-        <input
-          className="input"
-          placeholder={t("dash.super.localeName")}
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          required
-        />
+      <form className={styles.inlineForm} onSubmit={addLocale} style={{ marginTop: "var(--space-4)" }} noValidate>
+        <div>
+          <input
+            className="input"
+            placeholder={t("dash.super.localeCode")}
+            value={newCode}
+            onChange={(e) => {
+              setNewCode(e.target.value);
+              if (e.target.value.trim()) setAddFieldErrors((prev) => ({ ...prev, code: undefined }));
+            }}
+            aria-invalid={!!addFieldErrors.code}
+          />
+          {addFieldErrors.code && <FieldError message={addFieldErrors.code} />}
+        </div>
+        <div>
+          <input
+            className="input"
+            placeholder={t("dash.super.localeName")}
+            value={newName}
+            onChange={(e) => {
+              setNewName(e.target.value);
+              if (e.target.value.trim()) setAddFieldErrors((prev) => ({ ...prev, name: undefined }));
+            }}
+            aria-invalid={!!addFieldErrors.name}
+          />
+          {addFieldErrors.name && <FieldError message={addFieldErrors.name} />}
+        </div>
         <button type="submit" className="btn btn-primary">
           {t("dash.super.add")}
         </button>

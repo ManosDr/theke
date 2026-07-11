@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 
 import { AppShell } from "../../components/AppShell";
 import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
+import FieldError from "../../components/FieldError";
 import type { PinState } from "../../components/MapPicker";
 import ProjectDocumentsPanel from "../../components/ProjectDocumentsPanel";
 import { InfoIcon } from "../../components/StatIcons";
@@ -39,6 +40,7 @@ function ProjectDetailContent() {
   const [editClientNotes, setEditClientNotes] = useState("");
   const [editCustomerState, setEditCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
   const [customerDetail, setCustomerDetail] = useState<CustomerDetailResponse | null>(null);
+  const [nameError, setNameError] = useState<string | null>(null);
 
   const [editingLocation, setEditingLocation] = useState(false);
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
@@ -91,6 +93,12 @@ function ProjectDetailContent() {
 
   async function saveMetadata(e: React.FormEvent) {
     e.preventDefault();
+
+    if (usesRegionalScoping && !editName.trim()) {
+      setNameError(t("project.new.errorTitle"));
+      return;
+    }
+    setNameError(null);
 
     let customerId = editCustomerState.customerId;
     if (editCustomerState.newCustomer) {
@@ -199,7 +207,7 @@ function ProjectDetailContent() {
         {tab === "info" && (
           <div className={`card ${styles.customerCard}`} style={{ padding: "var(--space-4)" }}>
             {editing ? (
-              <form onSubmit={saveMetadata}>
+              <form onSubmit={saveMetadata} noValidate>
                 <label className={styles.field}>
                   {t("project.new.clientName")}
                   <CustomerCombobox token={token} onChange={setEditCustomerState} />
@@ -279,10 +287,19 @@ function ProjectDetailContent() {
         <div className={styles.layout}>
           <div className="card" style={{ padding: "var(--space-4)" }}>
             {editing ? (
-              <form onSubmit={saveMetadata}>
+              <form onSubmit={saveMetadata} noValidate>
                 <label className={styles.field}>
                   {t("project.new.projectName")}
-                  <input className="input" value={editName} onChange={(e) => setEditName(e.target.value)} required />
+                  <input
+                    className="input"
+                    value={editName}
+                    onChange={(e) => {
+                      setEditName(e.target.value);
+                      if (e.target.value.trim()) setNameError(null);
+                    }}
+                    aria-invalid={!!nameError}
+                  />
+                  {nameError && <FieldError message={nameError} />}
                 </label>
                 <label className={styles.field}>
                   {t("project.new.customerName")}

@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import FieldError from "../components/FieldError";
 import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -39,6 +40,12 @@ export default function RegisterPage() {
   const [companyType, setCompanyType] = useState<"construction" | "municipality" | "accounting">("construction");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [fieldErrors, setFieldErrors] = useState<{
+    email?: string;
+    password?: string;
+    inviteToken?: string;
+    companyName?: string;
+  }>({});
 
   // Looks up the invite's company/vertical as soon as a plausible token is
   // typed/pasted, so the invitee sees what they're joining before
@@ -75,6 +82,15 @@ export default function RegisterPage() {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    const errors: typeof fieldErrors = {};
+    if (!email.trim()) errors.email = t("validation.emailRequired");
+    if (!password) errors.password = t("validation.passwordRequired");
+    else if (password.length < 8) errors.password = t("validation.passwordTooShort");
+    if (mode === "invite" && !inviteToken.trim()) errors.inviteToken = t("validation.fieldRequired");
+    if (mode === "new_company" && !companyName.trim()) errors.companyName = t("validation.fieldRequired");
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0) return;
+
     setError(null);
     setLoading(true);
     try {
@@ -121,7 +137,7 @@ export default function RegisterPage() {
         <Logo size={56} />
       </div>
 
-      <form className={`card ${styles.card}`} onSubmit={handleSubmit}>
+      <form className={`card ${styles.card}`} onSubmit={handleSubmit} noValidate>
         {error && <p className={styles.error}>{error}</p>}
 
         <div className={styles.demoGrid} role="tablist">
@@ -148,10 +164,14 @@ export default function RegisterPage() {
             type="email"
             className="input"
             value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            required
+            onChange={(e) => {
+              setEmail(e.target.value);
+              if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, email: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.email}
             autoComplete="email"
           />
+          {fieldErrors.email && <FieldError message={fieldErrors.email} />}
         </div>
 
         <div className={styles.field}>
@@ -161,11 +181,14 @@ export default function RegisterPage() {
             type="password"
             className="input"
             value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            required
-            minLength={8}
+            onChange={(e) => {
+              setPassword(e.target.value);
+              if (e.target.value.length >= 8) setFieldErrors((prev) => ({ ...prev, password: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.password}
             autoComplete="new-password"
           />
+          {fieldErrors.password && <FieldError message={fieldErrors.password} />}
         </div>
 
         {mode === "invite" ? (
@@ -176,9 +199,13 @@ export default function RegisterPage() {
               type="text"
               className="input"
               value={inviteToken}
-              onChange={(e) => setInviteToken(e.target.value)}
-              required
+              onChange={(e) => {
+                setInviteToken(e.target.value);
+                if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, inviteToken: undefined }));
+              }}
+              aria-invalid={!!fieldErrors.inviteToken}
             />
+            {fieldErrors.inviteToken && <FieldError message={fieldErrors.inviteToken} />}
             {inviteInfo && (
               <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
                 {t("register.joiningCompany")} <strong>{inviteInfo.company_name}</strong> ·{" "}
@@ -196,9 +223,13 @@ export default function RegisterPage() {
                 type="text"
                 className="input"
                 value={companyName}
-                onChange={(e) => setCompanyName(e.target.value)}
-                required
+                onChange={(e) => {
+                  setCompanyName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.companyName}
               />
+              {fieldErrors.companyName && <FieldError message={fieldErrors.companyName} />}
             </div>
             <div className={styles.field}>
               <label htmlFor="companyType">{t("register.accountType")}</label>

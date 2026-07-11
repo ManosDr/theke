@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import FieldError from "../components/FieldError";
 import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
 import { ThemeToggle } from "../components/ThemeToggle";
@@ -16,9 +17,15 @@ export default function ForgotPasswordPage() {
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [sent, setSent] = useState(false);
+  const [fieldError, setFieldError] = useState<string | null>(null);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (!email.trim()) {
+      setFieldError(t("validation.emailRequired"));
+      return;
+    }
+    setFieldError(null);
     setError(null);
     setLoading(true);
     try {
@@ -42,7 +49,7 @@ export default function ForgotPasswordPage() {
         <Logo size={56} />
       </div>
 
-      <form className={`card ${styles.card}`} onSubmit={handleSubmit}>
+      <form className={`card ${styles.card}`} onSubmit={handleSubmit} noValidate>
         <h1 style={{ fontSize: "1.1rem", margin: 0 }}>{t("forgotPassword.title")}</h1>
         {error && <p className={styles.error}>{error}</p>}
 
@@ -60,10 +67,14 @@ export default function ForgotPasswordPage() {
                 type="email"
                 className="input"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                required
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  if (e.target.value.trim()) setFieldError(null);
+                }}
+                aria-invalid={!!fieldError}
                 autoComplete="email"
               />
+              {fieldError && <FieldError message={fieldError} />}
             </div>
             <button type="submit" className="btn btn-primary" disabled={loading}>
               {loading ? t("forgotPassword.sending") : t("forgotPassword.submit")}

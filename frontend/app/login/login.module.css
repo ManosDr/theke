@@ -90,6 +90,35 @@
   grid-column: 1 / -1;
 }
 
+/* Register page's mode switcher - same segmented-pill pattern as the
+   project detail page's .tabs/.tab/.tabActive, so a tab control looks the
+   same everywhere in the app rather than each page inventing its own. */
+.modeTabs {
+  display: flex;
+  gap: 2px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-sm);
+  padding: 3px;
+}
+
+.modeTab {
+  flex: 1;
+  border: none;
+  background: none;
+  font-size: 13px;
+  font-weight: 600;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--color-text-muted);
+  text-align: center;
+}
+
+.modeTabActive {
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+}
+
 .demoRow {
   display: flex;
   gap: var(--space-2);

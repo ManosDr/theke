@@ -140,17 +140,21 @@ export default function RegisterPage() {
       <form className={`card ${styles.card}`} onSubmit={handleSubmit} noValidate>
         {error && <p className={styles.error}>{error}</p>}
 
-        <div className={styles.demoGrid} role="tablist">
+        <div className={styles.modeTabs} role="tablist">
           <button
             type="button"
-            className={`btn ${mode === "new_company" ? "btn-primary" : "btn-secondary"} ${styles.fullRow}`}
+            role="tab"
+            aria-selected={mode === "new_company"}
+            className={`${styles.modeTab} ${mode === "new_company" ? styles.modeTabActive : ""}`}
             onClick={() => setMode("new_company")}
           >
             {t("register.createCompany")}
           </button>
           <button
             type="button"
-            className={`btn ${mode === "invite" ? "btn-primary" : "btn-secondary"} ${styles.fullRow}`}
+            role="tab"
+            aria-selected={mode === "invite"}
+            className={`${styles.modeTab} ${mode === "invite" ? styles.modeTabActive : ""}`}
             onClick={() => setMode("invite")}
           >
             {t("register.haveInvite")}

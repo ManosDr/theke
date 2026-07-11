@@ -34,6 +34,25 @@ SOURCE_GROUPS: dict[str, str] = {
     "gps_fek_drama_scanned": "ΓΠΣ Δράμας (ΦΕΚ - σαρωμένο, εκκρεμεί χειροκίνητη καταχώριση)",
     "manual_entry_gps_fek_paggaio_not_located": "ΓΠΣ Παγγαίου (εκκρεμεί εντοπισμός ΦΕΚ)",
     "manual_entry_gps_fek_thassos_not_located": "ΓΠΣ Θάσου (εκκρεμεί εντοπισμός ΦΕΚ)",
+    # These entries exist as live source_name values in the documents table
+    # (added by the tax_accounting-vertical crawl work) but were never added
+    # here, so group_label()'s fallback (see below) returned them as raw,
+    # untranslated slugs on the Sources page and everywhere else
+    # source_group is rendered. Labels were checked against each source's
+    # actual crawled document titles/URLs, not guessed from the slug alone.
+    "manual_entry": "Χειροκίνητη καταχώριση",
+    "manual_entry_gis": "Χειροκίνητη καταχώριση (Πολεοδομικά στοιχεία)",
+    "manual_entry_tax": "Χειροκίνητη καταχώριση (Φορολογικά)",
+    "opengov_minenv_building_permit_reg": "ΥΠΕΝ (Άδειες Δόμησης)",
+    "mitos_gov_gr_eadeies": "e-Άδειες (mitos.gov.gr)",
+    "aade_circulars": "ΑΑΔΕ",
+    "efka_employer_apd": "e-ΕΦΚΑ",
+    "ded_faq": "ΔΕΔ (Συχνές Ερωτήσεις)",
+    "fek_fpa": "ΦΕΚ (ΦΠΑ)",
+    "fek_kfd": "ΦΕΚ (ΚΦΔ)",
+    "lawspot_enfia": "Lawspot (ΕΝΦΙΑ)",
+    "lawspot_kfe": "Lawspot (ΚΦΕ)",
+    "myaade_guide": "myAADE (Οδηγός)",
 }
 
 

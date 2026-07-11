@@ -466,7 +466,9 @@ export function DocumentsPanel() {
               </div>
               <div className={styles.metadataItem}>
                 <span className={styles.metaLabel}>{t("docs.drawer.extractionStatus")}</span>
-                <span className="metaValue">{drawerDoc.extraction_status ?? "—"}</span>
+                <span className="metaValue">
+                  {drawerDoc.extraction_status ? t(`docs.status.${drawerDoc.extraction_status}` as TranslationKey) : "—"}
+                </span>
               </div>
               <div className={styles.metadataItem}>
                 <span className={styles.metaLabel}>{t("docs.drawer.createdAt")}</span>

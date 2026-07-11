@@ -7,7 +7,16 @@
 .sourceButton {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
+  /* stretch, not flex-start - flex-start shrink-wraps each child to its
+     own text width, so an unbroken source name (or a long label with no
+     spaces) forced the button wider than its grid cell instead of
+     wrapping, which then triggered the shared .card class's
+     overflow-x: auto as a horizontal scrollbar. min-width: 0 is the
+     matching fix for the grid-cell side of the same issue - grid items
+     default to min-width: auto (content-based), which otherwise stops
+     the track itself from ever shrinking below the text's width. */
+  align-items: stretch;
+  min-width: 0;
   gap: var(--space-2);
   padding: var(--space-5);
   text-align: left;
@@ -68,6 +77,8 @@
 .sourceName {
   font-size: 1.05rem;
   font-weight: 700;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .sourceCount {

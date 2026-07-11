@@ -504,11 +504,13 @@ function DocumentsTab({ token }: { token: string | null }) {
                   <td>{d.title ?? "—"}</td>
                   <td>{d.project_name ?? "—"}</td>
                   <td>
-                    <span className="badge badge-success">{d.doc_type ?? "—"}</span>
+                    <span className="badge badge-success">
+                      {d.doc_type ? t(`docType.${d.doc_type}` as TranslationKey) : "—"}
+                    </span>
                   </td>
                   <td>
                     <span className={`badge ${d.extraction_status === "full_text" ? "badge-success" : "badge-warning"}`}>
-                      {d.extraction_status ?? "—"}
+                      {d.extraction_status ? t(`docs.status.${d.extraction_status}` as TranslationKey) : "—"}
                     </span>
                   </td>
                   <td className="text-muted">{new Date(d.created_at).toLocaleDateString()}</td>

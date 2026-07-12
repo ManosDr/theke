@@ -79,6 +79,8 @@ services:
 
   # The persistent scheduled process (supercronic running crawler/crontab) -
   # unlike `crawler` above, this belongs in the default `up`.
+  # depends_on backend too: the weekly canary_benchmark job calls POST
+  # /chat/message over HTTP, unlike the other scheduled jobs.
   scheduler:
     build: ./crawler
     env_file: .env
@@ -87,6 +89,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      backend:
+        condition: service_started
 
   nginx:
     image: nginx:1.27-alpine

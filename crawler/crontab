@@ -8,3 +8,10 @@
 # queue (GET /admin/stale-documents). Monday 04:00 UTC, after the sweep
 # would have run against whatever the monthly crawl last touched.
 0 4 * * 1 python -m crawler.staleness
+
+# Weekly canary benchmark - 10 fixed chat questions through the real
+# pipeline (5 construction, 5 tax/accounting), checking gap=false and
+# citations present on the persisted chat_sessions row. Monday 05:00 UTC,
+# after the staleness sweep. Alerts (failures only) go to benchmark_alerts
+# and a super admin notification - see crawler/crawler/canary_benchmark.py.
+0 5 * * 1 python -m crawler.canary_benchmark

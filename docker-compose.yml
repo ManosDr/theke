@@ -63,6 +63,9 @@ services:
   # Runs the same crawler image continuously, executing crawler/main.py on
   # the schedule defined in crawler/crontab (monthly by default). No Docker
   # socket mounting required - supercronic runs the job in-process.
+  # depends_on backend too: the weekly canary_benchmark job (crawler/crawler/
+  # canary_benchmark.py) calls POST /chat/message over HTTP, unlike the
+  # other scheduled jobs which only ever talk to Postgres directly.
   scheduler:
     build: ./crawler
     env_file: .env
@@ -70,6 +73,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      backend:
+        condition: service_started
     restart: unless-stopped
 
 volumes:

@@ -366,6 +366,22 @@ class MessageFeedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class BenchmarkAlert(Base):
+    """One row per failing question from the weekly canary benchmark
+    (crawler/crawler/canary_benchmark.py) - only failures are logged, so this
+    table being empty for a given week means every canary question passed."""
+
+    __tablename__ = "benchmark_alerts"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    vertical: Mapped[str] = mapped_column(Text)
+    question: Mapped[str] = mapped_column(Text)
+    session_id: Mapped[int | None] = mapped_column(ForeignKey("chat_sessions.id"))
+    gap: Mapped[bool] = mapped_column()
+    citation_count: Mapped[int] = mapped_column(Integer)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Plan(Base):
     __tablename__ = "plans"
 

@@ -343,6 +343,24 @@ CREATE TABLE IF NOT EXISTS message_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_message_feedback_session ON message_feedback(session_id);
 
+-- Weekly canary benchmark (crawler/crawler/canary_benchmark.py, Monday
+-- morning via crawler/crontab). Only failing questions get a row here - this
+-- is an alert log, not a full run history; a passing week leaves it
+-- untouched. session_id points at the actual chat_sessions row the canary's
+-- POST /chat/message call produced, so a super admin can open the exact
+-- answer that failed instead of just seeing the question text again.
+CREATE TABLE IF NOT EXISTS benchmark_alerts (
+    id SERIAL PRIMARY KEY,
+    vertical VARCHAR NOT NULL,
+    question TEXT NOT NULL,
+    session_id INT REFERENCES chat_sessions(id),
+    gap BOOLEAN NOT NULL,
+    citation_count INT NOT NULL,
+    created_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_benchmark_alerts_created ON benchmark_alerts(created_at);
+
 -- Locales available for the UI. 'en' and 'el' ship built-in (bundled in the
 -- frontend as a fallback, so the app works even if this table is empty);
 -- a super admin can add more (de, tr, he, ...) via the Languages admin panel.

@@ -191,6 +191,16 @@ function ChatContent() {
       .get<ProjectSummary[]>("/projects", token)
       .then((data) => {
         setProjects(data);
+        // A project's own "Συνομιλία" link deep-links here as
+        // /chat?project_id=N - honor it over the default project so opening
+        // chat from inside a project actually scopes to that project, not
+        // whichever one happens to be marked default.
+        const requestedId = Number(new URLSearchParams(window.location.search).get("project_id"));
+        const requested = requestedId ? data.find((p) => p.id === requestedId) : undefined;
+        if (requested) {
+          setSelectedProjectId(requested.id);
+          return;
+        }
         const def = data.find((p) => p.is_default);
         setSelectedProjectId(def ? def.id : null);
       })

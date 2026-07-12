@@ -191,6 +191,9 @@ function ProjectDetailContent() {
       <div>
         <div className={styles.header}>
           <h1>{project.name}</h1>
+          <Link href={`/chat?project_id=${project.id}`} className="btn btn-primary">
+            {t("nav.chat")}
+          </Link>
         </div>
 
         <div className={styles.tabs}>
@@ -262,6 +265,9 @@ function ProjectDetailContent() {
             {project.municipality && <span className="badge badge-success">{project.municipality}</span>}
           </p>
         </div>
+        <Link href={`/chat?project_id=${project.id}`} className="btn btn-primary">
+          {t("nav.chat")}
+        </Link>
       </div>
 
       <div className={styles.tabs}>

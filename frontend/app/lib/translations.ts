@@ -733,6 +733,8 @@ export const translations = {
     "authority.aade": "ΑΑΔΕ",
     "authority.efka": "e-ΕΦΚΑ",
     "authority.mida": "ΜΗΔΕ",
+    "authority.ypen": "Ministry of Environment & Energy",
+    "authority.yppoa": "Ministry of Culture",
     "authority.other": "Other",
 
     "contentType.procedural_howto": "How-to guide",
@@ -1643,6 +1645,8 @@ export const translations = {
     "authority.aade": "ΑΑΔΕ",
     "authority.efka": "e-ΕΦΚΑ",
     "authority.mida": "ΜΗΔΕ",
+    "authority.ypen": "ΥΠΕΝ",
+    "authority.yppoa": "ΥΠΠΟΑ",
     "authority.other": "Άλλο",
 
     "contentType.procedural_howto": "Οδηγός διαδικασίας",

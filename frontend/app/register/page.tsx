@@ -33,6 +33,8 @@ export default function RegisterPage() {
   const [mode, setMode] = useState<"invite" | "new_company">("new_company");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [firstName, setFirstName] = useState("");
+  const [lastName, setLastName] = useState("");
   const [inviteToken, setInviteToken] = useState("");
   const [inviteInfo, setInviteInfo] = useState<InviteInfo | null>(null);
   const [inviteInfoError, setInviteInfoError] = useState<string | null>(null);
@@ -43,6 +45,8 @@ export default function RegisterPage() {
   const [fieldErrors, setFieldErrors] = useState<{
     email?: string;
     password?: string;
+    firstName?: string;
+    lastName?: string;
     inviteToken?: string;
     companyName?: string;
   }>({});
@@ -127,6 +131,8 @@ export default function RegisterPage() {
     if (!email.trim()) errors.email = t("validation.emailRequired");
     if (!password) errors.password = t("validation.passwordRequired");
     else if (password.length < 8) errors.password = t("validation.passwordTooShort");
+    if (!firstName.trim()) errors.firstName = t("validation.fieldRequired");
+    if (!lastName.trim()) errors.lastName = t("validation.fieldRequired");
     if (mode === "invite" && !inviteToken.trim()) errors.inviteToken = t("validation.fieldRequired");
     if (mode === "new_company" && !companyName.trim()) errors.companyName = t("validation.fieldRequired");
     setFieldErrors(errors);
@@ -138,6 +144,8 @@ export default function RegisterPage() {
       await api.post<TokenResponse>("/auth/register", {
         email,
         password,
+        first_name: firstName,
+        last_name: lastName,
         preferred_locale: locale,
         // Construction firm and municipality both consume the "construction"
         // vertical's content - there is no separate "municipality" vertical
@@ -241,6 +249,40 @@ export default function RegisterPage() {
             autoComplete="new-password"
           />
           {fieldErrors.password && <FieldError message={fieldErrors.password} />}
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="firstName">{t("register.firstName")}</label>
+          <input
+            id="firstName"
+            type="text"
+            className="input"
+            value={firstName}
+            onChange={(e) => {
+              setFirstName(e.target.value);
+              if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, firstName: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.firstName}
+            autoComplete="given-name"
+          />
+          {fieldErrors.firstName && <FieldError message={fieldErrors.firstName} />}
+        </div>
+
+        <div className={styles.field}>
+          <label htmlFor="lastName">{t("register.lastName")}</label>
+          <input
+            id="lastName"
+            type="text"
+            className="input"
+            value={lastName}
+            onChange={(e) => {
+              setLastName(e.target.value);
+              if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, lastName: undefined }));
+            }}
+            aria-invalid={!!fieldErrors.lastName}
+            autoComplete="family-name"
+          />
+          {fieldErrors.lastName && <FieldError message={fieldErrors.lastName} />}
         </div>
 
         <div ref={modeWrapperRef} className={styles.modeContent} style={{ height: modeContentHeight }}>

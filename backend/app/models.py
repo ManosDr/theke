@@ -93,7 +93,8 @@ class User(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     email: Mapped[str] = mapped_column(Text, unique=True)
-    name: Mapped[str | None] = mapped_column(Text)
+    first_name: Mapped[str | None] = mapped_column(Text)
+    last_name: Mapped[str | None] = mapped_column(Text)
     role: Mapped[str] = mapped_column(Text, default="member")  # 'super_admin', 'admin', 'member'
     is_active: Mapped[bool] = mapped_column(default=True)
     password_hash: Mapped[str] = mapped_column(Text)
@@ -102,6 +103,14 @@ class User(Base):
     phone: Mapped[str | None] = mapped_column(Text)
     last_login_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @property
+    def display_name(self) -> str:
+        """Full name for display, falling back to email when neither name
+        part is set (e.g. an account created before first/last name was
+        required, or a role with no self-serve signup)."""
+        full = f"{self.first_name or ''} {self.last_name or ''}".strip()
+        return full or self.email
 
 
 class Document(Base):

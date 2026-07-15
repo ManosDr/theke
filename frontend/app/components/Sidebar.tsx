@@ -87,18 +87,16 @@ const ACCENT_VAR: Record<SelectedVertical, string> = {
 
 const COLLAPSE_STORAGE_KEY = "theke_sidebar_collapsed";
 
-// First letter of the first name + first letter of the surname (last
-// whitespace-separated word) - falls back to the email's first letter for
-// the many accounts that have no `name` set yet (self-registration doesn't
-// collect one; see backend/app/routers/auth.py's RegisterRequest).
-function getInitials(name: string | null | undefined, email: string | undefined): string {
-  const trimmed = name?.trim();
-  if (trimmed) {
-    const parts = trimmed.split(/\s+/);
-    const first = parts[0]?.[0] ?? "";
-    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
-    return (first + last).toUpperCase();
-  }
+// First letter of the first name + first letter of the surname - falls back
+// to the email's first letter for the rare account with neither set (e.g.
+// one created before first/last name was required at signup).
+function getInitials(
+  firstName: string | null | undefined,
+  lastName: string | null | undefined,
+  email: string | undefined
+): string {
+  const initials = `${firstName?.trim()?.[0] ?? ""}${lastName?.trim()?.[0] ?? ""}`;
+  if (initials) return initials.toUpperCase();
   return email?.[0]?.toUpperCase() ?? "?";
 }
 
@@ -192,7 +190,8 @@ export function Sidebar() {
     router.push("/login");
   }
 
-  const initials = getInitials(user?.name, user?.email);
+  const fullName = user ? `${user.firstName ?? ""} ${user.lastName ?? ""}`.trim() : "";
+  const initials = getInitials(user?.firstName, user?.lastName, user?.email);
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}>
@@ -290,13 +289,13 @@ export function Sidebar() {
 
       <div className={styles.footer}>
         <div className={styles.footerRow}>
-          <div className={styles.avatar} title={user?.name ?? user?.email}>
+          <div className={styles.avatar} title={fullName || user?.email}>
             {initials}
           </div>
           {!collapsed && (
             <>
               <div className={styles.footerInfo}>
-                <div className={styles.footerEmail}>{user?.name || user?.email}</div>
+                <div className={styles.footerEmail}>{fullName || user?.email}</div>
                 <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
               </div>
               <button

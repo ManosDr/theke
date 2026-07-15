@@ -16,7 +16,8 @@ def _to_me_summary(db_user: User) -> MeSummary:
     return MeSummary(
         id=db_user.id,
         email=db_user.email,
-        name=db_user.name,
+        first_name=db_user.first_name,
+        last_name=db_user.last_name,
         phone=db_user.phone,
         role=db_user.role,
         preferred_locale=db_user.preferred_locale,
@@ -39,8 +40,10 @@ async def update_me(
     user: CurrentUser = Depends(get_current_user),
 ) -> MeSummary:
     db_user = db.get(User, user.user_id)
-    if payload.name is not None:
-        db_user.name = payload.name
+    if payload.first_name is not None:
+        db_user.first_name = payload.first_name
+    if payload.last_name is not None:
+        db_user.last_name = payload.last_name
     if payload.phone is not None:
         db_user.phone = payload.phone
     if payload.preferred_locale is not None:

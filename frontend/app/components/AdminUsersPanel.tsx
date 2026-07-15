@@ -96,7 +96,7 @@ export function AdminUsersPanel() {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.name ?? "—"}</td>
+                  <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                   <td>{u.email}</td>
                   <td>{u.company_name}</td>
                   <td>

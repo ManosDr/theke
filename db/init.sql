@@ -638,7 +638,13 @@ END $$;
 -- company admin dashboard's Χρήστες tab rather than only created_at.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
-ALTER TABLE users ADD COLUMN IF NOT EXISTS name VARCHAR(255);
+
+-- Split first/last name (was a single free-text `name` column) so the
+-- sidebar avatar/footer can compute real initials and a display name
+-- instead of falling back to the email whenever a single-field name was
+-- never actually populated - see KNOWN_DECISIONS.md.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
 
 -- Token consumption tracking, per completion call - NULL on any row where
 -- no GPT call was made at all (e.g. the off-topic-guard gap path), not

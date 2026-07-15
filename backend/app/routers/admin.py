@@ -161,7 +161,8 @@ async def create_company_with_admin(
     admin_user = User(
         company_id=company.id,
         email=payload.admin_email,
-        name=payload.admin_name,
+        first_name=payload.admin_first_name,
+        last_name=payload.admin_last_name,
         role="admin",
         password_hash=hash_password(generated_password),
         phone=payload.admin_phone,
@@ -184,7 +185,8 @@ async def create_company_with_admin(
         company_id=company.id,
         company_name=company.name,
         admin_user_id=admin_user.id,
-        admin_name=payload.admin_name,
+        admin_first_name=payload.admin_first_name,
+        admin_last_name=payload.admin_last_name,
         admin_email=payload.admin_email,
         generated_password=generated_password,
     )
@@ -233,7 +235,10 @@ async def get_company_detail(
 
     return CompanyDetail(
         **summary.model_dump(),
-        users=[CompanyUserSummary(id=u.id, email=u.email, name=u.name, role=u.role, is_active=u.is_active) for u in users],
+        users=[
+            CompanyUserSummary(id=u.id, email=u.email, first_name=u.first_name, last_name=u.last_name, role=u.role, is_active=u.is_active)
+            for u in users
+        ],
         projects=[
             CompanyProjectSummary(id=p.id, name=p.name, municipality=p.municipality, is_client=p.is_client)
             for p in projects
@@ -345,7 +350,8 @@ async def list_all_users(
         AdminUserSummary(
             id=u.id,
             email=u.email,
-            name=u.name,
+            first_name=u.first_name,
+            last_name=u.last_name,
             phone=u.phone,
             role=u.role,
             is_active=u.is_active,
@@ -430,7 +436,8 @@ async def impersonate_user(
         company_id=target.company_id,
         company_type=company.type if company else None,
         role=target.role,
-        name=target.name,
+        first_name=target.first_name,
+        last_name=target.last_name,
         preferred_locale=target.preferred_locale,
         preferred_theme=target.preferred_theme,
         email=target.email,
@@ -525,7 +532,8 @@ async def admin_change_user_role(
     return AdminUserSummary(
         id=target.id,
         email=target.email,
-        name=target.name,
+        first_name=target.first_name,
+        last_name=target.last_name,
         phone=target.phone,
         role=target.role,
         is_active=target.is_active,
@@ -1393,7 +1401,7 @@ async def list_feedback(
                 created_at=fb.created_at,
                 question=session.message or "",
                 answer_excerpt=(session.response or "")[:200],
-                user_name=(u.name or u.email) if u else "—",
+                user_name=u.display_name if u else "—",
                 company_name=company.name if company else None,
                 vertical=vertical.slug if vertical else None,
             )
@@ -1428,7 +1436,7 @@ async def update_feedback_status(
         created_at=fb.created_at,
         question=(session.message if session else None) or "",
         answer_excerpt=((session.response if session else None) or "")[:200],
-        user_name=(u.name or u.email) if u else "—",
+        user_name=u.display_name if u else "—",
         company_name=company.name if company else None,
         vertical=vertical.slug if vertical else None,
     )
@@ -1461,7 +1469,7 @@ async def list_user_feedback(
                 message=fb.message,
                 page_url=fb.page_url,
                 created_at=fb.created_at,
-                user_name=(u.name or u.email) if u else "—",
+                user_name=u.display_name if u else "—",
                 company_name=company.name if company else None,
             )
             for fb, u, company in rows

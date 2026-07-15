@@ -65,7 +65,8 @@ function SectionAccount({
   onUpdated: (me: MeSummary) => void;
 }) {
   const { t } = useLocale();
-  const [name, setName] = useState(me.name ?? "");
+  const [firstName, setFirstName] = useState(me.first_name ?? "");
+  const [lastName, setLastName] = useState(me.last_name ?? "");
   const [phone, setPhone] = useState(me.phone ?? "");
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -74,7 +75,7 @@ function SectionAccount({
     if (!token) return;
     setSaving(true);
     try {
-      const updated = await api.patch<MeSummary>("/users/me", { name, phone }, token);
+      const updated = await api.patch<MeSummary>("/users/me", { first_name: firstName, last_name: lastName, phone }, token);
       onUpdated(updated);
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
@@ -88,8 +89,12 @@ function SectionAccount({
       <h2>{t("account.sectionAccount")}</h2>
       <div className={styles.fieldGrid}>
         <label className={styles.field}>
-          {t("account.name")}
-          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+          {t("account.firstName")}
+          <input className="input" value={firstName} onChange={(e) => setFirstName(e.target.value)} />
+        </label>
+        <label className={styles.field}>
+          {t("account.lastName")}
+          <input className="input" value={lastName} onChange={(e) => setLastName(e.target.value)} />
         </label>
         <label className={styles.field}>
           {t("account.email")}

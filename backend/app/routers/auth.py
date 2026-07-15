@@ -117,6 +117,8 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
     user = User(
         company_id=company.id,
         email=payload.email,
+        first_name=payload.first_name,
+        last_name=payload.last_name,
         role=role,
         password_hash=hash_password(payload.password),
         preferred_locale=payload.preferred_locale,
@@ -141,7 +143,8 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         company_id=company.id,
         company_type=company.type,
         role=role,
-        name=user.name,
+        first_name=user.first_name,
+        last_name=user.last_name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
     )
@@ -188,7 +191,8 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         company_id=user.company_id,
         company_type=company.type if company else None,
         role=user.role,
-        name=user.name,
+        first_name=user.first_name,
+        last_name=user.last_name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
     )
@@ -228,7 +232,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
         )
         db.commit()
         reset_url = f"{settings.frontend_url}/reset-password?token={token}"
-        send_password_reset_email(user.email, reset_url, user.name or user.email)
+        send_password_reset_email(user.email, reset_url, user.display_name)
         # This line exists only so "a reset was requested" is observable in
         # logs, not to substitute for real delivery - see the docstring on
         # why the token/link itself never appears here.

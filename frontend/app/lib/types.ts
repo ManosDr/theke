@@ -1,7 +1,8 @@
 export interface UserSummary {
   id: number;
   email: string;
-  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   role: "admin" | "member";
   is_active: boolean;
@@ -102,7 +103,8 @@ export interface CompanySummary {
 export interface CompanyUserSummary {
   id: number;
   email: string;
-  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   role: string;
   is_active: boolean;
 }
@@ -164,7 +166,8 @@ export interface MyCompanySummary {
 export interface CompanyCreateWithAdminRequest {
   company_name: string;
   company_type: "construction" | "accounting" | "municipality";
-  admin_name: string;
+  admin_first_name: string;
+  admin_last_name: string;
   admin_email: string;
   admin_phone?: string;
 }
@@ -173,7 +176,8 @@ export interface CompanyCreateWithAdminResponse {
   company_id: number;
   company_name: string;
   admin_user_id: number;
-  admin_name: string;
+  admin_first_name: string;
+  admin_last_name: string;
   admin_email: string;
   generated_password: string;
 }
@@ -181,7 +185,8 @@ export interface CompanyCreateWithAdminResponse {
 export interface MeSummary {
   id: number;
   email: string;
-  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   phone: string | null;
   role: string;
   preferred_locale: string | null;

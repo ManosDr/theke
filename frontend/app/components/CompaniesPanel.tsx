@@ -192,12 +192,18 @@ function CreateCompanyModal({
   const { t, tUpper } = useLocale();
   const [companyName, setCompanyName] = useState("");
   const [companyType, setCompanyType] = useState<CompanyCreateWithAdminRequest["company_type"]>("construction");
-  const [adminName, setAdminName] = useState("");
+  const [adminFirstName, setAdminFirstName] = useState("");
+  const [adminLastName, setAdminLastName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ companyName?: string; adminName?: string; adminEmail?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{
+    companyName?: string;
+    adminFirstName?: string;
+    adminLastName?: string;
+    adminEmail?: string;
+  }>({});
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -211,7 +217,8 @@ function CreateCompanyModal({
     e.preventDefault();
     const errors: typeof fieldErrors = {};
     if (!companyName.trim()) errors.companyName = t("validation.fieldRequired");
-    if (!adminName.trim()) errors.adminName = t("validation.fieldRequired");
+    if (!adminFirstName.trim()) errors.adminFirstName = t("validation.fieldRequired");
+    if (!adminLastName.trim()) errors.adminLastName = t("validation.fieldRequired");
     if (!adminEmail.trim()) errors.adminEmail = t("validation.emailRequired");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -225,7 +232,8 @@ function CreateCompanyModal({
         {
           company_name: companyName,
           company_type: companyType,
-          admin_name: adminName,
+          admin_first_name: adminFirstName,
+          admin_last_name: adminLastName,
           admin_email: adminEmail,
           admin_phone: adminPhone || undefined,
         },
@@ -296,17 +304,30 @@ function CreateCompanyModal({
           <h4>{tUpper("companies.new.sectionAdmin")}</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-              {t("companies.new.adminName")}
+              {t("companies.new.adminFirstName")}
               <input
                 className="input"
-                value={adminName}
+                value={adminFirstName}
                 onChange={(e) => {
-                  setAdminName(e.target.value);
-                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, adminName: undefined }));
+                  setAdminFirstName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, adminFirstName: undefined }));
                 }}
-                aria-invalid={!!fieldErrors.adminName}
+                aria-invalid={!!fieldErrors.adminFirstName}
               />
-              {fieldErrors.adminName && <FieldError message={fieldErrors.adminName} />}
+              {fieldErrors.adminFirstName && <FieldError message={fieldErrors.adminFirstName} />}
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {t("companies.new.adminLastName")}
+              <input
+                className="input"
+                value={adminLastName}
+                onChange={(e) => {
+                  setAdminLastName(e.target.value);
+                  if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, adminLastName: undefined }));
+                }}
+                aria-invalid={!!fieldErrors.adminLastName}
+              />
+              {fieldErrors.adminLastName && <FieldError message={fieldErrors.adminLastName} />}
             </label>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminEmail")}
@@ -375,9 +396,9 @@ function CreatedAccountModal({ result, onClose }: { result: CompanyCreateWithAdm
             <strong>{result.company_name}</strong>
           </div>
           <div className={styles.listRow}>
-            <span>{t("companies.new.adminName")}</span>
+            <span>{t("companies.resetPassword.userLabel")}</span>
             <strong>
-              {result.admin_name} ({result.admin_email})
+              {result.admin_first_name} {result.admin_last_name} ({result.admin_email})
             </strong>
           </div>
         </div>
@@ -787,7 +808,11 @@ function ResetPasswordModal({
           <div className={styles.modalSection}>
             <div className={styles.listRow}>
               <span>{t("companies.resetPassword.userLabel")}</span>
-              <strong>{user.name ? `${user.name} (${user.email})` : user.email}</strong>
+              <strong>
+                {user.first_name || user.last_name
+                  ? `${`${user.first_name ?? ""} ${user.last_name ?? ""}`.trim()} (${user.email})`
+                  : user.email}
+              </strong>
             </div>
           </div>
 
@@ -866,7 +891,11 @@ function ResetPasswordModal({
         <div className={styles.modalSection}>
           <div className={styles.listRow}>
             <span>{t("companies.resetPassword.userLabel")}</span>
-            <strong>{user.name ? `${user.name} (${user.email})` : user.email}</strong>
+            <strong>
+              {user.first_name || user.last_name
+                ? `${`${user.first_name ?? ""} ${user.last_name ?? ""}`.trim()} (${user.email})`
+                : user.email}
+            </strong>
           </div>
           <p className="text-muted" style={{ marginTop: "var(--space-2)" }}>
             {t("companies.resetPassword.confirmBody")}

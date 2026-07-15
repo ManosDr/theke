@@ -13,6 +13,8 @@ COMPANY_TYPES = ("construction", "architecture", "engineering", "contractor", "m
 class RegisterRequest(BaseModel):
     email: str
     password: str = Field(min_length=8)
+    first_name: str = Field(min_length=1)
+    last_name: str = Field(min_length=1)
     # Provide EITHER invite_token (join an existing company - the invite
     # determines which company and role) OR company_name (create a new one,
     # becoming its founding admin). Providing both / neither is rejected.
@@ -63,7 +65,8 @@ class TokenResponse(BaseModel):
     company_id: int | None = None
     company_type: str | None = None
     role: str
-    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     preferred_locale: str | None = None
     preferred_theme: str | None = None
 
@@ -256,7 +259,8 @@ class UploadResponse(BaseModel):
 class UserSummary(BaseModel):
     id: int
     email: str
-    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     phone: str | None = None
     role: str
     is_active: bool
@@ -341,7 +345,8 @@ class CustomerProjectListEntry(BaseModel):
 class MeSummary(BaseModel):
     id: int
     email: str
-    name: str | None
+    first_name: str | None
+    last_name: str | None
     phone: str | None
     role: str
     preferred_locale: str | None
@@ -349,7 +354,8 @@ class MeSummary(BaseModel):
 
 
 class UpdateMeRequest(BaseModel):
-    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     phone: str | None = None
     preferred_locale: str | None = None
 
@@ -400,7 +406,8 @@ class CompanySummary(BaseModel):
 class CompanyUserSummary(BaseModel):
     id: int
     email: str
-    name: str | None = None
+    first_name: str | None = None
+    last_name: str | None = None
     role: str
     is_active: bool
 
@@ -415,7 +422,8 @@ class CompanyProjectSummary(BaseModel):
 class CompanyCreateWithAdminRequest(BaseModel):
     company_name: str
     company_type: str
-    admin_name: str
+    admin_first_name: str
+    admin_last_name: str
     admin_email: str
     admin_phone: str | None = None
 
@@ -431,7 +439,8 @@ class CompanyCreateWithAdminResponse(BaseModel):
     company_id: int
     company_name: str
     admin_user_id: int
-    admin_name: str
+    admin_first_name: str
+    admin_last_name: str
     admin_email: str
     generated_password: str
 

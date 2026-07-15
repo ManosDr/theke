@@ -45,7 +45,7 @@ def company_token_usage(db: Session, company_id: int, since_30d: datetime, users
         )
         .group_by(ChatSession.user_id)
     ).all()
-    user_names = {u.id: (u.name or u.email) for u in users}
+    user_names = {u.id: u.display_name for u in users}
 
     return TokenUsageSummary(
         prompt_tokens_30d=int(prompt_tokens),

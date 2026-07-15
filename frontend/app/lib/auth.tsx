@@ -40,7 +40,8 @@ export interface AuthUser {
   companyType: CompanyType | null;
   role: Role;
   email: string;
-  name: string | null;
+  firstName: string | null;
+  lastName: string | null;
   preferredLocale: string | null;
   preferredTheme: string | null;
 }
@@ -50,7 +51,8 @@ interface TokenResponse {
   company_id: number | null;
   company_type: CompanyType | null;
   role: Role;
-  name: string | null;
+  first_name: string | null;
+  last_name: string | null;
   preferred_locale: string | null;
   preferred_theme: string | null;
 }
@@ -127,7 +129,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       companyType: data.company_type,
       role: data.role,
       email,
-      name: data.name,
+      firstName: data.first_name,
+      lastName: data.last_name,
       preferredLocale: data.preferred_locale,
       preferredTheme: data.preferred_theme,
     };
@@ -162,7 +165,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       companyType: data.company_type,
       role: data.role,
       email: data.email,
-      name: data.name,
+      firstName: data.first_name,
+      lastName: data.last_name,
       preferredLocale: data.preferred_locale,
       preferredTheme: data.preferred_theme,
     };

@@ -67,6 +67,8 @@ def test_register_new_company(client, db_session):
         json={
             "email": email,
             "password": "supersecret1",
+            "first_name": "New",
+            "last_name": "Registrant",
             "company_name": company_name,
             "company_type": "construction",
             "vertical_slug": "construction",
@@ -105,6 +107,8 @@ def test_register_duplicate_email(client):
         json={
             "email": DEMO_EMAILS["construction_admin"],
             "password": "supersecret1",
+            "first_name": "Dup",
+            "last_name": "Registrant",
             "company_name": f"Dup Co {uuid.uuid4().hex[:8]}",
             "company_type": "construction",
             "vertical_slug": "construction",
@@ -119,6 +123,8 @@ def test_register_unknown_vertical(client):
         json={
             "email": f"unknown-vertical-{uuid.uuid4().hex[:8]}@example.test",
             "password": "supersecret1",
+            "first_name": "Unknown",
+            "last_name": "Vertical",
             "company_name": f"Unknown Vertical Co {uuid.uuid4().hex[:8]}",
             "company_type": "construction",
             "vertical_slug": "not_a_real_vertical",
@@ -149,6 +155,8 @@ def test_register_invite_wrong_email(client, db_session, construction_company_id
             json={
                 "email": "someone-else-entirely@example.test",
                 "password": "supersecret1",
+                "first_name": "Someone",
+                "last_name": "Else",
                 "invite_token": invite.token,
             },
         )

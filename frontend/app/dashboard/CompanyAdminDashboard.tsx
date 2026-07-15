@@ -403,7 +403,7 @@ function UsersTab({ token }: { token: string | null }) {
             <tbody>
               {users.map((u) => (
                 <tr key={u.id}>
-                  <td>{u.name ?? "—"}</td>
+                  <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                   <td>{u.email}</td>
                   <td>{u.phone ?? "—"}</td>
                   <td>
@@ -750,7 +750,7 @@ function SubscriptionTab({ token }: { token: string | null }) {
           <tbody>
             {users.map((u) => (
               <tr key={u.id}>
-                <td>{u.name ?? "—"}</td>
+                <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                 <td>{u.email}</td>
                 <td>{u.messages_30d}</td>
               </tr>

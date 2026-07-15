@@ -10,20 +10,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { TranslationKey } from "../lib/translations";
 import styles from "./login.module.css";
-
-const DEMO_PASSWORD = "demo1234";
-
-const DEMO_ACCOUNTS: { labelKey: TranslationKey; email: string }[] = [
-  { labelKey: "login.demo.superAdmin", email: "demo-superadmin@theke.gr" },
-  { labelKey: "login.demo.constructionAdmin", email: "demo-admin@construction.theke.gr" },
-  { labelKey: "login.demo.constructionMember", email: "demo-member@construction.theke.gr" },
-  { labelKey: "login.demo.municipalityAdmin", email: "demo-admin@municipality.theke.gr" },
-  { labelKey: "login.demo.municipalityMember", email: "demo-member@municipality.theke.gr" },
-  { labelKey: "login.demo.accountingAdmin", email: "demo-admin@accounting.theke.gr" },
-  { labelKey: "login.demo.accountingMember", email: "demo-member@accounting.theke.gr" },
-];
 
 function LoginContent() {
   const { login } = useAuth();
@@ -33,7 +20,6 @@ function LoginContent() {
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [demoEmail, setDemoEmail] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   // A boolean, not the translated string itself - t() is called at render
@@ -73,11 +59,6 @@ function LoginContent() {
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
     doLogin(email, password);
-  }
-
-  function handleDemoSignIn() {
-    if (!demoEmail) return;
-    doLogin(demoEmail, DEMO_PASSWORD);
   }
 
   return (
@@ -138,32 +119,6 @@ function LoginContent() {
         <p className={styles.footerLink}>
           <a href="/forgot-password">{t("login.forgotPassword")}</a>
         </p>
-
-        <div className={styles.divider}>{t("login.orDemo")}</div>
-
-        <div className={styles.demoRow}>
-          <select
-            className="input"
-            value={demoEmail}
-            onChange={(e) => setDemoEmail(e.target.value)}
-            aria-label={t("login.demo.selectPlaceholder")}
-          >
-            <option value="">{t("login.demo.selectPlaceholder")}</option>
-            {DEMO_ACCOUNTS.map((account) => (
-              <option key={account.email} value={account.email}>
-                {t(account.labelKey)}
-              </option>
-            ))}
-          </select>
-          <button
-            type="button"
-            className="btn btn-secondary"
-            disabled={loading || !demoEmail}
-            onClick={handleDemoSignIn}
-          >
-            {t("login.demo.signIn")}
-          </button>
-        </div>
 
         <p className={styles.footerLink}>
           {t("login.newHere")} <a href="/register">{t("login.createAccount")}</a>

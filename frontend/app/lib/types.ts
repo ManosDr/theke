@@ -102,8 +102,17 @@ export interface CompanySummary {
 export interface CompanyUserSummary {
   id: number;
   email: string;
+  name: string | null;
   role: string;
   is_active: boolean;
+}
+
+export interface AdminResetPasswordResponse {
+  new_password: string;
+}
+
+export interface EmailStatusResponse {
+  email_enabled: boolean;
 }
 
 export interface CompanyProjectSummary {

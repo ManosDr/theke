@@ -315,11 +315,12 @@
   border-radius: 50%;
   background: var(--color-primary);
   color: #fff;
+  border: 2px solid #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
-  font-size: 13px;
+  font-size: 12px;
   flex-shrink: 0;
 }
 

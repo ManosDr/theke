@@ -12,11 +12,20 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 15
 
     # Base URL the password-reset link is built against - the frontend's
-    # origin, not this API's. No email provider is configured yet, so the
-    # link is logged rather than sent (see app/routers/auth.py and
-    # KNOWN_DECISIONS.md).
+    # origin, not this API's. Actually emailed when email_enabled is true
+    # (see app/services/email.py); otherwise still logged rather than sent
+    # (see app/routers/auth.py and KNOWN_DECISIONS.md).
     frontend_url: str = "http://localhost:3000"
     password_reset_token_expire_minutes: int = 60
+
+    # Resend (https://resend.com) for transactional email - currently just
+    # password-reset links (see app/services/email.py). email_enabled must
+    # be explicitly set true in production; false means send_password_reset_
+    # email() is a no-op and the caller falls back to logging the link, same
+    # as before this was added.
+    resend_api_key: str = ""
+    email_from: str = "noreply@theke.gr"
+    email_enabled: bool = False
 
     openai_api_key: str = ""
     embedding_model: str = "text-embedding-3-small"

@@ -614,7 +614,9 @@ actual empty volume, not just the already-migrated dev DB.
 
 **Fix:** the log line now masks the email (first 3 characters + domain, e.g. `dem***@construction.theke.gr`) and never includes the token or the link at all. This means there is currently no way to retrieve a reset link for local testing except querying `password_reset_tokens` directly - a deliberate tradeoff, not an oversight.
 
-**Revisit when:** real email delivery is wired up (the actual fix for both this and the deferred-verification entry) - at that point the token only ever needs to exist in the outbound email, never in a log line.
+**Update - real email delivery is now wired up** (`app/services/email.py`, Resend, gated by `settings.email_enabled`): the token now only ever exists in the outbound email, exactly as this entry anticipated. A follow-up spec for this feature assumed the dev/email-disabled fallback would log the reset URL to console ("log the URL as before") - that was never actually true post-fix, and doing it would have reintroduced the exact leak documented above, just conditioned on an env var instead of removed. Kept the masked-email-only log line in both cases; the token is retrievable for local testing only via `password_reset_tokens` directly, same as before this feature existed.
+
+**Revisit when:** a support workflow needs a human-readable way to check "was a reset actually requested/sent for user X" without DB access - that's answerable without ever exposing the token itself (e.g. a boolean/timestamp-only audit view), so it doesn't need to reopen this tradeoff.
 
 ## Multiple named conversations per project
 
@@ -1015,3 +1017,13 @@ All five, once routed to their actual recipients, work correctly: unread dot app
 **Fix applied:** added a `tUpper()` helper alongside the existing `t()` in `frontend/app/lib/i18n.tsx` (`str.toLocaleUpperCase('el')` under the hood), and replaced every `text-transform: uppercase` CSS rule + matching `t(...)` call-site pair across ~20 files with `tUpper(...)` called directly (no CSS transform). English strings are unaffected either way, since `.toLocaleUpperCase('el')` on an already-Latin string behaves the same as plain uppercasing.
 
 **Revisit when:** a new all-caps Greek label is added anywhere - use `tUpper()`, not `text-transform: uppercase` + `t()`, or the accent will silently reappear.
+
+## Demo login moved behind super admin, replaced with a real "view as any user" impersonation feature
+
+**What changed:** the public login page's demo-account dropdown (pick any of the seven seeded accounts, sign in with no password typed) is gone. In its place: `POST /admin/users/{id}/impersonate` (`backend/app/routers/admin.py`), super-admin-only, issues a real JWT for the target user directly - no password, since the caller is already verified. `AdminUsersPanel.tsx`'s Χρήστες table gained a "Σύνδεση ως" button per row (any active non-super_admin user, not just the seven demo accounts), and `auth.tsx` gained `impersonateAsUser`/`stopImpersonating`, which stash the super admin's own session under a second localStorage key (`theke-auth-original`) so a persistent banner (`ImpersonationBanner.tsx`, mounted in `AppShell.tsx`) can offer a one-click way back.
+
+**Why now:** the dropdown was fine pre-launch, when every account in the system was a demo account and "let anyone log in as anyone" had no real target to protect. It stops being fine the moment real customer invites go out - at that point the dropdown is a public unauthenticated-impersonation hole sitting on the login page. The underlying need (a super admin spot-checking what a given role/company/user actually sees) didn't go away, so it moved behind an auth check instead of being deleted outright.
+
+**Scope decisions made:** impersonating another `super_admin` is blocked outright (no real use case, and it would make the "stash the original session" logic ambiguous about which session is "the" original). The seven seeded demo accounts still exist with their `demo1234` password and still work for direct login - only the public unauthenticated picker is gone; a super admin can still reach any of them (or any real user) via "Σύνδεση ως". Every impersonation issuance is logged via the existing `log_action` audit trail (`action="impersonate"`), same mechanism as revoke/restore.
+
+**Revisit when:** if impersonation needs to be time-boxed or restricted further (e.g. read-only mode, or requiring a reason/ticket reference) - none of that exists today, this is a straight "issue a token for that user" primitive gated only by the caller's own role.

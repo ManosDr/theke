@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
@@ -14,8 +15,9 @@ import type { AdminUserSummary } from "../lib/types";
 // table/section styles so this reads as the same screen family as the
 // company-admin's own Χρήστες tab, just without the company scoping.
 export function AdminUsersPanel() {
-  const { user } = useAuth();
+  const { user, impersonateAsUser } = useAuth();
   const { t, tUpper } = useLocale();
+  const router = useRouter();
   const token = user?.token ?? null;
 
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -55,6 +57,15 @@ export function AdminUsersPanel() {
       refresh();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : `Failed to ${action} access`);
+    }
+  }
+
+  async function viewAs(target: AdminUserSummary) {
+    try {
+      await impersonateAsUser(target.id);
+      router.push("/dashboard");
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to switch account");
     }
   }
 
@@ -110,7 +121,12 @@ export function AdminUsersPanel() {
                       {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ display: "flex", gap: "var(--space-2)" }}>
+                    {u.role !== "super_admin" && u.is_active && (
+                      <button className="btn btn-secondary" onClick={() => viewAs(u)}>
+                        {t("dash.company.viewAs")}
+                      </button>
+                    )}
                     {u.role !== "super_admin" && (
                       <button className="btn btn-secondary" onClick={() => toggleActive(u)}>
                         {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}

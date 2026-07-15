@@ -87,6 +87,21 @@ const ACCENT_VAR: Record<SelectedVertical, string> = {
 
 const COLLAPSE_STORAGE_KEY = "theke_sidebar_collapsed";
 
+// First letter of the first name + first letter of the surname (last
+// whitespace-separated word) - falls back to the email's first letter for
+// the many accounts that have no `name` set yet (self-registration doesn't
+// collect one; see backend/app/routers/auth.py's RegisterRequest).
+function getInitials(name: string | null | undefined, email: string | undefined): string {
+  const trimmed = name?.trim();
+  if (trimmed) {
+    const parts = trimmed.split(/\s+/);
+    const first = parts[0]?.[0] ?? "";
+    const last = parts.length > 1 ? parts[parts.length - 1][0] : "";
+    return (first + last).toUpperCase();
+  }
+  return email?.[0]?.toUpperCase() ?? "?";
+}
+
 function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
   const { selectedVertical, setSelectedVertical } = useVertical();
   const { t, tUpper } = useLocale();
@@ -177,7 +192,7 @@ export function Sidebar() {
     router.push("/login");
   }
 
-  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+  const initials = getInitials(user?.name, user?.email);
 
   return (
     <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}>
@@ -275,11 +290,13 @@ export function Sidebar() {
 
       <div className={styles.footer}>
         <div className={styles.footerRow}>
-          <div className={styles.avatar}>{initial}</div>
+          <div className={styles.avatar} title={user?.name ?? user?.email}>
+            {initials}
+          </div>
           {!collapsed && (
             <>
               <div className={styles.footerInfo}>
-                <div className={styles.footerEmail}>{user?.email}</div>
+                <div className={styles.footerEmail}>{user?.name || user?.email}</div>
                 <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
               </div>
               <button

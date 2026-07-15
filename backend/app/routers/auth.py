@@ -24,6 +24,7 @@ from app.schemas import (
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
+from app.services.email import send_password_reset_email
 from app.services.notifications import notify
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
 
@@ -140,6 +141,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         company_id=company.id,
         company_type=company.type,
         role=role,
+        name=user.name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
     )
@@ -186,6 +188,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         company_id=user.company_id,
         company_type=company.type if company else None,
         role=user.role,
+        name=user.name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
     )
@@ -205,12 +208,14 @@ def _mask_email(email: str) -> str:
 @router.post("/forgot-password", response_model=ForgotPasswordResponse)
 async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(get_db)) -> ForgotPasswordResponse:
     """Always the same 200 + body regardless of whether the email is
-    registered - the response can't be allowed to reveal that, or it
-    becomes an email-enumeration oracle. No email provider is configured
-    yet, so there's currently no way to actually deliver the reset link to
-    the user (see KNOWN_DECISIONS.md) - querying password_reset_tokens
-    directly is the only way to retrieve it for now, deliberately, since
-    logging it was a real credential leak (see KNOWN_DECISIONS.md)."""
+    registered, or (when email is enabled) whether the send actually
+    succeeded - the response can't be allowed to reveal any of that, or it
+    becomes an email-enumeration oracle. Real delivery via Resend when
+    settings.email_enabled is true (see app/services/email.py); either way,
+    the token/reset link itself is never logged (see KNOWN_DECISIONS.md -
+    it used to be, and a raw unexpired reset token in a log line is a real
+    credential leak, not a theoretical one) - query password_reset_tokens
+    directly if you need the link for local testing with email disabled."""
     user = db.scalar(select(User).where(User.email == payload.email))
     if user and user.is_active:
         token = secrets.token_urlsafe(32)
@@ -222,10 +227,11 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
             )
         )
         db.commit()
-        # Deliberately not logging the token or the reset link built from it
-        # (query password_reset_tokens directly if you need it for local
-        # testing) - this line exists only so "a reset was requested" is
-        # observable in logs, not to substitute for real delivery.
+        reset_url = f"{settings.frontend_url}/reset-password?token={token}"
+        send_password_reset_email(user.email, reset_url, user.name or user.email)
+        # This line exists only so "a reset was requested" is observable in
+        # logs, not to substitute for real delivery - see the docstring on
+        # why the token/link itself never appears here.
         logger.info("Password reset requested for %s", _mask_email(user.email))
     return ForgotPasswordResponse(message=FORGOT_PASSWORD_MESSAGE)
 

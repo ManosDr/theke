@@ -88,6 +88,49 @@
   border-bottom: none;
 }
 
+.rowMenuWrap {
+  position: relative;
+}
+
+.rowMenuButton {
+  border: none;
+  background: none;
+  font-size: 1.1rem;
+  color: var(--color-text-muted);
+  padding: 2px var(--space-2);
+  cursor: pointer;
+}
+
+.rowMenu {
+  position: absolute;
+  right: 0;
+  top: 100%;
+  z-index: 10;
+  min-width: 190px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-1);
+  display: flex;
+  flex-direction: column;
+}
+
+.rowMenuItem {
+  text-align: left;
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 6px;
+  font-size: 0.85rem;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.rowMenuItem:hover {
+  background: var(--color-surface-alt);
+}
+
 .rolePill {
   display: inline-flex;
   padding: 1px var(--space-2);

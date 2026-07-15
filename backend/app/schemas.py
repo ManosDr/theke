@@ -63,8 +63,13 @@ class TokenResponse(BaseModel):
     company_id: int | None = None
     company_type: str | None = None
     role: str
+    name: str | None = None
     preferred_locale: str | None = None
     preferred_theme: str | None = None
+
+
+class ImpersonateResponse(TokenResponse):
+    email: str
 
 
 class UpdateLocaleRequest(BaseModel):
@@ -270,6 +275,16 @@ class AdminUserSummary(UserSummary):
     company_name: str
 
 
+# Plain-text, shown once in the confirmation modal, never stored - see
+# POST /admin/users/{id}/reset-password.
+class AdminResetPasswordResponse(BaseModel):
+    new_password: str
+
+
+class EmailStatusResponse(BaseModel):
+    email_enabled: bool
+
+
 class AdminInviteSummary(InviteSummary):
     company_id: int
     company_name: str
@@ -385,6 +400,7 @@ class CompanySummary(BaseModel):
 class CompanyUserSummary(BaseModel):
     id: int
     email: str
+    name: str | None = None
     role: str
     is_active: bool
 

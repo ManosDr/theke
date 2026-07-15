@@ -62,7 +62,14 @@ was a real bug until just now (see §13).
 - Password reset: email-link flow: `POST /auth/forgot-password` →
   `POST /auth/reset-password`. Deliberately returns the same response
   whether or not the email exists (no user-enumeration leak — confirmed
-  fixed earlier this project, not a current gap).
+  fixed earlier this project, not a current gap). Actually emailed via
+  Resend when `EMAIL_ENABLED=true` (`app/services/email.py`); otherwise a
+  token is still created but nothing is sent (see KNOWN_DECISIONS.md — the
+  link is deliberately never logged either way). A super admin can also
+  force-reset any user's password directly from the Companies screen's
+  Χρήστες list (`POST /admin/users/{id}/reset-password`, generates a
+  one-time password shown once) or trigger the same email-link flow on the
+  user's behalf.
 - `/docs` and `/redoc` (FastAPI's auto-generated API explorer) are only
   served when `ENVIRONMENT != "production"`.
 
@@ -310,6 +317,11 @@ company (see §3).
   of OS preference unless explicitly changed.
 
 ## 11. Demo accounts
+
+No longer reachable from the public login page (see KNOWN_DECISIONS.md's
+"demo login moved behind super admin" entry) - log in with the password
+below directly, or (for a super admin) use "View as" on the Χρήστες admin
+screen, which works for any user, not just these seven.
 
 Password `demo1234` for all seven:
 

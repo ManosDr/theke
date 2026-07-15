@@ -3,9 +3,10 @@ import string
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select, text
+from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
+from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import (
@@ -17,6 +18,7 @@ from app.models import (
     Document,
     Invite,
     MessageFeedback,
+    PasswordResetToken,
     Plan,
     Project,
     Region,
@@ -29,6 +31,7 @@ from app.models import (
 from app.schemas import (
     AddSubscriptionNoteRequest,
     AdminInviteSummary,
+    AdminResetPasswordResponse,
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
     AdminUserSummary,
@@ -47,11 +50,13 @@ from app.schemas import (
     DataSourcesByVertical,
     DocumentReplacementRef,
     DocumentSummary,
+    EmailStatusResponse,
     ExtendTrialRequest,
     FeedbackEntry,
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
+    ImpersonateResponse,
     MarkReviewedRequest,
     MarkSupersededRequest,
     PlanCreateRequest,
@@ -73,7 +78,7 @@ from app.schemas import (
     VerticalSummary,
     VerticalUpdateRequest,
 )
-from app.security import hash_password
+from app.security import create_access_token, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.sources import group_label
@@ -228,7 +233,7 @@ async def get_company_detail(
 
     return CompanyDetail(
         **summary.model_dump(),
-        users=[CompanyUserSummary(id=u.id, email=u.email, role=u.role, is_active=u.is_active) for u in users],
+        users=[CompanyUserSummary(id=u.id, email=u.email, name=u.name, role=u.role, is_active=u.is_active) for u in users],
         projects=[
             CompanyProjectSummary(id=p.id, name=p.name, municipality=p.municipality, is_client=p.is_client)
             for p in projects
@@ -390,6 +395,90 @@ async def admin_restore_user(
         db, actor_user_id=user.user_id, company_id=target.company_id, action="access_restored", resource_type="user", resource_id=target.id
     )
     db.commit()
+
+
+@router.post("/users/{user_id}/impersonate", response_model=ImpersonateResponse)
+async def impersonate_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ImpersonateResponse:
+    """Soft-launch replacement for the old public demo-account login: once
+    real invites go out, letting any visitor pick any account from the
+    public login page is no longer acceptable, but a super admin still
+    needs to spot-check what a given role/company actually sees. Issues a
+    real token for the target user directly - no password involved, since
+    the caller is already verified as super_admin."""
+    require_super_admin(user)
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target.role == "super_admin":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot impersonate another super admin")
+    if not target.is_active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated")
+
+    company = db.get(Company, target.company_id) if target.company_id else None
+    log_action(
+        db, actor_user_id=user.user_id, company_id=target.company_id, action="impersonate", resource_type="user", resource_id=target.id
+    )
+    db.commit()
+
+    token = create_access_token(user_id=target.id, company_id=target.company_id, role=target.role)
+    return ImpersonateResponse(
+        token=token,
+        company_id=target.company_id,
+        company_type=company.type if company else None,
+        role=target.role,
+        name=target.name,
+        preferred_locale=target.preferred_locale,
+        preferred_theme=target.preferred_theme,
+        email=target.email,
+    )
+
+
+@router.post("/users/{user_id}/reset-password", response_model=AdminResetPasswordResponse)
+async def admin_reset_user_password(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> AdminResetPasswordResponse:
+    """Generates a new random password for a user directly - for support
+    situations where a super admin needs to hand someone working
+    credentials immediately, without waiting on email delivery (see
+    POST /auth/forgot-password for the self-serve, email-based path, which
+    a super admin can also trigger on a user's behalf from the same UI).
+    The password is returned once in the response and never stored or
+    logged in plain text."""
+    require_super_admin(user)
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    new_password = _generate_password()
+    target.password_hash = hash_password(new_password)
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == target.id))
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=target.company_id,
+        action="admin_reset_password",
+        resource_type="user",
+        resource_id=target.id,
+        metadata={"target_email": target.email},
+    )
+    db.commit()
+
+    return AdminResetPasswordResponse(new_password=new_password)
+
+
+@router.get("/email-status", response_model=EmailStatusResponse)
+async def get_email_status(user: CurrentUser = Depends(get_current_user)) -> EmailStatusResponse:
+    """Lets the frontend decide whether to offer "send a reset link" as an
+    alternative to the admin-forced reset above - showing that option when
+    email delivery isn't actually configured would be a dead end."""
+    require_super_admin(user)
+    return EmailStatusResponse(email_enabled=settings.email_enabled and bool(settings.resend_api_key))
 
 
 @router.patch("/users/{user_id}/role", response_model=AdminUserSummary)

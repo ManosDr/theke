@@ -61,8 +61,11 @@ startup (password `demo1234` for all), one per role/vertical combination:
 | `demo-admin@accounting.theke.gr` | Company admin | Tax & Accounting |
 | `demo-member@accounting.theke.gr` | Company member | Tax & Accounting |
 
-The login page has a dropdown listing all seven, so you can try any role's
-experience without typing credentials.
+Log in with the password above, or - once logged in as the super admin -
+use "View as" on the Χρήστες admin screen to switch into any user's view
+without their password (see KNOWN_DECISIONS.md). The public login page no
+longer has a demo-account picker; that was fine pre-launch when every
+account was a demo account, but not once real customer invites go out.
 
 The crawler doesn't need to be started manually - `docker compose up` also
 starts a `scheduler` service that runs it monthly via supercronic. To

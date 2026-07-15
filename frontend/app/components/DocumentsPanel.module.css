@@ -67,7 +67,6 @@
   border-bottom: 1px solid var(--admin-card-border);
   color: var(--admin-stone);
   font-size: 0.72rem;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
 }
 
@@ -248,7 +247,6 @@
   display: block;
   font-size: 0.72rem;
   color: var(--admin-stone);
-  text-transform: uppercase;
   margin-bottom: 2px;
 }
 

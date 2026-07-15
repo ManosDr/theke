@@ -135,6 +135,12 @@ class Document(Base):
     # returned by a query that doesn't explicitly scope to it. NULL means a
     # normal public/company KB document.
     project_id: Mapped[int | None] = mapped_column(ForeignKey("projects.id"))
+    # Set only for customer-scoped uploads (e.g. a client's ΑΦΜ/registration
+    # paperwork that applies across all of their projects) - visible in any
+    # of that customer's projects, but not to other customers or to a
+    # no-project chat. Mutually exclusive with project_id at the application
+    # layer (see app/routers/documents.py's upload scope selector).
+    customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
     # National/regional tier + classification metadata (see docs/kb-architecture -
@@ -363,6 +369,23 @@ class MessageFeedback(Base):
     # "Παράλειψη" over typing anything.
     feedback_text: Mapped[str | None] = mapped_column(Text)
     status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'solved', 'rejected'
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class UserFeedback(Base):
+    """Product-level feedback from the floating beta feedback widget
+    (bug/suggestion/content-gap reports) - distinct from MessageFeedback
+    above, which is a thumbs-up/down on one specific chat answer. This is
+    "something about the app itself," not "this answer was wrong.\""""
+
+    __tablename__ = "user_feedback"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
+    category: Mapped[str] = mapped_column(Text)  # 'bug', 'suggestion', 'content_gap'
+    message: Mapped[str | None] = mapped_column(Text)
+    page_url: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

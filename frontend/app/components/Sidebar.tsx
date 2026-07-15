@@ -89,11 +89,11 @@ const COLLAPSE_STORAGE_KEY = "theke_sidebar_collapsed";
 
 function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
   const { selectedVertical, setSelectedVertical } = useVertical();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
 
   return (
     <div className={styles.switcherBlock}>
-      {!collapsed && <div className={styles.switcherLabel}>{t("docs.filterVertical")}</div>}
+      {!collapsed && <div className={styles.switcherLabel}>{tUpper("docs.filterVertical")}</div>}
       <div className={collapsed ? styles.switcherDots : styles.switcherStack}>
         {VERTICAL_OPTIONS.map((opt) => {
           const active = selectedVertical === opt.value;
@@ -137,13 +137,13 @@ function CompanyBranding({ collapsed }: { collapsed: boolean }) {
     <div className={styles.brandingBlock}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={`${API_URL}${company.logo_url}`} alt={company.name} className={styles.brandingLogo} />
+      <h3 className={styles.brandingName}>{company.name}</h3>
     </div>
   );
 }
 
 export function Sidebar() {
   const { user, logout } = useAuth();
-  const { company } = useCompany();
   const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname() ?? "";
@@ -277,18 +277,23 @@ export function Sidebar() {
         <div className={styles.footerRow}>
           <div className={styles.avatar}>{initial}</div>
           {!collapsed && (
-            <div className={styles.footerInfo}>
-              <h3 className={styles.footerCompanyName}>{company?.name ?? user?.email}</h3>
-              <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
-            </div>
+            <>
+              <div className={styles.footerInfo}>
+                <div className={styles.footerEmail}>{user?.email}</div>
+                <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
+              </div>
+              <button
+                type="button"
+                className={styles.signOutButton}
+                title={t("nav.signOut")}
+                aria-label={t("nav.signOut")}
+                onClick={handleLogout}
+              >
+                <LogoutIcon size={15} />
+              </button>
+            </>
           )}
         </div>
-        {!collapsed && (
-          <button type="button" className={styles.signOutButton} onClick={handleLogout}>
-            <LogoutIcon size={15} />
-            {t("nav.signOut")}
-          </button>
-        )}
       </div>
     </aside>
   );

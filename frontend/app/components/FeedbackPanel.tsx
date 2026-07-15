@@ -7,10 +7,100 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
-import type { FeedbackEntry, FeedbackListResponse } from "../lib/types";
+import type { FeedbackEntry, FeedbackListResponse, UserFeedbackEntry, UserFeedbackListResponse } from "../lib/types";
 import { ThumbDownIcon, ThumbUpIcon } from "./StatIcons";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./FeedbackPanel.module.css";
+
+type CategoryFilter = "all" | "bug" | "suggestion" | "content_gap";
+
+function UserFeedbackTable({ items, emptyKey }: { items: UserFeedbackEntry[]; emptyKey: TranslationKey }) {
+  const { t, tUpper, locale } = useLocale();
+  if (items.length === 0) return <p className={dashStyles.emptyState}>{t(emptyKey)}</p>;
+  return (
+    <table className={styles.table}>
+      <thead>
+        <tr>
+          <th>{tUpper("adminFeedback.colMessage")}</th>
+          <th>{tUpper("adminFeedback.colCompany")}</th>
+          <th>{tUpper("adminFeedback.colUser")}</th>
+          <th>{tUpper("adminFeedback.colPage")}</th>
+          <th>{tUpper("adminFeedback.colDate")}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((it) => (
+          <tr key={it.id}>
+            <td className={styles.commentCell}>{it.message || "—"}</td>
+            <td className="text-muted">{it.company_name ?? "—"}</td>
+            <td className="text-muted">{it.user_name}</td>
+            <td className="text-muted">{it.page_url ?? "—"}</td>
+            <td className="text-muted">{new Date(it.created_at).toLocaleDateString(locale)}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
+function UserFeedbackSection({ token }: { token: string | null }) {
+  const { t, tUpper } = useLocale();
+  const [items, setItems] = useState<UserFeedbackEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [categoryFilter, setCategoryFilter] = useState<CategoryFilter>("all");
+
+  useEffect(() => {
+    if (!token) return;
+    setLoading(true);
+    api
+      .get<UserFeedbackListResponse>("/admin/user-feedback", token)
+      .then((data) => setItems(data.items))
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const contentGapItems = useMemo(() => items.filter((it) => it.category === "content_gap"), [items]);
+  const otherItems = useMemo(
+    () =>
+      items.filter(
+        (it) => it.category !== "content_gap" && (categoryFilter === "all" || it.category === categoryFilter)
+      ),
+    [items, categoryFilter]
+  );
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+
+  return (
+    <div className={styles.userFeedbackSection}>
+      <h2>{t("adminFeedback.userFeedbackTitle")}</h2>
+
+      {/* Content-gap reports feed directly into the KB gap workflow, so they
+          get their own always-visible block instead of being just another
+          row behind the category filter below. */}
+      <section className={`card ${styles.contentGapCard}`}>
+        <h3>📚 {t("adminFeedback.userFeedbackContentGapTitle")}</h3>
+        <UserFeedbackTable items={contentGapItems} emptyKey="adminFeedback.contentGapEmpty" />
+      </section>
+
+      <section className="card" style={{ marginTop: "var(--space-4)", padding: "var(--space-4)" }}>
+        <div className={styles.filterBar}>
+          <label className={styles.filterField}>
+            {tUpper("adminFeedback.filterCategory")}
+            <select
+              className="input"
+              value={categoryFilter}
+              onChange={(e) => setCategoryFilter(e.target.value as CategoryFilter)}
+            >
+              <option value="all">{t("adminFeedback.categoryAll")}</option>
+              <option value="bug">{t("adminFeedback.category.bug")}</option>
+              <option value="suggestion">{t("adminFeedback.category.suggestion")}</option>
+            </select>
+          </label>
+        </div>
+        <UserFeedbackTable items={otherItems} emptyKey="adminFeedback.userFeedbackEmpty" />
+      </section>
+    </div>
+  );
+}
 
 type StatusFilter = "all" | "pending" | "solved" | "rejected";
 type RatingFilter = "all" | "positive" | "negative";
@@ -22,7 +112,7 @@ const DAY_MS = 24 * 60 * 60 * 1000;
 
 export function FeedbackPanel() {
   const { user } = useAuth();
-  const { t, locale } = useLocale();
+  const { t, tUpper, locale } = useLocale();
   const token = user?.token ?? null;
 
   const [items, setItems] = useState<FeedbackEntry[]>([]);
@@ -96,7 +186,7 @@ export function FeedbackPanel() {
 
       <div className={styles.filterBar}>
         <label className={styles.filterField}>
-          {t("adminFeedback.filterStatus")}
+          {tUpper("adminFeedback.filterStatus")}
           <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
             <option value="all">{t("adminFeedback.filterAll")}</option>
             <option value="pending">{t("adminFeedback.status.pending")}</option>
@@ -105,7 +195,7 @@ export function FeedbackPanel() {
           </select>
         </label>
         <label className={styles.filterField}>
-          {t("adminFeedback.filterRating")}
+          {tUpper("adminFeedback.filterRating")}
           <select className="input" value={ratingFilter} onChange={(e) => setRatingFilter(e.target.value as RatingFilter)}>
             <option value="all">{t("adminFeedback.filterAll")}</option>
             <option value="positive">{t("chat.feedbackPositive")}</option>
@@ -113,7 +203,7 @@ export function FeedbackPanel() {
           </select>
         </label>
         <label className={styles.filterField}>
-          {t("adminFeedback.filterVertical")}
+          {tUpper("adminFeedback.filterVertical")}
           <select className="input" value={verticalFilter} onChange={(e) => setVerticalFilter(e.target.value as VerticalFilter)}>
             <option value="all">{t("adminFeedback.filterAll")}</option>
             <option value="construction">{t("vertical.construction")}</option>
@@ -121,7 +211,7 @@ export function FeedbackPanel() {
           </select>
         </label>
         <label className={styles.filterField}>
-          {t("adminFeedback.filterPeriod")}
+          {tUpper("adminFeedback.filterPeriod")}
           <select className="input" value={periodFilter} onChange={(e) => setPeriodFilter(e.target.value as PeriodFilter)}>
             <option value="7d">{t("adminFeedback.period.7d")}</option>
             <option value="30d">{t("adminFeedback.period.30d")}</option>
@@ -137,14 +227,14 @@ export function FeedbackPanel() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>{t("adminFeedback.colQuestion")}</th>
-              <th>{t("adminFeedback.colComment")}</th>
-              <th>{t("adminFeedback.colRating")}</th>
-              <th>{t("adminFeedback.colCompany")}</th>
-              <th>{t("adminFeedback.colUser")}</th>
-              <th>{t("adminFeedback.colDate")}</th>
-              <th>{t("adminFeedback.colStatus")}</th>
-              <th>{t("adminFeedback.colActions")}</th>
+              <th>{tUpper("adminFeedback.colQuestion")}</th>
+              <th>{tUpper("adminFeedback.colComment")}</th>
+              <th>{tUpper("adminFeedback.colRating")}</th>
+              <th>{tUpper("adminFeedback.colCompany")}</th>
+              <th>{tUpper("adminFeedback.colUser")}</th>
+              <th>{tUpper("adminFeedback.colDate")}</th>
+              <th>{tUpper("adminFeedback.colStatus")}</th>
+              <th>{tUpper("adminFeedback.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -212,21 +302,21 @@ export function FeedbackPanel() {
                   <tr>
                     <td colSpan={8} className={styles.detailRow}>
                       <div className={styles.detailField}>
-                        <span className={styles.detailLabel}>{t("adminFeedback.detailQuestion")}</span>
+                        <span className={styles.detailLabel}>{tUpper("adminFeedback.detailQuestion")}</span>
                         <p>{it.question}</p>
                       </div>
                       <div className={styles.detailField}>
-                        <span className={styles.detailLabel}>{t("adminFeedback.detailAnswer")}</span>
+                        <span className={styles.detailLabel}>{tUpper("adminFeedback.detailAnswer")}</span>
                         <p>{it.answer_excerpt}</p>
                       </div>
                       {it.feedback_text && (
                         <div className={styles.detailField}>
-                          <span className={styles.detailLabel}>{t("adminFeedback.detailFeedback")}</span>
+                          <span className={styles.detailLabel}>{tUpper("adminFeedback.detailFeedback")}</span>
                           <p>{it.feedback_text}</p>
                         </div>
                       )}
                       <div className={styles.detailField}>
-                        <span className={styles.detailLabel}>{t("adminFeedback.detailContext")}</span>
+                        <span className={styles.detailLabel}>{tUpper("adminFeedback.detailContext")}</span>
                         <p className="text-muted">
                           {it.company_name ?? "—"} · {it.user_name} ·{" "}
                           {it.vertical ? t(`vertical.${it.vertical}` as TranslationKey) : "—"}
@@ -240,6 +330,8 @@ export function FeedbackPanel() {
           </tbody>
         </table>
       )}
+
+      <UserFeedbackSection token={token} />
     </div>
   );
 }

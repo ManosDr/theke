@@ -44,7 +44,7 @@ function buildFilterParams(filters: Filters, offset: number): URLSearchParams {
 
 function SearchContent() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -124,7 +124,7 @@ function SearchContent() {
 
       <form className={`card ${styles.filters}`} onSubmit={handleSubmit}>
         <div className={styles.filterField}>
-          <label htmlFor="q">{t("search.term")}</label>
+          <label htmlFor="q">{tUpper("search.term")}</label>
           <input
             id="q"
             className="input"
@@ -135,7 +135,7 @@ function SearchContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="source">{t("search.source")}</label>
+          <label htmlFor="source">{tUpper("search.source")}</label>
           <select id="source" className="input" value={filters.group} onChange={(e) => updateFilter({ group: e.target.value })}>
             <option value="">{t("search.allSources")}</option>
             {sources.map((s) => (
@@ -147,7 +147,7 @@ function SearchContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="docType">{t("search.type")}</label>
+          <label htmlFor="docType">{tUpper("search.type")}</label>
           <select id="docType" className="input" value={filters.docType} onChange={(e) => updateFilter({ docType: e.target.value })}>
             <option value="">{t("search.allTypes")}</option>
             {DOC_TYPES.map((dt) => (
@@ -159,7 +159,7 @@ function SearchContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="dateFrom">{t("search.from")}</label>
+          <label htmlFor="dateFrom">{tUpper("search.from")}</label>
           <input
             id="dateFrom"
             type="date"
@@ -170,7 +170,7 @@ function SearchContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="dateTo">{t("search.to")}</label>
+          <label htmlFor="dateTo">{tUpper("search.to")}</label>
           <input
             id="dateTo"
             type="date"
@@ -194,10 +194,10 @@ function SearchContent() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("sources.colDate")}</th>
-                <th>{t("sources.colTitle")}</th>
-                <th>{t("search.colSource")}</th>
-                <th>{t("search.colType")}</th>
+                <th>{tUpper("sources.colDate")}</th>
+                <th>{tUpper("sources.colTitle")}</th>
+                <th>{tUpper("search.colSource")}</th>
+                <th>{tUpper("search.colType")}</th>
                 <th></th>
               </tr>
             </thead>

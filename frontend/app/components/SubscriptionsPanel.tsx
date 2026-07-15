@@ -64,7 +64,7 @@ export function SubscriptionsPanel() {
 
 function CompaniesTab() {
   const { user } = useAuth();
-  const { t, locale } = useLocale();
+  const { t, tUpper, locale } = useLocale();
   const token = user?.token ?? null;
 
   const [items, setItems] = useState<SubscriptionEntry[]>([]);
@@ -150,14 +150,14 @@ function CompaniesTab() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>{t("adminSubs.colCompany")}</th>
-              <th>{t("adminSubs.colVertical")}</th>
-              <th>{t("adminSubs.colPlan")}</th>
-              <th>{t("adminSubs.colStatus")}</th>
-              <th>{t("adminSubs.colExpires")}</th>
-              <th>{t("adminSubs.colMessages")}</th>
-              <th>{t("adminSubs.colUsers")}</th>
-              <th>{t("adminSubs.colActions")}</th>
+              <th>{tUpper("adminSubs.colCompany")}</th>
+              <th>{tUpper("adminSubs.colVertical")}</th>
+              <th>{tUpper("adminSubs.colPlan")}</th>
+              <th>{tUpper("adminSubs.colStatus")}</th>
+              <th>{tUpper("adminSubs.colExpires")}</th>
+              <th>{tUpper("adminSubs.colMessages")}</th>
+              <th>{tUpper("adminSubs.colUsers")}</th>
+              <th>{tUpper("adminSubs.colActions")}</th>
             </tr>
           </thead>
           <tbody>
@@ -518,7 +518,7 @@ function AssignPlanModal({
 
 function PlansTab() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -556,14 +556,14 @@ function PlansTab() {
       <table className={styles.table}>
         <thead>
           <tr>
-            <th>{t("adminSubs.planColName")}</th>
-            <th>{t("adminSubs.planColVertical")}</th>
-            <th>{t("adminSubs.planColPrice")}</th>
-            <th>{t("adminSubs.planColBillingCycle")}</th>
-            <th>{t("adminSubs.planColUsers")}</th>
-            <th>{t("adminSubs.planColMessages")}</th>
-            <th>{t("adminSubs.planColSubscribers")}</th>
-            <th>{t("adminSubs.planColActive")}</th>
+            <th>{tUpper("adminSubs.planColName")}</th>
+            <th>{tUpper("adminSubs.planColVertical")}</th>
+            <th>{tUpper("adminSubs.planColPrice")}</th>
+            <th>{tUpper("adminSubs.planColBillingCycle")}</th>
+            <th>{tUpper("adminSubs.planColUsers")}</th>
+            <th>{tUpper("adminSubs.planColMessages")}</th>
+            <th>{tUpper("adminSubs.planColSubscribers")}</th>
+            <th>{tUpper("adminSubs.planColActive")}</th>
           </tr>
         </thead>
         <tbody>
@@ -571,7 +571,7 @@ function PlansTab() {
             <tr key={p.id}>
               <td>
                 {p.name}
-                {p.is_beta && <span className={styles.betaTag}>{t("adminSubs.betaTag")}</span>}
+                {p.is_beta && <span className={styles.betaTag}>{tUpper("adminSubs.betaTag")}</span>}
               </td>
               <td>{p.vertical_slug ? t(`vertical.${p.vertical_slug}` as TranslationKey) : "—"}</td>
               <td>€{p.price_eur.toFixed(2)}</td>

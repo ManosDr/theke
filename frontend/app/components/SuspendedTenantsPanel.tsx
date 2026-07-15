@@ -16,7 +16,7 @@ const COMPANY_TYPE_KEYS: Record<string, TranslationKey> = {
 
 export function SuspendedTenantsPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -59,10 +59,10 @@ export function SuspendedTenantsPanel() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.super.colName")}</th>
-                <th>{t("dash.super.colType")}</th>
-                <th>{t("dash.super.colStatus")}</th>
-                <th>{t("dash.super.colCreated")}</th>
+                <th>{tUpper("dash.super.colName")}</th>
+                <th>{tUpper("dash.super.colType")}</th>
+                <th>{tUpper("dash.super.colStatus")}</th>
+                <th>{tUpper("dash.super.colCreated")}</th>
                 <th></th>
               </tr>
             </thead>

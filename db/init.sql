@@ -750,3 +750,36 @@ SELECT c.id,
 FROM companies c
 WHERE NOT EXISTS (SELECT 1 FROM company_subscriptions cs WHERE cs.company_id = c.id)
 ON CONFLICT (company_id) DO NOTHING;
+
+-- Customer-level document scope, sitting between company-wide (project_id
+-- AND customer_id both NULL) and project-specific (project_id set). A
+-- document scoped to a customer (project_id NULL, customer_id set) is
+-- visible across every one of that customer's projects - e.g. a client's
+-- ΑΦΜ/tax-registration paperwork that applies to all of their engagements -
+-- without being tied to one specific project. Mutually exclusive with
+-- project_id at the application layer (see app/routers/documents.py's
+-- upload scope selector): a row never has both set. See
+-- app/services/visibility.py's visible_documents_filter() for the
+-- visibility rule and KNOWN_DECISIONS.md for why this needed a design pass
+-- before implementation (cross-customer leakage risk in RAG results).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS customer_id INTEGER REFERENCES customers(id);
+CREATE INDEX IF NOT EXISTS idx_documents_customer ON documents(customer_id);
+
+-- Product-level feedback from the floating beta feedback widget (every
+-- authenticated user, every page) - distinct from message_feedback above,
+-- which rates one specific chat answer. 'content_gap' items feed directly
+-- into the KB gap workflow (see the super admin Ανατροφοδότηση screen's
+-- "Σχόλια Χρηστών" section), so they're kept as their own category rather
+-- than folded into 'suggestion'.
+CREATE TABLE IF NOT EXISTS user_feedback (
+    id          serial PRIMARY KEY,
+    user_id     integer REFERENCES users(id),
+    company_id  integer REFERENCES companies(id),
+    category    text NOT NULL,  -- 'bug', 'suggestion', 'content_gap'
+    message     text,
+    page_url    text,
+    created_at  timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_user_feedback_created ON user_feedback(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_user_feedback_category ON user_feedback(category);

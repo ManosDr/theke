@@ -40,7 +40,7 @@ function buildParams(filters: Filters, offset: number): URLSearchParams {
 
 function SourcesContent() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
@@ -124,7 +124,7 @@ function SourcesContent() {
 
       <div className={`card ${styles.filters}`}>
         <div className={styles.filterField}>
-          <label htmlFor="authority">{t("sources.authority")}</label>
+          <label htmlFor="authority">{tUpper("sources.authority")}</label>
           <select
             id="authority"
             className="input"
@@ -141,7 +141,7 @@ function SourcesContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="contentType">{t("sources.contentType")}</label>
+          <label htmlFor="contentType">{tUpper("sources.contentType")}</label>
           <select
             id="contentType"
             className="input"
@@ -158,7 +158,7 @@ function SourcesContent() {
         </div>
 
         <div className={styles.filterField}>
-          <label htmlFor="region">{t("sources.region")}</label>
+          <label htmlFor="region">{tUpper("sources.region")}</label>
           <select
             id="region"
             className="input"
@@ -193,9 +193,9 @@ function SourcesContent() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("sources.colDate")}</th>
-                <th>{t("sources.colTitle")}</th>
-                <th>{t("sources.colAuthority")}</th>
+                <th>{tUpper("sources.colDate")}</th>
+                <th>{tUpper("sources.colTitle")}</th>
+                <th>{tUpper("sources.colAuthority")}</th>
                 <th></th>
               </tr>
             </thead>

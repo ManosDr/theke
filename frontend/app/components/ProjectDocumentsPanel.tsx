@@ -15,11 +15,20 @@ function formatSize(bytes: number): string {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function ProjectDocumentsPanel({ projectId, token }: { projectId: number; token: string | null }) {
-  const { t } = useLocale();
+export default function ProjectDocumentsPanel({
+  projectId,
+  token,
+  hasCustomer,
+}: {
+  projectId: number;
+  token: string | null;
+  hasCustomer: boolean;
+}) {
+  const { t, tUpper } = useLocale();
   const [docs, setDocs] = useState<ProjectDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState<File | null>(null);
+  const [scope, setScope] = useState<"project" | "customer" | "company">("project");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   // Row id currently showing its inline delete-confirm checkbox (same
@@ -53,6 +62,7 @@ export default function ProjectDocumentsPanel({ projectId, token }: { projectId:
     try {
       const formData = new FormData();
       formData.append("files", file);
+      formData.append("scope", scope);
       const results = await api.upload<ProjectDocumentUploadResult[]>(
         `/projects/${projectId}/documents/upload`,
         formData,
@@ -63,17 +73,24 @@ export default function ProjectDocumentsPanel({ projectId, token }: { projectId:
         setUploadError(result?.error ?? t("project.documents.uploadFailed"));
         return;
       }
-      setDocs((prev) => [
-        {
-          id: result.document_id!,
-          title: result.filename,
-          extraction_status: result.extraction_status,
-          created_at: new Date().toISOString(),
-          chunk_count: result.chunk_count,
-        },
-        ...prev,
-      ]);
+      // Company-wide uploads don't show up in this project's own list (see
+      // GET /projects/{id}/documents's docstring) - they land in the
+      // general KB document list instead, so skip prepending those here.
+      if (scope !== "company") {
+        setDocs((prev) => [
+          {
+            id: result.document_id!,
+            title: result.filename,
+            extraction_status: result.extraction_status,
+            created_at: new Date().toISOString(),
+            chunk_count: result.chunk_count,
+            doc_scope: scope,
+          },
+          ...prev,
+        ]);
+      }
       setFile(null);
+      setScope("project");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : t("project.documents.uploadFailed"));
@@ -120,6 +137,33 @@ export default function ProjectDocumentsPanel({ projectId, token }: { projectId:
             {file.name} · {formatSize(file.size)}
           </p>
         )}
+
+        <div className={styles.scopeGroup} role="radiogroup" aria-label={t("project.documents.scopeLabel")}>
+          <label className={styles.scopeOption}>
+            <input type="radio" name="doc-scope" checked={scope === "project"} onChange={() => setScope("project")} />
+            <span>
+              <strong>{t("project.documents.scopeProject")}</strong>
+              <span className={styles.scopeHint}>{t("project.documents.scopeProjectHint")}</span>
+            </span>
+          </label>
+          {hasCustomer && (
+            <label className={styles.scopeOption}>
+              <input type="radio" name="doc-scope" checked={scope === "customer"} onChange={() => setScope("customer")} />
+              <span>
+                <strong>{t("project.documents.scopeCustomer")}</strong>
+                <span className={styles.scopeHint}>{t("project.documents.scopeCustomerHint")}</span>
+              </span>
+            </label>
+          )}
+          <label className={styles.scopeOption}>
+            <input type="radio" name="doc-scope" checked={scope === "company"} onChange={() => setScope("company")} />
+            <span>
+              <strong>{t("project.documents.scopeCompany")}</strong>
+              <span className={styles.scopeHint}>{t("project.documents.scopeCompanyHint")}</span>
+            </span>
+          </label>
+        </div>
+
         {uploadError && <p className={styles.uploadError}>⚠ {uploadError}</p>}
       </div>
 
@@ -133,16 +177,23 @@ export default function ProjectDocumentsPanel({ projectId, token }: { projectId:
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("project.documents.colFilename")}</th>
-                <th>{t("project.documents.colStatus")}</th>
-                <th>{t("project.documents.colDate")}</th>
+                <th>{tUpper("project.documents.colFilename")}</th>
+                <th>{tUpper("project.documents.colStatus")}</th>
+                <th>{tUpper("project.documents.colDate")}</th>
                 <th></th>
               </tr>
             </thead>
             <tbody>
               {docs.map((d) => (
                 <tr key={d.id}>
-                  <td>{d.title}</td>
+                  <td>
+                    {d.title}
+                    {d.doc_scope === "customer" && (
+                      <span className={styles.scopeBadge} title={t("project.documents.scopeCustomerHint")}>
+                        {t("project.documents.scopeCustomer")}
+                      </span>
+                    )}
+                  </td>
                   <td>
                     <span className={`badge ${d.extraction_status === "full_text" ? "badge-success" : "badge-warning"}`}>
                       {d.extraction_status}

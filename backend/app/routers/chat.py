@@ -291,6 +291,7 @@ async def chat(
     try:
         hits = search_regulation(
             db, user, question, vertical.id, project_id=payload.project_id,
+            customer_id=project.customer_id if project else None,
             plot_in_plan=project.plot_in_plan if project else None,
         )
     except OpenAIError as exc:
@@ -426,6 +427,7 @@ async def chat_message(
             vertical.id,
             region_id=region_id,
             project_id=payload.project_id,
+            customer_id=project.customer_id if project else None,
             plot_in_plan=project.plot_in_plan if project else None,
         )
         hits = [h for h in raw_hits if _passes_hybrid_threshold(h)]

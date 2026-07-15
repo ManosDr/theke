@@ -26,7 +26,7 @@ const ACCENT_CLASS: Record<string, string> = {
 
 export function CompaniesPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const { selectedVertical } = useVertical();
 
@@ -98,12 +98,12 @@ export function CompaniesPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{t("companies.colName")}</th>
-                <th>{t("companies.colVertical")}</th>
-                <th>{t("companies.colProjects")}</th>
-                <th>{t("companies.colUsers")}</th>
-                <th>{t("companies.colCreated")}</th>
-                <th>{t("companies.colStatus")}</th>
+                <th>{tUpper("companies.colName")}</th>
+                <th>{tUpper("companies.colVertical")}</th>
+                <th>{tUpper("companies.colProjects")}</th>
+                <th>{tUpper("companies.colUsers")}</th>
+                <th>{tUpper("companies.colCreated")}</th>
+                <th>{tUpper("companies.colStatus")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -186,7 +186,7 @@ function CreateCompanyModal({
   onClose: () => void;
   onCreated: (result: CompanyCreateWithAdminResponse) => void;
 }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [companyName, setCompanyName] = useState("");
   const [companyType, setCompanyType] = useState<CompanyCreateWithAdminRequest["company_type"]>("construction");
   const [adminName, setAdminName] = useState("");
@@ -259,7 +259,7 @@ function CreateCompanyModal({
         {error && <p style={{ color: "var(--color-danger)" }}>{error}</p>}
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.new.sectionCompany")}</h4>
+          <h4>{tUpper("companies.new.sectionCompany")}</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.companyName")}
@@ -290,7 +290,7 @@ function CreateCompanyModal({
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.new.sectionAdmin")}</h4>
+          <h4>{tUpper("companies.new.sectionAdmin")}</h4>
           <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminName")}
@@ -340,7 +340,7 @@ function CreateCompanyModal({
 }
 
 function CreatedAccountModal({ result, onClose }: { result: CompanyCreateWithAdminResponse; onClose: () => void }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -380,7 +380,7 @@ function CreatedAccountModal({ result, onClose }: { result: CompanyCreateWithAdm
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.created.password")}</h4>
+          <h4>{tUpper("companies.created.password")}</h4>
           <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
             <code
               style={{
@@ -429,7 +429,7 @@ function CompanyDetailModal({
   onToggleSuspend: () => void;
   onReassigned: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [reassigning, setReassigning] = useState(false);
   const [newVerticalId, setNewVerticalId] = useState<number | "">("");
   const [submitting, setSubmitting] = useState(false);
@@ -484,14 +484,14 @@ function CompanyDetailModal({
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.modal.info")}</h4>
+          <h4>{tUpper("companies.modal.info")}</h4>
           <p className="text-muted">
             {t("companies.modal.created")}: {new Date(detail.created_at).toLocaleDateString()}
           </p>
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.modal.users")}</h4>
+          <h4>{tUpper("companies.modal.users")}</h4>
           {detail.users.length === 0 ? (
             <p className="text-muted">{t("companies.noUsers")}</p>
           ) : (
@@ -505,7 +505,7 @@ function CompanyDetailModal({
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.modal.projects")}</h4>
+          <h4>{tUpper("companies.modal.projects")}</h4>
           {detail.projects.length === 0 ? (
             <p className="text-muted">{t("companies.noProjects")}</p>
           ) : (
@@ -519,7 +519,7 @@ function CompanyDetailModal({
         </div>
 
         <div className={styles.modalSection}>
-          <h4>{t("companies.modal.usage")}</h4>
+          <h4>{tUpper("companies.modal.usage")}</h4>
           <div className={styles.usageStats}>
             <div className={styles.usageStat}>
               <span className={styles.usageValue}>{detail.messages_30d}</span>
@@ -557,10 +557,10 @@ function CompanyDetailModal({
             <table className={dashStyles.table} style={{ width: "100%", marginTop: "var(--space-3)", fontSize: "0.85rem" }}>
               <thead>
                 <tr>
-                  <th style={{ textAlign: "left", padding: "4px 0" }}>{t("companies.modal.colUser")}</th>
-                  <th style={{ textAlign: "left", padding: "4px 0" }}>{t("companies.modal.colMessages")}</th>
-                  <th style={{ textAlign: "left", padding: "4px 0" }}>{t("companies.modal.colTokens")}</th>
-                  <th style={{ textAlign: "left", padding: "4px 0" }}>{t("companies.modal.colCost")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 0" }}>{tUpper("companies.modal.colUser")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 0" }}>{tUpper("companies.modal.colMessages")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 0" }}>{tUpper("companies.modal.colTokens")}</th>
+                  <th style={{ textAlign: "left", padding: "4px 0" }}>{tUpper("companies.modal.colCost")}</th>
                 </tr>
               </thead>
               <tbody>

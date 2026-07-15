@@ -57,6 +57,7 @@ export interface ProjectDocumentSummary {
   extraction_status: string;
   created_at: string;
   chunk_count: number;
+  doc_scope: "project" | "customer" | "company";
 }
 
 export interface ProjectDocumentUploadResult {
@@ -578,6 +579,20 @@ export interface FeedbackEntry {
 
 export interface FeedbackListResponse {
   items: FeedbackEntry[];
+}
+
+export interface UserFeedbackEntry {
+  id: number;
+  category: "bug" | "suggestion" | "content_gap";
+  message: string | null;
+  page_url: string | null;
+  created_at: string;
+  user_name: string;
+  company_name: string | null;
+}
+
+export interface UserFeedbackListResponse {
+  items: UserFeedbackEntry[];
 }
 
 export interface DataSourceSyncStatus {

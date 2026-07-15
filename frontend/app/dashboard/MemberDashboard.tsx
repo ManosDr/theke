@@ -14,7 +14,7 @@ import styles from "./dashboard.module.css";
 
 export function MemberDashboard() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const isMunicipality = user?.companyType === "municipality";
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
@@ -170,14 +170,14 @@ export function MemberDashboard() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>{t("dash.member.colName")}</th>
+                    <th>{tUpper("dash.member.colName")}</th>
                     {usesRegionalScoping ? (
                       <>
-                        <th>{t("dash.member.colMunicipality")}</th>
-                        <th>{t("dash.member.colDefault")}</th>
+                        <th>{tUpper("dash.member.colMunicipality")}</th>
+                        <th>{tUpper("dash.member.colDefault")}</th>
                       </>
                     ) : (
-                      <th>{t("dash.member.colClientNotes")}</th>
+                      <th>{tUpper("dash.member.colClientNotes")}</th>
                     )}
                   </tr>
                 </thead>
@@ -288,10 +288,10 @@ export function MemberDashboard() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>{t("customer.colName")}</th>
-                  <th>{t("customer.colAfm")}</th>
-                  <th>{t("customer.colProjects")}</th>
-                  <th>{t("customer.colLastProject")}</th>
+                  <th>{tUpper("customer.colName")}</th>
+                  <th>{tUpper("customer.colAfm")}</th>
+                  <th>{tUpper("customer.colProjects")}</th>
+                  <th>{tUpper("customer.colLastProject")}</th>
                 </tr>
               </thead>
               <tbody>

@@ -40,7 +40,7 @@ const TRANSLATION_GROUPS = groupTranslationKeys();
 
 function LanguagesPanel() {
   const { user } = useAuth();
-  const { t, locales, refreshLocales } = useLocale();
+  const { t, tUpper, locales, refreshLocales } = useLocale();
   const token = user?.token ?? null;
 
   const [newCode, setNewCode] = useState("");
@@ -117,9 +117,9 @@ function LanguagesPanel() {
       <table className={styles.table} style={{ marginTop: "var(--space-4)" }}>
         <thead>
           <tr>
-            <th>{t("dash.super.colCode")}</th>
-            <th>{t("dash.super.colName")}</th>
-            <th>{t("dash.super.colBuiltin")}</th>
+            <th>{tUpper("dash.super.colCode")}</th>
+            <th>{tUpper("dash.super.colName")}</th>
+            <th>{tUpper("dash.super.colBuiltin")}</th>
             <th></th>
           </tr>
         </thead>
@@ -216,7 +216,7 @@ function LanguagesPanel() {
 
 export function SuperAdminDashboard() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const router = useRouter();
   const token = user?.token ?? null;
   const { selectedVertical, setSelectedVertical } = useVertical();
@@ -305,7 +305,7 @@ export function SuperAdminDashboard() {
           tone={suspendedTone}
           icon={<FlagIcon size={14} />}
           value={suspendedCount}
-          label={t("dash.super.suspended")}
+          label={tUpper("dash.super.suspended")}
           cta={t("dash.super.manage")}
           onCtaClick={() => router.push("/admin/suspended-tenants")}
         />
@@ -313,7 +313,7 @@ export function SuperAdminDashboard() {
           tone={gapTone}
           icon={<AlertIcon size={14} />}
           value={`${gapRate}%`}
-          label={t("dash.super.gapRate")}
+          label={tUpper("dash.super.gapRate")}
           cta={t("dash.super.reviewGaps")}
           onCtaClick={() => router.push("/admin/chat-gap-rate")}
         />
@@ -321,7 +321,7 @@ export function SuperAdminDashboard() {
           tone={staleTone}
           icon={<ClockIcon size={14} />}
           value={staleDocs.length}
-          label={t("dash.super.staleDocs")}
+          label={tUpper("dash.super.staleDocs")}
           cta={t("dash.super.reviewQueue")}
           onCtaClick={() => router.push("/admin/stale-documents")}
         />
@@ -329,7 +329,7 @@ export function SuperAdminDashboard() {
           tone="warning"
           icon={<CoinIcon size={14} />}
           value={`€${platformCost30d.toFixed(2)}`}
-          label={t("dash.super.platformCost", { tokens: platformTokensLabel })}
+          label={tUpper("dash.super.platformCost", { tokens: platformTokensLabel })}
           cta={t("dash.super.reviewCosts")}
           onCtaClick={() => router.push("/admin/companies")}
         />
@@ -422,10 +422,10 @@ export function SuperAdminDashboard() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>{t("dash.super.colTitle")}</th>
-                  <th>{t("dash.super.colSource")}</th>
-                  <th>{t("dash.super.colRegion")}</th>
-                  <th>{t("dash.super.colLastVerified")}</th>
+                  <th>{tUpper("dash.super.colTitle")}</th>
+                  <th>{tUpper("dash.super.colSource")}</th>
+                  <th>{tUpper("dash.super.colRegion")}</th>
+                  <th>{tUpper("dash.super.colLastVerified")}</th>
                 </tr>
               </thead>
               <tbody>
@@ -455,10 +455,10 @@ export function SuperAdminDashboard() {
               <table className={styles.table}>
                 <thead>
                   <tr>
-                    <th>{t("dash.super.colAction")}</th>
-                    <th>{t("dash.super.colCompany")}</th>
-                    <th>{t("dash.super.colResource")}</th>
-                    <th>{t("dash.super.colWhen")}</th>
+                    <th>{tUpper("dash.super.colAction")}</th>
+                    <th>{tUpper("dash.super.colCompany")}</th>
+                    <th>{tUpper("dash.super.colResource")}</th>
+                    <th>{tUpper("dash.super.colWhen")}</th>
                   </tr>
                 </thead>
                 <tbody>

@@ -209,7 +209,9 @@ function ProjectDetailContent() {
           </button>
         </div>
 
-        {tab === "documents" && <ProjectDocumentsPanel projectId={Number(params.id)} token={token} />}
+        {tab === "documents" && (
+          <ProjectDocumentsPanel projectId={Number(params.id)} token={token} hasCustomer={project.customer_id != null} />
+        )}
 
         {tab === "info" && (
           <div className={`card ${styles.customerCard}`} style={{ padding: "var(--space-4)" }}>
@@ -291,7 +293,9 @@ function ProjectDetailContent() {
         </button>
       </div>
 
-      {tab === "documents" && <ProjectDocumentsPanel projectId={Number(params.id)} token={token} />}
+      {tab === "documents" && (
+        <ProjectDocumentsPanel projectId={Number(params.id)} token={token} hasCustomer={project.customer_id != null} />
+      )}
 
       {tab === "info" && (
         <div className={styles.layout}>

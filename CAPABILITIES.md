@@ -76,8 +76,11 @@ was a real bug until just now (see §13).
   admin (Verticals & Content screen) with no server restart needed — the
   prompt/disclaimer is read from the DB on every request.
 - **Project/client-scoped retrieval**: when `project_id` is given, retrieval
-  merges the vertical's public KB with that project's own uploaded documents
-  (private, never visible to other projects/companies).
+  merges the vertical's public KB with three private tiers: company-wide
+  documents, customer-wide documents (visible to every project under that
+  customer, when the active project has a `customer_id`), and project-only
+  documents. A document scoped to customer A is never visible from a
+  different customer's project or a customer-less project.
 - **Off-topic guard**: an explicit system-prompt instruction steers the model
   away from answering questions outside its vertical (e.g. a construction
   company asking a tax question) — this is a soft LLM-level guard, not a
@@ -91,6 +94,13 @@ was a real bug until just now (see §13).
   documents) a contact phone/email pulled from `UtilityProvider`/`Region`.
 - **Feedback**: thumbs up/down per assistant message (`POST /chat/feedback`),
   aggregated into the super admin's sentiment donut.
+- **Product feedback widget**: a floating button on every page (all
+  authenticated roles) opens a short form — category (bug / suggestion /
+  content gap), optional 500-char message, current page URL auto-captured —
+  posted to `POST /user-feedback`. Separate from chat message feedback; surfaces
+  in the super admin's Ανατροφοδότηση screen under "Σχόλια Χρηστών", with
+  content-gap items pulled into their own always-visible card since they feed
+  the KB gap workflow directly.
 - **Rate limit**: 20 messages/hour per user (`CHAT_MESSAGE_LIMIT`), a Redis
   counter — returns HTTP 429 with a Greek message once exceeded. This is
   real and will trigger during heavy testing; not a bug.

@@ -22,6 +22,7 @@ from app.routers import (
     search,
     subscription,
     translations,
+    user_feedback,
     users,
 )
 from app.services.bootstrap import bootstrap_super_admin, seed_demo_data
@@ -83,6 +84,7 @@ app.include_router(projects.router)
 app.include_router(search.router)
 app.include_router(subscription.router)
 app.include_router(translations.router)
+app.include_router(user_feedback.router)
 app.include_router(users.router)
 
 

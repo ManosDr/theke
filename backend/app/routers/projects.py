@@ -1,7 +1,7 @@
 import os
 from datetime import datetime
 
-from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
+from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -228,6 +228,7 @@ def _require_customer_membership(db: Session, user: CurrentUser, customer_id: in
 async def upload_project_documents(
     project_id: int,
     files: list[UploadFile],
+    scope: str = Form(default="project"),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
     vertical: Vertical = Depends(get_company_vertical),
@@ -239,8 +240,22 @@ async def upload_project_documents(
     the public-KB /documents/upload, embeddings are generated immediately
     here rather than left for the backfill sweep, since a client expects to
     ask about a document right after uploading it, not on the next sweep.
+
+    `scope` picks where in the document.project_id/customer_id hierarchy the
+    upload lands - 'project' (default, this project only), 'customer' (every
+    project belonging to the same customer - only valid when this project
+    actually has one), or 'company' (the whole company's general KB,
+    equivalent to POST /documents/upload). See visible_documents_filter()
+    for how each tier is surfaced back at chat/search time.
     """
     project = _require_project_membership(db, user, project_id)
+    if scope not in ("project", "customer", "company"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="scope must be 'project', 'customer', or 'company'")
+    if scope == "customer" and project.customer_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This project has no linked customer to scope the document to",
+        )
 
     os.makedirs(UPLOAD_DIR, exist_ok=True)
     results: list[ProjectDocumentUploadResult] = []
@@ -299,7 +314,8 @@ async def upload_project_documents(
             company_id=user.company_id,
             uploaded_by=user.user_id,
             vertical_id=vertical.id,
-            project_id=project.id,
+            project_id=project.id if scope == "project" else None,
+            customer_id=project.customer_id if scope == "customer" else None,
             scope="project",  # third valid scope value alongside 'national'/'regional' - see db/init.sql
             extraction_status=extraction_status,
         )
@@ -330,12 +346,24 @@ async def list_project_documents(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[ProjectDocumentSummary]:
-    _require_project_membership(db, user, project_id)
+    """This project's own uploads, plus (when the project has a linked
+    customer) that customer's cross-project uploads too - the same two
+    tiers visible_documents_filter() surfaces at chat time, so what a user
+    sees listed here matches what the assistant can actually cite. Does NOT
+    include company-wide uploads (scope='company') - those belong to the
+    general KB document list, not a specific project's document tab."""
+    project = _require_project_membership(db, user, project_id)
+
+    scope_condition = Document.project_id == project_id
+    if project.customer_id is not None:
+        scope_condition = scope_condition | (
+            (Document.customer_id == project.customer_id) & Document.project_id.is_(None)
+        )
 
     rows = db.execute(
         select(Document, func.count(Embedding.id))
         .outerjoin(Embedding, Embedding.document_id == Document.id)
-        .where(Document.project_id == project_id, Document.status == "active")
+        .where(scope_condition, Document.status == "active")
         .group_by(Document.id)
         .order_by(Document.created_at.desc())
     ).all()
@@ -346,6 +374,7 @@ async def list_project_documents(
             extraction_status=doc.extraction_status,
             created_at=doc.created_at,
             chunk_count=chunk_count,
+            doc_scope="project" if doc.project_id == project_id else "customer",
         )
         for doc, chunk_count in rows
     ]
@@ -358,13 +387,18 @@ async def delete_project_document(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> None:
-    """Removes a project-scoped document and its embeddings (ON DELETE
-    CASCADE on embeddings.document_id) - never touches public KB documents,
-    since this only ever looks up rows with a matching project_id."""
-    _require_project_membership(db, user, project_id)
+    """Removes a project- or customer-scoped document and its embeddings (ON
+    DELETE CASCADE on embeddings.document_id) - never touches public KB or
+    company-wide documents, since this only ever looks up rows matching this
+    project's own project_id or (when linked) its customer_id."""
+    project = _require_project_membership(db, user, project_id)
 
     doc = db.get(Document, document_id)
-    if not doc or doc.project_id != project_id:
+    is_own_project_doc = doc and doc.project_id == project_id
+    is_own_customer_doc = (
+        doc and project.customer_id is not None and doc.customer_id == project.customer_id and doc.project_id is None
+    )
+    if not doc or not (is_own_project_doc or is_own_customer_doc):
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found in this project")
 
     db.delete(doc)

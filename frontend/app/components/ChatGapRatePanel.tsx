@@ -10,7 +10,7 @@ import styles from "../dashboard/dashboard.module.css";
 
 export function ChatGapRatePanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [queries, setQueries] = useState<GapQueryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -54,9 +54,9 @@ export function ChatGapRatePanel() {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("admin.chatGapRate.colQuestion")}</th>
-                <th>{t("dash.super.colCompany")}</th>
-                <th>{t("dash.super.colWhen")}</th>
+                <th>{tUpper("admin.chatGapRate.colQuestion")}</th>
+                <th>{tUpper("dash.super.colCompany")}</th>
+                <th>{tUpper("dash.super.colWhen")}</th>
               </tr>
             </thead>
             <tbody>

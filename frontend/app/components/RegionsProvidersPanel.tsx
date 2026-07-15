@@ -11,7 +11,7 @@ import dashStyles from "../dashboard/dashboard.module.css";
 
 export function RegionsProvidersPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
 
   const [regions, setRegions] = useState<RegionAdminSummary[]>([]);
@@ -56,12 +56,12 @@ export function RegionsProvidersPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{t("adminRegions.colRegion")}</th>
-                <th>{t("adminRegions.colYdom")}</th>
-                <th>{t("adminRegions.colPhone")}</th>
-                <th>{t("adminRegions.colEmail")}</th>
-                <th>{t("adminRegions.colStatus")}</th>
-                <th>{t("adminRegions.colActions")}</th>
+                <th>{tUpper("adminRegions.colRegion")}</th>
+                <th>{tUpper("adminRegions.colYdom")}</th>
+                <th>{tUpper("adminRegions.colPhone")}</th>
+                <th>{tUpper("adminRegions.colEmail")}</th>
+                <th>{tUpper("adminRegions.colStatus")}</th>
+                <th>{tUpper("adminRegions.colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -107,12 +107,12 @@ export function RegionsProvidersPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{t("adminRegions.colProvider")}</th>
-                <th>{t("adminRegions.colType")}</th>
-                <th>{t("adminRegions.colCoverage")}</th>
-                <th>{t("adminRegions.colPhone")}</th>
-                <th>{t("adminRegions.colEmail")}</th>
-                <th>{t("adminRegions.colActions")}</th>
+                <th>{tUpper("adminRegions.colProvider")}</th>
+                <th>{tUpper("adminRegions.colType")}</th>
+                <th>{tUpper("adminRegions.colCoverage")}</th>
+                <th>{tUpper("adminRegions.colPhone")}</th>
+                <th>{tUpper("adminRegions.colEmail")}</th>
+                <th>{tUpper("adminRegions.colActions")}</th>
               </tr>
             </thead>
             <tbody>

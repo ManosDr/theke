@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { FeedbackWidget } from "./FeedbackWidget";
 import { Sidebar } from "./Sidebar";
 import styles from "./AppShell.module.css";
 import { TopHeader } from "./TopHeader";
@@ -16,6 +17,7 @@ export function AppShell({ children, fullWidth = false }: { children: ReactNode;
         <TrialBanner />
         <main className={`${styles.main} ${fullWidth ? styles.mainFullWidth : ""}`}>{children}</main>
       </div>
+      <FeedbackWidget />
     </div>
   );
 }

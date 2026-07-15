@@ -127,7 +127,7 @@ export function CompanyAdminDashboard() {
 }
 
 function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNavigateToUsers: () => void }) {
-  const { t, locale } = useLocale();
+  const { t, tUpper, locale } = useLocale();
   const [data, setData] = useState<CompanyOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState<TokenUsageSummary | null>(null);
@@ -203,10 +203,10 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.usageColUser")}</th>
-                <th>{t("dash.company.usageColMessages")}</th>
-                <th>{t("dash.company.usageColTokens")}</th>
-                <th>{t("dash.company.usageColCost")}</th>
+                <th>{tUpper("dash.company.usageColUser")}</th>
+                <th>{tUpper("dash.company.usageColMessages")}</th>
+                <th>{tUpper("dash.company.usageColTokens")}</th>
+                <th>{tUpper("dash.company.usageColCost")}</th>
               </tr>
             </thead>
             <tbody>
@@ -273,7 +273,7 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
 }
 
 function UsersTab({ token }: { token: string | null }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [invites, setInvites] = useState<InviteSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -390,13 +390,13 @@ function UsersTab({ token }: { token: string | null }) {
           <table className={`${styles.table} ${styles.tableCompact}`}>
             <thead>
               <tr>
-                <th>{t("dash.company.colName")}</th>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.company.colPhone")}</th>
-                <th>{t("dash.company.colRole")}</th>
-                <th>{t("dash.company.colLastLogin")}</th>
-                <th>{t("dash.company.colMessages30d")}</th>
-                <th>{t("dash.company.colStatus")}</th>
+                <th>{tUpper("dash.company.colName")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.company.colPhone")}</th>
+                <th>{tUpper("dash.company.colRole")}</th>
+                <th>{tUpper("dash.company.colLastLogin")}</th>
+                <th>{tUpper("dash.company.colMessages30d")}</th>
+                <th>{tUpper("dash.company.colStatus")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -446,10 +446,10 @@ function UsersTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.company.colRole")}</th>
-                <th>{t("dash.company.colCreated")}</th>
-                <th>{t("dash.company.colExpires")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.company.colRole")}</th>
+                <th>{tUpper("dash.company.colCreated")}</th>
+                <th>{tUpper("dash.company.colExpires")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -476,7 +476,7 @@ function UsersTab({ token }: { token: string | null }) {
 }
 
 function DocumentsTab({ token }: { token: string | null }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [docs, setDocs] = useState<CompanyDocumentSummary[]>([]);
   const [sources, setSources] = useState<KbSourceStatusEntry[]>([]);
   const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
@@ -527,7 +527,7 @@ function DocumentsTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colDocument")}</th>
+                <th>{tUpper("dash.company.colDocument")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -569,12 +569,12 @@ function DocumentsTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colDocument")}</th>
-                <th>{t("dash.company.colProject")}</th>
-                <th>{t("dash.company.colType")}</th>
-                <th>{t("dash.company.colExtraction")}</th>
-                <th>{t("dash.company.colDate")}</th>
-                <th>{t("dash.company.colActions")}</th>
+                <th>{tUpper("dash.company.colDocument")}</th>
+                <th>{tUpper("dash.company.colProject")}</th>
+                <th>{tUpper("dash.company.colType")}</th>
+                <th>{tUpper("dash.company.colExtraction")}</th>
+                <th>{tUpper("dash.company.colDate")}</th>
+                <th>{tUpper("dash.company.colActions")}</th>
               </tr>
             </thead>
             <tbody>
@@ -617,11 +617,11 @@ function DocumentsTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colSource")}</th>
-                <th>{t("dash.company.colDocCount")}</th>
-                <th>{t("dash.company.colLastSync")}</th>
-                <th>{t("dash.company.colNextSync")}</th>
-                <th>{t("dash.company.colHealth")}</th>
+                <th>{tUpper("dash.company.colSource")}</th>
+                <th>{tUpper("dash.company.colDocCount")}</th>
+                <th>{tUpper("dash.company.colLastSync")}</th>
+                <th>{tUpper("dash.company.colNextSync")}</th>
+                <th>{tUpper("dash.company.colHealth")}</th>
               </tr>
             </thead>
             <tbody>
@@ -649,7 +649,7 @@ function DocumentsTab({ token }: { token: string | null }) {
 }
 
 function SubscriptionTab({ token }: { token: string | null }) {
-  const { t, locale } = useLocale();
+  const { t, tUpper, locale } = useLocale();
   const [status, setStatus] = useState<SubscriptionStatusResponse | null>(null);
   const [users, setUsers] = useState<UserSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -742,9 +742,9 @@ function SubscriptionTab({ token }: { token: string | null }) {
         <table className={`${styles.table} ${styles.tableCompact}`}>
           <thead>
             <tr>
-              <th>{t("dash.company.colName")}</th>
-              <th>{t("dash.company.colEmail")}</th>
-              <th>{t("dash.company.colMessages30d")}</th>
+              <th>{tUpper("dash.company.colName")}</th>
+              <th>{tUpper("dash.company.colEmail")}</th>
+              <th>{tUpper("dash.company.colMessages30d")}</th>
             </tr>
           </thead>
           <tbody>
@@ -763,7 +763,7 @@ function SubscriptionTab({ token }: { token: string | null }) {
 }
 
 function CustomersTab({ token }: { token: string | null }) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [customers, setCustomers] = useState<CustomerSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [expanded, setExpanded] = useState<Record<number, CustomerDetailResponse | undefined>>({});
@@ -847,12 +847,12 @@ function CustomersTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colName")}</th>
-                <th>{t("dash.company.colAfm")}</th>
-                <th>{t("dash.company.colPhone")}</th>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.company.colProjectsCount")}</th>
-                <th>{t("dash.company.colLastProject")}</th>
+                <th>{tUpper("dash.company.colName")}</th>
+                <th>{tUpper("dash.company.colAfm")}</th>
+                <th>{tUpper("dash.company.colPhone")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.company.colProjectsCount")}</th>
+                <th>{tUpper("dash.company.colLastProject")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -880,10 +880,10 @@ function CustomersTab({ token }: { token: string | null }) {
                             <table className={styles.table}>
                               <thead>
                                 <tr>
-                                  <th>{t("dash.company.colName")}</th>
-                                  <th>{t("dash.company.colProject")}</th>
-                                  <th>{t("dash.company.colCreated")}</th>
-                                  <th>{t("dash.company.colDocCount")}</th>
+                                  <th>{tUpper("dash.company.colName")}</th>
+                                  <th>{tUpper("dash.company.colProject")}</th>
+                                  <th>{tUpper("dash.company.colCreated")}</th>
+                                  <th>{tUpper("dash.company.colDocCount")}</th>
                                   <th></th>
                                 </tr>
                               </thead>

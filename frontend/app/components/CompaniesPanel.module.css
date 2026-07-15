@@ -71,7 +71,6 @@
 .modalSection h4 {
   margin: 0 0 var(--space-2);
   font-size: 0.78rem;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--admin-stone);
 }

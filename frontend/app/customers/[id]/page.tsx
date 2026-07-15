@@ -14,7 +14,7 @@ import styles from "./page.module.css";
 
 function CustomerDetailContent() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const params = useParams<{ id: string }>();
   const token = user?.token ?? null;
 
@@ -61,8 +61,8 @@ function CustomerDetailContent() {
           <table className={dashboardStyles.table}>
             <thead>
               <tr>
-                <th>{t("dash.member.colName")}</th>
-                <th>{t("dash.member.colMunicipality")}</th>
+                <th>{tUpper("dash.member.colName")}</th>
+                <th>{tUpper("dash.member.colMunicipality")}</th>
               </tr>
             </thead>
             <tbody>

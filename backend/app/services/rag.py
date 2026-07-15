@@ -90,6 +90,7 @@ def _retrieve(
     vertical_id: int,
     region_id: str | None = None,
     project_id: int | None = None,
+    customer_id: int | None = None,
     plot_in_plan: bool | None = None,
 ) -> list[RetrievedChunk]:
     """Shared retrieval core for both the chat pipeline and the standalone
@@ -135,7 +136,7 @@ def _retrieve(
     # bigger and full-list probing stops being cheap.
     db.execute(text("SET LOCAL ivfflat.probes = 128"))
 
-    visibility = visible_documents_filter(db, user, vertical_id, project_id=project_id)
+    visibility = visible_documents_filter(db, user, vertical_id, project_id=project_id, customer_id=customer_id)
 
     # --- Query A: vector cosine similarity ---
     distance = Embedding.embedding.cosine_distance(query_vector)
@@ -312,6 +313,7 @@ def search_regulation(
     vertical_id: int,
     top_k: int | None = None,
     project_id: int | None = None,
+    customer_id: int | None = None,
     plot_in_plan: bool | None = None,
 ) -> list[RetrievedChunk]:
     """Returns the top_k hybrid-ranked chunks, restricted to documents
@@ -323,7 +325,14 @@ def search_regulation(
     that as an honest gap, not a reason to lower the bar.
     """
     hits = _retrieve(
-        db, user, query, top_k or settings.rag_top_k, vertical_id, project_id=project_id, plot_in_plan=plot_in_plan
+        db,
+        user,
+        query,
+        top_k or settings.rag_top_k,
+        vertical_id,
+        project_id=project_id,
+        customer_id=customer_id,
+        plot_in_plan=plot_in_plan,
     )
     return [h for h in hits if _passes_hybrid_threshold(h)]
 

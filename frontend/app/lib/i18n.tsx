@@ -17,6 +17,15 @@ interface LocaleContextValue {
   locales: LocaleOption[];
   setLocale: (locale: string) => void;
   t: (key: TranslationKey, params?: Record<string, string | number>) => string;
+  // Locale-aware uppercasing for text rendered in all-caps labels (table
+  // headers, badges, section eyebrows). CSS text-transform:uppercase does
+  // a naive per-character mapping that keeps the acute accent on Greek
+  // vowels (e.g. "τύπος" -> "ΤΎΠΟΣ") - not how Greek capitals are actually
+  // written (accents are dropped: "ΤΥΠΟΣ"). toLocaleUpperCase("el") applies
+  // the correct CLDR casing rule; toLocaleUpperCase("en") is just .toUpperCase.
+  // Use this (with no CSS uppercase transform) instead of text-transform
+  // wherever the label may be Greek.
+  tUpper: (key: TranslationKey, params?: Record<string, string | number>) => string;
   refreshLocales: () => Promise<void>;
 }
 
@@ -86,8 +95,12 @@ export function LocaleProvider({ children }: { children: ReactNode }) {
     return str;
   }
 
+  function tUpper(key: TranslationKey, params?: Record<string, string | number>): string {
+    return t(key, params).toLocaleUpperCase(locale);
+  }
+
   return (
-    <LocaleContext.Provider value={{ locale, locales, setLocale, t, refreshLocales }}>
+    <LocaleContext.Provider value={{ locale, locales, setLocale, t, tUpper, refreshLocales }}>
       {children}
     </LocaleContext.Provider>
   );

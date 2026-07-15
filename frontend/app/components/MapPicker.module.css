@@ -128,6 +128,14 @@
   padding: 3px;
 }
 
+/* The KAEK/Address input-method switcher specifically (not the road/aerial
+   layer switcher, which reuses .layerSwitcher too but sits directly above
+   the map with no field below it that needs separating). */
+.methodToggle {
+  width: fit-content;
+  margin-bottom: var(--space-3);
+}
+
 .layerButton,
 .layerButtonActive {
   border: none;

@@ -15,7 +15,7 @@ import type { AdminUserSummary } from "../lib/types";
 // company-admin's own Χρήστες tab, just without the company scoping.
 export function AdminUsersPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
 
   const [users, setUsers] = useState<AdminUserSummary[]>([]);
@@ -72,13 +72,13 @@ export function AdminUsersPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colName")}</th>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.super.colCompany")}</th>
-                <th>{t("dash.company.colRole")}</th>
-                <th>{t("dash.company.colLastLogin")}</th>
-                <th>{t("dash.company.colMessages30d")}</th>
-                <th>{t("dash.company.colStatus")}</th>
+                <th>{tUpper("dash.company.colName")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.super.colCompany")}</th>
+                <th>{tUpper("dash.company.colRole")}</th>
+                <th>{tUpper("dash.company.colLastLogin")}</th>
+                <th>{tUpper("dash.company.colMessages30d")}</th>
+                <th>{tUpper("dash.company.colStatus")}</th>
                 <th></th>
               </tr>
             </thead>

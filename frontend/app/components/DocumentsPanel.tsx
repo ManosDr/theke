@@ -55,7 +55,7 @@ const PAGE_SIZE = 25;
 
 export function DocumentsPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const { selectedVertical } = useVertical();
 
@@ -244,13 +244,13 @@ export function DocumentsPanel() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>{t("docs.colTitle")}</th>
-                  <th>{t("docs.colVertical")}</th>
-                  <th>{t("docs.colAuthority")}</th>
-                  <th>{t("docs.colContentType")}</th>
-                  <th>{t("docs.colStatus")}</th>
-                  <th>{t("docs.colLastVerified")}</th>
-                  <th>{t("docs.colScope")}</th>
+                  <th>{tUpper("docs.colTitle")}</th>
+                  <th>{tUpper("docs.colVertical")}</th>
+                  <th>{tUpper("docs.colAuthority")}</th>
+                  <th>{tUpper("docs.colContentType")}</th>
+                  <th>{tUpper("docs.colStatus")}</th>
+                  <th>{tUpper("docs.colLastVerified")}</th>
+                  <th>{tUpper("docs.colScope")}</th>
                   <th></th>
                 </tr>
               </thead>
@@ -416,7 +416,7 @@ export function DocumentsPanel() {
               <p>
                 {drawerDoc.replaced_by && (
                   <span className={styles.metaLabel}>
-                    {t("docs.drawer.replacedByLabel")}:{" "}
+                    {tUpper("docs.drawer.replacedByLabel")}:{" "}
                     <button
                       type="button"
                       className={styles.titleText}
@@ -429,7 +429,7 @@ export function DocumentsPanel() {
                 )}
                 {drawerDoc.replaces && (
                   <span className={styles.metaLabel}>
-                    {t("docs.drawer.replacesLabel")}:{" "}
+                    {tUpper("docs.drawer.replacesLabel")}:{" "}
                     <button
                       type="button"
                       className={styles.titleText}
@@ -445,40 +445,40 @@ export function DocumentsPanel() {
 
             <div className={styles.metadataGrid}>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.authority")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.authority")}</span>
                 <span className="metaValue">{drawerDoc.authority ?? "—"}</span>
               </div>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.contentType")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.contentType")}</span>
                 <span className="metaValue">{drawerDoc.content_type ?? "—"}</span>
               </div>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.scope")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.scope")}</span>
                 <span className="metaValue">
                   {drawerDoc.region_id ? t("docs.scopeRegion", { region: drawerDoc.region_id }) : t("docs.scopeNational")}
                 </span>
               </div>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.lastVerified")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.lastVerified")}</span>
                 <span className="metaValue">
                   {drawerDoc.last_verified_at ? new Date(drawerDoc.last_verified_at).toLocaleDateString() : "—"}
                 </span>
               </div>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.extractionStatus")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.extractionStatus")}</span>
                 <span className="metaValue">
                   {drawerDoc.extraction_status ? t(`docs.status.${drawerDoc.extraction_status}` as TranslationKey) : "—"}
                 </span>
               </div>
               <div className={styles.metadataItem}>
-                <span className={styles.metaLabel}>{t("docs.drawer.createdAt")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.createdAt")}</span>
                 <span className="metaValue">{drawerDoc.date ? new Date(drawerDoc.date).toLocaleDateString() : "—"}</span>
               </div>
             </div>
 
             {drawerDoc.source && (
               <p>
-                <span className={styles.metaLabel}>{t("docs.drawer.sourceUrl")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.sourceUrl")}</span>
                 <a href={drawerDoc.source} target="_blank" rel="noreferrer" style={{ fontFamily: "monospace", fontSize: "0.8rem" }}>
                   {drawerDoc.source}
                 </a>
@@ -487,7 +487,7 @@ export function DocumentsPanel() {
 
             {drawerDoc.snippet && (
               <>
-                <span className={styles.metaLabel}>{t("docs.drawer.contentPreview")}</span>
+                <span className={styles.metaLabel}>{tUpper("docs.drawer.contentPreview")}</span>
                 <div className={styles.contentPreview}>{drawerDoc.snippet}</div>
               </>
             )}

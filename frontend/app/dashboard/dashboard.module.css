@@ -353,7 +353,6 @@
 .table th {
   text-align: left;
   font-size: 0.75rem;
-  text-transform: uppercase;
   letter-spacing: 0.03em;
   color: var(--color-text-muted);
   padding: var(--space-2) var(--space-3);

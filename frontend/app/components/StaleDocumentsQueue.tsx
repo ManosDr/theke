@@ -17,7 +17,7 @@ import styles from "../dashboard/dashboard.module.css";
 // data rather than pretending a second, distinct queue exists.
 export function StaleDocumentsQueue({ title, description }: { title: string; description: string }) {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [docs, setDocs] = useState<StaleDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [markingId, setMarkingId] = useState<number | null>(null);
@@ -70,11 +70,11 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{t("dash.super.colTitle")}</th>
-                <th>{t("dash.super.colSource")}</th>
-                <th>{t("dash.super.colRegion")}</th>
-                <th>{t("dash.super.colLastVerified")}</th>
-                <th>{t("admin.confirmCorrect")}</th>
+                <th>{tUpper("dash.super.colTitle")}</th>
+                <th>{tUpper("dash.super.colSource")}</th>
+                <th>{tUpper("dash.super.colRegion")}</th>
+                <th>{tUpper("dash.super.colLastVerified")}</th>
+                <th>{tUpper("admin.confirmCorrect")}</th>
                 <th></th>
               </tr>
             </thead>

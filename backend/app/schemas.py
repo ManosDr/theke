@@ -659,6 +659,11 @@ class ProjectDocumentSummary(BaseModel):
     extraction_status: str | None
     created_at: datetime
     chunk_count: int
+    # 'project' (this project only), 'customer' (all of this customer's
+    # projects), or 'company' (whole company) - which upload-scope choice
+    # produced this row. Lets the UI badge customer/company-scoped documents
+    # differently since they weren't uploaded specifically for this project.
+    doc_scope: str
 
 
 class ProjectDocumentUploadResult(BaseModel):
@@ -895,6 +900,26 @@ class FeedbackListResponse(BaseModel):
 
 class FeedbackStatusUpdateRequest(BaseModel):
     status: Literal["solved", "rejected"]
+
+
+class UserFeedbackCreate(BaseModel):
+    category: Literal["bug", "suggestion", "content_gap"]
+    message: str | None = Field(default=None, max_length=500)
+    page_url: str | None = Field(default=None, max_length=500)
+
+
+class UserFeedbackEntry(BaseModel):
+    id: int
+    category: Literal["bug", "suggestion", "content_gap"]
+    message: str | None
+    page_url: str | None
+    created_at: datetime
+    user_name: str
+    company_name: str | None
+
+
+class UserFeedbackListResponse(BaseModel):
+    items: list[UserFeedbackEntry]
 
 
 class SubscriptionStatusResponse(BaseModel):

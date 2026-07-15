@@ -22,6 +22,7 @@ from app.models import (
     Region,
     SubscriptionUsage,
     User,
+    UserFeedback,
     UtilityProvider,
     Vertical,
 )
@@ -64,6 +65,8 @@ from app.schemas import (
     SubscriptionEntry,
     SubscriptionListResponse,
     UndoSupersedeRequest,
+    UserFeedbackEntry,
+    UserFeedbackListResponse,
     UtilityProviderAdminSummary,
     UtilityProviderAdminUpdateRequest,
     VerticalStatsEntry,
@@ -1339,6 +1342,41 @@ async def update_feedback_status(
         user_name=(u.name or u.email) if u else "—",
         company_name=company.name if company else None,
         vertical=vertical.slug if vertical else None,
+    )
+
+
+@router.get("/user-feedback", response_model=UserFeedbackListResponse)
+async def list_user_feedback(
+    category: str | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> UserFeedbackListResponse:
+    """Product-level feedback from the floating beta widget (bug/suggestion/
+    content-gap reports), most recent first - the "Σχόλια Χρηστών" section on
+    the Ανατροφοδότηση screen. Optionally filtered to one category; the UI
+    also gives 'content_gap' its own prominently-separated view, since those
+    items feed directly into the KB gap workflow rather than being a general
+    triage queue like the other two categories."""
+    require_super_admin(user)
+    stmt = select(UserFeedback, User, Company).outerjoin(User, User.id == UserFeedback.user_id).outerjoin(
+        Company, Company.id == UserFeedback.company_id
+    )
+    if category:
+        stmt = stmt.where(UserFeedback.category == category)
+    rows = db.execute(stmt.order_by(UserFeedback.created_at.desc())).all()
+    return UserFeedbackListResponse(
+        items=[
+            UserFeedbackEntry(
+                id=fb.id,
+                category=fb.category,
+                message=fb.message,
+                page_url=fb.page_url,
+                created_at=fb.created_at,
+                user_name=(u.name or u.email) if u else "—",
+                company_name=company.name if company else None,
+            )
+            for fb, u, company in rows
+        ]
     )
 
 

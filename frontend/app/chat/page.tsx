@@ -105,7 +105,7 @@ function computeDividers(
 
 function ChatContent() {
   const { user } = useAuth();
-  const { t, locale } = useLocale();
+  const { t, tUpper, locale } = useLocale();
   const token = user?.token ?? null;
 
   const [messages, setMessages] = useState<Message[]>([]);
@@ -421,7 +421,7 @@ function ChatContent() {
               <div
                 className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}
               >
-              {m.gap && <div className={styles.gapBadge}>{t("chat.gapLabel")}</div>}
+              {m.gap && <div className={styles.gapBadge}>{tUpper("chat.gapLabel")}</div>}
               {m.text}
               {m.citations && m.citations.length > 0 && (
                 <>
@@ -555,7 +555,7 @@ function ChatContent() {
 
       <aside className={styles.sidebar}>
         <section className={`card ${styles.sidebarSection}`}>
-          <h3>{t("chat.yourContext")}</h3>
+          <h3>{tUpper("chat.yourContext")}</h3>
           <div className={styles.contextRow}>
             <span className="text-muted">{t("chat.role")}</span>
             <span>{user ? t(`role.${user.role}` as TranslationKey) : ""}</span>
@@ -646,7 +646,7 @@ function ChatContent() {
         </section>
 
         <section className={`card ${styles.sidebarSection}`}>
-          <h3>{t("chat.quickSearch")}</h3>
+          <h3>{tUpper("chat.quickSearch")}</h3>
           <form onSubmit={searchKb} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
             <input
               className="input"

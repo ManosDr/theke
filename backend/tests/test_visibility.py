@@ -365,3 +365,92 @@ def test_project_scoped_doc_isolated(client, db_session, construction_vertical_i
         db_session.delete(project_b)
         db_session.commit()
         cleanup_company(db_session, company, user, project_a)
+
+
+def test_customer_scoped_doc_isolated(client, db_session, construction_vertical_id):
+    """Customer-tier visibility (documents.customer_id set, project_id NULL)
+    - see app/services/visibility.py's visible_documents_filter(). A
+    document scoped to a customer must be visible from every one of that
+    customer's projects, but never from another customer's project, a
+    project with no linked customer, or an unscoped (no-project) query.
+
+    Calls search_regulation() directly instead of going through
+    /chat/message, to avoid that endpoint's off-topic-guard LLM
+    classification (see test_project_scoped_doc_isolated's docstring on why
+    that call is non-deterministic) - this test is purely about
+    retrieval/visibility, which isn't probabilistic, so there's no reason to
+    pay for or tolerate flakiness from an unrelated LLM call.
+    """
+    from app.dependencies import CurrentUser
+    from app.models import Customer, Project
+    from app.services.rag import search_regulation
+
+    company, user, _, _ = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    current_user = CurrentUser(user_id=user.id, company_id=company.id, role=user.role, company_type=company.type)
+
+    customer_a = Customer(company_id=company.id, name="Test Customer A")
+    customer_b = Customer(company_id=company.id, name="Test Customer B")
+    db_session.add_all([customer_a, customer_b])
+    db_session.flush()
+
+    project_a1 = Project(company_id=company.id, name="A - project 1", customer_id=customer_a.id)
+    project_a2 = Project(company_id=company.id, name="A - project 2", customer_id=customer_a.id)
+    project_b = Project(company_id=company.id, name="B - project", customer_id=customer_b.id)
+    project_none = Project(company_id=company.id, name="No linked customer")
+    db_session.add_all([project_a1, project_a2, project_b, project_none])
+    db_session.commit()
+
+    marker = f"customer-scope-marker-{uuid.uuid4().hex}"
+    doc = Document(
+        title="Customer A registration paperwork",
+        content=f"Στοιχεία πελάτη με μοναδικό αναγνωριστικό {marker}.",
+        status="active",
+        scope="project",
+        extraction_status="full_text",
+        vertical_id=construction_vertical_id,
+        company_id=company.id,
+        customer_id=customer_a.id,
+    )
+    db_session.add(doc)
+    db_session.flush()
+    try:
+        embed_document(db_session, doc)
+        query = f"Ποια είναι τα στοιχεία με αναγνωριστικό {marker};"
+
+        # Visible from either of customer A's own projects.
+        for project in (project_a1, project_a2):
+            hits = search_regulation(
+                db_session, current_user, query, construction_vertical_id,
+                project_id=project.id, customer_id=customer_a.id,
+            )
+            assert doc.id in [h.document_id for h in hits], f"expected doc visible from {project.name}"
+
+        # NOT visible from customer B's project.
+        hits_b = search_regulation(
+            db_session, current_user, query, construction_vertical_id,
+            project_id=project_b.id, customer_id=customer_b.id,
+        )
+        assert doc.id not in [h.document_id for h in hits_b]
+
+        # NOT visible from a project with no linked customer.
+        hits_none = search_regulation(
+            db_session, current_user, query, construction_vertical_id,
+            project_id=project_none.id, customer_id=None,
+        )
+        assert doc.id not in [h.document_id for h in hits_none]
+
+        # NOT visible with no project context at all.
+        hits_unscoped = search_regulation(db_session, current_user, query, construction_vertical_id)
+        assert doc.id not in [h.document_id for h in hits_unscoped]
+    finally:
+        db_session.execute(text("DELETE FROM embeddings WHERE document_id = :id"), {"id": doc.id})
+        db_session.commit()
+        db_session.delete(doc)
+        db_session.commit()
+        for project in (project_a1, project_a2, project_b, project_none):
+            db_session.delete(project)
+        db_session.commit()
+        db_session.delete(customer_a)
+        db_session.delete(customer_b)
+        db_session.commit()
+        cleanup_company(db_session, company, user, None)

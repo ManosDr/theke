@@ -133,12 +133,14 @@ export default function MapPicker({
 }: MapPickerProps) {
   const { t } = useLocale();
   const [showAerial, setShowAerial] = useState(false);
-  // Which single location-input method is active - was 3 always-visible
-  // stacked fields (KAEK, address, map click), now a pick-one toggle so the
-  // form isn't presenting three redundant ways to do the same thing at
-  // once. The map itself stays visible regardless (it displays the result
-  // no matter which method resolved it, and is the method for "pin").
-  const [inputMethod, setInputMethod] = useState<"kaek" | "address" | "pin">("kaek");
+  // Which search method is active. There used to be a third "Pin" tab here,
+  // but the map below is always visible and always clickable regardless of
+  // which tab is selected (see the unconditional `token && <ClickHandler>`
+  // below) - a dedicated tab for it was a dead end with no fields of its
+  // own, and just duplicated what clicking the map already does. The map's
+  // own instructionOverlay ("click the map to select...") is the only
+  // affordance manual pin-drop needs.
+  const [inputMethod, setInputMethod] = useState<"kaek" | "address">("kaek");
 
   const [kaekQuery, setKaekQuery] = useState("");
   const [kaekSearching, setKaekSearching] = useState(false);
@@ -275,7 +277,7 @@ export default function MapPicker({
   return (
     <div>
       {token && (
-        <div className={styles.layerSwitcher} role="tablist" aria-label={t("map.methodPin")}>
+        <div className={`${styles.layerSwitcher} ${styles.methodToggle}`} role="tablist" aria-label={t("map.methodGroupLabel")}>
           <button
             type="button"
             role="tab"
@@ -293,15 +295,6 @@ export default function MapPicker({
             onClick={() => setInputMethod("address")}
           >
             {t("map.methodAddress")}
-          </button>
-          <button
-            type="button"
-            role="tab"
-            aria-selected={inputMethod === "pin"}
-            className={inputMethod === "pin" ? styles.layerButtonActive : styles.layerButton}
-            onClick={() => setInputMethod("pin")}
-          >
-            {t("map.methodPin")}
           </button>
         </div>
       )}

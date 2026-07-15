@@ -14,7 +14,7 @@ import type { TranslationKey } from "../lib/translations";
 // entry and GET /admin/invites), not just the caller's own.
 export function AdminInvitesPanel() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
 
   const [invites, setInvites] = useState<AdminInviteSummary[]>([]);
@@ -67,11 +67,11 @@ export function AdminInvitesPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.super.colCompany")}</th>
-                <th>{t("dash.company.colRole")}</th>
-                <th>{t("dash.company.colCreated")}</th>
-                <th>{t("dash.company.colExpires")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.super.colCompany")}</th>
+                <th>{tUpper("dash.company.colRole")}</th>
+                <th>{tUpper("dash.company.colCreated")}</th>
+                <th>{tUpper("dash.company.colExpires")}</th>
                 <th></th>
               </tr>
             </thead>
@@ -103,11 +103,11 @@ export function AdminInvitesPanel() {
           <table className={`${dashStyles.table} ${dashStyles.tableCompact}`}>
             <thead>
               <tr>
-                <th>{t("dash.company.colEmail")}</th>
-                <th>{t("dash.super.colCompany")}</th>
-                <th>{t("dash.company.colRole")}</th>
-                <th>{t("dash.company.colStatus")}</th>
-                <th>{t("dash.company.colCreated")}</th>
+                <th>{tUpper("dash.company.colEmail")}</th>
+                <th>{tUpper("dash.super.colCompany")}</th>
+                <th>{tUpper("dash.company.colRole")}</th>
+                <th>{tUpper("dash.company.colStatus")}</th>
+                <th>{tUpper("dash.company.colCreated")}</th>
               </tr>
             </thead>
             <tbody>

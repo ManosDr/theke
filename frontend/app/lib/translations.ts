@@ -21,6 +21,8 @@ export const translations = {
     // trial banner
     "trialBanner.oneDay": "1 day",
     "trialBanner.days": "{{days}} days",
+    "trialBanner.badgeLabel": "Beta · {{days}} left",
+    "trialBanner.badgeTooltip": "Beta trial time remaining - click to view plans",
     "trialBanner.amber": "Your trial ends in {{days}}.",
     "trialBanner.urgent": "Your trial ends in {{days}}! Choose a plan to keep using theke without interruption.",
     "trialBanner.viewPlans": "View plans",
@@ -391,7 +393,7 @@ export const translations = {
     "verticalEditor.welcomeMessage": "Welcome message",
     "verticalEditor.disclaimerText": "Disclaimer text",
     "verticalEditor.disclaimerPreview": "Preview",
-    "verticalEditor.disclaimerCharCount": "{{count}}/150",
+    "verticalEditor.disclaimerCharCount": "{{count}}/200",
     "verticalEditor.systemPromptToggle": "System prompt override",
     "verticalEditor.systemPromptWarning": "Advanced: overrides the built-in system prompt entirely. Only edit if you understand the consequences.",
     "verticalEditor.resetToDefault": "Reset to default",
@@ -415,7 +417,7 @@ export const translations = {
 
     // login
     "login.tagline":
-      "Your AI copilot for Greek construction permits & compliance — instant answers with citations from ΦΕΚ, ΤΕΕ, ΥΠΕΝ, and your own knowledge base.",
+      "Your AI copilot for Greek regulatory compliance — instant answers with citations from official sources and your own knowledge base, for construction firms, municipalities, and accounting practices alike.",
     "login.email": "Email",
     "login.password": "Password",
     "login.signIn": "Sign in",
@@ -489,6 +491,7 @@ export const translations = {
     "dash.super.reviewQueue": "Review queue",
     "dash.super.ragStats": "Chat & knowledge base stats",
     "dash.super.chatKbPanel": "Chat & knowledge base",
+    "dash.super.viewFeedback": "View feedback →",
     "dash.super.totalMessages": "Total messages",
     "dash.super.gapRate": "Chat gap rate",
     "dash.super.activeDocuments": "Active documents",
@@ -634,6 +637,10 @@ export const translations = {
     "dash.company.usageColTokens": "Tokens",
     "dash.company.usageColCost": "Estimated cost",
     "dash.company.usageSeeAll": "See all →",
+    "dash.company.firstRunTitle": "Let's get started",
+    "dash.company.firstRunBody": "Create your first project or client, or ask a question to see the knowledge base in action.",
+    "dash.company.firstRunCreateProject": "Create a project",
+    "dash.company.firstRunStartChat": "Start a conversation",
     "dash.company.activityEmpty": "No activity yet.",
     "dash.company.event.chat_message": "sent a message",
     "dash.company.event.document_uploaded": "uploaded a document",
@@ -648,6 +655,8 @@ export const translations = {
     "dash.company.colCreated": "Created",
     "dash.company.colExpires": "Expires",
     "dash.company.cancelInvite": "Cancel",
+    "invite.statusAccepted": "Accepted",
+    "invite.statusRevoked": "Revoked",
     "dash.company.privateDocs": "Private Documents",
     "dash.company.publicKb": "Public Knowledge Base",
     "dash.company.colProject": "Project/Client",
@@ -761,6 +770,11 @@ export const translations = {
     "doc.back": "← Back",
     "doc.openOriginal": "Open original ↗",
     "doc.noContent": "No extracted text for this document - use \"Open original\" to read it directly.",
+    "doc.find.placeholder": "Find in document…",
+    "doc.find.matchCount": "{{current}} of {{total}}",
+    "doc.find.noMatches": "No matches",
+    "doc.find.prev": "↑ Prev",
+    "doc.find.next": "↓ Next",
 
     // chat
     "chat.placeholder": "Ask about building permit requirements, document checks, or ΥΔΟΜ procedures for your region.",
@@ -937,6 +951,8 @@ export const translations = {
     // trial banner
     "trialBanner.oneDay": "1 ημέρα",
     "trialBanner.days": "{{days}} ημέρες",
+    "trialBanner.badgeLabel": "Beta · απομένουν {{days}}",
+    "trialBanner.badgeTooltip": "Χρόνος που απομένει στη δοκιμαστική περίοδο beta - κλικ για προβολή πλάνων",
     "trialBanner.amber": "Η δοκιμαστική σας περίοδος λήγει σε {{days}}.",
     "trialBanner.urgent": "Η δοκιμαστική σας περίοδος λήγει σε {{days}}! Επιλέξτε πλάνο για να συνεχίσετε απρόσκοπτα.",
     "trialBanner.viewPlans": "Δείτε πλάνα",
@@ -1307,7 +1323,7 @@ export const translations = {
     "verticalEditor.welcomeMessage": "Μήνυμα καλωσορίσματος",
     "verticalEditor.disclaimerText": "Κείμενο αποποίησης ευθύνης",
     "verticalEditor.disclaimerPreview": "Προεπισκόπηση",
-    "verticalEditor.disclaimerCharCount": "{{count}}/150",
+    "verticalEditor.disclaimerCharCount": "{{count}}/200",
     "verticalEditor.systemPromptToggle": "Παράκαμψη system prompt",
     "verticalEditor.systemPromptWarning": "Προχωρημένο: αντικαθιστά πλήρως το ενσωματωμένο system prompt. Επεξεργαστείτε μόνο αν κατανοείτε τις συνέπειες.",
     "verticalEditor.resetToDefault": "Επαναφορά στο προεπιλεγμένο",
@@ -1331,7 +1347,7 @@ export const translations = {
 
     // login
     "login.tagline":
-      "Ο συνεργάτης τεχνητής νοημοσύνης για άδειες και συμμόρφωση στις κατασκευές — άμεσες απαντήσεις με παραπομπές από ΦΕΚ, ΤΕΕ, ΥΠΕΝ, και τη δική σας βάση γνώσης.",
+      "Ο συνεργάτης τεχνητής νοημοσύνης για κανονιστική συμμόρφωση — άμεσες απαντήσεις με παραπομπές από επίσημες πηγές και τη δική σας βάση γνώσης, για κατασκευαστικές εταιρείες, δήμους και λογιστικά γραφεία.",
     "login.email": "Email",
     "login.password": "Κωδικός",
     "login.signIn": "Σύνδεση",
@@ -1401,6 +1417,7 @@ export const translations = {
     "dash.super.reviewQueue": "Ουρά ελέγχου",
     "dash.super.ragStats": "Στατιστικά συνομιλιών & βάσης γνώσης",
     "dash.super.chatKbPanel": "Συνομιλίες & βάση γνώσης",
+    "dash.super.viewFeedback": "Δείτε ανατροφοδότηση →",
     "dash.super.totalMessages": "Συνολικά μηνύματα",
     "dash.super.gapRate": "Ποσοστό κενών απαντήσεων",
     "dash.super.activeDocuments": "Ενεργά έγγραφα",
@@ -1546,6 +1563,10 @@ export const translations = {
     "dash.company.usageColTokens": "Tokens",
     "dash.company.usageColCost": "Εκτιμώμενο κόστος",
     "dash.company.usageSeeAll": "Δείτε όλους →",
+    "dash.company.firstRunTitle": "Ας ξεκινήσουμε",
+    "dash.company.firstRunBody": "Δημιουργήστε το πρώτο σας έργο ή πελάτη, ή κάντε μια ερώτηση για να δείτε τη βάση γνώσης σε δράση.",
+    "dash.company.firstRunCreateProject": "Δημιουργία έργου",
+    "dash.company.firstRunStartChat": "Έναρξη συνομιλίας",
     "dash.company.activityEmpty": "Καμία δραστηριότητα ακόμη.",
     "dash.company.event.chat_message": "έστειλε μήνυμα",
     "dash.company.event.document_uploaded": "ανέβασε έγγραφο",
@@ -1560,6 +1581,8 @@ export const translations = {
     "dash.company.colCreated": "Δημιουργήθηκε",
     "dash.company.colExpires": "Λήγει",
     "dash.company.cancelInvite": "Ακύρωση",
+    "invite.statusAccepted": "Έγινε αποδεκτή",
+    "invite.statusRevoked": "Ανακλήθηκε",
     "dash.company.privateDocs": "Ιδιωτικά Έγγραφα",
     "dash.company.publicKb": "Δημόσια Βάση Γνώσης",
     "dash.company.colProject": "Έργο/Πελάτης",
@@ -1673,6 +1696,11 @@ export const translations = {
     "doc.back": "← Πίσω",
     "doc.openOriginal": "Άνοιγμα πρωτοτύπου ↗",
     "doc.noContent": "Δεν υπάρχει εξαγόμενο κείμενο για αυτό το έγγραφο - χρησιμοποιήστε το «Άνοιγμα πρωτοτύπου» για να το διαβάσετε απευθείας.",
+    "doc.find.placeholder": "Αναζήτηση στο έγγραφο…",
+    "doc.find.matchCount": "{{current}} από {{total}}",
+    "doc.find.noMatches": "Καμία αντιστοιχία",
+    "doc.find.prev": "↑ Προηγ.",
+    "doc.find.next": "↓ Επόμ.",
 
     // chat
     "chat.placeholder": "Ρωτήστε για απαιτήσεις αδείας δόμησης, έλεγχο εγγράφων, ή διαδικασίες ΥΔΟΜ για την περιοχή σας.",

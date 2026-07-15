@@ -597,13 +597,28 @@ async def submit_feedback(
     if session.company_id != user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Session belongs to a different company")
 
-    feedback = MessageFeedback(
-        session_id=payload.session_id,
-        message_index=payload.message_index,
-        rating=payload.rating,
-        feedback_text=payload.feedback_text if payload.rating == "negative" else None,
+    # A rating can be switched (thumbs up <-> down) rather than being a
+    # one-shot lock - update the existing row for this message instead of
+    # inserting a duplicate, so the admin feedback queue doesn't accumulate
+    # a stale row from before the user changed their mind.
+    feedback = db.scalar(
+        select(MessageFeedback).where(
+            MessageFeedback.session_id == payload.session_id,
+            MessageFeedback.message_index == payload.message_index,
+        )
     )
-    db.add(feedback)
+    if feedback:
+        feedback.rating = payload.rating
+        feedback.feedback_text = payload.feedback_text if payload.rating == "negative" else None
+        feedback.status = "pending"
+    else:
+        feedback = MessageFeedback(
+            session_id=payload.session_id,
+            message_index=payload.message_index,
+            rating=payload.rating,
+            feedback_text=payload.feedback_text if payload.rating == "negative" else None,
+        )
+        db.add(feedback)
     db.commit()
     return {"id": feedback.id}
 

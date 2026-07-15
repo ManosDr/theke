@@ -6,6 +6,7 @@ import { AppShell } from "../components/AppShell";
 import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
+import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type {
@@ -373,95 +374,35 @@ function ChatContent() {
   return (
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
-        <div className={styles.disclaimerBanner}>{company?.vertical_disclaimer_text || t("chat.disclaimer")}</div>
-
-        <div className={styles.chatHeaderBar}>
-          <span>
-            {selectedProject ? (
-              <>
-                {t("chat.projectLabel")}: {selectedProject.name}
-                {selectedRegionName && (
-                  <>
-                    {" "}| {t("chat.regionLabel")}: {selectedRegionName}
-                  </>
-                )}
-              </>
-            ) : (
-              t("chat.noProjectContext")
-            )}
-          </span>
-          <div className={styles.headerControls}>
-            {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
-              <span
-                className={styles.rateLimitIndicator}
-                data-level={poolExhausted ? "danger" : "warning"}
-              >
-                {t("chat.poolWarningLabel", { used: poolStatus.messages_used, limit: poolStatus.messages_limit })}
-              </span>
-            )}
-            {rateLimitStatus && rateLimitStatus.used >= 15 && (
-              <span
-                className={styles.rateLimitIndicator}
-                data-level={
-                  rateLimitStatus.remaining === 0 ? "danger" : rateLimitStatus.remaining <= 3 ? "warning" : "normal"
-                }
-              >
-                {t("chat.rateLimitLabel", { used: rateLimitStatus.used, limit: rateLimitStatus.limit })}
-                {rateLimitStatus.remaining <= 5 &&
-                  t("chat.rateLimitReset", { minutes: Math.ceil(rateLimitStatus.resets_in_seconds / 60) })}
-              </span>
-            )}
-            <button type="button" className={styles.newSessionButton} onClick={startNewSession}>
-              {t("chat.newStart")}
-            </button>
-          </div>
+        <div className={styles.disclaimerCompact} title={company?.vertical_disclaimer_text || t("chat.disclaimer")}>
+          {company?.vertical_disclaimer_text || t("chat.disclaimer")}
         </div>
 
-        {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
-          <div className={styles.locationStrip}>
-            <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
-              📍{locationExpanded ? ` ${t("chat.locationStrip.collapse")}` : ""}
-            </button>
-            {locationExpanded && (
-              <span className={styles.locationStripBody}>
-                {selectedProject.plot_address ?? "—"}
-                {" · "}
-                {t("map.kaek")}: {selectedProject.kaek ?? "—"}
-                {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
-                {selectedProject.archaeological_flag && (
-                  <>
-                    {" · "}
-                    <button
-                      type="button"
-                      className={styles.archaeologicalBadge}
-                      onClick={() => setArchaeologicalExpanded((v) => !v)}
-                    >
-                      ⚠ {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
-                    </button>
-                  </>
-                )}
-              </span>
-            )}
-            {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
-              <div className={styles.archaeologicalPanel}>
-                {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
-                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                  {t("map.archaeologicalDisclaimer")}
-                </p>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
+        {((poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8) ||
+          (rateLimitStatus && rateLimitStatus.used >= 15)) && (
+          <div className={styles.chatHeaderBar}>
+            <div className={styles.headerControls}>
+              {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
+                <span
+                  className={styles.rateLimitIndicator}
+                  data-level={poolExhausted ? "danger" : "warning"}
                 >
-                  {t("chat.locationStrip.askAboutZone")}
-                </button>
-              </div>
-            )}
-            {locationExpanded && !selectedProject.archaeological_flag && (
-              <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
-                {t("map.noArchaeologicalDataNote")}
-              </p>
-            )}
+                  {t("chat.poolWarningLabel", { used: poolStatus.messages_used, limit: poolStatus.messages_limit })}
+                </span>
+              )}
+              {rateLimitStatus && rateLimitStatus.used >= 15 && (
+                <span
+                  className={styles.rateLimitIndicator}
+                  data-level={
+                    rateLimitStatus.remaining === 0 ? "danger" : rateLimitStatus.remaining <= 3 ? "warning" : "normal"
+                  }
+                >
+                  {t("chat.rateLimitLabel", { used: rateLimitStatus.used, limit: rateLimitStatus.limit })}
+                  {rateLimitStatus.remaining <= 5 &&
+                    t("chat.rateLimitReset", { minutes: Math.ceil(rateLimitStatus.resets_in_seconds / 60) })}
+                </span>
+              )}
+            </div>
           </div>
         )}
 
@@ -523,8 +464,10 @@ function ChatContent() {
                   <button
                     type="button"
                     className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonPositive : ""} ${m.feedback === "negative" ? styles.feedbackButtonDimmed : ""}`}
-                    disabled={m.feedback != null}
-                    onClick={() => submitFeedback(i, m.sessionId as number, "positive")}
+                    onClick={() => {
+                      if (dislikePromptIndex === i) setDislikePromptIndex(null);
+                      submitFeedback(i, m.sessionId as number, "positive");
+                    }}
                     aria-label={t("chat.feedbackPositive")}
                   >
                     <ThumbUpIcon size={18} />
@@ -532,7 +475,6 @@ function ChatContent() {
                   <button
                     type="button"
                     className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonNegative : ""} ${m.feedback === "positive" ? styles.feedbackButtonDimmed : ""}`}
-                    disabled={m.feedback != null}
                     onClick={() => openDislikePrompt(i)}
                     aria-label={t("chat.feedbackNegative")}
                   >
@@ -605,6 +547,9 @@ function ChatContent() {
           <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || poolExhausted}>
             {t("chat.send")}
           </button>
+          <button type="button" className={styles.newSessionButton} onClick={startNewSession}>
+            {t("chat.newStart")}
+          </button>
         </div>
       </div>
 
@@ -638,11 +583,65 @@ function ChatContent() {
                   </option>
                 ))}
               </select>
+              {selectedRegionName && (
+                <div className={styles.contextRow}>
+                  <span className="text-muted">{t("chat.regionLabel")}</span>
+                  <span>{selectedRegionName}</span>
+                </div>
+              )}
             </div>
           ) : (
             <p className="text-muted" style={{ fontSize: "0.85rem" }}>
               {t("chat.noDefaultProject")}
             </p>
+          )}
+
+          {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
+            <div className={styles.locationStrip}>
+              <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
+                📍{locationExpanded ? ` ${t("chat.locationStrip.collapse")}` : ` ${t("chat.locationStrip.expand")}`}
+              </button>
+              {locationExpanded && (
+                <span className={styles.locationStripBody}>
+                  {selectedProject.plot_address ?? "—"}
+                  {" · "}
+                  {t("map.kaek")}: {selectedProject.kaek ?? "—"}
+                  {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
+                  {selectedProject.archaeological_flag && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className={styles.archaeologicalBadge}
+                        onClick={() => setArchaeologicalExpanded((v) => !v)}
+                      >
+                        ⚠ {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
+              {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
+                <div className={styles.archaeologicalPanel}>
+                  {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
+                  <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                    {t("map.archaeologicalDisclaimer")}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
+                  >
+                    {t("chat.locationStrip.askAboutZone")}
+                  </button>
+                </div>
+              )}
+              {locationExpanded && !selectedProject.archaeological_flag && (
+                <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
+                  {t("map.noArchaeologicalDataNote")}
+                </p>
+              )}
+            </div>
           )}
         </section>
 
@@ -660,10 +659,16 @@ function ChatContent() {
             </button>
           </form>
           {kbResults.map((doc) => (
-            <div key={doc.id} className={styles.searchResult}>
-              <strong>{doc.title}</strong>
-              {doc.snippet && <p className="text-muted">{doc.snippet.slice(0, 120)}…</p>}
-            </div>
+            <a
+              key={doc.id}
+              href={`/documents/${doc.id}?q=${encodeURIComponent(kbQuery.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.searchResult}
+            >
+              <strong>{highlightMatches(doc.title ?? "", kbQuery)}</strong>
+              {doc.snippet && <p className="text-muted">{renderMarkedSnippet(doc.snippet, kbQuery)}…</p>}
+            </a>
           ))}
         </section>
       </aside>

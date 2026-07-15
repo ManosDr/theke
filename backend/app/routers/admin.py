@@ -15,6 +15,7 @@ from app.models import (
     CompanySubscription,
     DataSource,
     Document,
+    Invite,
     MessageFeedback,
     Plan,
     Project,
@@ -26,8 +27,10 @@ from app.models import (
 )
 from app.schemas import (
     AddSubscriptionNoteRequest,
+    AdminInviteSummary,
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
+    AdminUserSummary,
     AssignPlanRequest,
     AuditLogEntry,
     BrowseResponse,
@@ -56,6 +59,7 @@ from app.schemas import (
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
+    RoleChangeRequest,
     StaleDocumentSummary,
     SubscriptionEntry,
     SubscriptionListResponse,
@@ -304,6 +308,183 @@ async def unsuspend_company(
 
     company.is_suspended = False
     log_action(db, actor_user_id=user.user_id, company_id=company.id, action="company_unsuspended")
+    db.commit()
+
+
+@router.get("/users", response_model=list[AdminUserSummary])
+async def list_all_users(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[AdminUserSummary]:
+    """Platform-wide equivalent of GET /companies/me/users - every user
+    across every company, not just the caller's own. See Sidebar.tsx's
+    "Χρήστες" nav entry."""
+    require_super_admin(user)
+    users = db.scalars(select(User)).all()
+    company_names = dict(db.execute(select(Company.id, Company.name)).all())
+
+    since_30d = datetime.utcnow() - timedelta(days=30)
+    message_counts: dict[int, int] = {}
+    if users:
+        rows = db.execute(
+            select(ChatSession.user_id, func.count())
+            .where(ChatSession.user_id.in_([u.id for u in users]), ChatSession.created_at >= since_30d)
+            .group_by(ChatSession.user_id)
+        ).all()
+        message_counts = dict(rows)
+
+    return [
+        AdminUserSummary(
+            id=u.id,
+            email=u.email,
+            name=u.name,
+            phone=u.phone,
+            role=u.role,
+            is_active=u.is_active,
+            created_at=u.created_at,
+            last_login_at=u.last_login_at,
+            messages_30d=message_counts.get(u.id, 0),
+            company_id=u.company_id,
+            company_name=company_names.get(u.company_id, "—"),
+        )
+        for u in users
+    ]
+
+
+@router.post("/users/{user_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_revoke_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    require_super_admin(user)
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+    if target.id == user.user_id:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot revoke your own access")
+
+    target.is_active = False
+    log_action(
+        db, actor_user_id=user.user_id, company_id=target.company_id, action="access_revoked", resource_type="user", resource_id=target.id
+    )
+    db.commit()
+
+
+@router.post("/users/{user_id}/restore", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_restore_user(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    require_super_admin(user)
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    target.is_active = True
+    log_action(
+        db, actor_user_id=user.user_id, company_id=target.company_id, action="access_restored", resource_type="user", resource_id=target.id
+    )
+    db.commit()
+
+
+@router.patch("/users/{user_id}/role", response_model=AdminUserSummary)
+async def admin_change_user_role(
+    user_id: int,
+    payload: RoleChangeRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> AdminUserSummary:
+    require_super_admin(user)
+    if payload.role not in ("admin", "member"):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="role must be 'admin' or 'member'")
+
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
+
+    if target.role == "admin" and payload.role == "member":
+        other_admins = db.scalar(
+            select(func.count())
+            .select_from(User)
+            .where(User.company_id == target.company_id, User.role == "admin", User.id != target.id)
+        )
+        if other_admins == 0:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot demote the company's only remaining admin"
+            )
+
+    previous_role = target.role
+    target.role = payload.role
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=target.company_id,
+        action="role_changed",
+        resource_type="user",
+        resource_id=target.id,
+        metadata={"from": previous_role, "to": payload.role},
+    )
+    db.commit()
+    db.refresh(target)
+
+    company = db.get(Company, target.company_id)
+    return AdminUserSummary(
+        id=target.id,
+        email=target.email,
+        name=target.name,
+        phone=target.phone,
+        role=target.role,
+        is_active=target.is_active,
+        created_at=target.created_at,
+        last_login_at=target.last_login_at,
+        company_id=target.company_id,
+        company_name=company.name if company else "—",
+    )
+
+
+@router.get("/invites", response_model=list[AdminInviteSummary])
+async def list_all_invites(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[AdminInviteSummary]:
+    """Platform-wide equivalent of GET /companies/me/invites - every invite
+    across every company. See Sidebar.tsx's "Προσκλήσεις" nav entry."""
+    require_super_admin(user)
+    invites = db.scalars(select(Invite).order_by(Invite.created_at.desc())).all()
+    company_names = dict(db.execute(select(Company.id, Company.name)).all())
+
+    return [
+        AdminInviteSummary(
+            id=i.id,
+            email=i.email,
+            role=i.role,
+            status=i.status,
+            created_at=i.created_at,
+            expires_at=i.expires_at,
+            company_id=i.company_id,
+            company_name=company_names.get(i.company_id, "—"),
+        )
+        for i in invites
+    ]
+
+
+@router.post("/invites/{invite_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)
+async def admin_revoke_invite(
+    invite_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    require_super_admin(user)
+    invite = db.get(Invite, invite_id)
+    if not invite or invite.status != "pending":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending invite not found")
+
+    invite.status = "revoked"
+    log_action(
+        db, actor_user_id=user.user_id, company_id=invite.company_id, action="invite_revoked", resource_type="invite", resource_id=invite.id
+    )
     db.commit()
 
 

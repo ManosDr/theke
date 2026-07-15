@@ -10,6 +10,16 @@ export interface UserSummary {
   messages_30d: number;
 }
 
+// Platform-wide (super admin) equivalent of UserSummary/InviteSummary - see
+// GET /admin/users and /admin/invites. role widens to include super_admin -
+// unlike a company-scoped list, this one spans every account on the
+// platform, including super admins themselves (company_id null for those).
+export interface AdminUserSummary extends Omit<UserSummary, "role"> {
+  role: "super_admin" | "admin" | "member";
+  company_id: number | null;
+  company_name: string;
+}
+
 export interface ActivityEventEntry {
   type: "chat_message" | "document_uploaded" | "project_created" | "customer_added" | "user_joined";
   created_at: string;
@@ -185,6 +195,11 @@ export interface InviteSummary {
   token: string | null;
   created_at: string;
   expires_at: string;
+}
+
+export interface AdminInviteSummary extends InviteSummary {
+  company_id: number;
+  company_name: string;
 }
 
 export interface ProjectSummary {

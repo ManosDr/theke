@@ -347,6 +347,9 @@ export function SuperAdminDashboard() {
         <section className={`card ${styles.section} ${styles.kbHealthPanel}`}>
           <div className={styles.sectionHeader}>
             <h2>{t("dash.super.chatKbPanel")}</h2>
+            <button type="button" className={styles.sectionHeaderLink} onClick={() => router.push("/admin/feedback")}>
+              {t("dash.super.viewFeedback")}
+            </button>
           </div>
           {stats && (
             <>

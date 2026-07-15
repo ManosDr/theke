@@ -5,9 +5,10 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { DocTypeBadge } from "../components/TypeBadge";
 import { api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
-import { highlightMatches } from "../lib/highlight";
+import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { BrowseResponse, SourceGroupSummary } from "../lib/types";
@@ -114,6 +115,7 @@ function SearchContent() {
 
   const shareQuery = buildFilterParams(filters, offset).toString();
   const fromParam = encodeURIComponent(shareQuery ? `${pathname}?${shareQuery}` : pathname);
+  const qParam = filters.q.trim() ? `&q=${encodeURIComponent(filters.q.trim())}` : "";
 
   return (
     <div>
@@ -207,14 +209,14 @@ function SearchContent() {
                     {highlightMatches(doc.title ?? "", filters.q)}
                     {doc.snippet && (
                       <p className="text-muted" style={{ margin: "4px 0 0", fontSize: "0.85rem" }}>
-                        {highlightMatches(doc.snippet.slice(0, 160), filters.q)}…
+                        {renderMarkedSnippet(doc.snippet, filters.q)}…
                       </p>
                     )}
                   </td>
                   <td className="text-muted">{doc.source_group ?? "—"}</td>
-                  <td className="text-muted">{doc.doc_type ? t(`docType.${doc.doc_type}` as TranslationKey) : "—"}</td>
+                  <td>{doc.doc_type ? <DocTypeBadge docType={doc.doc_type}>{t(`docType.${doc.doc_type}` as TranslationKey)}</DocTypeBadge> : <span className="text-muted">—</span>}</td>
                   <td>
-                    <Link href={`/documents/${doc.id}?from=${fromParam}`} className="btn btn-secondary">
+                    <Link href={`/documents/${doc.id}?from=${fromParam}${qParam}`} className="btn btn-secondary">
                       {t("common.read")}
                     </Link>
                   </td>

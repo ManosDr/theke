@@ -3,14 +3,59 @@
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useFontScale } from "../lib/fontScale";
 import { useLocale } from "../lib/i18n";
+import type { SubscriptionStatusResponse } from "../lib/types";
 import type { TranslationKey } from "../lib/translations";
 import { useTheme } from "../lib/theme";
 import { NotificationBell } from "./NotificationBell";
 import { MoonIcon, SunIcon } from "./StatIcons";
 import styles from "./TopHeader.module.css";
+
+function daysUntil(iso: string): number {
+  return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
+}
+
+// Always visible while on trial (unlike TrialBanner, which only appears in
+// the final 14 days) - a persistent, low-key reminder of how much beta time
+// is left, per item 19 of the batch-1 fix list. super_admin has no
+// company_id, so this fetches nothing and renders nothing for that role,
+// same as TrialBanner.
+function TrialBadge() {
+  const { user } = useAuth();
+  const { t } = useLocale();
+  const router = useRouter();
+  const [status, setStatus] = useState<SubscriptionStatusResponse | null>(null);
+
+  const eligible = !!user && user.role !== "super_admin" && user.companyId != null;
+
+  useEffect(() => {
+    if (!eligible || !user) return;
+    api
+      .get<SubscriptionStatusResponse>("/subscription/status", user.token)
+      .then(setStatus)
+      .catch(() => setStatus(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligible, user?.token]);
+
+  if (!status || status.status !== "trial" || !status.trial_ends_at) return null;
+
+  const days = daysUntil(status.trial_ends_at);
+  if (days < 0) return null;
+
+  return (
+    <button
+      type="button"
+      className={styles.trialBadge}
+      onClick={() => router.push(user!.role === "admin" ? "/dashboard?tab=subscription" : "/account")}
+      title={t("trialBanner.badgeTooltip")}
+    >
+      {t("trialBanner.badgeLabel", { days: days <= 1 ? t("trialBanner.oneDay") : t("trialBanner.days", { days }) })}
+    </button>
+  );
+}
 
 function pageTitleKey(pathname: string): TranslationKey {
   if (pathname === "/admin/documents") return "nav.documents";
@@ -158,6 +203,8 @@ export function TopHeader() {
       </div>
 
       <div className={styles.actions}>
+        <TrialBadge />
+
         <div className={styles.fontScaleGroup}>
           <button type="button" className={styles.fontScaleButton} title={t("topbar.decreaseFont")} onClick={decrease}>
             A-

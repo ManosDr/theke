@@ -15,6 +15,7 @@ import {
   UsersIcon,
 } from "../components/StatIcons";
 import { DocumentsIcon } from "../components/NavIcons";
+import { DocTypeBadge } from "../components/TypeBadge";
 import FieldError from "../components/FieldError";
 import type {
   ActivityEventEntry,
@@ -142,8 +143,25 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
 
   const topUsers = usage ? [...usage.by_user].sort((a, b) => b.total_tokens_30d - a.total_tokens_30d).slice(0, 10) : [];
 
+  const isFirstRun = data.projects_total === 0 && data.customers_total === 0 && data.messages_30d === 0;
+
   return (
     <div className={tabStyles.scrollPane}>
+      {isFirstRun && (
+        <section className={`card ${styles.section}`} style={{ textAlign: "center" }}>
+          <h2>{t("dash.company.firstRunTitle")}</h2>
+          <p className="text-muted">{t("dash.company.firstRunBody")}</p>
+          <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center", marginTop: "var(--space-3)" }}>
+            <Link href="/projects/new" className="btn btn-primary">
+              {t("dash.company.firstRunCreateProject")}
+            </Link>
+            <Link href="/chat" className="btn btn-secondary">
+              {t("dash.company.firstRunStartChat")}
+            </Link>
+          </div>
+        </section>
+      )}
+
       <div className={styles.grid}>
         <StatCard
           tone="primary"
@@ -565,9 +583,11 @@ function DocumentsTab({ token }: { token: string | null }) {
                   <td>{d.title ?? "—"}</td>
                   <td>{d.project_name ?? "—"}</td>
                   <td>
-                    <span className="badge badge-success">
-                      {d.doc_type ? t(`docType.${d.doc_type}` as TranslationKey) : "—"}
-                    </span>
+                    {d.doc_type ? (
+                      <DocTypeBadge docType={d.doc_type}>{t(`docType.${d.doc_type}` as TranslationKey)}</DocTypeBadge>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                   <td>
                     <span className={`badge ${d.extraction_status === "full_text" ? "badge-success" : "badge-warning"}`}>

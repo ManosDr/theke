@@ -35,7 +35,6 @@ function ProjectDetailContent() {
 
   const [editing, setEditing] = useState(false);
   const [editName, setEditName] = useState("");
-  const [editCustomerName, setEditCustomerName] = useState("");
   const [editCustomerNotes, setEditCustomerNotes] = useState("");
   const [editClientNotes, setEditClientNotes] = useState("");
   const [editCustomerState, setEditCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
@@ -66,7 +65,6 @@ function ProjectDetailContent() {
       .then((p) => {
         setProject(p);
         setEditName(p.name ?? "");
-        setEditCustomerName(p.customer_name ?? "");
         setEditCustomerNotes(p.customer_notes ?? "");
         setEditClientNotes(p.client_notes ?? "");
         setEditCustomerState({ customerId: p.customer_id ?? null, newCustomer: null });
@@ -118,12 +116,13 @@ function ProjectDetailContent() {
     const updated = await api.patch<ProjectSummary>(
       `/projects/${params.id}`,
       usesRegionalScoping
-        ? { name: editName.trim(), customer_name: editCustomerName.trim() || undefined, customer_notes: editCustomerNotes.trim() || undefined }
+        ? { name: editName.trim(), customer_id: customerId ?? undefined, customer_notes: editCustomerNotes.trim() || undefined }
         : { name: editName.trim(), client_notes: editClientNotes.trim() || undefined, customer_id: customerId ?? undefined },
       token
     );
     setProject(updated);
     setEditing(false);
+    setEditingLocation(false);
   }
 
   async function handlePick(lat: number, lon: number, kaek?: string) {
@@ -164,6 +163,7 @@ function ProjectDetailContent() {
     );
     setProject(updated);
     setEditingLocation(false);
+    setEditing(false);
     setPin(null);
     setResolved(null);
   }
@@ -189,6 +189,10 @@ function ProjectDetailContent() {
   if (!usesRegionalScoping) {
     return (
       <div>
+        <Link href="/dashboard" className={styles.backLink}>
+          {t("project.new.back")}
+        </Link>
+
         <div className={styles.header}>
           <h1>{project.name}</h1>
           <Link href={`/chat?project_id=${project.id}`} className="btn btn-primary">
@@ -245,16 +249,16 @@ function ProjectDetailContent() {
             )}
           </div>
         )}
-
-        <Link href="/dashboard" className={styles.backLink}>
-          {t("project.new.back")}
-        </Link>
       </div>
     );
   }
 
   return (
     <div>
+      <Link href="/dashboard" className={styles.backLink}>
+        {t("project.new.back")}
+      </Link>
+
       <div className={styles.header}>
         <div>
           <h1>{project.name}</h1>
@@ -309,7 +313,7 @@ function ProjectDetailContent() {
                 </label>
                 <label className={styles.field}>
                   {t("project.new.customerName")}
-                  <input className="input" value={editCustomerName} onChange={(e) => setEditCustomerName(e.target.value)} />
+                  <CustomerCombobox token={token} onChange={setEditCustomerState} />
                 </label>
                 <label className={styles.field}>
                   {t("project.new.customerNotes")}
@@ -317,7 +321,16 @@ function ProjectDetailContent() {
                 </label>
                 <div style={{ display: "flex", gap: "var(--space-2)" }}>
                   <button type="submit" className="btn btn-primary">{t("common.save")}</button>
-                  <button type="button" className="btn btn-secondary" onClick={() => setEditing(false)}>{t("common.cancel")}</button>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setEditing(false);
+                      setEditingLocation(false);
+                    }}
+                  >
+                    {t("common.cancel")}
+                  </button>
                 </div>
               </form>
             ) : (
@@ -334,7 +347,22 @@ function ProjectDetailContent() {
                     </>
                   )}
                 </dl>
-                <button type="button" className="btn btn-secondary" onClick={() => setEditing(true)}>
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  onClick={() => {
+                    // One "Επεξεργασία" action opens the whole page's edit
+                    // mode (name/customer/notes here, KAEK/address/pin on
+                    // the right) rather than two separately-triggered forms
+                    // - viewing stays read-only until this is clicked, per
+                    // the "map + info only, nothing editable" spec.
+                    setEditing(true);
+                    if (hasLocation) {
+                      setPlotInPlan(project.plot_in_plan ?? null);
+                      setEditingLocation(true);
+                    }
+                  }}
+                >
                   {t("project.detail.edit")}
                 </button>
               </>
@@ -479,7 +507,14 @@ function ProjectDetailContent() {
                   <button type="button" className="btn btn-primary" disabled={!resolved} onClick={saveLocation}>
                     {t("common.save")}
                   </button>
-                  <button type="button" className="btn btn-secondary" onClick={() => setEditingLocation(false)}>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => {
+                      setEditingLocation(false);
+                      setEditing(false);
+                    }}
+                  >
                     {t("common.cancel")}
                   </button>
                 </div>
@@ -488,10 +523,6 @@ function ProjectDetailContent() {
           </div>
         </div>
       )}
-
-      <Link href="/dashboard" className={styles.backLink}>
-        {t("project.new.back")}
-      </Link>
     </div>
   );
 }

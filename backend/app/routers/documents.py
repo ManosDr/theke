@@ -28,23 +28,42 @@ router = APIRouter(prefix="/documents", tags=["documents"])
 MAX_DOCUMENT_BYTES = 25 * 1024 * 1024  # 25MB
 
 
-def _build_snippet(content: str, q: str | None, *, window: int = 280) -> str:
-    """A snippet centered on the first match of `q`, not just the document's
-    opening characters - otherwise a hit deep in a long document would show
-    an excerpt that never contains the term the user searched for."""
+# Markers wrapping a matched lexeme in a ts_headline snippet - control
+# characters so they never collide with real document text. The frontend
+# splits on these to render <mark> without needing dangerouslySetInnerHTML.
+HIGHLIGHT_START = ""
+HIGHLIGHT_END = ""
+
+
+def _build_snippet(db: Session, content: str, q: str | None, *, window: int = 280) -> str:
+    """A snippet centered on the actual matched lexeme, not just the first
+    literal occurrence of `q` - the search itself (`to_tsvector`/
+    `plainto_tsquery`) matches on Greek word stems, so a query like "αδειας"
+    also matches documents only containing "άδεια"/"αδειών"/etc. A literal
+    `content.find(q)` missed those, silently returning an unmarked prefix
+    and making highlighting look "random" across result rows. ts_headline
+    runs the same tsquery Postgres used to find the row, so the snippet it
+    returns is guaranteed to contain (and mark) a real match when one
+    exists in the content."""
     if q:
-        idx = content.lower().find(q.strip().lower())
-        if idx != -1:
-            start = max(0, idx - 60)
-            return content[start : start + window]
+        result = db.execute(
+            text("SELECT ts_headline('greek', :content, plainto_tsquery('greek', :q), :options)"),
+            {
+                "content": content,
+                "q": q,
+                "options": f"StartSel={HIGHLIGHT_START}, StopSel={HIGHLIGHT_END}, MaxFragments=1, MaxWords=45, MinWords=15",
+            },
+        ).scalar()
+        if result:
+            return result
     return content[:window]
 
 
-def _to_summary(doc: Document, *, with_snippet: bool = True, q: str | None = None) -> DocumentSummary:
+def _to_summary(doc: Document, *, with_snippet: bool = True, q: str | None = None, db: Session | None = None) -> DocumentSummary:
     return DocumentSummary(
         id=doc.id,
         title=doc.title,
-        snippet=(_build_snippet(doc.content, q) if with_snippet and doc.content else None),
+        snippet=(_build_snippet(db, doc.content, q) if with_snippet and doc.content and db else None),
         source=doc.source,
         doc_type=doc.doc_type,
         municipality=doc.municipality,
@@ -80,7 +99,7 @@ async def search_documents(
         .limit(20)
     )
     results = db.scalars(stmt).all()
-    return [_to_summary(doc, q=q) for doc in results]
+    return [_to_summary(doc, q=q, db=db) for doc in results]
 
 
 @router.get("/sources", response_model=list[SourceGroupSummary])
@@ -164,7 +183,7 @@ async def browse_documents(
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     results = db.scalars(stmt.order_by(Document.date.desc().nullslast()).limit(limit).offset(offset)).all()
 
-    return BrowseResponse(total=total, items=[_to_summary(doc, with_snippet=bool(q), q=q) for doc in results])
+    return BrowseResponse(total=total, items=[_to_summary(doc, with_snippet=bool(q), q=q, db=db) for doc in results])
 
 
 @router.post("/upload", response_model=UploadResponse, status_code=status.HTTP_201_CREATED)

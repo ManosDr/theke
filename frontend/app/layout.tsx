@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Inter } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { ChunkErrorRecovery } from "./components/ChunkErrorRecovery";
 import { RegisterServiceWorker } from "./components/RegisterServiceWorker";
 import { Providers } from "./providers";
 import "./globals.css";
@@ -59,6 +60,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
       </head>
       <body>
         <RegisterServiceWorker />
+        <ChunkErrorRecovery />
         <Providers>{children}</Providers>
       </body>
     </html>

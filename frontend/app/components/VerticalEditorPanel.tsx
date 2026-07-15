@@ -109,8 +109,8 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
 
       <div className={styles.field}>
         <label>{t("verticalEditor.disclaimerText")}</label>
-        <textarea rows={3} value={disclaimerText} onChange={(e) => setDisclaimerText(e.target.value.slice(0, 150))} />
-        <span className={`${styles.charCount} ${disclaimerLen > 140 ? styles.charCountWarn : ""}`}>
+        <textarea rows={3} value={disclaimerText} onChange={(e) => setDisclaimerText(e.target.value.slice(0, 200))} />
+        <span className={`${styles.charCount} ${disclaimerLen > 180 ? styles.charCountWarn : ""}`}>
           {t("verticalEditor.disclaimerCharCount", { count: disclaimerLen })}
         </span>
         <div className={styles.disclaimerPreview}>{disclaimerText}</div>

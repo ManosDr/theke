@@ -108,6 +108,23 @@
   color: var(--admin-stone);
 }
 
+.trialBadge {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: none;
+  border-radius: 20px;
+  padding: 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.trialBadge:hover {
+  filter: brightness(0.95);
+}
+
 .iconPill {
   background: var(--admin-chip-bg);
   border: none;

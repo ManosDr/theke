@@ -3,7 +3,12 @@
   min-width: 280px;
   max-width: 280px;
   overflow-x: hidden;
-  background: var(--gradient-sidebar);
+  /* Flat, not the old --gradient-sidebar - as the admin nav section list
+     grows, items lower down were falling into the gradient's dark-navy
+     transition zone, which read fine at the very bottom (where .footer's
+     own solid navy background takes over) but left mid-list nav items with
+     dark text on a near-navy background. Color now lives only in .footer. */
+  background: var(--color-surface);
   border-right: 1px solid var(--admin-card-border);
   display: flex;
   flex-direction: column;
@@ -288,31 +293,42 @@
 
 .footerRow {
   display: flex;
+  flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
+  text-align: center;
 }
 
+/* Centered on the same horizontal axis as .navIconBox above it, with a
+   white border so it reads clearly against the footer's solid navy
+   background rather than blending into it. */
 .avatar {
   width: 32px;
   height: 32px;
   border-radius: 50%;
   background: var(--color-primary);
   color: #fff;
+  border: 2px solid #fff;
   display: flex;
   align-items: center;
   justify-content: center;
   font-weight: 700;
   font-size: 13px;
   flex-shrink: 0;
+  margin: 0 auto;
 }
 
 .footerInfo {
-  flex: 1;
   min-width: 0;
+  max-width: 100%;
 }
 
-.footerEmail {
-  font-size: 12.5px;
+/* Subtler than the old bold/white .footerEmail treatment - a proper
+   heading level (this is the one place in the footer that names the
+   account), but sized down to fit the sidebar's compact footer. */
+.footerCompanyName {
+  margin: 0;
+  font-size: 13px;
   font-weight: 600;
   color: #ffffff;
   white-space: nowrap;
@@ -326,11 +342,21 @@
 }
 
 .signOutButton {
-  background: none;
+  width: 100%;
+  margin-top: 10px;
+  padding-top: 10px;
   border: none;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  background: none;
   color: #b7c2dc;
   cursor: pointer;
   display: flex;
   align-items: center;
-  flex-shrink: 0;
+  justify-content: center;
+  gap: 6px;
+  font-size: 12px;
+}
+
+.signOutButton:hover {
+  color: #ffffff;
 }

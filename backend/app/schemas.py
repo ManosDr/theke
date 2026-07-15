@@ -260,6 +260,21 @@ class UserSummary(BaseModel):
     messages_30d: int = 0
 
 
+# Platform-wide (super admin) equivalent of UserSummary/InviteSummary - adds
+# company_id/company_name since, unlike the company-admin's own /companies/me
+# view, a cross-company list is meaningless without knowing whose user or
+# invite each row belongs to. company_id is nullable - super_admin accounts
+# aren't tied to any single company.
+class AdminUserSummary(UserSummary):
+    company_id: int | None = None
+    company_name: str
+
+
+class AdminInviteSummary(InviteSummary):
+    company_id: int
+    company_name: str
+
+
 class CompanyOverviewResponse(BaseModel):
     users_total: int
     users_active_30d: int
@@ -812,7 +827,10 @@ class VerticalSummary(BaseModel):
 class VerticalUpdateRequest(BaseModel):
     tagline: str | None = None
     welcome_message: str | None = None
-    disclaimer_text: str | None = None
+    # Matches the frontend textarea's cap (VerticalEditorPanel.tsx) - this is
+    # the disclaimer appended to every chat answer, so it needs to stay short
+    # regardless of which path (UI or a direct API call) sets it.
+    disclaimer_text: str | None = Field(default=None, max_length=200)
     system_prompt_override: str | None = None
     off_topic_hint: str | None = None
 

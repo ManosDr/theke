@@ -30,11 +30,11 @@ const NAV_ITEMS = [
 ] as const;
 
 // Nav tree per the Theke Admin design handoff's own sidebar structure
-// (Theke Admin.dc.html) - "Χρήστες"/"Προσκλήσεις"/"Γενικές Ρυθμίσεις" route
-// to the same screen as their sibling in the prototype itself (it never
-// builds separate screens for them either), so pointing them at the
-// existing Companies/Verticals pages is a faithful reproduction, not a
-// shortcut - see KNOWN_DECISIONS.md.
+// (Theke Admin.dc.html). "Χρήστες"/"Προσκλήσεις" now route to their own
+// screens (GET /admin/users, /admin/invites - see AdminUsersPanel/
+// AdminInvitesPanel), matching the company-level Χρήστες tab's pattern.
+// "Γενικές Ρυθμίσεις" still has no spec of its own (see KNOWN_DECISIONS.md)
+// and stays pointed at Verticals as a placeholder.
 const ADMIN_SECTIONS = [
   {
     key: "kb",
@@ -51,11 +51,12 @@ const ADMIN_SECTIONS = [
     key: "org",
     labelKey: "nav.companiesUsers",
     Icon: CompaniesIcon,
-    match: (p: string) => p === "/admin/companies" || p === "/admin/subscriptions",
+    match: (p: string) =>
+      p === "/admin/companies" || p === "/admin/users" || p === "/admin/invites" || p === "/admin/subscriptions",
     children: [
       { href: "/admin/companies", labelKey: "nav.companies", match: (p: string) => p === "/admin/companies" },
-      { href: "/admin/companies", labelKey: "nav.users", match: () => false },
-      { href: "/admin/companies", labelKey: "nav.invites", match: () => false },
+      { href: "/admin/users", labelKey: "nav.users", match: (p: string) => p === "/admin/users" },
+      { href: "/admin/invites", labelKey: "nav.invites", match: (p: string) => p === "/admin/invites" },
       { href: "/admin/subscriptions", labelKey: "nav.subscriptions", match: (p: string) => p === "/admin/subscriptions" },
     ],
   },
@@ -142,6 +143,7 @@ function CompanyBranding({ collapsed }: { collapsed: boolean }) {
 
 export function Sidebar() {
   const { user, logout } = useAuth();
+  const { company } = useCompany();
   const { t } = useLocale();
   const router = useRouter();
   const pathname = usePathname() ?? "";
@@ -275,23 +277,18 @@ export function Sidebar() {
         <div className={styles.footerRow}>
           <div className={styles.avatar}>{initial}</div>
           {!collapsed && (
-            <>
-              <div className={styles.footerInfo}>
-                <div className={styles.footerEmail}>{user?.email}</div>
-                <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
-              </div>
-              <button
-                type="button"
-                className={styles.signOutButton}
-                title={t("nav.signOut")}
-                aria-label={t("nav.signOut")}
-                onClick={handleLogout}
-              >
-                <LogoutIcon size={15} />
-              </button>
-            </>
+            <div className={styles.footerInfo}>
+              <h3 className={styles.footerCompanyName}>{company?.name ?? user?.email}</h3>
+              <div className={styles.footerRole}>{user ? t(`role.${user.role}` as never) : ""}</div>
+            </div>
           )}
         </div>
+        {!collapsed && (
+          <button type="button" className={styles.signOutButton} onClick={handleLogout}>
+            <LogoutIcon size={15} />
+            {t("nav.signOut")}
+          </button>
+        )}
       </div>
     </aside>
   );

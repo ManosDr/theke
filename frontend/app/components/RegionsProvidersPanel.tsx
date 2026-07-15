@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { ProviderTypeBadge } from "./TypeBadge";
 import type { RegionAdminSummary, UtilityProviderAdminSummary } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 
@@ -131,9 +132,9 @@ export function RegionsProvidersPanel() {
                   <tr key={p.provider_id}>
                     <td>{p.provider_name}</td>
                     <td>
-                      <span className="badge" style={{ background: "var(--admin-chip-bg)", color: "var(--admin-stone)" }}>
+                      <ProviderTypeBadge providerType={p.provider_type}>
                         {p.provider_type === "water" ? t("adminRegions.typeWater") : t("adminRegions.typeElectric")}
-                      </span>
+                      </ProviderTypeBadge>
                     </td>
                     <td>{p.coverage_region_ids.map((id) => regionsById[id] ?? id).join(", ") || "—"}</td>
                     <td>{p.contact_phone ?? <span className="text-muted">{t("adminRegions.notSet")}</span>}</td>

@@ -18,6 +18,17 @@ const DEFAULT_CENTER: [number, number] = [40.9397, 24.4132];
 // confirmed dead (404) - see KNOWN_DECISIONS.md - so only the aerial
 // overlay is wired here, not a "Κτηματολόγιο" toggle.
 const AERIAL_WMS_URL = "http://gis.ktimanet.gr/wms/wmsopen/wmsserver.aspx";
+// This server's GetCapabilities advertises EPSG:4326/2100/900913, but only
+// ever returns real imagery for BASEMAP in EPSG:4326 - a request in 900913
+// (or its now-standard alias EPSG:3857, Leaflet's default map CRS) comes
+// back HTTP 200 with a structurally valid but blank-white JPEG, no error of
+// any kind. Leaflet's WMSTileLayer requests in the *map's* CRS by default
+// regardless of what the layer itself supports, so without this override
+// every tile silently renders white. `crs` tells it to reproject each
+// tile's Web Mercator screen-bounds into EPSG:4326 for the actual GetMap
+// request instead - confirmed against the live service that this returns
+// real content at the same location/scale that 900913/3857 returns blank.
+const AERIAL_WMS_CRS = L.CRS.EPSG4326;
 
 // Resolution status - drives fill color + whether the glyph is fixed
 // (loading/archaeological) or origin-dependent (resolved).
@@ -122,6 +133,12 @@ export default function MapPicker({
 }: MapPickerProps) {
   const { t } = useLocale();
   const [showAerial, setShowAerial] = useState(false);
+  // Which single location-input method is active - was 3 always-visible
+  // stacked fields (KAEK, address, map click), now a pick-one toggle so the
+  // form isn't presenting three redundant ways to do the same thing at
+  // once. The map itself stays visible regardless (it displays the result
+  // no matter which method resolved it, and is the method for "pin").
+  const [inputMethod, setInputMethod] = useState<"kaek" | "address" | "pin">("kaek");
 
   const [kaekQuery, setKaekQuery] = useState("");
   const [kaekSearching, setKaekSearching] = useState(false);
@@ -249,94 +266,127 @@ export default function MapPicker({
     });
   }
 
+  // No token means a read-only viewing context (see projects/[id]/page.tsx's
+  // hasLocation-and-not-editing branch, which deliberately omits `token`) -
+  // the input-method toggle and its search fields only make sense once
+  // there's a real edit session to write the result into, so they're
+  // dropped entirely rather than rendered-but-disabled (which implied
+  // interactivity that wasn't there).
   return (
     <div>
-      <div className={styles.locationMethod}>
-        <span className={styles.methodLabel}>{t("map.methodKaek")}</span>
-        <div className={styles.methodRow}>
-          <input
-            type="text"
-            className={`input ${styles.methodInput}`}
-            placeholder={t("map.kaekSearchPlaceholder")}
-            value={kaekQuery}
-            onChange={(e) => setKaekQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                searchKaek();
-              }
-            }}
-            disabled={!token || kaekSearching}
-            title={token ? undefined : t("map.kaekSearchUnavailable")}
-          />
-          <button type="button" className="btn btn-secondary" onClick={searchKaek} disabled={!token || kaekSearching}>
-            {t("map.search")}
+      {token && (
+        <div className={styles.layerSwitcher} role="tablist" aria-label={t("map.methodPin")}>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inputMethod === "kaek"}
+            className={inputMethod === "kaek" ? styles.layerButtonActive : styles.layerButton}
+            onClick={() => setInputMethod("kaek")}
+          >
+            {t("map.methodKaek")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inputMethod === "address"}
+            className={inputMethod === "address" ? styles.layerButtonActive : styles.layerButton}
+            onClick={() => setInputMethod("address")}
+          >
+            {t("map.methodAddress")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={inputMethod === "pin"}
+            className={inputMethod === "pin" ? styles.layerButtonActive : styles.layerButton}
+            onClick={() => setInputMethod("pin")}
+          >
+            {t("map.methodPin")}
           </button>
         </div>
-        {token && (
-          <div className={styles.methodMeta}>
-            <span className={styles.kaekHint}>{t("map.kaekFormatHint")}</span>
-            {kaekError && <span className={styles.kaekErrorText}>{kaekError}</span>}
-            {ktimatologioLink && (
-              <a href={ktimatologioLink} target="_blank" rel="noreferrer" className={styles.kaekLink}>
-                {t("map.openInKtimatologio")}
-              </a>
-            )}
+      )}
+
+      {token && inputMethod === "kaek" && (
+        <div className={styles.locationMethod}>
+          <div className={styles.methodRow}>
+            <input
+              type="text"
+              className={`input ${styles.methodInput}`}
+              placeholder={t("map.kaekSearchPlaceholder")}
+              value={kaekQuery}
+              onChange={(e) => setKaekQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  searchKaek();
+                }
+              }}
+              disabled={!token || kaekSearching}
+              title={token ? undefined : t("map.kaekSearchUnavailable")}
+              autoFocus
+            />
+            <button type="button" className="btn btn-secondary" onClick={searchKaek} disabled={!token || kaekSearching}>
+              {t("map.search")}
+            </button>
           </div>
-        )}
-      </div>
-
-      <div className={styles.separator}>
-        <span>{t("map.or")}</span>
-      </div>
-
-      <div className={styles.locationMethod}>
-        <span className={styles.methodLabel}>{t("map.methodAddress")}</span>
-        <div className={styles.methodRow}>
-          <input
-            type="text"
-            className={`input ${styles.methodInput}`}
-            placeholder={t("map.addressSearchPlaceholder")}
-            value={addressQuery}
-            onChange={(e) => setAddressQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") {
-                e.preventDefault();
-                searchAddress();
-              }
-            }}
-            disabled={!token || addressSearching}
-            title={token ? undefined : t("map.kaekSearchUnavailable")}
-          />
-          <button type="button" className="btn btn-secondary" onClick={searchAddress} disabled={!token || addressSearching}>
-            {t("map.search")}
-          </button>
+          {token && (
+            <div className={styles.methodMeta}>
+              <span className={styles.kaekHint}>{t("map.kaekFormatHint")}</span>
+              {kaekError && <span className={styles.kaekErrorText}>{kaekError}</span>}
+              {ktimatologioLink && (
+                <a href={ktimatologioLink} target="_blank" rel="noreferrer" className={styles.kaekLink}>
+                  {t("map.openInKtimatologio")}
+                </a>
+              )}
+            </div>
+          )}
         </div>
-        {addressError && <div className={styles.methodMeta}><span className={styles.kaekErrorText}>{addressError}</span></div>}
-        {addressResults.length > 0 && (
-          <div className={styles.addressDropdown}>
-            {addressResults.map((result, i) => (
-              <button
-                type="button"
-                key={i}
-                className={styles.addressOption}
-                onClick={() => selectAddressResult(result)}
-              >
-                <span className={styles.addressOptionName}>{result.display_name}</span>
-                {result.type && <span className={styles.addressOptionType}>{result.type}</span>}
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
+      )}
 
-      <div className={styles.separator}>
-        <span>{t("map.or")}</span>
-      </div>
+      {token && inputMethod === "address" && (
+        <div className={styles.locationMethod}>
+          <div className={styles.methodRow}>
+            <input
+              type="text"
+              className={`input ${styles.methodInput}`}
+              placeholder={t("map.addressSearchPlaceholder")}
+              value={addressQuery}
+              onChange={(e) => setAddressQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  searchAddress();
+                }
+              }}
+              disabled={!token || addressSearching}
+              title={token ? undefined : t("map.kaekSearchUnavailable")}
+              autoFocus
+            />
+            <button type="button" className="btn btn-secondary" onClick={searchAddress} disabled={!token || addressSearching}>
+              {t("map.search")}
+            </button>
+          </div>
+          {addressError && <div className={styles.methodMeta}><span className={styles.kaekErrorText}>{addressError}</span></div>}
+          {addressResults.length > 0 && (
+            <div className={styles.addressDropdown}>
+              {addressResults.map((result, i) => (
+                <button
+                  type="button"
+                  key={i}
+                  className={styles.addressOption}
+                  onClick={() => selectAddressResult(result)}
+                >
+                  <span className={styles.addressOptionName}>{result.display_name}</span>
+                  {result.type && <span className={styles.addressOptionType}>{result.type}</span>}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       <div className={styles.locationMethod}>
-        <div className={styles.methodRow}>
-          <span className={styles.methodLabel}>{t("map.methodPin")}</span>
+        <div className={styles.methodRow} style={{ justifyContent: "flex-end" }}>
           <div className={styles.layerSwitcher}>
             <button
               type="button"
@@ -378,14 +428,21 @@ export default function MapPicker({
         <div className={styles.mapWrapper} style={{ height }}>
           <MapContainer center={center} zoom={hasPin ? 17 : 13} style={{ height: "100%", width: "100%" }}>
             {showAerial ? (
-              <WMSTileLayer url={AERIAL_WMS_URL} layers="BASEMAP" format="image/jpeg" attribution="&copy; Ktimatologio A.E." />
+              <WMSTileLayer
+                url={AERIAL_WMS_URL}
+                layers="BASEMAP"
+                format="image/jpeg"
+                version="1.1.1"
+                crs={AERIAL_WMS_CRS}
+                attribution="&copy; Ktimatologio A.E."
+              />
             ) : (
               <TileLayer
                 attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                 url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
               />
             )}
-            <ClickHandler onPick={handleMapClick} />
+            {token && <ClickHandler onPick={handleMapClick} />}
             {hasPin && (
               <Marker position={[lat, lon]} icon={pinIcon(pinState, pinOrigin)}>
                 {popupContent && <Popup className={styles.popup}>{popupContent}</Popup>}

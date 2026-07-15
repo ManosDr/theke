@@ -483,7 +483,11 @@ async def chat_message(
 
         # A real answer is still generated from these hits - "gap" here flags
         # low confidence (thinner or weaker-than-usual support), not absence.
-        is_low_confidence = len(hits) < settings.rag_top_k or any(h.distance > settings.rag_warn_distance for h in hits)
+        # Deliberately rag_min_confident_hits here, not rag_top_k - see
+        # config.py's comment on why those two are kept separate.
+        is_low_confidence = len(hits) < settings.rag_min_confident_hits or any(
+            h.distance > settings.rag_warn_distance for h in hits
+        )
 
         system_prompt = get_system_prompt(vertical)
         if location_context:

@@ -45,13 +45,30 @@ class Settings(BaseSettings):
     # relevant Greek legal/procedural text vs. a real question tend to land
     # well under this in practice; tune from real query logs once there are any.
     rag_max_distance: float = 0.5
-    rag_top_k: int = 6
+    # Retrieval breadth - how many chunks get handed to GPT-4o for synthesis.
+    # Raised from 6 to 10 so compound, multi-topic questions (e.g. "5 income
+    # types, which DTAs apply") don't have a relevant chunk crowded out of
+    # the window by chunks matching the question's other sub-topics - see
+    # KNOWN_DECISIONS.md's stress-benchmark entries. Deliberately NOT also
+    # used as the confidence-flag reference below - see rag_min_confident_hits.
+    rag_top_k: int = 10
 
     # Softer inner bound used only by POST /chat/message's `gap` flag - a hit
     # beyond this still clears rag_max_distance (so an answer IS generated),
     # but is weak enough that the response should be presented as lower-
     # confidence rather than as solid as a comfortably-close match.
     rag_warn_distance: float = 0.45
+
+    # Minimum hit count for a *confident* answer - deliberately a separate,
+    # fixed number from rag_top_k, not the same value. If these were tied
+    # together, raising rag_top_k (retrieval breadth, tuned for compound
+    # questions) would silently also raise the bar for "enough hits to be
+    # confident" - a narrow, well-answered question with 7-8 genuinely
+    # relevant chunks would get flagged low-confidence purely because
+    # rag_top_k grew, not because the answer is actually weaker. Keeps the
+    # original calibrated value (6) as the confidence bar regardless of how
+    # wide retrieval is.
+    rag_min_confident_hits: int = 6
 
     # If both set, a super_admin user is created on startup if it doesn't
     # already exist. There is no public endpoint that can mint a super_admin -

@@ -15,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/search", tags=["search"])
 
-MAX_QUERY_LENGTH = 500
+MAX_QUERY_LENGTH = 1500
 QUERY_TOO_LONG_MESSAGE = f"Η ερώτηση δεν πρέπει να υπερβαίνει τους {MAX_QUERY_LENGTH} χαρακτήρες."
 SERVICE_UNAVAILABLE_MESSAGE = "Η υπηρεσία δεν είναι διαθέσιμη αυτή τη στιγμή. Δοκιμάστε ξανά σε λίγο."
 

@@ -65,6 +65,13 @@ _CANDIDATE_POOL_SIZE = 20
 # literature/implementations - large enough that a #1 vs #2 rank swap
 # doesn't wildly swing the score, small enough that rank still matters).
 _RRF_K = 60
+# Max chunks any single document may contribute to a final top_k result set.
+# Without this, one imperfect-but-broad document can fill 2-3 of top_k's
+# slots with its own near-duplicate chunks, crowding out the honest signal
+# that no genuinely relevant document exists at all - confirmed against the
+# July 2026 stress benchmark round 3 (C1/C3/A4), where the same document
+# filled multiple top-3 slots in cases that were real content gaps.
+_MAX_CHUNKS_PER_DOCUMENT = 2
 
 _DOC_COLUMNS = (
     # Explicitly labeled: both queries also select Embedding.id (as
@@ -345,6 +352,23 @@ def _retrieve_single_pass(
 
     scored.sort(key=lambda item: item[0], reverse=True)
 
+    # Diversity cap: walk the RRF-ranked pool and keep at most
+    # _MAX_CHUNKS_PER_DOCUMENT chunks per document_id before cutting to
+    # top_k, so a document that's merely broad-but-imperfect can't crowd out
+    # every slot and manufacture false confidence that something relevant
+    # was found (see _MAX_CHUNKS_PER_DOCUMENT). A document's best-scoring
+    # chunks are kept since `scored` is already sorted by rrf_score.
+    diversified = []
+    per_document_count: dict[int, int] = {}
+    for item in scored:
+        doc_id = item[1].document_id
+        if per_document_count.get(doc_id, 0) >= _MAX_CHUNKS_PER_DOCUMENT:
+            continue
+        per_document_count[doc_id] = per_document_count.get(doc_id, 0) + 1
+        diversified.append(item)
+        if len(diversified) >= top_k:
+            break
+
     return [
         RetrievedChunk(
             document_id=row.document_id,
@@ -361,7 +385,7 @@ def _retrieve_single_pass(
             keyword_rank=krank,
             rrf_score=rrf_score,
         )
-        for rrf_score, row, chunk_distance, vrank, krank in scored[:top_k]
+        for rrf_score, row, chunk_distance, vrank, krank in diversified
     ]
 
 

@@ -27,6 +27,7 @@ from app.services.rag import (
     _passes_hybrid_threshold,
     _retrieve,
     build_location_context,
+    decompose_query,
     search_regulation,
 )
 from app.services.rate_limit import CHAT_MESSAGE_LIMIT, check_chat_rate_limit, get_chat_rate_limit_status
@@ -437,6 +438,8 @@ async def chat_message(
             )
             return ChatMessageResponse(answer=CHAT_MESSAGE_GAP_RESPONSE, citations=[], gap=True, session_id=session_id)
 
+        decomposed = len(decompose_query(question)) > 1
+
         raw_hits = _retrieve(
             db,
             user,
@@ -466,7 +469,8 @@ async def chat_message(
                     + f"\n\n{get_disclaimer(vertical)}"
                 )
                 session_id = _log_session(
-                    db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True, usage=usage
+                    db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True,
+                    decomposed=decomposed, usage=usage,
                 )
                 return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
@@ -477,7 +481,8 @@ async def chat_message(
                 else CHAT_MESSAGE_GAP_RESPONSE
             )
             session_id = _log_session(
-                db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True, usage=usage
+                db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True,
+                decomposed=decomposed, usage=usage,
             )
             return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
@@ -525,6 +530,7 @@ async def chat_message(
             CHAT_MESSAGE_GAP_RESPONSE,
             tool_used="none",
             gap=True,
+            decomposed=decomposed,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
             usage=usage,
@@ -562,6 +568,7 @@ async def chat_message(
         tool_used="rag",
         citations=[c.model_dump() for c in citations],
         gap=is_low_confidence,
+        decomposed=decomposed,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         usage=usage,
@@ -669,6 +676,7 @@ def _log_session(
     tool_used: str,
     citations: list[dict] | None = None,
     gap: bool | None = None,
+    decomposed: bool | None = None,
     prompt_tokens: int | None = None,
     completion_tokens: int | None = None,
     usage: SubscriptionUsage | None = None,
@@ -691,6 +699,7 @@ def _log_session(
         tool_used=tool_used,
         citations=citations,
         gap=gap,
+        decomposed=decomposed,
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,

@@ -8,6 +8,7 @@ that calls this - this module's only job is "what's actually relevant, and
 is it relevant enough."
 """
 
+import re
 from dataclasses import dataclass
 
 from sqlalchemy import func, select, text
@@ -82,6 +83,87 @@ _DOC_COLUMNS = (
 )
 
 
+def decompose_query(query: str) -> list[str]:
+    """
+    Detects compound questions with multiple distinct topics and returns
+    sub-queries for independent retrieval. Returns [query] unchanged if
+    the question is not compound.
+
+    Heuristic: compound if query contains 3+ distinct question markers
+    (ποιες, πώς, πότε, τι, ποιος, ποια) OR explicit numbered list
+    structure OR explicit "και" joining 4+ distinct clauses.
+    """
+    question_markers = len(re.findall(
+        r'\b(ποιες|ποιος|ποια|πώς|πότε|τι|πού)\b',
+        query, re.IGNORECASE
+    ))
+
+    # Split on "και" clauses or bullet structure if clearly compound
+    if question_markers >= 4 or query.count('\n-') >= 3:
+        # Split into logical sub-queries around key conjunctions
+        # and question words - keep each sub-query self-contained
+        parts = re.split(r',\s*(?=ποι|πώς|πότε|τι\s)', query, flags=re.IGNORECASE)
+        if len(parts) >= 3:
+            return [p.strip() for p in parts if len(p.strip()) > 20]
+
+    return [query]
+
+
+def _merge_decomposed_hits(chunk_lists: list[list["RetrievedChunk"]], top_k: int) -> list["RetrievedChunk"]:
+    """Merges the independent per-sub-query retrieval passes fired by
+    decompose_query(): dedupes by (document_id, chunk_text) - the same
+    chunk can legitimately rank in more than one sub-query's pass - keeping
+    whichever instance has the lowest distance.
+
+    Deliberately NOT a flat global sort by distance, even though that's the
+    obvious first thing to try: verified against Accounting Q1 of the
+    stress benchmark (5 unrelated income types in one question) that a
+    plain "pool everything, sort by distance, take top_k" merge lets
+    whichever sub-query happens to be the longest, richest piece of text
+    dominate every slot. A long sub-query (e.g. the whole original question
+    minus its trailing asks) matches many documents reasonably well in
+    aggregate and so scores uniformly lower absolute distances than a
+    short, topically sharp sub-query like "which double-taxation treaties
+    might apply" - even when that short sub-query's own top hit is exactly
+    the document the question needs and the long one's hits are all
+    generic. Distance scale isn't comparable across differently-shaped
+    queries, so a flat sort silently starves the very sub-topics
+    decomposition exists to rescue. Round-robin across sub-queries instead:
+    each one gets a guaranteed turn in its own distance order, so a narrow
+    sub-query's best (single) match survives into the merged pool even
+    against a broad sub-query's many merely-decent ones. See
+    KNOWN_DECISIONS.md for the concrete before/after citation lists."""
+    best_by_key: dict[tuple[int, str], RetrievedChunk] = {}
+    for chunks in chunk_lists:
+        for chunk in chunks:
+            key = (chunk.document_id, chunk.chunk_text)
+            existing = best_by_key.get(key)
+            if existing is None or chunk.distance < existing.distance:
+                best_by_key[key] = chunk
+
+    # Rebuild each sub-query's own ranked list, restricted to the chunks it
+    # actually won the global dedup for (so one physical chunk counts
+    # toward exactly one sub-query's round-robin turn).
+    per_query_ranked = [
+        sorted(
+            (c for c in chunks if best_by_key.get((c.document_id, c.chunk_text)) is c),
+            key=lambda c: c.distance,
+        )
+        for chunks in chunk_lists
+    ]
+
+    merged: list[RetrievedChunk] = []
+    cursors = [0] * len(per_query_ranked)
+    i = 0
+    while len(merged) < top_k and any(cursors[q] < len(per_query_ranked[q]) for q in range(len(per_query_ranked))):
+        q = i % len(per_query_ranked)
+        if cursors[q] < len(per_query_ranked[q]):
+            merged.append(per_query_ranked[q][cursors[q]])
+            cursors[q] += 1
+        i += 1
+    return merged
+
+
 def _retrieve(
     db: Session,
     user: CurrentUser,
@@ -93,12 +175,54 @@ def _retrieve(
     customer_id: int | None = None,
     plot_in_plan: bool | None = None,
 ) -> list[RetrievedChunk]:
-    """Shared retrieval core for both the chat pipeline and the standalone
-    /search endpoint: hybrid search combining vector cosine similarity and
-    PostgreSQL full-text search, merged via Reciprocal Rank Fusion (RRF),
-    restricted to documents visible to this user. Returns the top_k merged
-    results unfiltered by confidence - callers decide what to do with
+    """Entry point for retrieval: runs decompose_query() on the raw question
+    first. A genuinely compound, multi-topic question (see decompose_query's
+    heuristic) gets one independent retrieval pass per sub-query - each
+    pass's single embedded vector only has to serve one sub-topic instead
+    of competing against the whole question's other asks for space in the
+    same embedding - and the results are merged (_merge_decomposed_hits)
+    before being handed back. A simple question is a single-element list
+    and takes the unchanged single-pass path. See KNOWN_DECISIONS.md's
+    stress-benchmark entries for the crowding-out failure mode this exists
+    to fix (a compound question's minority sub-topics losing their best
+    chunk to the majority sub-topics' content within one top_k window)."""
+    sub_queries = decompose_query(query)
+    if len(sub_queries) <= 1:
+        return _retrieve_single_pass(
+            db, user, query, top_k, vertical_id,
+            region_id=region_id, project_id=project_id, customer_id=customer_id, plot_in_plan=plot_in_plan,
+        )
+
+    chunk_lists = [
+        _retrieve_single_pass(
+            db, user, sub_query, top_k, vertical_id,
+            region_id=region_id, project_id=project_id, customer_id=customer_id, plot_in_plan=plot_in_plan,
+        )
+        for sub_query in sub_queries
+    ]
+    return _merge_decomposed_hits(chunk_lists, top_k)
+
+
+def _retrieve_single_pass(
+    db: Session,
+    user: CurrentUser,
+    query: str,
+    top_k: int,
+    vertical_id: int,
+    region_id: str | None = None,
+    project_id: int | None = None,
+    customer_id: int | None = None,
+    plot_in_plan: bool | None = None,
+) -> list[RetrievedChunk]:
+    """One retrieval pass for a single query string - the shared core for
+    both the chat pipeline and the standalone /search endpoint: hybrid
+    search combining vector cosine similarity and PostgreSQL full-text
+    search, merged via Reciprocal Rank Fusion (RRF), restricted to
+    documents visible to this user. Returns the top_k merged results
+    unfiltered by confidence - callers decide what to do with
     distance/keyword_rank themselves (see _passes_hybrid_threshold).
+    Called once directly by _retrieve() for a simple question, or once per
+    sub-query when decompose_query() detects a compound one.
 
     Two independent candidate pools (_CANDIDATE_POOL_SIZE each), then
     merged: a chunk that's a weak vector match but a strong keyword match

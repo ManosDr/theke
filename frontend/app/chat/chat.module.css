@@ -275,6 +275,17 @@
   color: var(--color-text-muted);
 }
 
+/* Secondary line below the welcome message, empty state only - smaller
+   and dimmer than .emptyState so it reads as a minor aside, not part of
+   the welcome copy itself. Reuses --color-text-muted (rather than a new
+   literal hex) so it stays legible in dark mode too. */
+.emptyStateHint {
+  font-size: 0.75rem;
+  font-style: italic;
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
 .message {
   max-width: 80%;
   padding: var(--space-3) var(--space-4);

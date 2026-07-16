@@ -349,6 +349,12 @@ class ChatSession(Base):
     # /chat/history) can still show the low-confidence indicator - NULL for
     # rows written by the older POST /chat, which has no such concept.
     gap: Mapped[bool | None] = mapped_column(default=None)
+    # True when rag.decompose_query() detected this question as compound
+    # and ran independent retrieval passes per sub-topic instead of one
+    # pass over the whole question (see app/services/rag.py's _retrieve()).
+    # NULL for any row where retrieval never ran (empty question, off-topic
+    # guard rejection) - only meaningful once a retrieval attempt happened.
+    decomposed: Mapped[bool | None] = mapped_column(default=None)
     # NULL on every row where no GPT completion call was made at all (the
     # off-topic-guard classifier call doesn't count - see _log_session's
     # call sites in app/routers/chat.py) - distinguishes "no LLM call" from

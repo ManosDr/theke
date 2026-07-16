@@ -810,6 +810,7 @@ export const translations = {
 
     // chat
     "chat.placeholder": "Ask about building permit requirements, document checks, or ΥΔΟΜ procedures for your region.",
+    "chat.emptyStateHint": "Tip: for best results, ask one question at a time.",
     "chat.thinking": "Thinking…",
     "chat.inputPlaceholder": "Ask a question…",
     "chat.send": "Send",
@@ -1775,6 +1776,7 @@ export const translations = {
 
     // chat
     "chat.placeholder": "Ρωτήστε για απαιτήσεις αδείας δόμησης, έλεγχο εγγράφων, ή διαδικασίες ΥΔΟΜ για την περιοχή σας.",
+    "chat.emptyStateHint": "Συμβουλή: για τα καλύτερα αποτελέσματα, θέστε μία ερώτηση κάθε φορά.",
     "chat.thinking": "Επεξεργασία…",
     "chat.inputPlaceholder": "Κάντε μια ερώτηση…",
     "chat.send": "Αποστολή",

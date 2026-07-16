@@ -409,7 +409,10 @@ function ChatContent() {
         <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
           {!historyLoading && messages.length === 0 && (
-            <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+            <>
+              <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+              <p className={styles.emptyStateHint}>{t("chat.emptyStateHint")}</p>
+            </>
           )}
           {messages.map((m, i) => (
             <Fragment key={i}>

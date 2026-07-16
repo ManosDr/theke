@@ -789,3 +789,10 @@ CREATE TABLE IF NOT EXISTS user_feedback (
 
 CREATE INDEX IF NOT EXISTS idx_user_feedback_created ON user_feedback(created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_user_feedback_category ON user_feedback(category);
+
+-- True when rag.decompose_query() detected the question as compound and
+-- split it into independent per-sub-topic retrieval passes (see
+-- app/services/rag.py's _retrieve()) instead of one pass over the whole
+-- question. NULL where retrieval never ran. Lets a super admin measure how
+-- often the decomposition path actually fires in real traffic.
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS decomposed boolean;

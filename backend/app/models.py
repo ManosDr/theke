@@ -41,6 +41,14 @@ class DataSource(Base):
     last_crawl_status: Mapped[str | None] = mapped_column(Text)
     last_crawl_document_count: Mapped[int | None] = mapped_column(Integer)
     last_crawl_error: Mapped[str | None] = mapped_column(Text)
+    # SHA-256 hex digest of the base_url's extracted text as of the last
+    # successful sync (see admin.py's sync_data_source) - lets a sync tell
+    # "the source page didn't actually change" apart from "we just haven't
+    # checked in a while". content_changed_at is set only on a genuine hash
+    # change, not on every sync, so it answers "when did the source last
+    # actually change" rather than "when did we last check".
+    last_content_hash: Mapped[str | None] = mapped_column(Text)
+    content_changed_at: Mapped[datetime | None] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
@@ -168,6 +176,19 @@ class Document(Base):
     # request-time queries - so the review queue stays cheap and stable
     # instead of recomputing "is this stale" on every page load.
     needs_review: Mapped[bool] = mapped_column(default=False)
+    # When this document's source was last successfully re-fetched and
+    # hash-compared by a data_source sync (see admin.py's sync_data_source) -
+    # distinct from last_verified_at above, which only moves when a human
+    # clears needs_review via mark-reviewed. A document can have a recent
+    # source_verified_at (we just checked, nothing changed) while
+    # last_verified_at is still old (no human has looked at it in months).
+    source_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Machine-generated Greek explanation shown in the admin review queue
+    # when needs_review was set by the hash-change detector specifically -
+    # NULL for every other needs_review cause (manual flag, the 6-month
+    # staleness sweep). Cleared alongside needs_review whenever a human acts
+    # on the flag (mark-reviewed, or the revalidation panel's outcomes).
+    auto_needs_review_reason: Mapped[str | None] = mapped_column(Text)
 
     # passive_deletes=True: trust the DB's ON DELETE CASCADE on
     # embeddings.document_id (see Embedding below) instead of SQLAlchemy's
@@ -363,6 +384,33 @@ class ChatSession(Base):
     completion_tokens: Mapped[int | None] = mapped_column(Integer)
     total_tokens: Mapped[int | None] = mapped_column(Integer)
     estimated_cost_eur: Mapped[float | None] = mapped_column(Numeric(10, 6))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class DocumentValidation(Base):
+    """One row per AI revalidation attempt (app/routers/admin.py's
+    revalidate_document / the bulk revalidate-all background task) - the
+    audit trail for the admin KB revalidation copilot. status is
+    'source_unavailable' (fetch failed, no GPT-4o call made) or 'validated'
+    (GPT-4o compared stored content against the fetched source).
+    admin_action ('accepted'/'edited'/'dismissed') is set later, when a
+    human acts on this row via apply-suggestion or mark-reviewed - NULL
+    until then."""
+
+    __tablename__ = "document_validations"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    document_id: Mapped[int] = mapped_column(ForeignKey("documents.id"))
+    validated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    status: Mapped[str] = mapped_column(Text)
+    still_accurate: Mapped[bool | None] = mapped_column(default=None)
+    changes_detected: Mapped[str | None] = mapped_column(Text)
+    suggested_content: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[str | None] = mapped_column(Text)
+    reasoning: Mapped[str | None] = mapped_column(Text)
+    source_fetched_at: Mapped[datetime | None] = mapped_column(DateTime)
+    admin_action: Mapped[str | None] = mapped_column(Text)
+    admin_note: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

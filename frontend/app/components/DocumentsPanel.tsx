@@ -1,13 +1,20 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
-import type { BrowseResponse, DocumentSummary, VerticalSummary } from "../lib/types";
+import type {
+  BrowseResponse,
+  DocumentSummary,
+  DocumentValidationResult,
+  RevalidateAllResponse,
+  RevalidationStatusResponse,
+  VerticalSummary,
+} from "../lib/types";
 import styles from "./DocumentsPanel.module.css";
 import dashStyles from "../dashboard/dashboard.module.css";
 
@@ -65,6 +72,8 @@ export function DocumentsPanel() {
   const [authority, setAuthority] = useState("");
   const [contentType, setContentType] = useState("");
   const [supersededOnly, setSupersededOnly] = useState(false);
+  const [autoFlaggedOnly, setAutoFlaggedOnly] = useState(false);
+  const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [offset, setOffset] = useState(0);
@@ -77,6 +86,32 @@ export function DocumentsPanel() {
   const [removeTarget, setRemoveTarget] = useState<DocumentSummary | null>(null);
   const [undoConfirmId, setUndoConfirmId] = useState<number | null>(null);
   const [undoChecked, setUndoChecked] = useState(false);
+  const [showCreateModal, setShowCreateModal] = useState(false);
+
+  // AI revalidation - one row's panel open at a time, keyed by document id.
+  const [revalidatingId, setRevalidatingId] = useState<number | null>(null);
+  const [revalidationLoading, setRevalidationLoading] = useState(false);
+  const [revalidationResult, setRevalidationResult] = useState<DocumentValidationResult | null>(null);
+  const [editedSuggestion, setEditedSuggestion] = useState("");
+  const [currentContentFull, setCurrentContentFull] = useState("");
+  const [revalidationActionLoading, setRevalidationActionLoading] = useState(false);
+
+  // needs_review banner + bulk AI validation
+  const [needsReviewCount, setNeedsReviewCount] = useState(0);
+  const [bulkRunning, setBulkRunning] = useState(false);
+  const [bulkTotal, setBulkTotal] = useState(0);
+  const [bulkStatus, setBulkStatus] = useState<RevalidationStatusResponse | null>(null);
+  const [bulkComplete, setBulkComplete] = useState<{ changed: number; accurate: number } | null>(null);
+
+  async function refreshNeedsReviewCount() {
+    if (!token) return;
+    try {
+      const data = await api.get<BrowseResponse>("/admin/documents?needs_review_only=true&limit=1", token);
+      setNeedsReviewCount(data.total);
+    } catch {
+      // best-effort - banner just stays at its last known count
+    }
+  }
 
   useEffect(() => {
     if (!token) return;
@@ -104,6 +139,8 @@ export function DocumentsPanel() {
       else if (status) params.set("status_filter", status);
       if (authority) params.set("authority", authority);
       if (contentType) params.set("content_type", contentType);
+      if (autoFlaggedOnly) params.set("auto_flagged_only", "true");
+      if (needsReviewOnly) params.set("needs_review_only", "true");
       params.set("limit", String(PAGE_SIZE));
       params.set("offset", String(offset));
       const data = await api.get<BrowseResponse>(`/admin/documents?${params.toString()}`, token);
@@ -115,12 +152,24 @@ export function DocumentsPanel() {
 
   useEffect(() => {
     refresh();
+    refreshNeedsReviewCount();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token, debouncedQ, activeVerticalId, status, authority, contentType, supersededOnly, offset]);
+  }, [
+    token,
+    debouncedQ,
+    activeVerticalId,
+    status,
+    authority,
+    contentType,
+    supersededOnly,
+    autoFlaggedOnly,
+    needsReviewOnly,
+    offset,
+  ]);
 
   useEffect(() => {
     setOffset(0);
-  }, [debouncedQ, activeVerticalId, status, authority, contentType, supersededOnly]);
+  }, [debouncedQ, activeVerticalId, status, authority, contentType, supersededOnly, autoFlaggedOnly, needsReviewOnly]);
 
   useEffect(() => {
     function handleEscape(e: KeyboardEvent) {
@@ -134,7 +183,16 @@ export function DocumentsPanel() {
     return () => document.removeEventListener("keydown", handleEscape);
   }, [removeTarget, supersedeTarget, drawerDoc, openMenuId]);
 
-  const hasFilters = Boolean(debouncedQ || status || authority || contentType || supersededOnly || verticalFilter);
+  const hasFilters = Boolean(
+    debouncedQ ||
+      status ||
+      authority ||
+      contentType ||
+      supersededOnly ||
+      autoFlaggedOnly ||
+      needsReviewOnly ||
+      verticalFilter
+  );
 
   function clearFilters() {
     setQ("");
@@ -142,6 +200,8 @@ export function DocumentsPanel() {
     setAuthority("");
     setContentType("");
     setSupersededOnly(false);
+    setAutoFlaggedOnly(false);
+    setNeedsReviewOnly(false);
     setVerticalFilter("");
   }
 
@@ -156,7 +216,92 @@ export function DocumentsPanel() {
     await api.post(`/admin/stale-documents/${doc.id}/mark-reviewed`, { confirmed: true }, token);
     setOpenMenuId(null);
     refresh();
+    refreshNeedsReviewCount();
   }
+
+  async function startRevalidation(doc: DocumentSummary) {
+    if (!token) return;
+    setOpenMenuId(null);
+    setRevalidatingId(doc.id);
+    setRevalidationResult(null);
+    setCurrentContentFull("");
+    setRevalidationLoading(true);
+    try {
+      const data = await api.post<DocumentValidationResult>(`/admin/documents/${doc.id}/revalidate`, undefined, token);
+      setRevalidationResult(data);
+      setEditedSuggestion(data.suggested_content ?? "");
+      if (data.status === "validated" && data.still_accurate === false) {
+        const full = await api.get<DocumentSummary>(`/admin/documents/${doc.id}`, token);
+        setCurrentContentFull(full.full_content ?? "");
+      }
+    } finally {
+      setRevalidationLoading(false);
+    }
+  }
+
+  function closeRevalidationPanel() {
+    setRevalidatingId(null);
+    setRevalidationResult(null);
+    setEditedSuggestion("");
+  }
+
+  async function markReviewedFromPanel(docId: number) {
+    if (!token || !revalidationResult) return;
+    setRevalidationActionLoading(true);
+    try {
+      await api.post(
+        `/admin/stale-documents/${docId}/mark-reviewed`,
+        { confirmed: true, validation_id: revalidationResult.validation_id },
+        token
+      );
+      closeRevalidationPanel();
+      refresh();
+      refreshNeedsReviewCount();
+    } finally {
+      setRevalidationActionLoading(false);
+    }
+  }
+
+  async function applySuggestion(docId: number, content: string, action: "accepted" | "edited") {
+    if (!token || !revalidationResult?.validation_id) return;
+    setRevalidationActionLoading(true);
+    try {
+      await api.post(
+        `/admin/documents/${docId}/apply-suggestion`,
+        { content, validation_id: revalidationResult.validation_id, action },
+        token
+      );
+      closeRevalidationPanel();
+      refresh();
+      refreshNeedsReviewCount();
+    } finally {
+      setRevalidationActionLoading(false);
+    }
+  }
+
+  async function runBulkRevalidation() {
+    if (!token) return;
+    const data = await api.post<RevalidateAllResponse>("/admin/documents/revalidate-all", undefined, token);
+    setBulkTotal(data.queued);
+    setBulkComplete(null);
+    if (data.queued > 0) setBulkRunning(true);
+  }
+
+  useEffect(() => {
+    if (!bulkRunning || !token) return;
+    const interval = setInterval(async () => {
+      const data = await api.get<RevalidationStatusResponse>("/admin/documents/revalidation-status", token);
+      setBulkStatus(data);
+      if (data.pending === 0) {
+        setBulkRunning(false);
+        setBulkComplete({ changed: data.changed, accurate: data.accurate });
+        refresh();
+        refreshNeedsReviewCount();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bulkRunning, token]);
 
   async function undoSupersede(doc: DocumentSummary) {
     if (!token) return;
@@ -172,7 +317,36 @@ export function DocumentsPanel() {
       <div className={styles.headerRow}>
         <h1>{t("docs.title")}</h1>
         <span className={styles.countPill}>{t("docs.countPill", { count: result.total })}</span>
+        <button type="button" className="btn btn-primary" style={{ marginLeft: "auto" }} onClick={() => setShowCreateModal(true)}>
+          {t("docs.newDocument")}
+        </button>
       </div>
+
+      {needsReviewCount > 0 && (
+        <div className={`card ${styles.needsReviewBanner}`}>
+          <span>{t("docs.revalidate.needsReviewBanner", { count: needsReviewCount })}</span>
+          <div style={{ display: "flex", gap: "var(--space-2)", alignItems: "center", marginLeft: "auto" }}>
+            {bulkRunning && bulkStatus ? (
+              <span className="text-muted">
+                {t("docs.revalidate.bulkProgress", {
+                  total: bulkTotal,
+                  done: Math.max(0, bulkTotal - bulkStatus.pending),
+                })}
+              </span>
+            ) : bulkComplete ? (
+              <span className="text-muted">
+                {t("docs.revalidate.bulkComplete", { changed: bulkComplete.changed, clean: bulkComplete.accurate })}
+              </span>
+            ) : null}
+            <button type="button" className="btn btn-secondary" onClick={() => setNeedsReviewOnly(true)}>
+              {t("docs.revalidate.viewNow")}
+            </button>
+            <button type="button" className="btn btn-primary" disabled={bulkRunning} onClick={runBulkRevalidation}>
+              {t("docs.revalidate.validateAllAi")}
+            </button>
+          </div>
+        </div>
+      )}
 
       <div className={`card ${styles.filterBar}`}>
         {selectedVertical === "all" && (
@@ -219,6 +393,24 @@ export function DocumentsPanel() {
           {t("docs.supersededOnly")}
         </label>
 
+        <label className={styles.filterCheckbox}>
+          <input
+            type="checkbox"
+            checked={autoFlaggedOnly}
+            onChange={(e) => setAutoFlaggedOnly(e.target.checked)}
+          />
+          {t("docs.autoFlaggedOnly")}
+        </label>
+
+        <label className={styles.filterCheckbox}>
+          <input
+            type="checkbox"
+            checked={needsReviewOnly}
+            onChange={(e) => setNeedsReviewOnly(e.target.checked)}
+          />
+          {t("docs.status.needs_review")}
+        </label>
+
         <input
           className={`input ${styles.searchInput}`}
           type="text"
@@ -259,7 +451,8 @@ export function DocumentsPanel() {
                   const eff = effectiveStatus(doc);
                   const accent = ACCENT_CLASS[doc.vertical_slug ?? ""] ?? "";
                   return (
-                    <tr key={doc.id} className={eff === "superseded" ? styles.rowSuperseded : ""}>
+                    <Fragment key={doc.id}>
+                    <tr className={eff === "superseded" ? styles.rowSuperseded : ""}>
                       <td>
                         <button type="button" className={styles.titleText} style={{ background: "none", border: "none", textAlign: "left", padding: 0, cursor: "pointer" }} onClick={() => setDrawerDoc(doc)}>
                           {doc.title ?? "—"}
@@ -272,6 +465,11 @@ export function DocumentsPanel() {
                         {doc.replaces && (
                           <span className={styles.replacementCaption}>
                             {t("docs.replaces", { title: doc.replaces.title ?? `#${doc.replaces.id}` })}
+                          </span>
+                        )}
+                        {doc.auto_needs_review_reason && (
+                          <span className={styles.replacementCaption} style={{ color: "var(--admin-warning)" }}>
+                            {t("docs.autoFlaggedLabel")} {doc.auto_needs_review_reason}
                           </span>
                         )}
                       </td>
@@ -313,6 +511,11 @@ export function DocumentsPanel() {
                             <button className={styles.rowMenuItem} onClick={() => { setDrawerDoc(doc); setOpenMenuId(null); }}>
                               {t("docs.menuView")}
                             </button>
+                            {doc.needs_review && (
+                              <button className={styles.rowMenuItem} onClick={() => startRevalidation(doc)}>
+                                {t("docs.menuRevalidateAi")}
+                              </button>
+                            )}
                             {doc.needs_review && (
                               <button className={styles.rowMenuItem} onClick={() => markReviewed(doc)}>
                                 {t("docs.menuMarkReviewed")}
@@ -361,6 +564,119 @@ export function DocumentsPanel() {
                         )}
                       </td>
                     </tr>
+                    {revalidatingId === doc.id && (
+                      <tr>
+                        <td colSpan={8} className={styles.revalidatePanel}>
+                          {revalidationLoading ? (
+                            <p className="text-muted">{t("docs.revalidate.loading")}</p>
+                          ) : revalidationResult?.status === "source_unavailable" ? (
+                            <div>
+                              <p>
+                                <strong style={{ color: "var(--admin-danger)" }}>
+                                  {t("docs.revalidate.unavailableTitle")}
+                                </strong>
+                              </p>
+                              <p className="text-muted">{revalidationResult.reason}</p>
+                              <div className={styles.modalActions} style={{ justifyContent: "flex-start" }}>
+                                <button
+                                  className="btn btn-secondary"
+                                  disabled={revalidationActionLoading}
+                                  onClick={() => markReviewedFromPanel(doc.id)}
+                                >
+                                  {t("docs.revalidate.markReviewedManually")}
+                                </button>
+                                <button className="btn btn-secondary" onClick={closeRevalidationPanel}>
+                                  {t("docs.revalidate.close")}
+                                </button>
+                              </div>
+                            </div>
+                          ) : revalidationResult?.still_accurate === true ? (
+                            <div>
+                              <p>
+                                <strong style={{ color: "var(--admin-success)" }}>
+                                  {t("docs.revalidate.accurateTitle")}
+                                </strong>{" "}
+                                <span className="badge">{revalidationResult.confidence}</span>
+                              </p>
+                              <p className="text-muted" style={{ fontStyle: "italic" }}>
+                                "{revalidationResult.reasoning}"
+                              </p>
+                              <div className={styles.modalActions} style={{ justifyContent: "flex-start" }}>
+                                <button
+                                  className="btn btn-secondary"
+                                  disabled={revalidationActionLoading}
+                                  onClick={() => markReviewedFromPanel(doc.id)}
+                                >
+                                  {t("docs.revalidate.markReviewed")}
+                                </button>
+                                <button className="btn btn-secondary" onClick={closeRevalidationPanel}>
+                                  {t("docs.revalidate.close")}
+                                </button>
+                              </div>
+                            </div>
+                          ) : revalidationResult?.still_accurate === false ? (
+                            <div>
+                              <p>
+                                <strong style={{ color: "var(--admin-warning)" }}>
+                                  {t("docs.revalidate.changesTitle")}
+                                </strong>{" "}
+                                <span className="badge">{revalidationResult.confidence}</span>
+                              </p>
+                              <p>
+                                <strong>{t("docs.revalidate.whatChanged")}</strong> {revalidationResult.changes_detected}
+                              </p>
+
+                              <label style={{ display: "block", margin: "8px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+                                {t("docs.revalidate.currentContent")}
+                              </label>
+                              <textarea
+                                className="input"
+                                value={currentContentFull}
+                                readOnly
+                                rows={6}
+                                style={{ width: "100%", fontFamily: "inherit", background: "var(--admin-parchment)" }}
+                              />
+
+                              <label style={{ display: "block", margin: "8px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+                                {t("docs.revalidate.suggestedContent")}
+                              </label>
+                              <textarea
+                                className="input"
+                                value={editedSuggestion}
+                                onChange={(e) => setEditedSuggestion(e.target.value)}
+                                rows={6}
+                                style={{ width: "100%", fontFamily: "inherit" }}
+                              />
+
+                              <div className={styles.modalActions} style={{ justifyContent: "flex-start" }}>
+                                <button
+                                  className="btn btn-primary"
+                                  disabled={revalidationActionLoading}
+                                  onClick={() => applySuggestion(doc.id, revalidationResult!.suggested_content ?? "", "accepted")}
+                                >
+                                  {t("docs.revalidate.accept")}
+                                </button>
+                                <button
+                                  className="btn btn-secondary"
+                                  disabled={revalidationActionLoading}
+                                  onClick={() => applySuggestion(doc.id, editedSuggestion, "edited")}
+                                >
+                                  {t("docs.revalidate.saveEdited")}
+                                </button>
+                                <button
+                                  className="btn btn-secondary"
+                                  disabled={revalidationActionLoading}
+                                  onClick={() => markReviewedFromPanel(doc.id)}
+                                >
+                                  {t("docs.revalidate.dismiss")}
+                                </button>
+                              </div>
+                            </div>
+                          ) : null}
+                        </td>
+                      </tr>
+                    )}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -518,6 +834,170 @@ export function DocumentsPanel() {
           }}
         />
       )}
+
+      {showCreateModal && (
+        <CreateDocumentModal
+          token={token}
+          verticals={verticals}
+          onClose={() => setShowCreateModal(false)}
+          onDone={() => {
+            setShowCreateModal(false);
+            refresh();
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function CreateDocumentModal({
+  token,
+  verticals,
+  onClose,
+  onDone,
+}: {
+  token: string | null;
+  verticals: VerticalSummary[];
+  onClose: () => void;
+  onDone: () => void;
+}) {
+  const { t } = useLocale();
+  const [title, setTitle] = useState("");
+  const [content, setContent] = useState("");
+  const [verticalId, setVerticalId] = useState<number | "">(verticals[0]?.id ?? "");
+  const [source, setSource] = useState("");
+  const [authority, setAuthority] = useState("");
+  const [contentType, setContentType] = useState("");
+  const [regionId, setRegionId] = useState("");
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // extraction_status is always "manual_entry" for this form - the only
+  // creation path a super admin has - so source is always required here,
+  // matching the backend's going-forward KB staleness policy (see
+  // KNOWN_DECISIONS.md): a manual_entry document with no source is a
+  // document nobody can ever revalidate against a real source later.
+  const canSubmit = title.trim().length > 0 && content.trim().length > 0 && verticalId !== "" && source.trim().length > 0;
+
+  async function submit() {
+    if (!token || !canSubmit) return;
+    setSubmitting(true);
+    setError(null);
+    try {
+      await api.post(
+        "/admin/documents",
+        {
+          title: title.trim(),
+          content: content.trim(),
+          vertical_id: verticalId,
+          source: source.trim(),
+          authority: authority || null,
+          content_type: contentType || null,
+          region_id: regionId.trim() || null,
+          extraction_status: "manual_entry",
+        },
+        token
+      );
+      onDone();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  return (
+    <div className={styles.modalScrim} onClick={onClose}>
+      <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="create-doc-modal-title" onClick={(e) => e.stopPropagation()}>
+        <h2 id="create-doc-modal-title">{t("docs.create.title")}</h2>
+
+        <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", fontWeight: 600 }}>
+          {t("docs.create.titleLabel")}
+        </label>
+        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} style={{ width: "100%" }} />
+
+        <label style={{ display: "block", margin: "12px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+          {t("docs.create.verticalLabel")}
+        </label>
+        <select
+          className="input"
+          value={verticalId}
+          onChange={(e) => setVerticalId(e.target.value ? Number(e.target.value) : "")}
+          style={{ width: "100%" }}
+        >
+          {verticals.map((v) => (
+            <option key={v.id} value={v.id}>
+              {v.display_name}
+            </option>
+          ))}
+        </select>
+
+        <label style={{ display: "block", margin: "12px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+          {t("docs.create.contentLabel")}
+        </label>
+        <textarea
+          className="input"
+          value={content}
+          onChange={(e) => setContent(e.target.value)}
+          rows={8}
+          style={{ width: "100%", fontFamily: "inherit" }}
+        />
+
+        <label style={{ display: "block", margin: "12px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+          {t("docs.create.sourceLabel")} *
+        </label>
+        <input className="input" value={source} onChange={(e) => setSource(e.target.value)} style={{ width: "100%" }} />
+        <p className={styles.modalHelper}>{t("docs.create.sourceHelper")} {t("docs.create.sourceRequired")}</p>
+
+        <div style={{ display: "flex", gap: "var(--space-3)", marginTop: 8 }}>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", fontWeight: 600 }}>
+              {t("docs.create.authorityLabel")}
+            </label>
+            <select className="input" value={authority} onChange={(e) => setAuthority(e.target.value)} style={{ width: "100%" }}>
+              <option value="">{t("docs.filterAll")}</option>
+              {["tee", "ydom", "dasarcheio", "deddie", "deya", "ktimatologio", "aade", "efka", "mida", "ypen", "other"].map((a) => (
+                <option key={a} value={a}>
+                  {a.toUpperCase()}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div style={{ flex: 1 }}>
+            <label style={{ display: "block", marginBottom: 4, fontSize: "0.85rem", fontWeight: 600 }}>
+              {t("docs.create.contentTypeLabel")}
+            </label>
+            <select className="input" value={contentType} onChange={(e) => setContentType(e.target.value)} style={{ width: "100%" }}>
+              <option value="">{t("docs.filterAll")}</option>
+              {["procedural_howto", "legal_reference", "regulatory_change_notice", "form", "faq"].map((c) => (
+                <option key={c} value={c}>
+                  {c}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <label style={{ display: "block", margin: "12px 0 4px", fontSize: "0.85rem", fontWeight: 600 }}>
+          {t("docs.create.regionLabel")}
+        </label>
+        <input className="input" value={regionId} onChange={(e) => setRegionId(e.target.value)} style={{ width: "100%" }} />
+
+        {error && (
+          <p className={styles.modalHelper} style={{ color: "var(--error-red)" }}>
+            {error}
+          </p>
+        )}
+
+        <div className={styles.modalActions}>
+          <button className="btn btn-secondary" onClick={onClose}>
+            {t("docs.create.cancel")}
+          </button>
+          <button className="btn btn-primary" disabled={!canSubmit || submitting} onClick={submit}>
+            {submitting ? t("docs.create.submitting") : t("docs.create.submit")}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

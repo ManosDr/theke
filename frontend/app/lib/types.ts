@@ -343,6 +343,7 @@ export interface StaleDocumentSummary {
   source_group: string | null;
   region_id: string | null;
   last_verified_at: string | null;
+  auto_needs_review_reason: string | null;
 }
 
 export interface DocumentReplacementRef {
@@ -383,6 +384,9 @@ export interface DocumentSummary {
   vertical_slug: string | null;
   last_verified_at: string | null;
   needs_review: boolean;
+  auto_needs_review_reason: string | null;
+  still_accurate: boolean | null;
+  full_content: string | null;
 }
 
 export interface DocumentDetail extends DocumentSummary {
@@ -634,4 +638,31 @@ export interface UtilityProviderAdminSummary {
   coverage_region_ids: string[];
   contact_phone: string | null;
   contact_email: string | null;
+}
+
+export interface DocumentValidationResult {
+  status: string;
+  reason: string | null;
+  still_accurate: boolean | null;
+  changes_detected: string | null;
+  suggested_content: string | null;
+  confidence: string | null;
+  reasoning: string | null;
+  source_fetched_at: string | null;
+  source_url: string | null;
+  validation_id: number | null;
+}
+
+export interface RevalidateAllResponse {
+  queued: number;
+  estimated_minutes: number;
+}
+
+export interface RevalidationStatusResponse {
+  pending: number;
+  validated: number;
+  failed: number;
+  accurate: number;
+  changed: number;
+  last_updated: string | null;
 }

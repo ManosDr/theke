@@ -10,6 +10,7 @@ import { useLocale } from "../lib/i18n";
 import type { SubscriptionStatusResponse } from "../lib/types";
 import type { TranslationKey } from "../lib/translations";
 import { useTheme } from "../lib/theme";
+import { getInitials } from "../lib/userDisplay";
 import { NotificationBell } from "./NotificationBell";
 import { MoonIcon, SunIcon } from "./StatIcons";
 import styles from "./TopHeader.module.css";
@@ -140,7 +141,7 @@ function UserMenu() {
     };
   }, [open]);
 
-  const initial = user?.email?.[0]?.toUpperCase() ?? "?";
+  const initials = getInitials(user?.firstName, user?.lastName, user?.email);
 
   return (
     <div className={styles.userMenuWrap} ref={wrapperRef}>
@@ -152,7 +153,7 @@ function UserMenu() {
         aria-label={t("sidebar.myAccount")}
         onClick={() => setOpen((o) => !o)}
       >
-        {initial}
+        {initials}
       </button>
 
       {open && (

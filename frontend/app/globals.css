@@ -330,6 +330,18 @@ textarea {
   color: inherit;
 }
 
+/* Browsers apply their own UA placeholder color/opacity (Chromium: a fixed
+   dark gray at ~54% opacity) regardless of the input's own (theme-aware)
+   text color - invisible against a dark-mode input's dark background since
+   it never picks up --color-text-muted's dark-theme override. Overriding
+   opacity to 1 is required, not just color - otherwise this rule's own
+   color still gets the browser's default translucency applied on top. */
+input::placeholder,
+textarea::placeholder {
+  color: var(--color-text-muted);
+  opacity: 1;
+}
+
 button {
   cursor: pointer;
 }

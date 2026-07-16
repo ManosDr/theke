@@ -81,7 +81,14 @@ export function StaleDocumentsQueue({ title, description }: { title: string; des
             <tbody>
               {docs.map((doc) => (
                 <tr key={doc.id}>
-                  <td>{doc.title}</td>
+                  <td>
+                    {doc.title}
+                    {doc.auto_needs_review_reason && (
+                      <div className="text-muted" style={{ fontSize: "0.8rem", color: "var(--admin-warning)" }}>
+                        {t("docs.autoFlaggedLabel")} {doc.auto_needs_review_reason}
+                      </div>
+                    )}
+                  </td>
                   <td className="text-muted">{doc.source_group ?? "—"}</td>
                   <td className="text-muted">{doc.region_id ?? t("dash.super.national")}</td>
                   <td>

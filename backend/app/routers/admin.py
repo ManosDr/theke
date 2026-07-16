@@ -1,13 +1,15 @@
+import json
 import secrets
 import string
 from datetime import date, datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
+from openai import OpenAI, OpenAIError
 from sqlalchemy import delete, func, select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.database import get_db
+from app.database import SessionLocal, get_db
 from app.dependencies import CurrentUser, get_current_user
 from app.models import (
     AuditLog,
@@ -16,6 +18,8 @@ from app.models import (
     CompanySubscription,
     DataSource,
     Document,
+    DocumentValidation,
+    Embedding,
     Invite,
     MessageFeedback,
     PasswordResetToken,
@@ -30,11 +34,13 @@ from app.models import (
 )
 from app.schemas import (
     AddSubscriptionNoteRequest,
+    AdminDocumentCreateRequest,
     AdminInviteSummary,
     AdminResetPasswordResponse,
     AdminStatsByVerticalResponse,
     AdminStatsResponse,
     AdminUserSummary,
+    ApplySuggestionRequest,
     AssignPlanRequest,
     AuditLogEntry,
     BrowseResponse,
@@ -50,6 +56,7 @@ from app.schemas import (
     DataSourcesByVertical,
     DocumentReplacementRef,
     DocumentSummary,
+    DocumentValidationResult,
     EmailStatusResponse,
     ExtendTrialRequest,
     FeedbackEntry,
@@ -65,6 +72,8 @@ from app.schemas import (
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
+    RevalidateAllResponse,
+    RevalidationStatusResponse,
     RoleChangeRequest,
     StaleDocumentSummary,
     SubscriptionEntry,
@@ -81,6 +90,8 @@ from app.schemas import (
 from app.security import create_access_token, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
+from app.services.embeddings import embed_document
+from app.services.source_fetch import content_hash, fetch_url_content
 from app.services.sources import group_label
 from app.services.subscription import get_or_create_subscription, get_or_create_usage
 from app.services.usage import company_token_usage
@@ -588,7 +599,28 @@ async def admin_revoke_invite(
     db.commit()
 
 
-def _to_admin_summary(db: Session, doc: Document, vertical_slugs: dict[int, str] | None = None) -> DocumentSummary:
+def _latest_still_accurate(db: Session, document_ids: list[int]) -> dict[int, bool | None]:
+    """One still_accurate value per document_id - whichever document_validations
+    row is most recent for that document, or absent entirely if the document
+    has never been AI-revalidated. Postgres DISTINCT ON, not a subquery-per-
+    document, so this stays one query regardless of page size."""
+    if not document_ids:
+        return {}
+    rows = db.execute(
+        select(DocumentValidation.document_id, DocumentValidation.still_accurate)
+        .where(DocumentValidation.document_id.in_(document_ids))
+        .distinct(DocumentValidation.document_id)
+        .order_by(DocumentValidation.document_id, DocumentValidation.created_at.desc())
+    ).all()
+    return {row.document_id: row.still_accurate for row in rows}
+
+
+def _to_admin_summary(
+    db: Session,
+    doc: Document,
+    vertical_slugs: dict[int, str] | None = None,
+    still_accurate_map: dict[int, bool | None] | None = None,
+) -> DocumentSummary:
     """Same fields as the tenant-facing DocumentSummary, plus the
     replacement-chain fields only admin KB management ever populates - see
     Document.replaces_document_id's direction note in db/init.sql (lives on
@@ -627,6 +659,78 @@ def _to_admin_summary(db: Session, doc: Document, vertical_slugs: dict[int, str]
         vertical_slug=(vertical_slugs or {}).get(doc.vertical_id),
         last_verified_at=doc.last_verified_at,
         needs_review=doc.needs_review,
+        auto_needs_review_reason=doc.auto_needs_review_reason,
+        still_accurate=(still_accurate_map or {}).get(doc.id) if still_accurate_map is not None else _latest_still_accurate(db, [doc.id]).get(doc.id),
+    )
+
+
+@router.post("/documents", response_model=DocumentSummary, status_code=status.HTTP_201_CREATED)
+async def create_admin_document(
+    payload: AdminDocumentCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentSummary:
+    """Backs the admin "Νέο Έγγραφο" form - hand-authoring a public KB
+    document (almost always extraction_status="manual_entry", the form's
+    only real use case today; the crawler is the sole writer for
+    full_text/reference_only documents). Enforces the going-forward KB
+    staleness policy: a manual_entry document with no source is a document
+    nobody can ever revalidate against a real source later (see
+    KNOWN_DECISIONS.md) - every other extraction_status is exempt since
+    those already carry a source by construction (crawled, or an upload).
+    """
+    require_super_admin(user)
+    if payload.extraction_status == "manual_entry" and not payload.source:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Τα χειροκίνητα έγγραφα απαιτούν source_url που να δείχνει στο πρωτογενές νομικό κείμενο",
+        )
+
+    doc = Document(
+        title=payload.title,
+        content=payload.content,
+        vertical_id=payload.vertical_id,
+        source=payload.source,
+        authority=payload.authority,
+        content_type=payload.content_type,
+        region_id=payload.region_id,
+        extraction_status=payload.extraction_status,
+        scope="regional" if payload.region_id else "national",
+        status="active",
+    )
+    db.add(doc)
+    db.flush()
+    embed_document(db, doc)
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="document_created", resource_type="document", resource_id=doc.id,
+    )
+    db.commit()
+    db.refresh(doc)
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return _to_admin_summary(db, doc, vertical_slugs)
+
+
+@router.get("/documents/revalidation-status", response_model=RevalidationStatusResponse)
+async def revalidation_status(
+    user: CurrentUser = Depends(get_current_user),
+) -> RevalidationStatusResponse:
+    """Registered before /documents/{document_id} deliberately - FastAPI/
+    Starlette matches routes in registration order, and both are GET with
+    the same path-segment shape, so this static path MUST come first or
+    "revalidation-status" gets swallowed as an attempted document_id (a
+    real 422 hit during Phase 4/5 testing, not a hypothetical)."""
+    require_super_admin(user)
+    state = _bulk_revalidation_state
+    pending = max(0, state["total"] - state["completed"] - state["failed"])
+    last_updated = state["finished_at"] or state["started_at"]
+    return RevalidationStatusResponse(
+        pending=pending,
+        validated=state["completed"],
+        failed=state["failed"],
+        accurate=state["accurate"],
+        changed=state["changed"],
+        last_updated=last_updated,
     )
 
 
@@ -645,7 +749,9 @@ async def get_admin_document(
     if not doc or doc.company_id is not None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    return _to_admin_summary(db, doc, vertical_slugs)
+    summary = _to_admin_summary(db, doc, vertical_slugs)
+    summary.full_content = doc.content
+    return summary
 
 
 @router.get("/documents", response_model=BrowseResponse)
@@ -656,6 +762,8 @@ async def list_admin_documents(
     authority: str | None = None,
     content_type: str | None = None,
     superseded_only: bool = False,
+    auto_flagged_only: bool = False,
+    needs_review_only: bool = False,
     limit: int = 50,
     offset: int = 0,
     db: Session = Depends(get_db),
@@ -688,11 +796,18 @@ async def list_admin_documents(
         stmt = stmt.where(Document.authority == authority)
     if content_type:
         stmt = stmt.where(Document.content_type == content_type)
+    if auto_flagged_only:
+        stmt = stmt.where(Document.auto_needs_review_reason.is_not(None))
+    if needs_review_only:
+        stmt = stmt.where(Document.needs_review.is_(True))
 
     total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
     results = db.scalars(stmt.order_by(Document.created_at.desc()).limit(limit).offset(offset)).all()
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    return BrowseResponse(total=total, items=[_to_admin_summary(db, doc, vertical_slugs) for doc in results])
+    still_accurate_map = _latest_still_accurate(db, [doc.id for doc in results])
+    return BrowseResponse(
+        total=total, items=[_to_admin_summary(db, doc, vertical_slugs, still_accurate_map) for doc in results]
+    )
 
 
 @router.post("/documents/{document_id}/mark-superseded", response_model=list[DocumentSummary])
@@ -807,20 +922,27 @@ async def remove_public_document(
 
 @router.get("/stale-documents", response_model=list[StaleDocumentSummary])
 async def list_stale_documents(
+    auto_only: bool = False,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[StaleDocumentSummary]:
     """Manual review queue populated by the weekly staleness sweep
     (crawler/crawler/staleness.py) - flags public KB documents whose
-    last_verified_at is missing or older than 6 months. Oldest first, since
-    that's the most overdue.
+    last_verified_at is missing or older than 6 months - plus, since the
+    content-hash feature shipped, documents auto-flagged by a data-source
+    sync detecting a real source change (see sync_data_source).
+    auto_only=True restricts to that second group specifically (the
+    admin Documents screen's "Αυτόματη σήμανση" filter), rather than every
+    needs_review cause mixed together. Oldest first, since that's the most
+    overdue.
     """
     require_super_admin(user)
-    docs = db.scalars(
-        select(Document)
-        .where(Document.company_id.is_(None), Document.status == "active", Document.needs_review.is_(True))
-        .order_by(Document.last_verified_at.asc().nullsfirst())
-    ).all()
+    stmt = select(Document).where(
+        Document.company_id.is_(None), Document.status == "active", Document.needs_review.is_(True)
+    )
+    if auto_only:
+        stmt = stmt.where(Document.auto_needs_review_reason.is_not(None))
+    docs = db.scalars(stmt.order_by(Document.last_verified_at.asc().nullsfirst())).all()
     return [
         StaleDocumentSummary(
             id=doc.id,
@@ -829,6 +951,7 @@ async def list_stale_documents(
             source_group=group_label(doc.source_name) if doc.source_name else None,
             region_id=doc.region_id,
             last_verified_at=doc.last_verified_at,
+            auto_needs_review_reason=doc.auto_needs_review_reason,
         )
         for doc in docs
     ]
@@ -867,6 +990,11 @@ async def mark_document_reviewed(
 
     doc.needs_review = False
     doc.last_verified_at = date.today()
+    doc.auto_needs_review_reason = None
+    if payload.validation_id is not None:
+        validation = db.get(DocumentValidation, payload.validation_id)
+        if validation and validation.document_id == doc.id:
+            validation.admin_action = "dismissed"
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -876,6 +1004,268 @@ async def mark_document_reviewed(
         resource_id=doc.id,
     )
     db.commit()
+
+
+_REVALIDATION_SYSTEM_PROMPT = """You are a legal document accuracy checker for a Greek regulatory
+intelligence system. Your job is to compare a stored document against its
+current source and identify whether it needs updating.
+
+Be precise and conservative. Only flag genuine factual or legal changes —
+not formatting differences, minor wording variations, or additions that
+don't affect the document's accuracy. If the document is still accurate,
+say so clearly."""
+
+
+def _revalidation_user_prompt(document: Document, fetched_content: str) -> str:
+    # Both sides capped to 8000 chars (~2-3K tokens each) - real KB
+    # documents can be an entire codified law (one stored full_text
+    # document measured 147K chars, ~37K tokens on its own), which blew
+    # past this org's 30K-tokens-per-minute rate limit on its own before
+    # this cap existed (confirmed via a live 429 during Phase 4 testing,
+    # not a hypothetical). GPT-4o only needs enough of each side to judge
+    # whether the document is still accurate, not the complete text.
+    return f"""STORED DOCUMENT:
+Title: {document.title}
+Content: {(document.content or "")[:8000]}
+
+CURRENT SOURCE CONTENT (fetched from {document.source}):
+{fetched_content[:8000]}
+
+Task:
+1. Is the stored document still accurate based on the current source?
+2. If not, what specifically has changed?
+3. Suggest the exact updated text for the stored document.
+
+Respond in JSON:
+{{
+  "still_accurate": true/false,
+  "changes_detected": "brief description of what changed, or null if accurate",
+  "suggested_content": "full updated document content, or null if no changes needed",
+  "confidence": "high/medium/low",
+  "reasoning": "one sentence explaining your assessment"
+}}"""
+
+
+async def _run_revalidation(db: Session, doc: Document, validated_by: int | None) -> DocumentValidation:
+    """Shared core for the single-document and bulk revalidation paths:
+    fetch doc.source, ask GPT-4o to compare it against the stored content,
+    persist a document_validations row either way. Never raises - a fetch
+    failure or a malformed GPT-4o response both resolve to a stored,
+    inspectable row rather than a 500, since the bulk queue needs to keep
+    going past one bad document."""
+    now = datetime.utcnow()
+
+    if not doc.source:
+        validation = DocumentValidation(
+            document_id=doc.id, validated_by=validated_by, status="source_unavailable",
+            reasoning="Το έγγραφο δεν έχει καταχωρημένη πηγή (source_url).",
+        )
+        db.add(validation)
+        db.commit()
+        db.refresh(validation)
+        return validation
+
+    fetched_content = await fetch_url_content(doc.source)
+    if fetched_content is None:
+        validation = DocumentValidation(
+            document_id=doc.id, validated_by=validated_by, status="source_unavailable",
+            reasoning="Η πηγή δεν ήταν προσβάσιμη ή δεν επέστρεψε εξαγώγιμο περιεχόμενο.",
+        )
+        db.add(validation)
+        db.commit()
+        db.refresh(validation)
+        return validation
+
+    try:
+        client = OpenAI(api_key=settings.openai_api_key)
+        completion = client.chat.completions.create(
+            model=settings.chat_model,
+            messages=[
+                {"role": "system", "content": _REVALIDATION_SYSTEM_PROMPT},
+                {"role": "user", "content": _revalidation_user_prompt(doc, fetched_content)},
+            ],
+            response_format={"type": "json_object"},
+        )
+        parsed = json.loads(completion.choices[0].message.content or "{}")
+    except (OpenAIError, json.JSONDecodeError) as exc:
+        validation = DocumentValidation(
+            document_id=doc.id, validated_by=validated_by, status="source_unavailable",
+            reasoning=f"Η κλήση GPT-4o απέτυχε ή επέστρεψε μη έγκυρο JSON: {exc}",
+        )
+        db.add(validation)
+        db.commit()
+        db.refresh(validation)
+        return validation
+
+    validation = DocumentValidation(
+        document_id=doc.id,
+        validated_by=validated_by,
+        status="validated",
+        still_accurate=parsed.get("still_accurate"),
+        changes_detected=parsed.get("changes_detected"),
+        suggested_content=parsed.get("suggested_content"),
+        confidence=parsed.get("confidence"),
+        reasoning=parsed.get("reasoning"),
+        source_fetched_at=now,
+    )
+    db.add(validation)
+    db.commit()
+    db.refresh(validation)
+    return validation
+
+
+@router.post("/documents/{document_id}/revalidate", response_model=DocumentValidationResult)
+async def revalidate_document(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentValidationResult:
+    require_super_admin(user)
+    doc = db.get(Document, document_id)
+    if not doc or doc.company_id is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Public document not found")
+
+    validation = await _run_revalidation(db, doc, user.user_id)
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="document_revalidated", resource_type="document", resource_id=doc.id,
+        metadata={"status": validation.status, "validation_id": validation.id},
+    )
+    db.commit()
+
+    return DocumentValidationResult(
+        status=validation.status,
+        reason=validation.reasoning if validation.status == "source_unavailable" else None,
+        still_accurate=validation.still_accurate,
+        changes_detected=validation.changes_detected,
+        suggested_content=validation.suggested_content,
+        confidence=validation.confidence,
+        reasoning=validation.reasoning,
+        source_fetched_at=validation.source_fetched_at,
+        source_url=doc.source,
+        validation_id=validation.id,
+    )
+
+
+@router.post("/documents/{document_id}/apply-suggestion", response_model=DocumentSummary)
+async def apply_document_suggestion(
+    document_id: int,
+    payload: ApplySuggestionRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentSummary:
+    require_super_admin(user)
+    doc = db.get(Document, document_id)
+    if not doc or doc.company_id is not None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Public document not found")
+    validation = db.get(DocumentValidation, payload.validation_id)
+    if not validation or validation.document_id != doc.id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Validation not found for this document")
+
+    doc.content = payload.content
+    doc.needs_review = False
+    doc.last_verified_at = date.today()
+    doc.auto_needs_review_reason = None
+    validation.admin_action = payload.action
+
+    # Re-generate embeddings for the new content immediately - delete the
+    # old chunks first since embed_document() is idempotent-skip (it does
+    # nothing if the document already has embeddings, by design for the
+    # crawler's catch-up sweep - see app/services/embeddings.py), which
+    # would otherwise silently leave the OLD content's embeddings in place.
+    db.execute(delete(Embedding).where(Embedding.document_id == doc.id))
+    db.flush()
+    embed_document(db, doc)
+
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="document_suggestion_applied", resource_type="document", resource_id=doc.id,
+        metadata={"validation_id": validation.id, "action": payload.action},
+    )
+    db.commit()
+    db.refresh(doc)
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return _to_admin_summary(db, doc, vertical_slugs)
+
+
+# Single-process, in-memory bulk-run tracker - deliberately not a real task
+# queue (Celery/RQ): this backend has no such infrastructure today (see
+# KNOWN_DECISIONS.md), and introducing one for an infrequent, single-admin
+# bulk action would be a disproportionate amount of new infrastructure.
+# FastAPI's BackgroundTasks already gives "return immediately, keep
+# working after the response is sent", which is the actual requirement.
+# Known limitation: doesn't survive a process restart and isn't correct
+# under multiple uvicorn workers - acceptable for this dev-scale deployment,
+# revisit if either changes.
+_bulk_revalidation_state: dict = {
+    "total": 0, "completed": 0, "failed": 0, "accurate": 0, "changed": 0,
+    "started_at": None, "finished_at": None,
+}
+
+
+def _run_bulk_revalidation(document_ids: list[int], validated_by: int) -> None:
+    import asyncio
+
+    db = SessionLocal()
+    try:
+        for doc_id in document_ids:
+            doc = db.get(Document, doc_id)
+            if not doc:
+                _bulk_revalidation_state["failed"] += 1
+                continue
+            try:
+                validation = asyncio.run(_run_revalidation(db, doc, validated_by))
+                if validation.status == "validated":
+                    _bulk_revalidation_state["completed"] += 1
+                    if validation.still_accurate:
+                        _bulk_revalidation_state["accurate"] += 1
+                    else:
+                        _bulk_revalidation_state["changed"] += 1
+                else:
+                    _bulk_revalidation_state["failed"] += 1
+            except Exception:  # noqa: BLE001 - one bad document must not stop the batch
+                _bulk_revalidation_state["failed"] += 1
+    finally:
+        _bulk_revalidation_state["finished_at"] = datetime.utcnow()
+        db.close()
+
+
+@router.post("/documents/revalidate-all", response_model=RevalidateAllResponse)
+async def revalidate_all_documents(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RevalidateAllResponse:
+    require_super_admin(user)
+    doc_ids = list(
+        db.scalars(
+            select(Document.id).where(
+                Document.company_id.is_(None), Document.status == "active", Document.needs_review.is_(True)
+            )
+        )
+    )
+    n = len(doc_ids)
+    # ~15s/document (source fetch + GPT-4o call), sequential.
+    estimated_minutes = max(1, round(n * 15 / 60)) if n else 0
+
+    _bulk_revalidation_state["total"] = n
+    _bulk_revalidation_state["completed"] = 0
+    _bulk_revalidation_state["failed"] = 0
+    _bulk_revalidation_state["accurate"] = 0
+    _bulk_revalidation_state["changed"] = 0
+    _bulk_revalidation_state["started_at"] = datetime.utcnow()
+    _bulk_revalidation_state["finished_at"] = None
+
+    if n:
+        background_tasks.add_task(_run_bulk_revalidation, doc_ids, user.user_id)
+
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="document_revalidate_all_triggered", resource_type="document", resource_id=None,
+        metadata={"queued": n},
+    )
+    db.commit()
+    return RevalidateAllResponse(queued=n, estimated_minutes=estimated_minutes)
 
 
 @router.get("/stats", response_model=AdminStatsByVerticalResponse)
@@ -1064,13 +1454,18 @@ async def sync_data_source(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> DataSourceSyncStatus:
-    """Updates crawl-scheduling bookkeeping for this source. Honest scope
-    note: this does NOT invoke the actual crawler - there is no existing
-    per-row dispatch from a data_sources entry to the specific scraper
-    function that crawls its base_url (the crawler's scrapers are matched
-    by source_name, wired at the module level, not looked up dynamically by
-    id). Wiring a real "re-crawl this one source now" trigger would need
-    that dispatch table built first; deferred rather than faked here.
+    """Fetches this source's base_url directly and content-hash-compares it
+    against the last sync, flagging linked documents for review on a real
+    change. Scope note, honestly stated: this fetches and hashes base_url
+    itself - it does NOT run the separate crawler/ package's per-source
+    scrapers (discovery of linked PDFs, ΦΕΚ parsing, etc; that package is a
+    different deployable service with its own container - see
+    docker-compose.yml - and there's still no per-row dispatch from a
+    data_sources id to one of its scraper functions). What this DOES give a
+    super admin: a real "has this source's page content changed since I
+    last checked" signal for any base_url that's itself the content (an
+    e-nomothesia.gr or aade.gr guidance/law page), which is exactly the
+    staleness gap this feature exists to close.
     """
     require_super_admin(user)
     source = db.get(DataSource, source_id)
@@ -1078,10 +1473,67 @@ async def sync_data_source(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
 
     now = datetime.utcnow()
+    fetched_text = await fetch_url_content(source.base_url)
+
+    if fetched_text is None:
+        # Crawl failed (unreachable, non-2xx, JS SPA with no server-rendered
+        # content, etc.) - record the failure but leave last_crawled_at,
+        # next_crawl_at, last_content_hash, and every linked document
+        # untouched. A transient fetch failure must never look like "the
+        # source was checked and found unchanged".
+        source.last_crawl_status = "failed"
+        source.last_crawl_error = "Η πηγή δεν ήταν προσβάσιμη ή δεν επέστρεψε εξαγώγιμο περιεχόμενο"
+        log_action(
+            db, actor_user_id=user.user_id, company_id=None,
+            action="data_source_sync_failed", resource_type="data_source", resource_id=source.id,
+        )
+        db.commit()
+        db.refresh(source)
+        return DataSourceSyncStatus(
+            id=source.id, last_crawled_at=source.last_crawled_at, next_crawl_at=source.next_crawl_at,
+            last_crawl_status=source.last_crawl_status, last_crawl_document_count=source.last_crawl_document_count,
+            last_crawl_error=source.last_crawl_error,
+        )
+
+    new_hash = content_hash(fetched_text)
+    # NULL previous hash means this is the first sync since the feature
+    # shipped (or the source's first-ever sync) - there is nothing to
+    # compare against, so this establishes the baseline silently rather
+    # than flagging every linked document as "changed" purely because a
+    # baseline didn't exist yet.
+    hash_changed = source.last_content_hash is not None and source.last_content_hash != new_hash
+    is_first_baseline = source.last_content_hash is None
+
     source.last_crawled_at = now
     source.next_crawl_at = now + timedelta(days=source.crawl_frequency_days)
-    source.last_crawl_status = "manual_sync_scheduled_only"
+    source.last_crawl_status = "healthy"
     source.last_crawl_error = None
+    source.last_content_hash = new_hash
+
+    flagged_count = 0
+    if hash_changed:
+        source.content_changed_at = now
+        reason = (
+            f"Το περιεχόμενο της πηγής άλλαξε στις {now.strftime('%d/%m/%Y')} — "
+            "επαληθεύστε ότι το έγγραφο παραμένει ακριβές"
+        )
+        linked_docs = db.scalars(
+            select(Document).where(Document.source.startswith(source.base_url))
+        ).all()
+        for doc in linked_docs:
+            doc.needs_review = True
+            doc.auto_needs_review_reason = reason
+            doc.source_verified_at = now
+        flagged_count = len(linked_docs)
+    elif not is_first_baseline:
+        # Unchanged - still record that we successfully re-checked every
+        # linked document's source, even though nothing needs flagging.
+        linked_docs = db.scalars(
+            select(Document).where(Document.source.startswith(source.base_url))
+        ).all()
+        for doc in linked_docs:
+            doc.source_verified_at = now
+
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -1089,6 +1541,7 @@ async def sync_data_source(
         action="data_source_sync_triggered",
         resource_type="data_source",
         resource_id=source.id,
+        metadata={"hash_changed": hash_changed, "documents_flagged": flagged_count},
     )
     db.commit()
     db.refresh(source)

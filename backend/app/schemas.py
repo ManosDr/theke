@@ -219,6 +219,21 @@ class DocumentSummary(BaseModel):
     vertical_slug: str | None = None
     last_verified_at: date_type | None = None
     needs_review: bool = False
+    # See StaleDocumentSummary's field of the same name - populated here too
+    # so the admin Documents screen's row can show why a needs_review
+    # document was flagged, not just that it was.
+    auto_needs_review_reason: str | None = None
+    # still_accurate from this document's most recent document_validations
+    # row, if any - None means never AI-revalidated. Powers the post-bulk-
+    # revalidation sort (needs attention first, then never-checked, then
+    # confirmed-clean last) on the admin Documents/needs-review screens.
+    still_accurate: bool | None = None
+    # Full (untruncated) content - unlike snippet above (always capped to
+    # 280 chars for list rendering), this is populated ONLY by the
+    # single-document GET (see admin.py's get_admin_document), None
+    # everywhere else so list responses don't balloon. Used by the AI
+    # revalidation panel's "Τρέχον περιεχόμενο" readonly comparison view.
+    full_content: str | None = None
 
 
 class SourceGroupSummary(BaseModel):
@@ -742,6 +757,54 @@ class StaleDocumentSummary(BaseModel):
     source_group: str | None = None
     region_id: str | None = None
     last_verified_at: date_type | None = None
+    # Set only when needs_review was raised by the data-source content-hash
+    # sync (see admin.py's sync_data_source), not by a human or the 6-month
+    # staleness sweep - the admin Documents screen shows this text inline
+    # and uses its presence to power the "Αυτόματη σήμανση" filter.
+    auto_needs_review_reason: str | None = None
+
+
+class DocumentValidationResult(BaseModel):
+    """Response of both POST /admin/documents/{id}/revalidate and the
+    per-document work the bulk queue does - one shape for both call sites.
+    status="source_unavailable" means the source fetch itself failed and no
+    GPT-4o call was made (still_accurate/changes_detected/etc. are all
+    None in that case); status="validated" means GPT-4o compared the
+    stored content against the live source."""
+
+    status: str
+    reason: str | None = None
+    still_accurate: bool | None = None
+    changes_detected: str | None = None
+    suggested_content: str | None = None
+    confidence: str | None = None
+    reasoning: str | None = None
+    source_fetched_at: datetime | None = None
+    source_url: str | None = None
+    validation_id: int | None = None
+
+
+class ApplySuggestionRequest(BaseModel):
+    content: str = Field(min_length=1)
+    validation_id: int
+    action: str  # 'accepted' | 'edited'
+
+
+class RevalidateAllResponse(BaseModel):
+    queued: int
+    estimated_minutes: int
+
+
+class RevalidationStatusResponse(BaseModel):
+    pending: int
+    validated: int
+    failed: int
+    # Breakdown of `validated` by outcome - accurate + changed always sums
+    # to validated. Powers the bulk-completion summary message ("N need
+    # updating, M are accurate").
+    accurate: int = 0
+    changed: int = 0
+    last_updated: datetime | None = None
 
 
 class AdminStatsResponse(BaseModel):
@@ -872,6 +935,24 @@ class GapQueryEntry(BaseModel):
     created_at: datetime
 
 
+class AdminDocumentCreateRequest(BaseModel):
+    """Backs the admin "Νέο Έγγραφο" form - authoring a manual_entry public
+    KB document directly, as opposed to the crawler's automated ingestion.
+    source is Optional[str] at the schema level (Pydantic can't express
+    "required only when extraction_status == X"), but the endpoint enforces
+    it as required for extraction_status="manual_entry" - see
+    KNOWN_DECISIONS.md's KB staleness policy entry for why."""
+
+    title: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+    vertical_id: int
+    source: str | None = None
+    authority: str | None = None
+    content_type: str | None = None
+    region_id: str | None = None
+    extraction_status: str = "manual_entry"
+
+
 class MarkReviewedRequest(BaseModel):
     # Required and must be true - clearing needs_review has no way to check
     # the underlying content was actually fixed, so the reviewer's explicit
@@ -879,6 +960,13 @@ class MarkReviewedRequest(BaseModel):
     # KNOWN_DECISIONS.md). Enforced server-side, not just as a disabled
     # frontend button, so a direct API call can't skip it either.
     confirmed: bool
+    # Set only when this mark-reviewed call comes from the AI revalidation
+    # panel (State A's "Σήμανση ως ελεγμένο" or State B's "Απόρριψη" - see
+    # DocumentsPanel.tsx) - stamps that validation row's admin_action as
+    # 'dismissed' so the audit trail records a human looked at the AI's
+    # assessment and chose not to act on it, distinct from the plain
+    # "no AI involved" mark-reviewed path where this stays None.
+    validation_id: int | None = None
 
 
 class MarkSupersededRequest(BaseModel):

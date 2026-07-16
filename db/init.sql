@@ -796,3 +796,50 @@ CREATE INDEX IF NOT EXISTS idx_user_feedback_category ON user_feedback(category)
 -- question. NULL where retrieval never ran. Lets a super admin measure how
 -- often the decomposition path actually fires in real traffic.
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS decomposed boolean;
+
+-- Content-hash staleness detection: after a successful data-source sync
+-- (see app/routers/admin.py's sync_data_source) fetches and extracts text
+-- from base_url, its SHA-256 hash is compared against last_content_hash.
+-- A change flags every document whose `source` starts with this source's
+-- base_url as needs_review, catching a stale KB document automatically
+-- instead of relying solely on the 6-month staleness sweep.
+-- content_changed_at is set only when a real change is detected, not on
+-- every sync - it answers "when did the source last actually change".
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS last_content_hash varchar(64);
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS content_changed_at timestamp;
+
+-- source_verified_at: when this document's source was last successfully
+-- re-fetched and hash-compared by a data_source sync - distinct from
+-- documents.last_verified_at, which only moves when a human clears
+-- needs_review via mark-reviewed. auto_needs_review_reason: the
+-- machine-generated Greek explanation shown in the admin review queue when
+-- needs_review was set by the hash-change detector specifically, not by a
+-- human or the 6-month sweep; NULL for every other needs_review cause.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS source_verified_at timestamp;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS auto_needs_review_reason text;
+
+-- Audit trail for the admin KB revalidation copilot (app/routers/admin.py's
+-- revalidate_document/apply_document_suggestion/revalidate_all_documents).
+-- One row per AI revalidation attempt, whether triggered singly or via the
+-- bulk queue. status is 'source_unavailable' (fetch failed, no GPT-4o call
+-- made) or 'validated' (GPT-4o compared stored content against the fetched
+-- source). admin_action ('accepted'/'edited'/'dismissed') is set later,
+-- when a human acts on the row - NULL until then.
+CREATE TABLE IF NOT EXISTS document_validations (
+  id                  serial PRIMARY KEY,
+  document_id         integer NOT NULL REFERENCES documents(id),
+  validated_by        integer REFERENCES users(id),
+  status              varchar NOT NULL,
+  still_accurate      boolean,
+  changes_detected    text,
+  suggested_content   text,
+  confidence          varchar,
+  reasoning           text,
+  source_fetched_at   timestamp,
+  admin_action        varchar,
+  admin_note          text,
+  created_at          timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_document_validations_document ON document_validations(document_id);
+CREATE INDEX IF NOT EXISTS idx_document_validations_created ON document_validations(created_at DESC);

@@ -322,14 +322,38 @@ def _gap_contact_lines(db: Session, region_id: str | None) -> str:
 
 
 def _build_context_block(hits: list) -> str:
+    """Numbers one bracket marker [N] per unique document_id, in order of
+    first appearance - NOT one per chunk. Both callers also build their
+    `citations` response array by deduplicating hits on document_id in this
+    same first-appearance order (see the `seen_ids` loops below), so the
+    marker a model cites always lands on a real citations[] entry. Before
+    this, markers were assigned per-chunk while citations were deduplicated
+    per-document: any question whose retrieved chunks included 2+ chunks
+    from the same document (routine since the retrieval diversity cap
+    allows up to 2 per document) silently shifted every later marker out of
+    range of the shorter, deduplicated citations array - a hallucinated-
+    looking citation number that was actually just this drift, not the
+    model inventing anything. A document's chunks are concatenated under
+    its single marker so no retrieved content is dropped."""
+    order: list[int] = []
+    chunks_by_doc: dict[int, list] = {}
+    for hit in hits:
+        if hit.document_id not in chunks_by_doc:
+            chunks_by_doc[hit.document_id] = []
+            order.append(hit.document_id)
+        chunks_by_doc[hit.document_id].append(hit)
+
     parts = []
-    for i, hit in enumerate(hits, start=1):
-        meta = f"[{i}] Πηγή: {hit.title or 'άγνωστος τίτλος'}"
-        if hit.authority:
-            meta += f" ({hit.authority})"
-        if hit.date:
-            meta += f" - {hit.date}"
-        parts.append(f"{meta}\n{hit.chunk_text}")
+    for i, document_id in enumerate(order, start=1):
+        doc_hits = chunks_by_doc[document_id]
+        first = doc_hits[0]
+        meta = f"[{i}] Πηγή: {first.title or 'άγνωστος τίτλος'}"
+        if first.authority:
+            meta += f" ({first.authority})"
+        if first.date:
+            meta += f" - {first.date}"
+        combined_text = "\n---\n".join(h.chunk_text for h in doc_hits)
+        parts.append(f"{meta}\n{combined_text}")
     return "\n\n".join(parts)
 
 

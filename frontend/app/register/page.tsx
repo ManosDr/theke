@@ -4,12 +4,15 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import FieldError from "../components/FieldError";
-import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { LegalFooter } from "../components/LegalFooter";
+import { LegalLink } from "../components/LegalLink";
+import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import type { LegalStatusResponse } from "../lib/types";
 import styles from "../login/login.module.css";
 
 interface TokenResponse {
@@ -58,6 +61,7 @@ function RegisterContent() {
   const [companyName, setCompanyName] = useState("");
   const [companyType, setCompanyType] = useState<"construction" | "municipality" | "accounting">("construction");
   const [dpaAccepted, setDpaAccepted] = useState(false);
+  const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -110,6 +114,13 @@ function RegisterContent() {
     const frame = requestAnimationFrame(() => setModeContentHeight(nextHeight));
     return () => cancelAnimationFrame(frame);
   }, [mode]);
+
+  useEffect(() => {
+    api
+      .get<LegalStatusResponse>("/legal/status")
+      .then(setLegalStatus)
+      .catch(() => setLegalStatus(null));
+  }, []);
 
   // Looks up the invite's company/vertical as soon as a plausible token is
   // typed/pasted, so the invitee sees what they're joining before
@@ -378,9 +389,20 @@ function RegisterContent() {
               }}
               aria-invalid={!!fieldErrors.dpaAccepted}
             />
-            <span>{t("register.dpaCheckbox")}</span>
+            <span>
+              {t("register.dpaCheckboxPrefix")}
+              <LegalLink slug="terms" status={legalStatus} newTab label={t("register.termsAccusative")} />
+              {t("register.dpaCheckboxMiddle")}
+              <LegalLink slug="dpa" status={legalStatus} newTab label={t("register.dpaAccusative")} />
+              {t("register.dpaCheckboxSuffix")}
+            </span>
           </label>
           {fieldErrors.dpaAccepted && <FieldError message={fieldErrors.dpaAccepted} />}
+          <p style={{ fontSize: "0.8rem", color: "var(--color-text-muted)", margin: "var(--space-2) 0 0" }}>
+            {t("register.privacyInfoPrefix")}
+            <LegalLink slug="privacy" status={legalStatus} newTab />
+            {t("register.dpaCheckboxSuffix")}
+          </p>
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>
@@ -391,6 +413,7 @@ function RegisterContent() {
           {t("register.alreadyHaveAccount")} <a href="/login">{t("register.signIn")}</a>
         </p>
       </form>
+      <LegalFooter />
     </main>
   );
 }

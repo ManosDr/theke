@@ -5,12 +5,13 @@ import { useEffect, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import FieldError from "../components/FieldError";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { LegalLink } from "../components/LegalLink";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { API_URL, ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { useCompany } from "../lib/company";
 import { useLocale } from "../lib/i18n";
-import type { MeSummary, SubscriptionStatusResponse, UserUsageSummary } from "../lib/types";
+import type { LegalStatusResponse, MeSummary, SubscriptionStatusResponse, UserUsageSummary } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./account.module.css";
 
@@ -52,7 +53,39 @@ function AccountContent() {
       <SectionSecurity token={token} email={me.email} />
       {user?.role === "admin" && company && <SectionCompany token={token} company={company} onLogoChanged={refreshCompany} />}
       <SectionDataRights token={token} isCompanyAdmin={user?.role === "admin"} />
+      <SectionLegal dpaAcceptedAt={company?.dpa_accepted_at ?? null} dpaVersion={company?.dpa_version ?? null} />
     </div>
+  );
+}
+
+function SectionLegal({ dpaAcceptedAt, dpaVersion }: { dpaAcceptedAt: string | null; dpaVersion: string | null }) {
+  const { t, locale } = useLocale();
+  const [status, setStatus] = useState<LegalStatusResponse | null>(null);
+
+  useEffect(() => {
+    api
+      .get<LegalStatusResponse>("/legal/status")
+      .then(setStatus)
+      .catch(() => setStatus(null));
+  }, []);
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionLegal")}</h2>
+      <div className={styles.field} style={{ marginTop: "var(--space-2)", display: "flex", gap: "var(--space-4)" }}>
+        <LegalLink slug="terms" status={status} newTab />
+        <LegalLink slug="privacy" status={status} newTab />
+        <LegalLink slug="dpa" status={status} newTab />
+      </div>
+      {dpaAcceptedAt && dpaVersion && (
+        <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: "var(--space-3)" }}>
+          {t("account.dpaAcceptedLine", {
+            version: dpaVersion,
+            date: new Date(dpaAcceptedAt).toLocaleDateString(locale),
+          })}
+        </p>
+      )}
+    </section>
   );
 }
 

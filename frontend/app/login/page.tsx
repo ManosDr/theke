@@ -4,8 +4,9 @@ import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import FieldError from "../components/FieldError";
-import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { LegalFooter } from "../components/LegalFooter";
+import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -124,6 +125,7 @@ function LoginContent() {
           {t("login.newHere")} <a href="/register">{t("login.createAccount")}</a>
         </p>
       </form>
+      <LegalFooter />
     </main>
   );
 }

@@ -4,8 +4,9 @@ import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import FieldError from "../components/FieldError";
-import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { LegalFooter } from "../components/LegalFooter";
+import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError, api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
@@ -103,6 +104,7 @@ export default function ResetPasswordPage() {
       <Suspense fallback={<p className="text-muted">Loading…</p>}>
         <ResetPasswordForm />
       </Suspense>
+      <LegalFooter />
     </main>
   );
 }

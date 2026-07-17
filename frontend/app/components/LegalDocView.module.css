@@ -1,0 +1,97 @@
+.doc {
+  max-width: 700px;
+  margin: 0 auto;
+  line-height: 1.7;
+}
+
+.doc h1 {
+  font-size: 1.6rem;
+  margin: 0 0 var(--space-4);
+}
+
+.doc h2 {
+  font-size: 1.2rem;
+  margin: var(--space-6) 0 var(--space-3);
+  padding-top: var(--space-4);
+  border-top: 1px solid var(--color-border);
+}
+
+.doc h2:first-of-type {
+  border-top: none;
+  padding-top: 0;
+}
+
+.doc p,
+.doc ul,
+.doc ol {
+  margin: 0 0 var(--space-4);
+  color: var(--color-text);
+}
+
+.doc ul,
+.doc ol {
+  padding-left: var(--space-5);
+}
+
+.doc li {
+  margin-bottom: var(--space-2);
+}
+
+.doc strong {
+  font-weight: 700;
+}
+
+.doc hr {
+  border: none;
+  border-top: 1px solid var(--color-border);
+  margin: var(--space-5) 0;
+}
+
+.doc table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 0 0 var(--space-4);
+  font-size: 0.9rem;
+}
+
+.doc th,
+.doc td {
+  border: 1px solid var(--color-border);
+  padding: var(--space-2) var(--space-3);
+  text-align: left;
+  vertical-align: top;
+}
+
+.doc th {
+  background: var(--color-surface-alt);
+  font-weight: 700;
+}
+
+.doc blockquote {
+  margin: 0 0 var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  border-left: 3px solid var(--color-border);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  border-radius: var(--radius-sm);
+}
+
+.draftBanner {
+  max-width: 700px;
+  margin: 0 auto;
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  border: 1px solid var(--color-warning);
+  border-radius: var(--radius-md);
+  padding: var(--space-5);
+  text-align: center;
+}
+
+.draftBanner strong {
+  font-size: 1.1rem;
+}
+
+.draftBanner p {
+  margin: var(--space-2) 0 0;
+  color: var(--color-text-muted);
+}

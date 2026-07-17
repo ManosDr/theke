@@ -1,0 +1,17 @@
+.publicPage {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-5);
+}
+
+.publicHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.wrap {
+  flex: 1;
+}

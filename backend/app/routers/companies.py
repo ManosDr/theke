@@ -70,6 +70,8 @@ async def get_my_company(
         legal_name=company.legal_name,
         afm=company.afm,
         billing_address=company.billing_address,
+        dpa_accepted_at=company.dpa_accepted_at,
+        dpa_version=company.dpa_version,
     )
 
 

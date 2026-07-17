@@ -164,6 +164,8 @@ export interface MyCompanySummary {
   legal_name: string | null;
   afm: string | null;
   billing_address: string | null;
+  dpa_accepted_at: string | null;
+  dpa_version: string | null;
 }
 
 export interface CompanyBillingDetails {
@@ -763,4 +765,19 @@ export interface RevalidationStatusResponse {
   accurate: number;
   changed: number;
   last_updated: string | null;
+}
+
+export type LegalDocSlug = "terms" | "privacy" | "dpa";
+
+export interface LegalStatusResponse {
+  terms: boolean;
+  privacy: boolean;
+  dpa: boolean;
+}
+
+export interface LegalDocResponse {
+  slug: LegalDocSlug;
+  title: string;
+  is_draft: boolean;
+  content: string | null;
 }

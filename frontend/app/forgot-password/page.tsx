@@ -3,8 +3,9 @@
 import { useState } from "react";
 
 import FieldError from "../components/FieldError";
-import { Logo } from "../components/Logo";
 import { LanguageToggle } from "../components/LanguageToggle";
+import { LegalFooter } from "../components/LegalFooter";
+import { Logo } from "../components/Logo";
 import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError, api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
@@ -86,6 +87,7 @@ export default function ForgotPasswordPage() {
           <a href="/login">{t("forgotPassword.backToLogin")}</a>
         </p>
       </form>
+      <LegalFooter />
     </main>
   );
 }

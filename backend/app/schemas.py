@@ -533,6 +533,11 @@ class MyCompanySummary(BaseModel):
     legal_name: str | None = None
     afm: str | None = None
     billing_address: str | None = None
+    # Set at registration (new-company path only - see auth.py's register())
+    # - backs the Account page's "Νομικά" section's
+    # "Αποδεχτήκατε την έκδοση X στις Y" display.
+    dpa_accepted_at: datetime | None = None
+    dpa_version: str | None = None
 
 
 class RemovalRequestSummary(BaseModel):
@@ -1276,3 +1281,23 @@ class CompanyBillingDetails(BaseModel):
     legal_name: str | None = None
     afm: str | None = None
     billing_address: str | None = None
+
+
+class LegalStatusResponse(BaseModel):
+    """is_draft per document - lets a caller (footer, registration
+    checkbox, Account page) disable/label a specific link without
+    fetching that document's full content."""
+
+    terms: bool
+    privacy: bool
+    dpa: bool
+
+
+class LegalDocResponse(BaseModel):
+    slug: Literal["terms", "privacy", "dpa"]
+    title: str
+    is_draft: bool
+    # None while is_draft - the placeholder-laden source text is never sent
+    # to the client at all (see app/services/legal_docs.py), not just
+    # hidden by the frontend.
+    content: str | None

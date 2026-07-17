@@ -2069,6 +2069,7 @@ def _to_subscription_entry(db: Session, sub: CompanySubscription, company: Compa
         vertical_slug=vertical.slug if vertical else None,
         plan_id=plan.id,
         plan_name=plan.name,
+        plan_price_eur=float(plan.price_eur),
         is_beta=plan.is_beta,
         status=sub.status,
         billing_cycle=sub.billing_cycle,
@@ -2079,6 +2080,9 @@ def _to_subscription_entry(db: Session, sub: CompanySubscription, company: Compa
         users_count=users_count,
         user_limit=plan.user_limit,
         notes=sub.notes,
+        legal_name=company.legal_name,
+        afm=company.afm,
+        billing_address=company.billing_address,
     )
 
 

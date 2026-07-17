@@ -161,6 +161,15 @@ export interface MyCompanySummary {
   vertical_welcome_message: string | null;
   vertical_disclaimer_text: string | null;
   vertical_uses_regional_scoping: boolean;
+  legal_name: string | null;
+  afm: string | null;
+  billing_address: string | null;
+}
+
+export interface CompanyBillingDetails {
+  legal_name?: string;
+  afm?: string;
+  billing_address?: string;
 }
 
 export interface CompanyCreateWithAdminRequest {
@@ -484,6 +493,7 @@ export interface SubscriptionEntry {
   vertical_slug: string | null;
   plan_id: number;
   plan_name: string;
+  plan_price_eur: number;
   is_beta: boolean;
   status: SubscriptionStatusValue;
   billing_cycle: string;
@@ -494,10 +504,38 @@ export interface SubscriptionEntry {
   users_count: number;
   user_limit: number;
   notes: string | null;
+  legal_name: string | null;
+  afm: string | null;
+  billing_address: string | null;
 }
 
 export interface SubscriptionListResponse {
   items: SubscriptionEntry[];
+}
+
+export interface InvoiceEntry {
+  id: number;
+  invoice_number: string;
+  company_id: number;
+  company_name: string;
+  plan_id: number;
+  plan_name: string;
+  billing_cycle: string;
+  amount_net_eur: number;
+  vat_rate: number;
+  amount_vat_eur: number;
+  amount_total_eur: number;
+  issued_at: string;
+  period_start: string;
+  period_end: string;
+}
+
+export interface InvoiceCreateRequest {
+  company_id: number;
+  plan_id: number;
+  billing_cycle: string;
+  period_start: string;
+  period_end: string;
 }
 
 export interface NotificationSummary {

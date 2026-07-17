@@ -408,7 +408,15 @@ function SectionCompany({
   onLogoChanged,
 }: {
   token: string | null;
-  company: { id: number; name: string; has_logo: boolean; logo_url: string | null };
+  company: {
+    id: number;
+    name: string;
+    has_logo: boolean;
+    logo_url: string | null;
+    legal_name: string | null;
+    afm: string | null;
+    billing_address: string | null;
+  };
   onLogoChanged: () => Promise<void>;
 }) {
   const { t } = useLocale();
@@ -417,6 +425,29 @@ function SectionCompany({
   const [pendingFile, setPendingFile] = useState<File | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const [legalName, setLegalName] = useState(company.legal_name ?? "");
+  const [afm, setAfm] = useState(company.afm ?? "");
+  const [billingAddress, setBillingAddress] = useState(company.billing_address ?? "");
+  const [billingSaving, setBillingSaving] = useState(false);
+  const [billingSaved, setBillingSaved] = useState(false);
+
+  async function saveBillingDetails() {
+    if (!token) return;
+    setBillingSaving(true);
+    try {
+      await api.patch(
+        "/companies/me/billing-details",
+        { legal_name: legalName, afm, billing_address: billingAddress },
+        token
+      );
+      await onLogoChanged(); // also refreshes company (see AccountContent's refreshCompany)
+      setBillingSaved(true);
+      setTimeout(() => setBillingSaved(false), 2000);
+    } finally {
+      setBillingSaving(false);
+    }
+  }
 
   function handleFileSelect(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -496,6 +527,33 @@ function SectionCompany({
           )}
         </div>
         <p className={styles.formatNote}>{t("account.logoFormatNote")}</p>
+      </div>
+
+      <div className={styles.logoSection}>
+        <h3>{t("account.billingDetailsHeading")}</h3>
+        <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+          {t("account.billingDetailsHint")}
+        </p>
+        <div className={styles.fieldGrid}>
+          <label className={styles.field}>
+            {t("account.billingLegalName")}
+            <input className="input" value={legalName} onChange={(e) => setLegalName(e.target.value)} />
+          </label>
+          <label className={styles.field}>
+            {t("account.billingAfm")}
+            <input className="input" value={afm} onChange={(e) => setAfm(e.target.value)} maxLength={9} />
+          </label>
+          <label className={styles.field}>
+            {t("account.billingAddress")}
+            <input className="input" value={billingAddress} onChange={(e) => setBillingAddress(e.target.value)} />
+          </label>
+        </div>
+        <div className={styles.saveRow}>
+          <button type="button" className="btn btn-primary" onClick={saveBillingDetails} disabled={billingSaving}>
+            {t("account.save")}
+          </button>
+          {billingSaved && <span className={styles.savedTag}>{t("account.saved")}</span>}
+        </div>
       </div>
     </section>
   );

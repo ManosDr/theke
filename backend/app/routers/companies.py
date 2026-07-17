@@ -13,6 +13,7 @@ from app.models import AuditLog, ChatSession, Company, Customer, DataSource, Doc
 from app.schemas import (
     ActivityEventEntry,
     AuditLogEntry,
+    CompanyBillingDetails,
     CompanyDocumentSummary,
     CompanyOverviewResponse,
     InviteCreateRequest,
@@ -66,7 +67,34 @@ async def get_my_company(
         vertical_welcome_message=vertical.welcome_message if vertical else None,
         vertical_disclaimer_text=vertical.disclaimer_text if vertical else None,
         vertical_uses_regional_scoping=vertical.uses_regional_scoping if vertical else True,
+        legal_name=company.legal_name,
+        afm=company.afm,
+        billing_address=company.billing_address,
     )
+
+
+@router.patch("/billing-details", response_model=MyCompanySummary)
+async def update_billing_details(
+    payload: CompanyBillingDetails,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> MyCompanySummary:
+    """Company-admin only. These are the fields a valid Greek τιμολόγιο
+    needs on the customer side (POST /admin/invoices refuses to generate
+    one while any are missing) - editable here rather than at registration
+    time since a company may not know its own ΑΦΜ/address workflow on day
+    one, and shouldn't be blocked from using the product while it's unset."""
+    require_company_admin(user)
+    company = db.get(Company, user.company_id)
+    if payload.legal_name is not None:
+        company.legal_name = payload.legal_name
+    if payload.afm is not None:
+        company.afm = payload.afm
+    if payload.billing_address is not None:
+        company.billing_address = payload.billing_address
+    db.commit()
+    db.refresh(company)
+    return await get_my_company(db=db, user=user)
 
 
 @router.post("/logo", status_code=status.HTTP_204_NO_CONTENT)

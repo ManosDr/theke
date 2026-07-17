@@ -93,5 +93,16 @@ class Settings(BaseSettings):
     # never silently widen access.
     cors_origins: str = "http://localhost:3000"
 
+    # theke's own legal details, printed on every invoice it issues (see
+    # app/services/invoices.py) - the "who is billing you" side of a valid
+    # Greek τιμολόγιο. Deliberately left blank by default rather than
+    # pre-filled with a placeholder: POST /admin/invoices refuses to
+    # generate an invoice while business_afm is empty, so a real value must
+    # be set via .env before the first real invoice can ever be issued -
+    # see KNOWN_DECISIONS.md.
+    business_name: str = ""
+    business_afm: str = ""
+    business_address: str = ""
+
 
 settings = Settings()

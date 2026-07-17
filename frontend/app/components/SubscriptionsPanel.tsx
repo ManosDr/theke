@@ -3,12 +3,13 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { StatCard } from "../dashboard/StatCard";
-import { api } from "../lib/api";
+import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type {
   CompanySummary,
+  InvoiceEntry,
   PlanSummary,
   SubscriptionEntry,
   SubscriptionListResponse,
@@ -73,6 +74,7 @@ function CompaniesTab() {
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
   const [changePlanTarget, setChangePlanTarget] = useState<SubscriptionEntry | null>(null);
   const [notesTarget, setNotesTarget] = useState<SubscriptionEntry | null>(null);
+  const [invoicesTarget, setInvoicesTarget] = useState<SubscriptionEntry | null>(null);
   const [assignOpen, setAssignOpen] = useState(false);
 
   async function refresh() {
@@ -243,6 +245,15 @@ function CompaniesTab() {
                         >
                           {t("adminSubs.menuAddNote")}
                         </button>
+                        <button
+                          className={styles.rowMenuItem}
+                          onClick={() => {
+                            setInvoicesTarget(item);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          {t("adminSubs.menuInvoices")}
+                        </button>
                       </div>
                     )}
                   </td>
@@ -286,6 +297,9 @@ function CompaniesTab() {
             refresh();
           }}
         />
+      )}
+      {invoicesTarget && (
+        <InvoicesModal item={invoicesTarget} token={token} onClose={() => setInvoicesTarget(null)} />
       )}
     </div>
   );
@@ -389,6 +403,163 @@ function NotesModal({
           </button>
           <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
             {t("account.save")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function InvoicesModal({
+  item,
+  token,
+  onClose,
+}: {
+  item: SubscriptionEntry;
+  token: string | null;
+  onClose: () => void;
+}) {
+  const { t, locale } = useLocale();
+  const [invoices, setInvoices] = useState<InvoiceEntry[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showForm, setShowForm] = useState(false);
+  const [periodStart, setPeriodStart] = useState("");
+  const [periodEnd, setPeriodEnd] = useState("");
+  const [generating, setGenerating] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function refresh() {
+    if (!token) return;
+    setLoading(true);
+    try {
+      const data = await api.get<InvoiceEntry[]>(`/admin/invoices?company_id=${item.company_id}`, token);
+      setInvoices(data);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [item.company_id]);
+
+  // A τιμολόγιο generated without these would be legally invalid - the
+  // backend refuses the same way (POST /admin/invoices 400s with the same
+  // missing-field list), this is just showing that upfront instead of
+  // after a failed submit.
+  const missingFields: string[] = [];
+  if (!item.afm) missingFields.push(t("adminSubs.invoiceFieldAfm"));
+  if (!item.billing_address) missingFields.push(t("adminSubs.invoiceFieldAddress"));
+
+  async function generate() {
+    if (!token || !periodStart || !periodEnd) return;
+    setGenerating(true);
+    setError(null);
+    try {
+      await api.post<InvoiceEntry>(
+        "/admin/invoices",
+        {
+          company_id: item.company_id,
+          plan_id: item.plan_id,
+          billing_cycle: item.billing_cycle,
+          period_start: periodStart,
+          period_end: periodEnd,
+        },
+        token
+      );
+      setShowForm(false);
+      setPeriodStart("");
+      setPeriodEnd("");
+      refresh();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setGenerating(false);
+    }
+  }
+
+  async function downloadPdf(inv: InvoiceEntry) {
+    await api.download(`/admin/invoices/${inv.id}/pdf`, token, `${inv.invoice_number}.pdf`);
+  }
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={`card ${styles.modalCard}`} onClick={(e) => e.stopPropagation()}>
+        <h2>{t("adminSubs.invoicesTitle", { company: item.company_name })}</h2>
+
+        {loading ? (
+          <p className="text-muted">{t("common.loading")}</p>
+        ) : invoices.length === 0 ? (
+          <p className="text-muted">{t("adminSubs.invoicesEmpty")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{t("adminSubs.invoiceColNumber")}</th>
+                <th>{t("adminSubs.invoiceColDate")}</th>
+                <th>{t("adminSubs.invoiceColAmount")}</th>
+                <th />
+              </tr>
+            </thead>
+            <tbody>
+              {invoices.map((inv) => (
+                <tr key={inv.id}>
+                  <td>{inv.invoice_number}</td>
+                  <td className="text-muted">{new Date(inv.issued_at).toLocaleDateString(locale)}</td>
+                  <td>€{inv.amount_total_eur.toFixed(2)}</td>
+                  <td>
+                    <button type="button" className="btn btn-secondary" onClick={() => downloadPdf(inv)}>
+                      {t("adminSubs.invoiceDownload")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+
+        {missingFields.length > 0 ? (
+          <p style={{ color: "var(--color-danger)", marginTop: "var(--space-3)" }}>
+            {t("adminSubs.invoiceMissingFields", { fields: missingFields.join(", ") })}
+          </p>
+        ) : showForm ? (
+          <div style={{ marginTop: "var(--space-3)" }}>
+            <label className={styles.modalField}>
+              {t("adminSubs.invoicePeriodStart")}
+              <input type="date" className="input" value={periodStart} onChange={(e) => setPeriodStart(e.target.value)} />
+            </label>
+            <label className={styles.modalField}>
+              {t("adminSubs.invoicePeriodEnd")}
+              <input type="date" className="input" value={periodEnd} onChange={(e) => setPeriodEnd(e.target.value)} />
+            </label>
+            <p className="text-muted" style={{ fontSize: "0.85rem" }}>
+              {t("adminSubs.invoicePlanNote", { plan: item.plan_name, price: item.plan_price_eur.toFixed(2) })}
+            </p>
+            {error && <p style={{ color: "var(--color-danger)" }}>{error}</p>}
+            <div className={styles.modalActions}>
+              <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>
+                {t("common.cancel")}
+              </button>
+              <button
+                type="button"
+                className="btn btn-primary"
+                disabled={generating || !periodStart || !periodEnd}
+                onClick={generate}
+              >
+                {generating ? t("adminSubs.invoiceGenerating") : t("adminSubs.invoiceGenerateConfirm")}
+              </button>
+            </div>
+          </div>
+        ) : (
+          <button type="button" className="btn btn-primary" style={{ marginTop: "var(--space-3)" }} onClick={() => setShowForm(true)}>
+            {t("adminSubs.invoiceGenerateButton")}
+          </button>
+        )}
+
+        <div className={styles.modalActions}>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {t("common.cancel")}
           </button>
         </div>
       </div>

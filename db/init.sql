@@ -883,3 +883,42 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS dpa_version varchar;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS legal_name text;
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS afm varchar(9);
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS billing_address text;
+
+-- Manual invoice generation (Phase 0.5) - a super_admin generates a real
+-- τιμολόγιο when a payment is confirmed; not automated billing, not Stripe.
+-- invoice_number is drawn from a dedicated sequence (see below), NEVER
+-- reused or reassigned even if an invoice is later voided - void by
+-- issuing a credit note referencing the original (a future invoices row
+-- with a negative amount and a note, not a schema change), never by
+-- deleting a row. company_name/afm/address are captured directly on the
+-- row at generation time (denormalized, not FK'd live off companies) so a
+-- historical invoice's legal content survives even if the company's own
+-- companies.legal_name/afm/billing_address later changes or the company is
+-- deleted (see crawler/crawler/retention_cleanup.py - it anonymizes a
+-- deleted company's row but this table is never touched by that job,
+-- structurally, and wouldn't need to be even if it were, since every
+-- invoice already carries its own frozen copy of who the customer was).
+CREATE SEQUENCE IF NOT EXISTS invoice_number_seq START 1;
+
+CREATE TABLE IF NOT EXISTS invoices (
+  id               serial PRIMARY KEY,
+  invoice_number   varchar NOT NULL UNIQUE,
+  company_id       integer NOT NULL REFERENCES companies(id),
+  plan_id          integer NOT NULL REFERENCES plans(id),
+  billing_cycle    varchar NOT NULL,
+  amount_net_eur   decimal(10, 2) NOT NULL,
+  vat_rate         decimal(4, 2) NOT NULL DEFAULT 24.00,
+  amount_vat_eur   decimal(10, 2) NOT NULL,
+  amount_total_eur decimal(10, 2) NOT NULL,
+  company_name     varchar NOT NULL,
+  company_afm      varchar,
+  company_address  text,
+  issued_at        timestamp NOT NULL DEFAULT now(),
+  period_start     date NOT NULL,
+  period_end       date NOT NULL,
+  pdf_path         varchar,
+  created_by       integer REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_invoices_company ON invoices(company_id);
+CREATE INDEX IF NOT EXISTS idx_invoices_issued ON invoices(issued_at DESC);

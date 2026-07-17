@@ -513,6 +513,11 @@ class MyCompanySummary(BaseModel):
     vertical_welcome_message: str | None
     vertical_disclaimer_text: str | None
     vertical_uses_regional_scoping: bool
+    # Legal/billing details (Phase 0.5) - needed for a valid Greek invoice,
+    # editable by a company admin via PATCH /companies/me/billing-details.
+    legal_name: str | None = None
+    afm: str | None = None
+    billing_address: str | None = None
 
 
 class RemovalRequestSummary(BaseModel):
@@ -1114,6 +1119,7 @@ class SubscriptionEntry(BaseModel):
     vertical_slug: str | None
     plan_id: int
     plan_name: str
+    plan_price_eur: float
     is_beta: bool
     status: Literal["trial", "active", "expired", "cancelled", "suspended"]
     billing_cycle: str
@@ -1121,6 +1127,13 @@ class SubscriptionEntry(BaseModel):
     current_period_end: datetime | None
     messages_used: int
     messages_limit: int
+    # Legal/billing details needed to generate a valid Greek invoice (Phase
+    # 0.5) - surfaced here so the super-admin subscriptions screen can show
+    # a "missing fields" warning inline per company, without a second
+    # fetch. None/empty means not yet filled in by the company admin.
+    legal_name: str | None = None
+    afm: str | None = None
+    billing_address: str | None = None
     users_count: int
     user_limit: int
     notes: str | None
@@ -1143,3 +1156,34 @@ class ExtendTrialRequest(BaseModel):
 
 class AddSubscriptionNoteRequest(BaseModel):
     notes: str
+
+
+class InvoiceCreateRequest(BaseModel):
+    company_id: int
+    plan_id: int
+    billing_cycle: str
+    period_start: date_type
+    period_end: date_type
+
+
+class InvoiceEntry(BaseModel):
+    id: int
+    invoice_number: str
+    company_id: int
+    company_name: str
+    plan_id: int
+    plan_name: str
+    billing_cycle: str
+    amount_net_eur: float
+    vat_rate: float
+    amount_vat_eur: float
+    amount_total_eur: float
+    issued_at: datetime
+    period_start: date_type
+    period_end: date_type
+
+
+class CompanyBillingDetails(BaseModel):
+    legal_name: str | None = None
+    afm: str | None = None
+    billing_address: str | None = None

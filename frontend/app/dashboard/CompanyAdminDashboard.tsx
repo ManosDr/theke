@@ -729,7 +729,7 @@ function SubscriptionTab({ token }: { token: string | null }) {
         <a
           className="btn btn-secondary"
           style={{ marginTop: "var(--space-4)", display: "inline-block" }}
-          href={`mailto:sales@theke.gr?subject=${encodeURIComponent("Αναβάθμιση πλάνου")}`}
+          href={`mailto:sales@theke.ai?subject=${encodeURIComponent("Αναβάθμιση πλάνου")}`}
         >
           {t("dash.company.sub.contactUpgrade")}
         </a>

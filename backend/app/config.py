@@ -24,7 +24,7 @@ class Settings(BaseSettings):
     # email() is a no-op and the caller falls back to logging the link, same
     # as before this was added.
     resend_api_key: str = ""
-    email_from: str = "noreply@theke.gr"
+    email_from: str = "noreply@theke.ai"
     email_enabled: bool = False
 
     openai_api_key: str = ""

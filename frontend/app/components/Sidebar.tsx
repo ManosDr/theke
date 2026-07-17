@@ -29,6 +29,9 @@ const NAV_ITEMS = [
   { href: "/sources", labelKey: "nav.sources", Icon: SourcesIcon, match: (p: string) => p.startsWith("/sources") || p.startsWith("/documents") },
   { href: "/search", labelKey: "nav.search", Icon: SearchIcon, match: (p: string) => p === "/search" },
   { href: "/chat", labelKey: "nav.chat", Icon: ChatIcon, match: (p: string) => p === "/chat" },
+  // Filtered out for super_admin below (no company to subscribe for - they
+  // manage plans via the existing Admin > Εταιρείες & Χρήστες > Συνδρομές >
+  // Πλάνα path instead, see ADMIN_SECTIONS' "org" section).
   { href: "/pricing", labelKey: "nav.pricing", Icon: BillingIcon, match: (p: string) => p === "/pricing" },
 ] as const;
 
@@ -210,7 +213,7 @@ export function Sidebar() {
       {isSuperAdmin && <VerticalSwitcher collapsed={collapsed} />}
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.map(({ href, labelKey, Icon, match }) => {
+        {NAV_ITEMS.filter((item) => !(isSuperAdmin && item.href === "/pricing")).map(({ href, labelKey, Icon, match }) => {
           const active = match(pathname);
           return (
             <Link

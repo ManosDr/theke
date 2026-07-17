@@ -48,8 +48,15 @@ function PricingContent() {
   const { t, locale } = useLocale();
   const router = useRouter();
 
-  const defaultTab: VerticalTab = user ? companyTypeToVerticalSlug(user.companyType) : "construction";
-  const [tab, setTab] = useState<VerticalTab>(defaultTab);
+  // A company account only ever has one relevant vertical - showing the
+  // other one's tiers would just be a "subscribe" button they can never
+  // use (their company belongs to exactly one vertical). super_admin has
+  // no company, so both tabs stay visible for them (see isSuperAdmin below
+  // for why CTAs are hidden there instead of the whole tab).
+  const isCompanyUser = !!user && user.role !== "super_admin";
+  const isSuperAdmin = user?.role === "super_admin";
+  const lockedTab: VerticalTab | null = isCompanyUser ? companyTypeToVerticalSlug(user.companyType) : null;
+  const [tab, setTab] = useState<VerticalTab>(lockedTab ?? "construction");
   const [data, setData] = useState<PlansPublicResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState<number | null>(null);
@@ -100,26 +107,28 @@ function PricingContent() {
         </p>
       )}
 
-      <div className={styles.tabBar} role="tablist">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "construction"}
-          className={`${styles.tabButton} ${tab === "construction" ? styles.tabButtonActive : ""}`}
-          onClick={() => setTab("construction")}
-        >
-          {t("vertical.construction")}
-        </button>
-        <button
-          type="button"
-          role="tab"
-          aria-selected={tab === "tax_accounting"}
-          className={`${styles.tabButton} ${tab === "tax_accounting" ? styles.tabButtonActive : ""}`}
-          onClick={() => setTab("tax_accounting")}
-        >
-          {t("vertical.tax_accounting")}
-        </button>
-      </div>
+      {!isCompanyUser && (
+        <div className={styles.tabBar} role="tablist">
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "construction"}
+            className={`${styles.tabButton} ${tab === "construction" ? styles.tabButtonActive : ""}`}
+            onClick={() => setTab("construction")}
+          >
+            {t("vertical.construction")}
+          </button>
+          <button
+            type="button"
+            role="tab"
+            aria-selected={tab === "tax_accounting"}
+            className={`${styles.tabButton} ${tab === "tax_accounting" ? styles.tabButtonActive : ""}`}
+            onClick={() => setTab("tax_accounting")}
+          >
+            {t("vertical.tax_accounting")}
+          </button>
+        </div>
+      )}
 
       {loading ? (
         <p className="text-muted">{t("common.loading")}</p>
@@ -169,7 +178,14 @@ function PricingContent() {
                 )}
               </ul>
 
-              {tier.is_current ? (
+              {isSuperAdmin ? (
+                // super_admin has no company to act for - managing plans
+                // happens in the admin Πλάνα tab, not here (see
+                // KNOWN_DECISIONS.md).
+                <button type="button" className="btn btn-secondary" onClick={() => router.push("/admin/subscriptions")}>
+                  {t("pricing.manageInAdmin")}
+                </button>
+              ) : tier.is_current ? (
                 <div className={styles.currentCta}>{t("pricing.currentPlanCta")}</div>
               ) : (
                 <button

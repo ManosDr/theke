@@ -7,13 +7,11 @@ import { LegalLink } from "./LegalLink";
 import type { LegalStatusResponse } from "../lib/types";
 import styles from "./LegalFooter.module.css";
 
-// Not confirmed as the real business contact address anywhere in config
-// (no contact_email/support_email setting exists) - reused here because
-// it's already hardcoded once elsewhere in this codebase (gis.py's
-// Nominatim user-agent) and matches this footer's own spec example. Flag
-// for a real value once the ΙΚΕ's actual contact address is decided - see
-// KNOWN_DECISIONS.md.
-const CONTACT_EMAIL = "contact@theke.gr";
+// theke.ai is the real, purchased domain (confirmed by the user directly,
+// unlike the earlier theke.gr placeholder - see KNOWN_DECISIONS.md). No
+// contact_email/support_email setting exists in config.py to read this
+// from; kept as a literal here, same as gis.py's Nominatim user-agent.
+const CONTACT_EMAIL = "contact@theke.ai";
 
 // Public-page-only footer (login, register, forgot/reset-password) - the
 // authenticated app shell never renders this; the Account page's own

@@ -64,6 +64,12 @@ class Company(Base):
     is_suspended: Mapped[bool] = mapped_column(default=False)
     vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    deletion_requested_at: Mapped[datetime | None] = mapped_column(DateTime)
+    dpa_accepted_at: Mapped[datetime | None] = mapped_column(DateTime)
+    dpa_version: Mapped[str | None] = mapped_column(Text)
+    legal_name: Mapped[str | None] = mapped_column(Text)
+    afm: Mapped[str | None] = mapped_column(Text)
+    billing_address: Mapped[str | None] = mapped_column(Text)
 
 
 class Invite(Base):

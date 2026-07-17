@@ -51,7 +51,81 @@ function AccountContent() {
       {user?.companyId != null && <SectionUsage token={token} companyName={company?.name ?? null} />}
       <SectionSecurity token={token} email={me.email} />
       {user?.role === "admin" && company && <SectionCompany token={token} company={company} onLogoChanged={refreshCompany} />}
+      <SectionDataRights token={token} isCompanyAdmin={user?.role === "admin"} />
     </div>
+  );
+}
+
+function SectionDataRights({ token, isCompanyAdmin }: { token: string | null; isCompanyAdmin: boolean }) {
+  const { t } = useLocale();
+  const [exporting, setExporting] = useState(false);
+  const [deletionRequested, setDeletionRequested] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  async function exportData() {
+    if (!token) return;
+    setExporting(true);
+    setError(null);
+    try {
+      await api.download("/account/export", token, "theke-data-export.json");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function requestDeletion() {
+    if (!token) return;
+    if (!window.confirm(t("account.deletionConfirm"))) return;
+    setRequesting(true);
+    setError(null);
+    try {
+      await api.post("/account/request-deletion", undefined, token);
+      setDeletionRequested(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setRequesting(false);
+    }
+  }
+
+  return (
+    <section className={`card ${dashStyles.section}`}>
+      <h2>{t("account.sectionDataRights")}</h2>
+
+      <div className={styles.field} style={{ marginTop: "var(--space-2)" }}>
+        <span>{t("account.exportLabel")}</span>
+        <button type="button" className="btn btn-secondary" onClick={exportData} disabled={exporting}>
+          {exporting ? t("account.exporting") : t("account.exportButton")}
+        </button>
+      </div>
+
+      {isCompanyAdmin && (
+        <div className={styles.field} style={{ marginTop: "var(--space-4)" }}>
+          <span style={{ color: "var(--color-danger)" }}>{t("account.deletionLabel")}</span>
+          <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+            {t("account.deletionHint")}
+          </p>
+          {deletionRequested ? (
+            <p style={{ color: "var(--color-danger)", fontWeight: 600 }}>{t("account.deletionRequested")}</p>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-secondary"
+              style={{ borderColor: "var(--color-danger)", color: "var(--color-danger)" }}
+              onClick={requestDeletion}
+              disabled={requesting}
+            >
+              {t("account.deletionButton")}
+            </button>
+          )}
+        </div>
+      )}
+
+      {error && <p style={{ color: "var(--color-danger)", marginTop: "var(--space-2)" }}>{error}</p>}
+    </section>
   );
 }
 

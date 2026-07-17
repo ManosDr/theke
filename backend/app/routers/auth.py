@@ -32,6 +32,13 @@ logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 
+# Bumped whenever the ToS/DPA text materially changes - dpa_version on the
+# companies row records which text a company's founding admin actually
+# agreed to, distinct from dpa_accepted_at (when). Not tied to any other
+# versioning scheme in this codebase; just a plain string a human updates
+# by hand alongside the actual policy documents.
+CURRENT_DPA_VERSION = "1.0"
+
 
 @router.get("/invite-info/{token}", response_model=InviteInfoResponse)
 async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
@@ -59,6 +66,17 @@ async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoRe
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+    # Rejects False explicitly, not just relying on the Pydantic field being
+    # required (dpa_accepted: bool with no default already rejects a missing
+    # key) - a request that sends `"dpa_accepted": false` is well-formed
+    # JSON and would pass schema validation, so the actual business rule
+    # ("must be true") has to be checked here, not just "must be present".
+    if not payload.dpa_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="You must accept the Terms of Service and Data Processing Agreement (DPA) to register",
+        )
+
     if db.scalar(select(User).where(User.email == payload.email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
@@ -109,7 +127,21 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail={"message": f"Unknown vertical_slug '{payload.vertical_slug}'", "valid_slugs": valid_slugs},
             )
-        company = Company(name=payload.company_name, type=payload.company_type, vertical_id=vertical.id)
+        # DPA acceptance is recorded at the company level, not per-user - it
+        # represents when the controller/processor relationship for THIS
+        # company was established, not each individual employee's personal
+        # ToS click. Only set on the new-company path: a teammate joining an
+        # existing company via invite still must check the box (validated
+        # above, same as any registration), but doesn't re-accept on the
+        # company's behalf - that already happened when the founding admin
+        # created it. See KNOWN_DECISIONS.md.
+        company = Company(
+            name=payload.company_name,
+            type=payload.company_type,
+            vertical_id=vertical.id,
+            dpa_accepted_at=datetime.utcnow(),
+            dpa_version=CURRENT_DPA_VERSION,
+        )
         db.add(company)
         db.flush()
         role = "admin"

@@ -865,3 +865,21 @@ CREATE TABLE IF NOT EXISTS infra_health_checks (
 );
 
 CREATE INDEX IF NOT EXISTS idx_infra_health_checks_created ON infra_health_checks(created_at DESC);
+
+-- Data retention/deletion compliance (legal-blocking - closes the gap
+-- between what the Privacy Policy/DPA claim and what the product actually
+-- did before this). deletion_requested_at drives the 30-day hard-delete
+-- clock (POST /account/request-deletion) - it ALWAYS overrides the 60-day
+-- post-cancellation window computed from company_subscriptions.cancelled_at
+-- (see crawler/crawler/retention_cleanup.py's _compute_deadline, the one
+-- place that encodes this precedence). legal_name/afm/billing_address are
+-- also used by Phase 0.5's invoicing (a valid Greek τιμολόγιο needs the
+-- customer's ΑΦΜ/address) - added here rather than duplicated because
+-- they're genuinely the same "who is this company, legally" fields either
+-- feature would otherwise invent separately.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS deletion_requested_at timestamp;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS dpa_accepted_at timestamp;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS dpa_version varchar;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS legal_name text;
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS afm varchar(9);
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS billing_address text;

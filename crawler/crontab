@@ -23,3 +23,11 @@
 # warning/critical only - infra monitoring, not billing enforcement. See
 # crawler/crawler/infra_health_check.py.
 0 6 * * 1 python -m crawler.infra_health_check
+
+# Weekly data retention/deletion sweep (legal-blocking - see
+# KNOWN_DECISIONS.md). Hard-deletes chat history + documents (60 days after
+# cancellation, or 30 days after an explicit deletion request, which always
+# overrides the 60-day window) and, on an explicit request, the account/
+# profile data too. Never touches the invoices table. Monday 07:00 UTC,
+# after the infra-health check. See crawler/crawler/retention_cleanup.py.
+0 7 * * 1 python -m crawler.retention_cleanup

@@ -70,6 +70,14 @@ services:
     build: ./crawler
     env_file: .env
     command: ["supercronic", "/app/crontab"]
+    # Same uploads_data volume the backend service mounts, at the same
+    # /app/uploads path - crawler/crawler/retention_cleanup.py needs to
+    # physically remove a deleted company's uploaded files, not just their
+    # DB rows, and this is the only container that job runs in. Without this
+    # mount the job would still delete the DB rows correctly but silently
+    # leave every file orphaned on disk - see that file's module docstring.
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

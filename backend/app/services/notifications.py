@@ -33,6 +33,23 @@ def notify_company_admins(
         notify(db, user_id=user_id, type=type, title=title, body=body, link=link)
 
 
+def notify_super_admins(
+    db: Session,
+    *,
+    type: str,
+    title: str,
+    body: str | None = None,
+    link: str | None = None,
+) -> None:
+    """Platform-wide notification, e.g. a company requesting data deletion.
+    The crawler's scheduled jobs (canary_benchmark.py, retention_cleanup.py)
+    have their own raw-psycopg equivalent of this same query, since they run
+    outside the backend's SQLAlchemy Session - see KNOWN_DECISIONS.md."""
+    admin_ids = db.scalars(select(User.id).where(User.role == "super_admin", User.is_active.is_(True))).all()
+    for user_id in admin_ids:
+        notify(db, user_id=user_id, type=type, title=title, body=body, link=link)
+
+
 def notify_users_by_municipality(
     db: Session,
     *,

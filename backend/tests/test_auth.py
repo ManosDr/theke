@@ -72,6 +72,7 @@ def test_register_new_company(client, db_session):
             "company_name": company_name,
             "company_type": "construction",
             "vertical_slug": "construction",
+            "dpa_accepted": True,
         },
     )
     try:
@@ -112,6 +113,7 @@ def test_register_duplicate_email(client):
             "company_name": f"Dup Co {uuid.uuid4().hex[:8]}",
             "company_type": "construction",
             "vertical_slug": "construction",
+            "dpa_accepted": True,
         },
     )
     assert resp.status_code == 409
@@ -128,6 +130,7 @@ def test_register_unknown_vertical(client):
             "company_name": f"Unknown Vertical Co {uuid.uuid4().hex[:8]}",
             "company_type": "construction",
             "vertical_slug": "not_a_real_vertical",
+            "dpa_accepted": True,
         },
     )
     assert resp.status_code == 422
@@ -158,6 +161,7 @@ def test_register_invite_wrong_email(client, db_session, construction_company_id
                 "first_name": "Someone",
                 "last_name": "Else",
                 "invite_token": invite.token,
+                "dpa_accepted": True,
             },
         )
         # Correction from the test plan's assumed 400: the real endpoint

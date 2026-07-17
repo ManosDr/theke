@@ -27,6 +27,13 @@ class RegisterRequest(BaseModel):
     # path, where the vertical is inherited from the inviting company.
     vertical_slug: str | None = None
     preferred_locale: str | None = None  # UI language active at signup time, if any
+    # No default - omitting this field entirely (not just sending false)
+    # must also fail validation, so a client can't bypass the checkbox by
+    # simply not sending the key. Enforced again in the endpoint itself
+    # (rejecting False, not just relying on this being required) - see
+    # auth.py's register(), and KNOWN_DECISIONS.md on why "required in the
+    # UI" alone was never enough.
+    dpa_accepted: bool
 
     @field_validator("company_type")
     @classmethod

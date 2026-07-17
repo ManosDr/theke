@@ -40,6 +40,7 @@ export default function RegisterPage() {
   const [inviteInfoError, setInviteInfoError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [companyType, setCompanyType] = useState<"construction" | "municipality" | "accounting">("construction");
+  const [dpaAccepted, setDpaAccepted] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -49,6 +50,7 @@ export default function RegisterPage() {
     lastName?: string;
     inviteToken?: string;
     companyName?: string;
+    dpaAccepted?: string;
   }>({});
 
   // Tracks the mode-dependent block's real height so .modeContent can
@@ -135,6 +137,7 @@ export default function RegisterPage() {
     if (!lastName.trim()) errors.lastName = t("validation.fieldRequired");
     if (mode === "invite" && !inviteToken.trim()) errors.inviteToken = t("validation.fieldRequired");
     if (mode === "new_company" && !companyName.trim()) errors.companyName = t("validation.fieldRequired");
+    if (!dpaAccepted) errors.dpaAccepted = t("register.dpaRequired");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
 
@@ -147,6 +150,7 @@ export default function RegisterPage() {
         first_name: firstName,
         last_name: lastName,
         preferred_locale: locale,
+        dpa_accepted: dpaAccepted,
         // Construction firm and municipality both consume the "construction"
         // vertical's content - there is no separate "municipality" vertical
         // (see verticals table: only "construction" and "tax_accounting"
@@ -343,6 +347,22 @@ export default function RegisterPage() {
               </>
             )}
           </div>
+        </div>
+
+        <div className={styles.field}>
+          <label style={{ display: "flex", alignItems: "flex-start", gap: "var(--space-2)", fontWeight: 400 }}>
+            <input
+              type="checkbox"
+              checked={dpaAccepted}
+              onChange={(e) => {
+                setDpaAccepted(e.target.checked);
+                if (e.target.checked) setFieldErrors((prev) => ({ ...prev, dpaAccepted: undefined }));
+              }}
+              aria-invalid={!!fieldErrors.dpaAccepted}
+            />
+            <span>{t("register.dpaCheckbox")}</span>
+          </label>
+          {fieldErrors.dpaAccepted && <FieldError message={fieldErrors.dpaAccepted} />}
         </div>
 
         <button type="submit" className="btn btn-primary" disabled={loading}>

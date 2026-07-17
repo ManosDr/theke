@@ -69,4 +69,24 @@ export const api = {
   del: <T>(path: string, token?: string | null) => request<T>(path, { method: "DELETE" }, token),
   upload: <T>(path: string, formData: FormData, token?: string | null) =>
     request<T>(path, { method: "POST", body: formData }, token),
+  // Triggers a browser download for a non-JSON response (data export,
+  // invoice PDF) - can't reuse request() above since that always calls
+  // res.json(). Auth still goes through the Authorization header (not a
+  // query-string token), so a plain <a href> can't be used for either of
+  // these endpoints - both serve data that needs a real access check.
+  download: async (path: string, token: string | null, filename: string): Promise<void> => {
+    const res = await fetch(`${API_URL}${path}`, {
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    });
+    if (!res.ok) throw new ApiError(res.status, res.statusText);
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  },
 };

@@ -569,7 +569,7 @@ export const translations = {
 
     // login
     "login.tagline":
-      "Your AI copilot for Greek regulatory compliance — instant answers with citations from official sources and your own knowledge base, for construction firms, municipalities, and accounting practices alike.",
+      "Your AI copilot for construction firms, municipalities, and accounting practices — instant answers on Greek regulatory compliance, with citations from official sources and your own knowledge base.",
     "login.email": "Email",
     "login.password": "Password",
     "login.signIn": "Sign in",
@@ -1678,7 +1678,7 @@ export const translations = {
 
     // login
     "login.tagline":
-      "Ο συνεργάτης τεχνητής νοημοσύνης για κανονιστική συμμόρφωση — άμεσες απαντήσεις με παραπομπές από επίσημες πηγές και τη δική σας βάση γνώσης, για κατασκευαστικές εταιρείες, δήμους και λογιστικά γραφεία.",
+      "Ο συνεργάτης τεχνητής νοημοσύνης για κατασκευαστικές εταιρείες, δήμους και λογιστικά γραφεία — άμεσες απαντήσεις σε θέματα κανονιστικής συμμόρφωσης, με παραπομπές από επίσημες πηγές και τη δική σας βάση γνώσης.",
     "login.email": "Email",
     "login.password": "Κωδικός",
     "login.signIn": "Σύνδεση",

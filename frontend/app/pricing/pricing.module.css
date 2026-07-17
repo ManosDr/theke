@@ -1,0 +1,159 @@
+.publicPage {
+  min-height: 100dvh;
+  padding: var(--space-5);
+}
+
+.publicHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-6);
+}
+
+.wrap {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+.trialLine {
+  color: var(--color-text-muted);
+  font-weight: 600;
+  margin: 0;
+}
+
+.tabBar {
+  display: inline-flex;
+  gap: var(--space-1);
+  background: var(--color-surface-alt, var(--color-surface));
+  border-radius: var(--radius-md);
+  padding: 4px;
+  width: fit-content;
+}
+
+.tabButton {
+  border: none;
+  background: none;
+  padding: var(--space-2) var(--space-5);
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+  cursor: pointer;
+  color: var(--color-text-muted);
+}
+
+.tabButtonActive {
+  background: var(--color-surface);
+  color: var(--color-text);
+  box-shadow: var(--shadow-sm);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: var(--space-5);
+}
+
+.tierCard {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  position: relative;
+}
+
+.currentBadge {
+  position: absolute;
+  top: var(--space-4);
+  right: var(--space-4);
+  background: var(--color-success-bg, var(--color-primary));
+  color: var(--color-success, #fff);
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px var(--space-2);
+  border-radius: var(--radius-sm);
+}
+
+.tierName {
+  margin: 0;
+}
+
+.priceBlock {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.pricePrimary {
+  font-size: 2rem;
+  font-weight: 800;
+  line-height: 1.1;
+}
+
+.pricePeriod {
+  font-size: 1rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+.priceSecondary {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.annualTotal {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+.features {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  font-size: 0.9rem;
+  flex: 1;
+}
+
+.featureSubtext {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+}
+
+.currentCta {
+  text-align: center;
+  font-weight: 600;
+  color: var(--color-text-muted);
+  padding: var(--space-2) 0;
+}
+
+.disclaimer {
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
+  margin-top: var(--space-3);
+}
+
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(21, 29, 72, 0.65);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.confirmCard {
+  width: 100%;
+  max-width: 420px;
+  padding: var(--space-6);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}

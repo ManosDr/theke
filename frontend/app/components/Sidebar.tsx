@@ -12,6 +12,7 @@ import { getInitials } from "../lib/userDisplay";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
 import { LogoMark } from "./Logo";
 import {
+  BillingIcon,
   ChatIcon,
   CompaniesIcon,
   NavDashboardIcon,
@@ -28,6 +29,7 @@ const NAV_ITEMS = [
   { href: "/sources", labelKey: "nav.sources", Icon: SourcesIcon, match: (p: string) => p.startsWith("/sources") || p.startsWith("/documents") },
   { href: "/search", labelKey: "nav.search", Icon: SearchIcon, match: (p: string) => p === "/search" },
   { href: "/chat", labelKey: "nav.chat", Icon: ChatIcon, match: (p: string) => p === "/chat" },
+  { href: "/pricing", labelKey: "nav.pricing", Icon: BillingIcon, match: (p: string) => p === "/pricing" },
 ] as const;
 
 // Nav tree per the Theke Admin design handoff's own sidebar structure

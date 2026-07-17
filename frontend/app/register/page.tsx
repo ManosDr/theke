@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 
 import FieldError from "../components/FieldError";
 import { Logo } from "../components/Logo";
@@ -26,9 +26,26 @@ interface InviteInfo {
 }
 
 export default function RegisterPage() {
+  return (
+    <Suspense fallback={null}>
+      <RegisterContent />
+    </Suspense>
+  );
+}
+
+function RegisterContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const { t, locale } = useLocale();
+
+  // Set only when arriving via the public pricing page's CTA
+  // (?intended_tier=<plan slug>) - passed through to registration so the
+  // backend can log it for manual sales reference (see auth.py's
+  // register() - there's no company record yet at this point to store it
+  // on directly). Read once on mount; the pricing page's own CTA is the
+  // only place this URL shape is ever produced.
+  const intendedTier = searchParams.get("intended_tier");
 
   const [mode, setMode] = useState<"invite" | "new_company">("new_company");
   const [email, setEmail] = useState("");
@@ -165,6 +182,7 @@ export default function RegisterPage() {
         ...(mode === "invite"
           ? { invite_token: inviteToken }
           : {
+              intended_tier: intendedTier || undefined,
               company_name: companyName,
               company_type: companyType,
               vertical_slug: companyType === "accounting" ? "tax_accounting" : "construction",

@@ -922,3 +922,78 @@ CREATE TABLE IF NOT EXISTS invoices (
 
 CREATE INDEX IF NOT EXISTS idx_invoices_company ON invoices(company_id);
 CREATE INDEX IF NOT EXISTS idx_invoices_issued ON invoices(issued_at DESC);
+
+-- Pricing page + document storage enforcement + plan-change requests.
+-- annual_total_eur is the real annual commitment (excl. VAT); the
+-- annual-equivalent MONTHLY figure shown on the pricing page is derived at
+-- read time (round(annual_total_eur / 12, 2)) in app/routers/plans.py, not
+-- stored separately, so it can never drift from the total on a price edit.
+-- storage_limit_bytes is the cumulative ceiling on a company's OWN uploaded
+-- documents (Professional/Business only, NULL = not enforced) - see
+-- app/services/subscription.py's check_storage_limit(); it never touches
+-- the shared regulatory knowledge base, which has no owning company
+-- (documents.company_id is NULL there). project_limit/client_limit are
+-- DISPLAY-ONLY figures for the pricing page's third bullet - nothing in
+-- this codebase enforces them (no code path blocks creating an 11th
+-- project on a Construction Starter company); see KNOWN_DECISIONS.md.
+-- max_file_size_bytes replaces the old hardcoded 25MB constant in
+-- app/routers/documents.py with a real per-plan, super-admin-editable
+-- field. promo_price_eur/starts_at/ends_at are a time-boxed price
+-- override - GET /plans does a plain now()-between-bounds comparison at
+-- read time, no scheduled job needed to "revert" it.
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS annual_total_eur decimal(10, 2);
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS storage_limit_bytes bigint;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS project_limit integer;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS client_limit integer;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS max_file_size_bytes bigint NOT NULL DEFAULT 20000000;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS promo_price_eur decimal(10, 2);
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS promo_starts_at timestamp;
+ALTER TABLE plans ADD COLUMN IF NOT EXISTS promo_ends_at timestamp;
+
+-- Confirmed tier figures from the pricing spec - annual_total_eur/12
+-- rounded to 2dp exactly matches every quoted "annual-equivalent monthly"
+-- number (e.g. 490/12 = 40.8333... -> 40.83). storage_limit_bytes uses
+-- DECIMAL GB (5,000,000,000 / 20,000,000,000), not binary GiB
+-- (5,368,709,120 / 21,474,836,480) - decimal is what makes
+-- storage_limit_bytes / max_file_size_bytes (20,000,000, also decimal)
+-- equal exactly 250 / 1,000, matching the pricing page's own quoted
+-- document-count figures precisely; the binary equivalents would give
+-- 256/1,024 instead. Re-run safe: always converges to the same final
+-- values regardless of prior state.
+UPDATE plans SET annual_total_eur = 490,  project_limit = 10 WHERE slug = 'construction-starter';
+UPDATE plans SET annual_total_eur = 990,  storage_limit_bytes = 5000000000  WHERE slug = 'construction-professional';
+UPDATE plans SET annual_total_eur = 1990, storage_limit_bytes = 20000000000 WHERE slug = 'construction-business';
+UPDATE plans SET annual_total_eur = 590,  client_limit = 20 WHERE slug = 'tax-starter';
+UPDATE plans SET annual_total_eur = 1190, storage_limit_bytes = 5000000000  WHERE slug = 'tax-professional';
+UPDATE plans SET annual_total_eur = 2490, storage_limit_bytes = 20000000000 WHERE slug = 'tax-business';
+
+-- Raw uploaded file size, set only by POST /documents/upload (company
+-- uploads) - NULL for every crawled/manual-entry KB document (whose
+-- company_id is also NULL, already excluding them from a per-company SUM).
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS file_size_bytes bigint;
+
+-- Reporting-exclusion flag, set only via the super_admin "Νέα Εταιρεία"
+-- modal's "Δοκιμαστικός χρήστης" toggle - excludes a company from
+-- GET /admin/stats, token-cost totals, and the day-45 conversion nudge.
+-- Every feature still works normally for the company; this only hides it
+-- from platform-wide numbers.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS is_test_account boolean NOT NULL DEFAULT false;
+
+-- A company admin's click on the pricing page's "Αίτημα αναβάθμισης"/
+-- "Αίτημα αλλαγής πλάνου" button (POST /plan-requests) - a sales lead for
+-- manual follow-up, not a self-service change. direction is derived
+-- server-side from price comparison, never trusted from the client.
+-- current_plan_id is nullable for the (currently unreachable through the
+-- UI, since the endpoint requires auth) edge case of a request logged with
+-- no prior subscription row.
+CREATE TABLE IF NOT EXISTS plan_requests (
+  id                 serial PRIMARY KEY,
+  company_id         integer NOT NULL REFERENCES companies(id),
+  requested_by       integer NOT NULL REFERENCES users(id),
+  current_plan_id    integer REFERENCES plans(id),
+  requested_plan_id  integer NOT NULL REFERENCES plans(id),
+  direction          varchar NOT NULL, -- 'upgrade', 'downgrade'
+  created_at         timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_plan_requests_company ON plan_requests(company_id);

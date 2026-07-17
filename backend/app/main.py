@@ -20,6 +20,8 @@ from app.routers import (
     gis,
     invoices,
     notifications,
+    plan_requests,
+    plans,
     projects,
     search,
     subscription,
@@ -84,6 +86,8 @@ app.include_router(documents.router)
 app.include_router(gis.router)
 app.include_router(invoices.router)
 app.include_router(notifications.router)
+app.include_router(plan_requests.router)
+app.include_router(plans.router)
 app.include_router(projects.router)
 app.include_router(search.router)
 app.include_router(subscription.router)

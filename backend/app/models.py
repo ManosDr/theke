@@ -1,7 +1,7 @@
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, Date, DateTime, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
+from sqlalchemy import ARRAY, BigInteger, Date, DateTime, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -70,6 +70,12 @@ class Company(Base):
     legal_name: Mapped[str | None] = mapped_column(Text)
     afm: Mapped[str | None] = mapped_column(Text)
     billing_address: Mapped[str | None] = mapped_column(Text)
+    # Set only via the super_admin "Νέα Εταιρεία" modal's "Δοκιμαστικός
+    # χρήστης" toggle - excludes this company from platform-wide reporting
+    # (GET /admin/stats, token-cost totals, the day-45 conversion nudge) so
+    # internal/demo usage never inflates real numbers. A reporting
+    # exclusion only - every feature still works normally for the company.
+    is_test_account: Mapped[bool] = mapped_column(default=False)
 
 
 class Invite(Base):
@@ -165,6 +171,14 @@ class Document(Base):
     # layer (see app/routers/documents.py's upload scope selector).
     customer_id: Mapped[int | None] = mapped_column(ForeignKey("customers.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Raw uploaded file size in bytes - set only by POST /documents/upload
+    # (company uploads), used solely to compute a company's cumulative
+    # storage usage against its plan's storage_limit_bytes (see
+    # app/services/subscription.py's check_storage_limit). NULL for every
+    # crawled/manual-entry KB document (company_id is also NULL there,
+    # which already excludes them from the SUM - this column is never
+    # populated for that path at all, not just zero).
+    file_size_bytes: Mapped[int | None] = mapped_column(BigInteger)
 
     # National/regional tier + classification metadata (see docs/kb-architecture -
     # added to support Kavala-style regional content without a future schema change).
@@ -511,6 +525,52 @@ class Plan(Base):
     # reason (it's an internal assignment, not something a visitor picks).
     is_active: Mapped[bool] = mapped_column(default=True)
     features: Mapped[dict | None] = mapped_column(JSON)
+    # The actual annual commitment total (excl. VAT) - e.g. 490.00 for a plan
+    # whose monthly price_eur is 49.00. The annual-equivalent MONTHLY figure
+    # shown on the pricing page (e.g. "€40.83/μήνα") is round(annual_total_eur
+    # / 12, 2), computed at read time in app/routers/plans.py rather than
+    # stored twice - storing both would let them drift out of sync on a
+    # price edit. NULL for beta/internal plans, which are never listed
+    # publicly and have no annual commitment concept.
+    annual_total_eur: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    # Cumulative ceiling on a company's OWN uploaded documents (see
+    # Document.file_size_bytes / app/services/subscription.py's
+    # check_storage_limit) - Professional/Business tiers only, NULL on
+    # Starter (no ceiling enforced there) and on beta plans. Never counts
+    # against the shared regulatory knowledge base, which has no owning
+    # company (Document.company_id is NULL for KB documents).
+    storage_limit_bytes: Mapped[int | None] = mapped_column(BigInteger)
+    # Display-only figures for the pricing page's third feature bullet -
+    # Construction Starter's project count / Tax Starter's client count.
+    # NOT enforced anywhere (no code path blocks creating project #11 on a
+    # Construction Starter company) - the original request described this as
+    # "unchanged" from earlier work, but no such enforcement exists anywhere
+    # in this codebase; flagged in KNOWN_DECISIONS.md rather than silently
+    # left unenforced without a note. Mutually exclusive by vertical in
+    # practice (a Construction plan sets project_limit, a Tax plan sets
+    # client_limit) but both nullable since nothing structurally prevents
+    # a plan from setting neither (Professional/Business tiers set neither -
+    # their third bullet is the storage ceiling instead).
+    project_limit: Mapped[int | None] = mapped_column(Integer)
+    client_limit: Mapped[int | None] = mapped_column(Integer)
+    # Per-plan upload ceiling, checked in POST /documents/upload - replaces
+    # the old hardcoded MAX_DOCUMENT_BYTES module constant so a super admin
+    # can actually edit it per plan (see Phase 1e). Every seeded plan starts
+    # at the same 20MB default; nothing requires them to stay equal. Decimal
+    # MB (20,000,000), not binary MiB (20,971,520) - deliberately, since
+    # storage_limit_bytes / max_file_size_bytes must equal the pricing
+    # page's own quoted "up to 250/1,000 documents" figures exactly
+    # (5,000,000,000 / 20,000,000 = 250; 20,000,000,000 / 20,000,000 =
+    # 1,000 - the binary equivalents would give 256/1,024 instead).
+    max_file_size_bytes: Mapped[int] = mapped_column(BigInteger, default=20_000_000)
+    # Time-boxed promotional override - when now() falls within
+    # [promo_starts_at, promo_ends_at), GET /plans returns promo_price_eur
+    # instead of price_eur (plain datetime comparison at read time in
+    # app/routers/plans.py, no scheduled job needed to "revert": once now()
+    # moves past promo_ends_at the comparison simply stops matching).
+    promo_price_eur: Mapped[float | None] = mapped_column(Numeric(10, 2))
+    promo_starts_at: Mapped[datetime | None] = mapped_column(DateTime)
+    promo_ends_at: Mapped[datetime | None] = mapped_column(DateTime)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
@@ -547,6 +607,25 @@ class SubscriptionUsage(Base):
     messages_used: Mapped[int] = mapped_column(Integer, default=0)
     messages_limit: Mapped[int] = mapped_column(Integer)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class PlanRequest(Base):
+    """A company admin clicking 'Αίτημα αναβάθμισης'/'Αίτημα αλλαγής πλάνου'
+    on the pricing page (POST /plan-requests) - a lead for manual sales
+    follow-up, not a self-service plan change. direction is derived
+    server-side by comparing requested_plan's price against the company's
+    current plan at request time (see app/routers/plan_requests.py) so the
+    frontend can never send a mismatched label/direction pair."""
+
+    __tablename__ = "plan_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    current_plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))
+    requested_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    direction: Mapped[str] = mapped_column(Text)  # 'upgrade', 'downgrade'
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
 class Invoice(Base):

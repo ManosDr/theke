@@ -2,12 +2,13 @@ import os
 from datetime import date as date_cls, datetime
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_company_vertical, get_current_user
-from app.models import Company, Document, DocumentRemovalRequest, Vertical
+from app.models import Company, Document, DocumentRemovalRequest, Plan, Vertical
 from app.schemas import (
     BrowseResponse,
     DocumentDetail,
@@ -21,11 +22,10 @@ from app.services.authorization import can_approve_removal, require_can_upload_d
 from app.services.documents import UPLOAD_DIR, content_hash, extract_text
 from app.services.notifications import notify, notify_company_admins, notify_users_by_municipality
 from app.services.sources import group_label, source_names_for_group
+from app.services.subscription import check_storage_limit, get_or_create_subscription
 from app.services.visibility import visible_documents_filter
 
 router = APIRouter(prefix="/documents", tags=["documents"])
-
-MAX_DOCUMENT_BYTES = 25 * 1024 * 1024  # 25MB
 
 
 # Markers wrapping a matched lexeme in a ts_headline snippet - control
@@ -195,6 +195,10 @@ async def upload_document(
 ) -> UploadResponse:
     require_can_upload_documents(user)
 
+    company = db.get(Company, user.company_id)
+    sub = get_or_create_subscription(db, company)
+    plan = db.get(Plan, sub.plan_id)
+
     replaced_doc = None
     if replaces_document_id is not None:
         replaced_doc = db.get(Document, replaces_document_id)
@@ -205,8 +209,19 @@ async def upload_document(
             )
 
     pdf_bytes = await file.read()
-    if len(pdf_bytes) > MAX_DOCUMENT_BYTES:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Document must be under 25MB")
+    if len(pdf_bytes) > plan.max_file_size_bytes:
+        # Decimal MB (// 1_000_000), matching Plan.max_file_size_bytes's own
+        # decimal-MB reasoning - 20_000_000 must read back as "20MB", not
+        # "19MB" (which 1024-based division would give).
+        max_mb = plan.max_file_size_bytes // 1_000_000
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=f"Document must be under {max_mb}MB")
+
+    # Cumulative storage ceiling (Professional/Business tiers only - see
+    # check_storage_limit) - checked before the file ever touches disk, same
+    # "fail fast before any side effect" ordering as the size check above.
+    storage_block = check_storage_limit(db, company, plan, len(pdf_bytes))
+    if storage_block:
+        return JSONResponse(status_code=status.HTTP_402_PAYMENT_REQUIRED, content=storage_block)
 
     hash_value = content_hash(pdf_bytes)
 
@@ -217,8 +232,7 @@ async def upload_document(
 
     text_content = extract_text(pdf_bytes)
 
-    company = db.get(Company, user.company_id)
-    municipality = company.name if company and user.company_type == "municipality" else None
+    municipality = company.name if user.company_type == "municipality" else None
 
     company_dir = os.path.join(UPLOAD_DIR, str(user.company_id))
     os.makedirs(company_dir, exist_ok=True)
@@ -237,6 +251,7 @@ async def upload_document(
         uploaded_by=user.user_id,
         replaces_document_id=replaces_document_id,
         vertical_id=company.vertical_id,
+        file_size_bytes=len(pdf_bytes),
     )
     db.add(doc)
     db.flush()

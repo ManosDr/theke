@@ -39,7 +39,7 @@ export function TrialBanner() {
   if (!eligible || !status || !user) return null;
 
   function goToPlans() {
-    router.push(user!.role === "admin" ? "/dashboard?tab=subscription" : "/account");
+    router.push("/pricing");
   }
 
   if (status.status === "expired" || status.status === "cancelled") {

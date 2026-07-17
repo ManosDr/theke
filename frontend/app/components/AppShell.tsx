@@ -2,6 +2,7 @@
 
 import type { ReactNode } from "react";
 
+import { Day45Banner } from "./Day45Banner";
 import { FeedbackWidget } from "./FeedbackWidget";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { Sidebar } from "./Sidebar";
@@ -17,6 +18,7 @@ export function AppShell({ children, fullWidth = false }: { children: ReactNode;
         <TopHeader />
         <ImpersonationBanner />
         <TrialBanner />
+        <Day45Banner />
         <main className={`${styles.main} ${fullWidth ? styles.mainFullWidth : ""}`}>{children}</main>
       </div>
       <FeedbackWidget />

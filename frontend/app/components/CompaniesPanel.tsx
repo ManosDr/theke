@@ -196,6 +196,8 @@ function CreateCompanyModal({
   const [adminLastName, setAdminLastName] = useState("");
   const [adminEmail, setAdminEmail] = useState("");
   const [adminPhone, setAdminPhone] = useState("");
+  const [isTestAccount, setIsTestAccount] = useState(false);
+  const [trialDays, setTrialDays] = useState("60");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -236,6 +238,8 @@ function CreateCompanyModal({
           admin_last_name: adminLastName,
           admin_email: adminEmail,
           admin_phone: adminPhone || undefined,
+          is_test_account: isTestAccount,
+          trial_days: trialDays.trim() ? Number(trialDays) : undefined,
         },
         token
       );
@@ -346,6 +350,26 @@ function CreateCompanyModal({
             <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
               {t("companies.new.adminPhone")}
               <input className="input" value={adminPhone} onChange={(e) => setAdminPhone(e.target.value)} />
+            </label>
+          </div>
+        </div>
+
+        <div className={styles.modalSection}>
+          <h4>{tUpper("companies.new.sectionTrial")}</h4>
+          <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
+            <label style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+              <input type="checkbox" checked={isTestAccount} onChange={(e) => setIsTestAccount(e.target.checked)} />
+              {t("companies.new.isTestAccount")}
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {t("companies.new.trialDays")}
+              <input
+                className="input"
+                type="number"
+                min="1"
+                value={trialDays}
+                onChange={(e) => setTrialDays(e.target.value)}
+              />
             </label>
           </div>
         </div>

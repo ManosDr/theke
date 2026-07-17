@@ -694,6 +694,7 @@ function PlansTab() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [createOpen, setCreateOpen] = useState(false);
+  const [editTarget, setEditTarget] = useState<PlanSummary | null>(null);
 
   async function refresh() {
     if (!token) return;
@@ -735,6 +736,7 @@ function PlansTab() {
             <th>{tUpper("adminSubs.planColMessages")}</th>
             <th>{tUpper("adminSubs.planColSubscribers")}</th>
             <th>{tUpper("adminSubs.planColActive")}</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
@@ -753,6 +755,11 @@ function PlansTab() {
               <td>
                 <input type="checkbox" checked={p.is_active} onChange={() => toggleActive(p)} />
               </td>
+              <td>
+                <button type="button" className="btn btn-secondary" onClick={() => setEditTarget(p)}>
+                  {t("adminSubs.planEditButton")}
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -763,6 +770,17 @@ function PlansTab() {
           onClose={() => setCreateOpen(false)}
           onSaved={() => {
             setCreateOpen(false);
+            refresh();
+          }}
+        />
+      )}
+      {editTarget && (
+        <EditPlanModal
+          plan={editTarget}
+          token={token}
+          onClose={() => setEditTarget(null)}
+          onSaved={() => {
+            setEditTarget(null);
             refresh();
           }}
         />
@@ -871,6 +889,206 @@ function CreatePlanModal({
         <label className={styles.modalCheckboxField}>
           <input type="checkbox" checked={isBeta} onChange={(e) => setIsBeta(e.target.checked)} />
           {t("adminSubs.betaTag")}
+        </label>
+        <div className={styles.modalActions}>
+          <button type="button" className="btn btn-secondary" onClick={onClose}>
+            {t("common.cancel")}
+          </button>
+          <button type="button" className="btn btn-primary" disabled={saving} onClick={save}>
+            {t("account.save")}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bytes <-> decimal GB for the storage-ceiling field, matching how
+// storage_limit_bytes/max_file_size_bytes are actually seeded (decimal, not
+// binary - see db/init.sql) so "5" in this field really means 5,000,000,000.
+function bytesToGb(bytes: string): string {
+  if (!bytes) return "";
+  return String(Number(bytes) / 1_000_000_000);
+}
+
+function gbToBytes(gb: string): number | null {
+  if (!gb.trim()) return null;
+  return Math.round(Number(gb) * 1_000_000_000);
+}
+
+function isoToDatetimeLocal(iso: string | null): string {
+  if (!iso) return "";
+  return iso.slice(0, 16);
+}
+
+function datetimeLocalToIso(value: string): string | null {
+  if (!value) return null;
+  return new Date(value).toISOString();
+}
+
+function EditPlanModal({
+  plan,
+  token,
+  onClose,
+  onSaved,
+}: {
+  plan: PlanSummary;
+  token: string | null;
+  onClose: () => void;
+  onSaved: () => void;
+}) {
+  const { t } = useLocale();
+  const [name, setName] = useState(plan.name);
+  const [priceEur, setPriceEur] = useState(String(plan.price_eur));
+  const [annualTotalEur, setAnnualTotalEur] = useState(plan.annual_total_eur != null ? String(plan.annual_total_eur) : "");
+  const [userLimit, setUserLimit] = useState(String(plan.user_limit));
+  const [messagePool, setMessagePool] = useState(String(plan.message_pool));
+  const [storageGb, setStorageGb] = useState(bytesToGb(plan.storage_limit_bytes != null ? String(plan.storage_limit_bytes) : ""));
+  const [projectLimit, setProjectLimit] = useState(plan.project_limit != null ? String(plan.project_limit) : "");
+  const [clientLimit, setClientLimit] = useState(plan.client_limit != null ? String(plan.client_limit) : "");
+  const [maxFileSizeMb, setMaxFileSizeMb] = useState(String(plan.max_file_size_bytes / 1_000_000));
+  const [promoPriceEur, setPromoPriceEur] = useState(plan.promo_price_eur != null ? String(plan.promo_price_eur) : "");
+  const [promoStartsAt, setPromoStartsAt] = useState(isoToDatetimeLocal(plan.promo_starts_at));
+  const [promoEndsAt, setPromoEndsAt] = useState(isoToDatetimeLocal(plan.promo_ends_at));
+  const [isActive, setIsActive] = useState(plan.is_active);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    setSaving(true);
+    try {
+      await api.patch(
+        `/admin/plans/${plan.id}`,
+        {
+          name,
+          price_eur: Number(priceEur),
+          annual_total_eur: annualTotalEur.trim() ? Number(annualTotalEur) : null,
+          user_limit: Number(userLimit),
+          message_pool: Number(messagePool),
+          storage_limit_bytes: gbToBytes(storageGb),
+          project_limit: projectLimit.trim() ? Number(projectLimit) : null,
+          client_limit: clientLimit.trim() ? Number(clientLimit) : null,
+          max_file_size_bytes: Math.round(Number(maxFileSizeMb) * 1_000_000),
+          promo_price_eur: promoPriceEur.trim() ? Number(promoPriceEur) : null,
+          promo_starts_at: datetimeLocalToIso(promoStartsAt),
+          promo_ends_at: datetimeLocalToIso(promoEndsAt),
+          is_active: isActive,
+        },
+        token
+      );
+      onSaved();
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className={styles.modalOverlay} onClick={onClose}>
+      <div className={`card ${styles.modalCard}`} onClick={(e) => e.stopPropagation()}>
+        <h2>{t("adminSubs.planEditTitle")}</h2>
+        <label className={styles.modalField}>
+          {t("adminSubs.planColName")}
+          <input className="input" value={name} onChange={(e) => setName(e.target.value)} />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planColPrice")}
+          <input className="input" type="number" min="0" step="0.01" value={priceEur} onChange={(e) => setPriceEur(e.target.value)} />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planAnnualTotalLabel")}
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={annualTotalEur}
+            onChange={(e) => setAnnualTotalEur(e.target.value)}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planColUsers")}
+          <input className="input" type="number" min="1" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planColMessages")}
+          <input className="input" type="number" min="0" value={messagePool} onChange={(e) => setMessagePool(e.target.value)} />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planStorageLabel")}
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.1"
+            value={storageGb}
+            onChange={(e) => setStorageGb(e.target.value)}
+            placeholder={t("adminSubs.planNoLimitPlaceholder")}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planProjectLimitLabel")}
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={projectLimit}
+            onChange={(e) => setProjectLimit(e.target.value)}
+            placeholder={t("adminSubs.planNoLimitPlaceholder")}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planClientLimitLabel")}
+          <input
+            className="input"
+            type="number"
+            min="0"
+            value={clientLimit}
+            onChange={(e) => setClientLimit(e.target.value)}
+            placeholder={t("adminSubs.planNoLimitPlaceholder")}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planMaxFileSizeLabel")}
+          <input
+            className="input"
+            type="number"
+            min="1"
+            value={maxFileSizeMb}
+            onChange={(e) => setMaxFileSizeMb(e.target.value)}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planPromoPriceLabel")}
+          <input
+            className="input"
+            type="number"
+            min="0"
+            step="0.01"
+            value={promoPriceEur}
+            onChange={(e) => setPromoPriceEur(e.target.value)}
+            placeholder={t("adminSubs.planNoPromoPlaceholder")}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planPromoStartLabel")}
+          <input
+            className="input"
+            type="datetime-local"
+            value={promoStartsAt}
+            onChange={(e) => setPromoStartsAt(e.target.value)}
+          />
+        </label>
+        <label className={styles.modalField}>
+          {t("adminSubs.planPromoEndLabel")}
+          <input
+            className="input"
+            type="datetime-local"
+            value={promoEndsAt}
+            onChange={(e) => setPromoEndsAt(e.target.value)}
+          />
+        </label>
+        <label className={styles.modalCheckboxField}>
+          <input type="checkbox" checked={isActive} onChange={(e) => setIsActive(e.target.checked)} />
+          {t("adminSubs.planColActive")}
         </label>
         <div className={styles.modalActions}>
           <button type="button" className="btn btn-secondary" onClick={onClose}>

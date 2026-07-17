@@ -47,9 +47,11 @@ async def subscription_status(
         is_beta=plan.is_beta,
         status=sub.status,
         trial_ends_at=sub.trial_ends_at,
+        trial_started_at=sub.started_at,
         current_period_end=sub.current_period_end,
         messages_used=usage.messages_used,
         messages_limit=usage.messages_limit,
         users_count=users_count,
         user_limit=plan.user_limit,
+        is_test_account=company.is_test_account,
     )

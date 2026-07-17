@@ -7,13 +7,16 @@ GET /subscription/status also share.
 from calendar import monthrange
 from datetime import date, datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Company, CompanySubscription, Plan, SubscriptionUsage
+from app.models import Company, CompanySubscription, Document, Plan, SubscriptionUsage
 
 POOL_EXHAUSTED_MESSAGE = "Εξαντλήσατε τα μηνύματά σας για αυτόν τον μήνα. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 SUBSCRIPTION_EXPIRED_MESSAGE = "Η συνδρομή σας έχει λήξει. Ανανεώστε για να συνεχίσετε."
+STORAGE_EXHAUSTED_MESSAGE = (
+    "Έχετε φτάσει το όριο αποθηκευτικού χώρου του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
+)
 
 TRIAL_DAYS_DEFAULT = 60
 
@@ -105,3 +108,34 @@ def check_subscription(
         return sub, plan, usage, {"detail": POOL_EXHAUSTED_MESSAGE, "upgrade_required": True}
 
     return sub, plan, usage, None
+
+
+def get_company_storage_bytes(db: Session, company_id: int) -> int:
+    """Sum of file_size_bytes across a company's own active documents only -
+    superseded/removed documents don't count against the ceiling, and the
+    shared regulatory knowledge base is structurally excluded (its
+    documents.company_id is NULL, so it's never matched by this filter at
+    all - not a zero-sum coincidence)."""
+    return (
+        db.scalar(
+            select(func.coalesce(func.sum(Document.file_size_bytes), 0)).where(
+                Document.company_id == company_id, Document.status == "active"
+            )
+        )
+        or 0
+    )
+
+
+def check_storage_limit(db: Session, company: Company, plan: Plan, additional_bytes: int) -> dict | None:
+    """Returns the flat 402 body (same {detail, upgrade_required} shape as
+    check_subscription's pool-exhausted block) if uploading additional_bytes
+    would push the company over plan.storage_limit_bytes, else None.
+    storage_limit_bytes is NULL on Starter and beta plans - no ceiling is
+    enforced there, matching Phase 1c's "Professional & Business tiers
+    only" scope."""
+    if plan.storage_limit_bytes is None:
+        return None
+    current = get_company_storage_bytes(db, company.id)
+    if current + additional_bytes > plan.storage_limit_bytes:
+        return {"detail": STORAGE_EXHAUSTED_MESSAGE, "upgrade_required": True}
+    return None

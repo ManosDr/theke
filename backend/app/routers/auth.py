@@ -165,7 +165,16 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         action="register",
         resource_type="user",
         resource_id=user.id,
-        metadata={"via_invite": bool(payload.invite_token), "role": role},
+        # intended_tier (?intended_tier=<slug> on the pricing page's CTA)
+        # has no company-level field to live on and is only ever needed for
+        # manual sales follow-up - logged here rather than adding schema
+        # for a single free-text hint. Only meaningful on the new-company
+        # path; always None for an invite join.
+        metadata={
+            "via_invite": bool(payload.invite_token),
+            "role": role,
+            "intended_tier": payload.intended_tier if not payload.invite_token else None,
+        },
     )
     db.commit()
 

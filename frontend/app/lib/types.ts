@@ -179,6 +179,8 @@ export interface CompanyCreateWithAdminRequest {
   admin_last_name: string;
   admin_email: string;
   admin_phone?: string;
+  is_test_account?: boolean;
+  trial_days?: number;
 }
 
 export interface CompanyCreateWithAdminResponse {
@@ -465,11 +467,13 @@ export interface SubscriptionStatusResponse {
   is_beta: boolean;
   status: SubscriptionStatusValue;
   trial_ends_at: string | null;
+  trial_started_at: string;
   current_period_end: string | null;
   messages_used: number;
   messages_limit: number;
   users_count: number;
   user_limit: number;
+  is_test_account: boolean;
 }
 
 export interface PlanSummary {
@@ -480,11 +484,52 @@ export interface PlanSummary {
   slug: string;
   billing_cycle: string;
   price_eur: number;
+  annual_total_eur: number | null;
   user_limit: number;
   message_pool: number;
+  storage_limit_bytes: number | null;
+  project_limit: number | null;
+  client_limit: number | null;
+  max_file_size_bytes: number;
+  promo_price_eur: number | null;
+  promo_starts_at: string | null;
+  promo_ends_at: string | null;
   is_beta: boolean;
   is_active: boolean;
   subscriber_count: number;
+}
+
+export interface PlanPublicEntry {
+  id: number;
+  slug: string;
+  name: string;
+  price_eur: number;
+  annual_total_eur: number | null;
+  annual_monthly_equiv_eur: number | null;
+  is_promo: boolean;
+  user_limit: number;
+  message_pool: number;
+  project_limit: number | null;
+  client_limit: number | null;
+  storage_limit_bytes: number | null;
+  max_file_size_bytes: number;
+  is_current: boolean;
+}
+
+export interface PlansPublicResponse {
+  vertical_slug: string;
+  tiers: PlanPublicEntry[];
+  subscription_status: SubscriptionStatusValue | null;
+  trial_ends_at: string | null;
+}
+
+export interface PlanRequestCreate {
+  requested_tier_id: number;
+}
+
+export interface PlanRequestResponse {
+  direction: "upgrade" | "downgrade";
+  requested_tier_name: string;
 }
 
 export interface SubscriptionEntry {

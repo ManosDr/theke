@@ -9,6 +9,11 @@ from app.models import Company, User, Vertical
 from app.security import decode_access_token
 
 bearer_scheme = HTTPBearer()
+# auto_error=False: GET /plans is reachable both logged-out (public pricing
+# page) and logged-in (personalized "current tier" state) - a missing or
+# invalid token here means "treat as anonymous", not a 401, unlike every
+# other bearer_scheme use in this file.
+optional_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 @dataclass
@@ -49,6 +54,21 @@ def get_current_user(
         role=user.role,
         company_type=company_type,
     )
+
+
+def get_current_user_optional(
+    credentials: HTTPAuthorizationCredentials | None = Depends(optional_bearer_scheme),
+    db: Session = Depends(get_db),
+) -> CurrentUser | None:
+    """Same resolution as get_current_user, but returns None instead of
+    raising for a missing/invalid/expired token or inactive account -
+    for endpoints reachable both logged-out and logged-in (GET /plans)."""
+    if credentials is None:
+        return None
+    try:
+        return get_current_user(credentials, db)
+    except HTTPException:
+        return None
 
 
 def get_company_vertical(

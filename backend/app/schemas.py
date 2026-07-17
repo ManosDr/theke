@@ -27,6 +27,13 @@ class RegisterRequest(BaseModel):
     # path, where the vertical is inherited from the inviting company.
     vertical_slug: str | None = None
     preferred_locale: str | None = None  # UI language active at signup time, if any
+    # Set only when arriving via the public pricing page's CTA
+    # (?intended_tier=<plan slug>) - there's no company record yet at
+    # registration time to store this on (and no dedicated field for it),
+    # so the endpoint logs it onto the new company's own audit_log entry
+    # for manual sales reference rather than inventing new schema for a
+    # single free-text hint. Ignored on the invite_token path.
+    intended_tier: str | None = None
     # No default - omitting this field entirely (not just sending false)
     # must also fail validation, so a client can't bypass the checkbox by
     # simply not sending the key. Enforced again in the endpoint itself
@@ -448,6 +455,14 @@ class CompanyCreateWithAdminRequest(BaseModel):
     admin_last_name: str
     admin_email: str
     admin_phone: str | None = None
+    # "Δοκιμαστικός χρήστης" toggle - when true, the created company is
+    # tagged Company.is_test_account (excluded from platform-wide
+    # reporting) and its trial length uses trial_days instead of the
+    # standard TRIAL_DAYS_DEFAULT (60). trial_days is accepted regardless
+    # of is_test_account so a super admin can also hand a real prospect a
+    # non-default trial length without marking them a test account.
+    is_test_account: bool = False
+    trial_days: int = 60  # matches app/services/subscription.py's TRIAL_DAYS_DEFAULT
 
     @field_validator("company_type")
     @classmethod
@@ -1069,11 +1084,18 @@ class SubscriptionStatusResponse(BaseModel):
     is_beta: bool
     status: Literal["trial", "active", "expired", "cancelled", "suspended"]
     trial_ends_at: datetime | None
+    # started_at on the subscription row - the trial-day-count anchor for
+    # the day-45 conversion nudge (Phase 4c), computed client-side the same
+    # way TrialBanner already derives days-remaining from trial_ends_at.
+    trial_started_at: datetime
     current_period_end: datetime | None
     messages_used: int
     messages_limit: int
     users_count: int
     user_limit: int
+    # Lets the frontend suppress the day-45 conversion nudge for
+    # is_test_account companies (see Phase 5) without a second request.
+    is_test_account: bool
 
 
 class PlanSummary(BaseModel):
@@ -1084,8 +1106,16 @@ class PlanSummary(BaseModel):
     slug: str
     billing_cycle: str
     price_eur: float
+    annual_total_eur: float | None
     user_limit: int
     message_pool: int
+    storage_limit_bytes: int | None
+    project_limit: int | None
+    client_limit: int | None
+    max_file_size_bytes: int
+    promo_price_eur: float | None
+    promo_starts_at: datetime | None
+    promo_ends_at: datetime | None
     is_beta: bool
     is_active: bool
     subscriber_count: int
@@ -1097,8 +1127,16 @@ class PlanCreateRequest(BaseModel):
     slug: str
     billing_cycle: str = "monthly"
     price_eur: float
+    annual_total_eur: float | None = None
     user_limit: int
     message_pool: int
+    storage_limit_bytes: int | None = None
+    project_limit: int | None = None
+    client_limit: int | None = None
+    max_file_size_bytes: int = 20_000_000  # decimal MB, matches Plan.max_file_size_bytes's default reasoning
+    promo_price_eur: float | None = None
+    promo_starts_at: datetime | None = None
+    promo_ends_at: datetime | None = None
     is_beta: bool = False
     is_active: bool = True
 
@@ -1107,10 +1145,61 @@ class PlanUpdateRequest(BaseModel):
     name: str | None = None
     billing_cycle: str | None = None
     price_eur: float | None = None
+    annual_total_eur: float | None = None
     user_limit: int | None = None
     message_pool: int | None = None
+    storage_limit_bytes: int | None = None
+    project_limit: int | None = None
+    client_limit: int | None = None
+    max_file_size_bytes: int | None = None
+    promo_price_eur: float | None = None
+    promo_starts_at: datetime | None = None
+    promo_ends_at: datetime | None = None
     is_beta: bool | None = None
     is_active: bool | None = None
+
+
+class PlanPublicEntry(BaseModel):
+    """One tier card's worth of data for the public/in-app pricing page
+    (GET /plans) - annual_monthly_equiv_eur is derived server-side
+    (round(annual_total_eur / 12, 2)) so the frontend never re-derives
+    pricing math itself. price_eur/annual_total_eur already reflect an
+    active promo override, if any (see app/routers/plans.py)."""
+
+    id: int
+    slug: str
+    name: str
+    price_eur: float
+    annual_total_eur: float | None
+    annual_monthly_equiv_eur: float | None
+    is_promo: bool
+    user_limit: int
+    message_pool: int
+    project_limit: int | None
+    client_limit: int | None
+    storage_limit_bytes: int | None
+    max_file_size_bytes: int
+    is_current: bool
+
+
+class PlansPublicResponse(BaseModel):
+    vertical_slug: str
+    tiers: list[PlanPublicEntry]
+    # Populated only when authenticated AND the caller's own company vertical
+    # matches the requested `vertical` query param - viewing the OTHER
+    # vertical's tab while logged in shows plain, unpersonalized pricing
+    # (see Phase 2b: "don't hide the other tab, just don't default to it").
+    subscription_status: Literal["trial", "active", "expired", "cancelled", "suspended"] | None = None
+    trial_ends_at: datetime | None = None
+
+
+class PlanRequestCreate(BaseModel):
+    requested_tier_id: int
+
+
+class PlanRequestResponse(BaseModel):
+    direction: Literal["upgrade", "downgrade"]
+    requested_tier_name: str
 
 
 class SubscriptionEntry(BaseModel):

@@ -167,9 +167,31 @@ async def create_company_with_admin(
             status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown or inactive vertical_slug '{vertical_slug}'"
         )
 
-    company = Company(name=payload.company_name, type=payload.company_type, vertical_id=vertical.id)
+    company = Company(
+        name=payload.company_name,
+        type=payload.company_type,
+        vertical_id=vertical.id,
+        is_test_account=payload.is_test_account,
+    )
     db.add(company)
     db.flush()
+
+    # Created explicitly here (not left to get_or_create_subscription's
+    # lazy defensive path - see app/services/subscription.py) so trial_days
+    # can differ from TRIAL_DAYS_DEFAULT, per the "Διάρκεια δοκιμής" field
+    # on this same modal.
+    beta_plan = db.scalar(select(Plan).where(Plan.vertical_id == vertical.id, Plan.is_beta.is_(True)))
+    if not beta_plan:
+        beta_plan = db.scalar(select(Plan).where(Plan.is_beta.is_(True)))
+    db.add(
+        CompanySubscription(
+            company_id=company.id,
+            plan_id=beta_plan.id,
+            status="trial",
+            billing_cycle="monthly",
+            trial_ends_at=datetime.utcnow() + timedelta(days=payload.trial_days),
+        )
+    )
 
     generated_password = _generate_password()
     admin_user = User(
@@ -1281,10 +1303,44 @@ async def platform_stats(
     by_vertical breaks the same totals down per vertical - N+1 queries per
     vertical is fine at today's scale (2 verticals, soft-launch traffic)."""
     require_super_admin(user)
-    total_messages = db.scalar(select(func.count()).select_from(ChatSession)) or 0
-    gap_count = db.scalar(select(func.count()).select_from(ChatSession).where(ChatSession.gap.is_(True))) or 0
+    # is_test_account companies (see the super_admin "Νέα Εταιρεία" modal's
+    # "Δοκιμαστικός χρήστης" toggle) are excluded from every platform-wide
+    # number below via an OUTER join + explicit is_test_account/NULL check -
+    # not a plain NOT IN (subquery), which would silently drop every row
+    # with a NULL company_id (e.g. no ChatSession here is ever
+    # company-less in practice, but Document.company_id IS NULL for the
+    # entire shared knowledge base, and NOT IN treats a NULL comparison as
+    # UNKNOWN, dropping those rows too). MessageFeedback counts are NOT
+    # filtered - see KNOWN_DECISIONS.md.
+    not_test_company = (Company.id.is_(None)) | (Company.is_test_account.is_(False))
+    total_messages = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(not_test_company)
+        )
+        or 0
+    )
+    gap_count = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(ChatSession.gap.is_(True), not_test_company)
+        )
+        or 0
+    )
     gap_rate = round(gap_count / total_messages * 100, 1) if total_messages else 0.0
-    active_documents = db.scalar(select(func.count()).select_from(Document).where(Document.status == "active")) or 0
+    active_documents = (
+        db.scalar(
+            select(func.count())
+            .select_from(Document)
+            .outerjoin(Company, Company.id == Document.company_id)
+            .where(Document.status == "active", not_test_company)
+        )
+        or 0
+    )
     positive_feedback = (
         db.scalar(select(func.count()).select_from(MessageFeedback).where(MessageFeedback.rating == "positive")) or 0
     )
@@ -1294,13 +1350,19 @@ async def platform_stats(
     since_30d = datetime.utcnow() - timedelta(days=30)
     platform_tokens_30d = (
         db.scalar(
-            select(func.coalesce(func.sum(ChatSession.total_tokens), 0)).where(ChatSession.created_at >= since_30d)
+            select(func.coalesce(func.sum(ChatSession.total_tokens), 0))
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(ChatSession.created_at >= since_30d, not_test_company)
         )
         or 0
     )
     platform_cost_eur_30d = (
         db.scalar(
-            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0)).where(ChatSession.created_at >= since_30d)
+            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0))
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(ChatSession.created_at >= since_30d, not_test_company)
         )
         or 0
     )
@@ -1321,7 +1383,7 @@ async def platform_stats(
                 select(func.count())
                 .select_from(ChatSession)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id)
+                .where(Company.vertical_id == v.id, Company.is_test_account.is_(False))
             )
             or 0
         )
@@ -1330,7 +1392,7 @@ async def platform_stats(
                 select(func.count())
                 .select_from(ChatSession)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id, ChatSession.gap.is_(True))
+                .where(Company.vertical_id == v.id, ChatSession.gap.is_(True), Company.is_test_account.is_(False))
             )
             or 0
         )
@@ -1338,7 +1400,8 @@ async def platform_stats(
             db.scalar(
                 select(func.count())
                 .select_from(Document)
-                .where(Document.vertical_id == v.id, Document.status == "active")
+                .outerjoin(Company, Company.id == Document.company_id)
+                .where(Document.vertical_id == v.id, Document.status == "active", not_test_company)
             )
             or 0
         )
@@ -1346,7 +1409,11 @@ async def platform_stats(
             db.scalar(
                 select(func.count())
                 .select_from(Company)
-                .where(Company.vertical_id == v.id, Company.is_suspended.is_(False))
+                .where(
+                    Company.vertical_id == v.id,
+                    Company.is_suspended.is_(False),
+                    Company.is_test_account.is_(False),
+                )
             )
             or 0
         )
@@ -1991,8 +2058,16 @@ def _to_plan_summary(db: Session, plan: Plan, subscriber_count: int | None = Non
         slug=plan.slug,
         billing_cycle=plan.billing_cycle,
         price_eur=float(plan.price_eur),
+        annual_total_eur=float(plan.annual_total_eur) if plan.annual_total_eur is not None else None,
         user_limit=plan.user_limit,
         message_pool=plan.message_pool,
+        storage_limit_bytes=plan.storage_limit_bytes,
+        project_limit=plan.project_limit,
+        client_limit=plan.client_limit,
+        max_file_size_bytes=plan.max_file_size_bytes,
+        promo_price_eur=float(plan.promo_price_eur) if plan.promo_price_eur is not None else None,
+        promo_starts_at=plan.promo_starts_at,
+        promo_ends_at=plan.promo_ends_at,
         is_beta=plan.is_beta,
         is_active=plan.is_active,
         subscriber_count=subscriber_count,
@@ -2025,8 +2100,16 @@ async def create_plan(
         slug=payload.slug,
         billing_cycle=payload.billing_cycle,
         price_eur=payload.price_eur,
+        annual_total_eur=payload.annual_total_eur,
         user_limit=payload.user_limit,
         message_pool=payload.message_pool,
+        storage_limit_bytes=payload.storage_limit_bytes,
+        project_limit=payload.project_limit,
+        client_limit=payload.client_limit,
+        max_file_size_bytes=payload.max_file_size_bytes,
+        promo_price_eur=payload.promo_price_eur,
+        promo_starts_at=payload.promo_starts_at,
+        promo_ends_at=payload.promo_ends_at,
         is_beta=payload.is_beta,
         is_active=payload.is_active,
     )
@@ -2047,7 +2130,23 @@ async def update_plan(
     plan = db.get(Plan, plan_id)
     if not plan:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Plan not found")
-    for field in ("name", "billing_cycle", "price_eur", "user_limit", "message_pool", "is_beta", "is_active"):
+    for field in (
+        "name",
+        "billing_cycle",
+        "price_eur",
+        "annual_total_eur",
+        "user_limit",
+        "message_pool",
+        "storage_limit_bytes",
+        "project_limit",
+        "client_limit",
+        "max_file_size_bytes",
+        "promo_price_eur",
+        "promo_starts_at",
+        "promo_ends_at",
+        "is_beta",
+        "is_active",
+    ):
         value = getattr(payload, field)
         if value is not None:
             setattr(plan, field, value)

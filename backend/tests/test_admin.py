@@ -30,6 +30,19 @@ def test_admin_stats_returns_per_vertical(client, superadmin_headers):
     assert {"construction", "tax_accounting"} <= slugs
 
 
+def test_infra_health_returns_latest_reading(client, superadmin_headers):
+    """Read-only endpoint - crawler/crawler/infra_health_check.py is what
+    actually writes rows, so this just checks the shape super_admin sees
+    back, not the write path itself."""
+    resp = client.get("/admin/infra-health", headers=superadmin_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "latest" in body and "history" in body and "trend" in body
+    if body["latest"] is not None:
+        assert body["latest"]["threshold_level"] in ("watch", "warning", "critical")
+        assert body["latest"]["total_chunks"] >= 0
+
+
 def test_data_sources_list(client, superadmin_headers):
     resp = client.get("/admin/data-sources", headers=superadmin_headers)
     assert resp.status_code == 200

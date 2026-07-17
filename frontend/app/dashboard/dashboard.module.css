@@ -503,3 +503,9 @@
     grid-template-columns: 1fr;
   }
 }
+
+.trendLabel {
+  font-size: 0.8rem;
+  font-weight: 400;
+  color: var(--color-text-muted);
+}

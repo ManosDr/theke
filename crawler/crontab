@@ -15,3 +15,11 @@
 # after the staleness sweep. Alerts (failures only) go to benchmark_alerts
 # and a super admin notification - see crawler/crawler/canary_benchmark.py.
 0 5 * * 1 python -m crawler.canary_benchmark
+
+# Weekly infra-health snapshot - system-wide pgvector index size (public KB
+# + every company's uploads combined), classified against fixed thresholds
+# and logged to infra_health_checks every run regardless of level. Monday
+# 06:00 UTC, after the canary benchmark. Notifies every super admin at
+# warning/critical only - infra monitoring, not billing enforcement. See
+# crawler/crawler/infra_health_check.py.
+0 6 * * 1 python -m crawler.infra_health_check

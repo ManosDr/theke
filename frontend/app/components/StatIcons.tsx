@@ -163,6 +163,16 @@ export function ThumbDownIcon({ size = 18 }: IconProps) {
   );
 }
 
+export function DatabaseIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...commonProps} aria-hidden="true">
+      <ellipse cx="12" cy="5" rx="8" ry="3" />
+      <path d="M4 5v6c0 1.7 3.6 3 8 3s8-1.3 8-3V5" />
+      <path d="M4 11v6c0 1.7 3.6 3 8 3s8-1.3 8-3v-6" />
+    </svg>
+  );
+}
+
 export function InfoIcon({ size = 14 }: IconProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" {...commonProps} aria-hidden="true">

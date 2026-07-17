@@ -7,13 +7,14 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, ClockIcon, CoinIcon, FlagIcon } from "../components/StatIcons";
+import { AlertIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon } from "../components/StatIcons";
 import FieldError from "../components/FieldError";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type {
   AdminStatsByVertical,
   AuditLogEntry,
   CompanySummary,
+  InfraHealthResponse,
   StaleDocumentSummary,
   VerticalSummary,
 } from "../lib/types";
@@ -229,23 +230,26 @@ export function SuperAdminDashboard() {
 
   const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
+  const [infraHealth, setInfraHealth] = useState<InfraHealthResponse | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
 
   async function refresh() {
     try {
-      const [companiesData, auditData, staleData, statsData, verticalsData] = await Promise.all([
+      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData] = await Promise.all([
         api.get<CompanySummary[]>("/admin/companies", token),
         api.get<AuditLogEntry[]>("/admin/audit-log", token),
         api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
         api.get<AdminStatsByVertical>("/admin/stats", token),
         api.get<VerticalSummary[]>("/admin/verticals", token),
+        api.get<InfraHealthResponse>("/admin/infra-health", token),
       ]);
       setCompanies(companiesData);
       setAuditLog(auditData);
       setStaleDocs(staleData);
       setStats(statsData);
       setVerticals(verticalsData);
+      setInfraHealth(infraHealthData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -271,6 +275,17 @@ export function SuperAdminDashboard() {
   const gapTone = gapRate >= 50 ? "danger" : gapRate >= 20 ? "warning" : "success";
   const staleTone = staleDocs.length > 0 ? "warning" : "success";
   const suspendedTone = suspendedCount > 0 ? "danger" : "success";
+
+  const infraLevel = infraHealth?.latest?.threshold_level ?? null;
+  const infraTone = infraLevel === "critical" ? "danger" : infraLevel === "warning" ? "warning" : "success";
+  const infraTrendLabel =
+    infraHealth?.trend === "up"
+      ? t("dash.super.infraHealthTrendUp")
+      : infraHealth?.trend === "down"
+        ? t("dash.super.infraHealthTrendDown")
+        : infraHealth?.trend === "flat"
+          ? t("dash.super.infraHealthTrendFlat")
+          : "";
 
   const totalFeedback = (stats?.total.positive_feedback ?? 0) + (stats?.total.negative_feedback ?? 0);
 
@@ -333,6 +348,21 @@ export function SuperAdminDashboard() {
           cta={t("dash.super.reviewCosts")}
           onCtaClick={() => router.push("/admin/companies")}
         />
+        {infraHealth?.latest && (
+          <AttentionCard
+            tone={infraTone}
+            icon={<DatabaseIcon size={14} />}
+            value={
+              <>
+                {t("dash.super.infraHealthChunks", { count: infraHealth.latest.total_chunks.toLocaleString() })}
+                {infraTrendLabel && <span className={styles.trendLabel}> {infraTrendLabel}</span>}
+              </>
+            }
+            label={tUpper("dash.super.infraHealth")}
+            cta={t("dash.super.viewTrend")}
+            onCtaClick={() => router.push("/admin/infra-health")}
+          />
+        )}
       </div>
 
       <div className={styles.analyticsRow}>

@@ -834,6 +834,22 @@ class AdminStatsByVerticalResponse(BaseModel):
     by_vertical: list[VerticalStatsEntry]
 
 
+class InfraHealthCheckEntry(BaseModel):
+    total_chunks: int
+    index_size_mb: float
+    threshold_level: Literal["watch", "warning", "critical"]
+    created_at: datetime
+
+
+class InfraHealthResponse(BaseModel):
+    latest: InfraHealthCheckEntry | None
+    # Most recent readings, oldest first - enough for a simple sparkline.
+    history: list[InfraHealthCheckEntry]
+    # "up"/"down"/"flat" vs. the reading closest to 7 days before latest, or
+    # None if there isn't at least one reading old enough to compare against.
+    trend: Literal["up", "down", "flat"] | None
+
+
 class DataSourceSummary(BaseModel):
     id: int
     name: str

@@ -20,6 +20,7 @@ from app.models import (
     Document,
     DocumentValidation,
     Embedding,
+    InfraHealthCheck,
     Invite,
     MessageFeedback,
     PasswordResetToken,
@@ -64,6 +65,8 @@ from app.schemas import (
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
     ImpersonateResponse,
+    InfraHealthCheckEntry,
+    InfraHealthResponse,
     MarkReviewedRequest,
     MarkSupersededRequest,
     PlanCreateRequest,
@@ -1358,6 +1361,49 @@ async def platform_stats(
         )
 
     return AdminStatsByVerticalResponse(total=total, by_vertical=by_vertical)
+
+
+@router.get("/infra-health", response_model=InfraHealthResponse)
+async def infra_health(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> InfraHealthResponse:
+    """Read-only view of the weekly pgvector index-size snapshots written by
+    crawler/crawler/infra_health_check.py (cron, Monday mornings) - this
+    endpoint never writes a row itself, it only surfaces what the scheduled
+    job already recorded. history is oldest-first (chart-ready); trend
+    compares latest against the reading closest to 7 days before it, so a
+    single week's noise doesn't flip the arrow - None until there are at
+    least two readings roughly a week apart."""
+    require_super_admin(user)
+    rows = list(db.scalars(select(InfraHealthCheck).order_by(InfraHealthCheck.created_at.desc()).limit(12)))
+    if not rows:
+        return InfraHealthResponse(latest=None, history=[], trend=None)
+
+    history = [
+        InfraHealthCheckEntry(
+            total_chunks=r.total_chunks,
+            index_size_mb=float(r.index_size_mb),
+            threshold_level=r.threshold_level,
+            created_at=r.created_at,
+        )
+        for r in reversed(rows)
+    ]
+    latest = history[-1]
+
+    trend: str | None = None
+    if len(history) >= 2:
+        target = latest.created_at - timedelta(days=7)
+        # Closest reading to 7 days ago, excluding latest itself.
+        comparison = min(history[:-1], key=lambda h: abs((h.created_at - target).total_seconds()))
+        if latest.total_chunks > comparison.total_chunks:
+            trend = "up"
+        elif latest.total_chunks < comparison.total_chunks:
+            trend = "down"
+        else:
+            trend = "flat"
+
+    return InfraHealthResponse(latest=latest, history=history, trend=trend)
 
 
 def _to_data_source_summary(ds: DataSource) -> DataSourceSummary:

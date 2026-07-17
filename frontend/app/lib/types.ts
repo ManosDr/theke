@@ -547,6 +547,21 @@ export interface GapQueryEntry {
   created_at: string;
 }
 
+export type InfraHealthLevel = "watch" | "warning" | "critical";
+
+export interface InfraHealthCheckEntry {
+  total_chunks: number;
+  index_size_mb: number;
+  threshold_level: InfraHealthLevel;
+  created_at: string;
+}
+
+export interface InfraHealthResponse {
+  latest: InfraHealthCheckEntry | null;
+  history: InfraHealthCheckEntry[];
+  trend: "up" | "down" | "flat" | null;
+}
+
 export interface VerticalSummary {
   id: number;
   slug: string;

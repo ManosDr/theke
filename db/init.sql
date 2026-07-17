@@ -843,3 +843,25 @@ CREATE TABLE IF NOT EXISTS document_validations (
 
 CREATE INDEX IF NOT EXISTS idx_document_validations_document ON document_validations(document_id);
 CREATE INDEX IF NOT EXISTS idx_document_validations_created ON document_validations(created_at DESC);
+
+-- Weekly infra-health snapshot (crawler/crawler/infra_health_check.py, cron
+-- Monday mornings). Tracks the size of the shared embeddings/pgvector index
+-- across the entire platform (public KB + every company's uploaded docs
+-- combined) so growth toward a real Hetzner capacity limit shows up as a
+-- trend line, not a surprise. threshold_level is 'watch' (log only, no
+-- alert), 'warning' (notify super_admin - time to plan an upgrade), or
+-- 'critical' (notify super_admin with urgency - act this week). Thresholds
+-- themselves are a placeholder baseline set from the actual chunk count/
+-- index size on 2026-07-17 (19,124 chunks / 162MB) at roughly 5x/10x/20x -
+-- see KNOWN_DECISIONS.md for the reasoning and revisit trigger. This is
+-- explicitly infra monitoring, not a billing/upload enforcement mechanism -
+-- nothing reads this table to block anything.
+CREATE TABLE IF NOT EXISTS infra_health_checks (
+  id                serial PRIMARY KEY,
+  total_chunks      integer NOT NULL,
+  index_size_mb     numeric NOT NULL,
+  threshold_level   varchar NOT NULL,
+  created_at        timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_infra_health_checks_created ON infra_health_checks(created_at DESC);

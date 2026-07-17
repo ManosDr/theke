@@ -468,6 +468,23 @@ class BenchmarkAlert(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class InfraHealthCheck(Base):
+    """One row per weekly pgvector index size snapshot
+    (crawler/crawler/infra_health_check.py) - total chunk count and on-disk
+    index size across the whole platform (public KB + every company's
+    uploads combined), classified against fixed baseline thresholds. Infra
+    monitoring only - nothing reads threshold_level to block uploads or
+    enforce billing, see KNOWN_DECISIONS.md."""
+
+    __tablename__ = "infra_health_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    total_chunks: Mapped[int] = mapped_column(Integer)
+    index_size_mb: Mapped[float] = mapped_column(Numeric)
+    threshold_level: Mapped[str] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Plan(Base):
     __tablename__ = "plans"
 

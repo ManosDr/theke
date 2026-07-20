@@ -3,6 +3,7 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import MessagePackUpsell from "../components/MessagePackUpsell";
 import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
@@ -404,6 +405,15 @@ function ChatContent() {
               )}
             </div>
           </div>
+        )}
+
+        {poolStatus && !poolStatus.is_beta && (
+          <MessagePackUpsell
+            messagesUsed={poolStatus.messages_used}
+            messagesLimit={poolStatus.messages_limit}
+            isBeta={poolStatus.is_beta}
+            token={token}
+          />
         )}
 
         <div className={styles.messages}>

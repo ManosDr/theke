@@ -15,6 +15,7 @@ import {
   ShieldCheckIcon,
   UsersIcon,
 } from "../components/StatIcons";
+import MessagePackUpsell from "../components/MessagePackUpsell";
 import { DocumentsIcon } from "../components/NavIcons";
 import { DocTypeBadge } from "../components/TypeBadge";
 import FieldError from "../components/FieldError";
@@ -789,6 +790,13 @@ function SubscriptionTab({ token }: { token: string | null }) {
         <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-1)" }}>
           {t("dash.company.sub.messagesThisMonth")}
         </p>
+
+        <MessagePackUpsell
+          messagesUsed={status.messages_used}
+          messagesLimit={status.messages_limit}
+          isBeta={status.is_beta}
+          token={token}
+        />
 
         <p style={{ marginTop: "var(--space-3)" }}>
           {t("dash.company.sub.usersLabel")}: <strong>{status.users_count}/{status.user_limit}</strong>

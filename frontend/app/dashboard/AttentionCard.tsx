@@ -12,7 +12,7 @@ export function AttentionCard({
   cta,
   onCtaClick,
 }: {
-  label: string;
+  label: ReactNode;
   value: ReactNode;
   icon: ReactNode;
   tone: AttentionTone;

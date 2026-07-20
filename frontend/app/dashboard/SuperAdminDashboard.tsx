@@ -7,8 +7,9 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon } from "../components/StatIcons";
+import { AlertIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon } from "../components/StatIcons";
 import FieldError from "../components/FieldError";
+import Tooltip from "../components/Tooltip";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
 import type {
   AdminStatsByVertical,
@@ -328,7 +329,14 @@ export function SuperAdminDashboard() {
           tone={gapTone}
           icon={<AlertIcon size={14} />}
           value={`${gapRate}%`}
-          label={tUpper("dash.super.gapRate")}
+          label={
+            <>
+              {tUpper("dash.super.gapRate")}
+              <Tooltip text={t("dash.super.gapRateTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
           cta={t("dash.super.reviewGaps")}
           onCtaClick={() => router.push("/admin/chat-gap-rate")}
         />
@@ -344,7 +352,14 @@ export function SuperAdminDashboard() {
           tone="warning"
           icon={<CoinIcon size={14} />}
           value={`€${platformCost30d.toFixed(2)}`}
-          label={tUpper("dash.super.platformCost", { tokens: platformTokensLabel })}
+          label={
+            <>
+              {tUpper("dash.super.platformCost", { tokens: platformTokensLabel })}
+              <Tooltip text={t("dash.super.platformCostTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
           cta={t("dash.super.reviewCosts")}
           onCtaClick={() => router.push("/admin/companies")}
         />
@@ -358,7 +373,14 @@ export function SuperAdminDashboard() {
                 {infraTrendLabel && <span className={styles.trendLabel}> {infraTrendLabel}</span>}
               </>
             }
-            label={tUpper("dash.super.infraHealth")}
+            label={
+              <>
+                {tUpper("dash.super.infraHealth")}
+                <Tooltip text={t("dash.super.infraHealthTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
             cta={t("dash.super.viewTrend")}
             onCtaClick={() => router.push("/admin/infra-health")}
           />
@@ -390,7 +412,12 @@ export function SuperAdminDashboard() {
                 </div>
                 <div>
                   <span className={styles.value}>{stats.total.active_documents}</span>
-                  <span className={styles.label}>{t("dash.super.activeDocuments")}</span>
+                  <span className={styles.label}>
+                    {t("dash.super.activeDocuments")}
+                    <Tooltip text={t("dash.super.activeDocumentsTooltip")}>
+                      <InfoIcon size={12} />
+                    </Tooltip>
+                  </span>
                 </div>
               </div>
               <div className={styles.sentimentRow}>

@@ -8,6 +8,8 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
 import type { DataSourceSummary, DataSourcesByVertical } from "../lib/types";
+import { InfoIcon } from "./StatIcons";
+import Tooltip from "./Tooltip";
 import styles from "./DataSourcesPanel.module.css";
 import dashStyles from "../dashboard/dashboard.module.css";
 
@@ -90,7 +92,12 @@ export function DataSourcesPanel() {
 
   return (
     <div>
-      <h1>{t("adminSources.title")}</h1>
+      <h1>
+        {t("adminSources.title")}
+        <Tooltip text={t("adminSources.healthLegendTooltip")}>
+          <InfoIcon size={13} />
+        </Tooltip>
+      </h1>
 
       {visibleGroups.map((group) => (
         <div key={group.vertical_slug} className={styles.categoryGroup}>
@@ -221,9 +228,14 @@ function SourceCard({
       </div>
 
       <div className={styles.actionsCol}>
-        <button type="button" className="btn btn-primary" disabled={syncing} onClick={onSync}>
-          {syncing ? `↻ ${t("adminSources.syncing")}` : t("adminSources.syncNow")}
-        </button>
+        <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
+          <button type="button" className="btn btn-primary" disabled={syncing} onClick={onSync}>
+            {syncing ? `↻ ${t("adminSources.syncing")}` : t("adminSources.syncNow")}
+          </button>
+          <Tooltip text={t("adminSources.syncNowTooltip")}>
+            <InfoIcon size={13} />
+          </Tooltip>
+        </span>
         <button type="button" className={styles.settingsLink} onClick={onToggleEdit}>
           {t("adminSources.settings")}
         </button>

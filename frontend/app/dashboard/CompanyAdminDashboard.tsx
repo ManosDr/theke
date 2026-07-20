@@ -11,12 +11,14 @@ import type { TranslationKey } from "../lib/translations";
 import {
   ClockIcon,
   CoinIcon,
+  InfoIcon,
   ShieldCheckIcon,
   UsersIcon,
 } from "../components/StatIcons";
 import { DocumentsIcon } from "../components/NavIcons";
 import { DocTypeBadge } from "../components/TypeBadge";
 import FieldError from "../components/FieldError";
+import Tooltip from "../components/Tooltip";
 import type {
   ActivityEventEntry,
   CompanyDocumentSummary,
@@ -173,7 +175,14 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
           tone="info"
           icon={<ShieldCheckIcon />}
           value={`${data.messages_30d}`}
-          label={t("dash.company.statChatSub", { count: data.messages_30d, rate: data.gap_rate })}
+          label={
+            <>
+              {t("dash.company.statChatSub", { count: data.messages_30d, rate: data.gap_rate })}
+              <Tooltip text={t("dash.company.gapRateTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
         />
         <StatCard
           tone="accent"
@@ -191,7 +200,14 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
           tone="danger"
           icon={<CoinIcon />}
           value={data.total_tokens_30d.toLocaleString()}
-          label={`${t("dash.company.statTokens")} · €${data.estimated_cost_eur_30d.toFixed(2)}`}
+          label={
+            <>
+              {`${t("dash.company.statTokens")} · €${data.estimated_cost_eur_30d.toFixed(2)}`}
+              <Tooltip text={t("dash.company.tokensTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
         />
       </div>
 
@@ -621,7 +637,12 @@ function DocumentsTab({ token }: { token: string | null }) {
                 <th>{tUpper("dash.company.colDocCount")}</th>
                 <th>{tUpper("dash.company.colLastSync")}</th>
                 <th>{tUpper("dash.company.colNextSync")}</th>
-                <th>{tUpper("dash.company.colHealth")}</th>
+                <th>
+                  {tUpper("dash.company.colHealth")}
+                  <Tooltip text={t("adminSources.healthLegendTooltip")}>
+                    <InfoIcon size={12} />
+                  </Tooltip>
+                </th>
               </tr>
             </thead>
             <tbody>

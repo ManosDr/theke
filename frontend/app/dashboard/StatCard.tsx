@@ -11,7 +11,7 @@ export function StatCard({
   tone = "primary",
 }: {
   value: ReactNode;
-  label: string;
+  label: ReactNode;
   icon: ReactNode;
   tone?: StatTone;
 }) {

@@ -270,7 +270,8 @@ async def list_company_users(
         UserSummary(
             id=u.id,
             email=u.email,
-            name=u.name,
+            first_name=u.first_name,
+            last_name=u.last_name,
             phone=u.phone,
             role=u.role,
             is_active=u.is_active,
@@ -469,7 +470,7 @@ async def company_overview(
     recent_messages = db.scalars(
         select(ChatSession).where(ChatSession.company_id == company_id).order_by(ChatSession.created_at.desc()).limit(10)
     ).all()
-    user_names = {u.id: (u.name or u.email) for u in users}
+    user_names = {u.id: u.display_name for u in users}
     for m in recent_messages:
         events.append(
             ActivityEventEntry(

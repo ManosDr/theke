@@ -15,7 +15,8 @@ import type {
   SubscriptionListResponse,
   VerticalSummary,
 } from "../lib/types";
-import { AlertIcon, ClockIcon, ShieldCheckIcon, UsersIcon } from "./StatIcons";
+import { AlertIcon, ClockIcon, InfoIcon, ShieldCheckIcon, UsersIcon } from "./StatIcons";
+import Tooltip from "./Tooltip";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./SubscriptionsPanel.module.css";
 
@@ -134,10 +135,58 @@ function CompaniesTab() {
   return (
     <div>
       <div className={dashStyles.grid} style={{ marginBottom: "var(--space-4)" }}>
-        <StatCard tone="primary" icon={<ClockIcon />} value={`${counts.trial}`} label={t("adminSubs.statTrial")} />
-        <StatCard tone="info" icon={<ShieldCheckIcon />} value={`${counts.active}`} label={t("adminSubs.statActive")} />
-        <StatCard tone="danger" icon={<AlertIcon />} value={`${counts.expired}`} label={t("adminSubs.statExpired")} />
-        <StatCard tone="purple" icon={<UsersIcon />} value={`${counts.cancelled}`} label={t("adminSubs.statCancelled")} />
+        <StatCard
+          tone="primary"
+          icon={<ClockIcon />}
+          value={`${counts.trial}`}
+          label={
+            <>
+              {t("adminSubs.statTrial")}
+              <Tooltip text={t("adminSubs.statTrialTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="info"
+          icon={<ShieldCheckIcon />}
+          value={`${counts.active}`}
+          label={
+            <>
+              {t("adminSubs.statActive")}
+              <Tooltip text={t("adminSubs.statActiveTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="danger"
+          icon={<AlertIcon />}
+          value={`${counts.expired}`}
+          label={
+            <>
+              {t("adminSubs.statExpired")}
+              <Tooltip text={t("adminSubs.statExpiredTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="purple"
+          icon={<UsersIcon />}
+          value={`${counts.cancelled}`}
+          label={
+            <>
+              {t("adminSubs.statCancelled")}
+              <Tooltip text={t("adminSubs.statCancelledTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
       </div>
 
       <div className={styles.headerRow}>
@@ -1009,11 +1058,21 @@ function EditPlanModal({
           <input className="input" type="number" min="1" value={userLimit} onChange={(e) => setUserLimit(e.target.value)} />
         </label>
         <label className={styles.modalField}>
-          {t("adminSubs.planColMessages")}
+          <span>
+            {t("adminSubs.planColMessages")}
+            <Tooltip text={t("adminSubs.planMessagesTooltip")}>
+              <InfoIcon size={12} />
+            </Tooltip>
+          </span>
           <input className="input" type="number" min="0" value={messagePool} onChange={(e) => setMessagePool(e.target.value)} />
         </label>
         <label className={styles.modalField}>
-          {t("adminSubs.planStorageLabel")}
+          <span>
+            {t("adminSubs.planStorageLabel")}
+            <Tooltip text={t("adminSubs.planStorageTooltip")}>
+              <InfoIcon size={12} />
+            </Tooltip>
+          </span>
           <input
             className="input"
             type="number"
@@ -1057,7 +1116,12 @@ function EditPlanModal({
           />
         </label>
         <label className={styles.modalField}>
-          {t("adminSubs.planPromoPriceLabel")}
+          <span>
+            {t("adminSubs.planPromoPriceLabel")}
+            <Tooltip text={t("adminSubs.planPromoTooltip")}>
+              <InfoIcon size={12} />
+            </Tooltip>
+          </span>
           <input
             className="input"
             type="number"

@@ -15,6 +15,8 @@ import type {
   RevalidationStatusResponse,
   VerticalSummary,
 } from "../lib/types";
+import { InfoIcon } from "./StatIcons";
+import Tooltip from "./Tooltip";
 import styles from "./DocumentsPanel.module.css";
 import dashStyles from "../dashboard/dashboard.module.css";
 
@@ -440,7 +442,12 @@ export function DocumentsPanel() {
                   <th>{tUpper("docs.colVertical")}</th>
                   <th>{tUpper("docs.colAuthority")}</th>
                   <th>{tUpper("docs.colContentType")}</th>
-                  <th>{tUpper("docs.colStatus")}</th>
+                  <th>
+                    {tUpper("docs.colStatus")}
+                    <Tooltip text={t("docs.colStatusTooltip")}>
+                      <InfoIcon size={12} />
+                    </Tooltip>
+                  </th>
                   <th>{tUpper("docs.colLastVerified")}</th>
                   <th>{tUpper("docs.colScope")}</th>
                   <th></th>

@@ -2,12 +2,13 @@ import os
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, Form, HTTPException, UploadFile, status
+from fastapi.responses import JSONResponse
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_company_vertical, get_current_user
-from app.models import Customer, Document, Embedding, Project, Region, UserDefaultProject, Vertical
+from app.models import Company, Customer, Document, Embedding, Plan, Project, Region, UserDefaultProject, Vertical
 from app.schemas import (
     ProjectCreateRequest,
     ProjectDocumentSummary,
@@ -25,6 +26,7 @@ from app.services.documents import (
     extract_text,
 )
 from app.services.embeddings import embed_document
+from app.services.subscription import check_project_client_limit, get_or_create_subscription
 
 router = APIRouter(prefix="/projects", tags=["projects"])
 
@@ -70,6 +72,13 @@ async def create_project(
 ) -> ProjectSummary:
     if not user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has no company")
+
+    company = db.get(Company, user.company_id)
+    sub = get_or_create_subscription(db, company)
+    plan = db.get(Plan, sub.plan_id)
+    limit_block = check_project_client_limit(db, company, plan)
+    if limit_block:
+        return JSONResponse(status_code=status.HTTP_402_PAYMENT_REQUIRED, content=limit_block)
 
     if vertical.uses_regional_scoping and not payload.region_id:
         raise HTTPException(
@@ -228,7 +237,8 @@ def _require_customer_membership(db: Session, user: CurrentUser, customer_id: in
 async def upload_project_documents(
     project_id: int,
     files: list[UploadFile],
-    scope: str = Form(default="project"),
+    upload_scope: str = Form(default="project"),
+    source_url: str | None = Form(default=None),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
     vertical: Vertical = Depends(get_company_vertical),
@@ -241,17 +251,29 @@ async def upload_project_documents(
     here rather than left for the backfill sweep, since a client expects to
     ask about a document right after uploading it, not on the next sweep.
 
-    `scope` picks where in the document.project_id/customer_id hierarchy the
-    upload lands - 'project' (default, this project only), 'customer' (every
-    project belonging to the same customer - only valid when this project
-    actually has one), or 'company' (the whole company's general KB,
-    equivalent to POST /documents/upload). See visible_documents_filter()
-    for how each tier is surfaced back at chat/search time.
+    `upload_scope` picks where in the document.project_id/customer_id
+    hierarchy the upload lands - 'project' (default, this project only),
+    'customer' (every project belonging to the same customer - only valid
+    when this project actually has one), or 'company' (the whole company's
+    general KB, equivalent to POST /documents/upload). See
+    visible_documents_filter() for how each tier is surfaced back at
+    chat/search time. Named distinctly from Document.scope (the unrelated
+    'national'/'regional'/'project' KB-tier column set below) - the two used
+    to share the name "scope", which was confusing enough in practice to be
+    worth the rename.
+
+    `source_url` is optional and only meaningful when upload_scope='company'
+    - the external page (law, ΦΕΚ, guidance) this note interprets, if the
+    uploader identifies one. Silently ignored for 'project'/'customer'
+    scope, which stay out of the staleness-check feature this field enables
+    (see Document.reference_url and crawler/crawler/company_doc_staleness.py).
     """
     project = _require_project_membership(db, user, project_id)
-    if scope not in ("project", "customer", "company"):
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="scope must be 'project', 'customer', or 'company'")
-    if scope == "customer" and project.customer_id is None:
+    if upload_scope not in ("project", "customer", "company"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST, detail="upload_scope must be 'project', 'customer', or 'company'"
+        )
+    if upload_scope == "customer" and project.customer_id is None:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="This project has no linked customer to scope the document to",
@@ -314,10 +336,11 @@ async def upload_project_documents(
             company_id=user.company_id,
             uploaded_by=user.user_id,
             vertical_id=vertical.id,
-            project_id=project.id if scope == "project" else None,
-            customer_id=project.customer_id if scope == "customer" else None,
-            scope="project",  # third valid scope value alongside 'national'/'regional' - see db/init.sql
+            project_id=project.id if upload_scope == "project" else None,
+            customer_id=project.customer_id if upload_scope == "customer" else None,
+            scope="project",  # Document.scope: third valid value alongside 'national'/'regional' - see db/init.sql
             extraction_status=extraction_status,
+            reference_url=source_url.strip() if upload_scope == "company" and source_url and source_url.strip() else None,
         )
         db.add(doc)
         db.flush()

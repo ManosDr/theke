@@ -21,6 +21,7 @@ import FieldError from "../components/FieldError";
 import Tooltip from "../components/Tooltip";
 import type {
   ActivityEventEntry,
+  CompanyDocumentReviewEntry,
   CompanyDocumentSummary,
   CompanyOverviewResponse,
   CustomerDetailResponse,
@@ -496,22 +497,30 @@ function DocumentsTab({ token }: { token: string | null }) {
   const [docs, setDocs] = useState<CompanyDocumentSummary[]>([]);
   const [sources, setSources] = useState<KbSourceStatusEntry[]>([]);
   const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
+  const [needsReview, setNeedsReview] = useState<CompanyDocumentReviewEntry[]>([]);
   const [firstProjectId, setFirstProjectId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
     if (!token) return;
-    const [docsData, sourcesData, removalData, projectsData] = await Promise.all([
+    const [docsData, sourcesData, removalData, projectsData, needsReviewData] = await Promise.all([
       api.get<CompanyDocumentSummary[]>("/companies/me/documents", token),
       api.get<KbSourceStatusEntry[]>("/companies/me/kb-status", token),
       api.get<RemovalRequestSummary[]>("/documents/removal-requests", token),
       api.get<ProjectSummary[]>("/projects", token),
+      api.get<CompanyDocumentReviewEntry[]>("/companies/me/documents/needs-review", token),
     ]);
     setDocs(docsData);
     setSources(sourcesData);
     setRemovalRequests(removalData);
     setFirstProjectId(projectsData[0]?.id ?? null);
+    setNeedsReview(needsReviewData);
     setLoading(false);
+  }
+
+  async function markReviewed(id: number) {
+    await api.post(`/companies/me/documents/${id}/mark-reviewed`, undefined, token);
+    refresh();
   }
 
   useEffect(() => {
@@ -535,6 +544,44 @@ function DocumentsTab({ token }: { token: string | null }) {
 
   return (
     <div className={tabStyles.scrollPane}>
+      {needsReview.length > 0 && (
+        <section className={`card ${styles.section}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.company.needsReview")}</h2>
+          </div>
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{tUpper("dash.company.colDocument")}</th>
+                <th>{tUpper("dash.company.colReason")}</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {needsReview.map((r) => (
+                <tr key={r.id}>
+                  <td>{r.title ?? "—"}</td>
+                  <td>
+                    {r.auto_reason ? (
+                      <span title={r.reference_url ?? undefined}>{r.auto_reason}</span>
+                    ) : r.manual_note ? (
+                      <span>{r.manual_note}</span>
+                    ) : (
+                      <span className="text-muted">{t("dash.company.needsReviewManualNoNote")}</span>
+                    )}
+                  </td>
+                  <td className={styles.rowActions}>
+                    <button className="btn btn-secondary" onClick={() => markReviewed(r.id)}>
+                      {t("dash.company.markReviewed")}
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </section>
+      )}
+
       {pendingRemovals.length > 0 && (
         <section className={`card ${styles.section}`}>
           <div className={styles.sectionHeader}>

@@ -9,6 +9,15 @@
 # would have run against whatever the monthly crawl last touched.
 0 4 * * 1 python -m crawler.staleness
 
+# Weekly company-wide-document staleness check - the narrow exception to the
+# sweep above: company-wide uploads (project_id/customer_id both NULL) that
+# identify an external source via reference_url get content-hash-compared,
+# flagging into the uploading company's OWN review queue (GET
+# /companies/me/documents/needs-review), never the super admin's. Monday
+# 04:30 UTC, right after the public-KB sweep. See
+# crawler/crawler/company_doc_staleness.py.
+30 4 * * 1 python -m crawler.company_doc_staleness
+
 # Weekly canary benchmark - 10 fixed chat questions through the real
 # pipeline (5 construction, 5 tax/accounting), checking gap=false and
 # citations present on the persisted chat_sessions row. Monday 05:00 UTC,

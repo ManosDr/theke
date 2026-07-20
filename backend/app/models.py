@@ -210,6 +210,27 @@ class Document(Base):
     # on the flag (mark-reviewed, or the revalidation panel's outcomes).
     auto_needs_review_reason: Mapped[str | None] = mapped_column(Text)
 
+    # Optional, uploader-supplied at upload time - only ever set on a
+    # company-wide upload (project_id and customer_id both NULL): the
+    # external page (a law, ΦΕΚ, or guidance page) this note interprets or
+    # summarizes. Lets the periodic company-doc staleness check (see
+    # crawler/crawler/company_doc_staleness.py) treat it like a mini data
+    # source. NULL for project/customer-scoped uploads and for company-wide
+    # uploads with no identified external basis (most internal notes) -
+    # those can only be flagged via manual_review_note below.
+    reference_url: Mapped[str | None] = mapped_column(Text)
+    # Content hash of reference_url the last time it was successfully
+    # fetched - compared on the next check to detect a real change, same
+    # pattern as DataSource.last_content_hash but per-document since there's
+    # no DataSource row for an individual company upload.
+    reference_content_hash: Mapped[str | None] = mapped_column(Text)
+    reference_checked_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Free-text note a company member adds when self-flagging a company-wide
+    # document with no reference_url ("this feels outdated, someone should
+    # check it") - the manual counterpart to auto_needs_review_reason above.
+    # Cleared alongside needs_review when a company admin marks it reviewed.
+    manual_review_note: Mapped[str | None] = mapped_column(Text)
+
     # passive_deletes=True: trust the DB's ON DELETE CASCADE on
     # embeddings.document_id (see Embedding below) instead of SQLAlchemy's
     # default behavior of UPDATE-ing each embedding's document_id to NULL

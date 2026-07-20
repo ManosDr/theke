@@ -10,13 +10,15 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Company, CompanySubscription, Document, Plan, SubscriptionUsage
+from app.models import Company, CompanySubscription, Document, Plan, Project, SubscriptionUsage
 
 POOL_EXHAUSTED_MESSAGE = "Εξαντλήσατε τα μηνύματά σας για αυτόν τον μήνα. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 SUBSCRIPTION_EXPIRED_MESSAGE = "Η συνδρομή σας έχει λήξει. Ανανεώστε για να συνεχίσετε."
 STORAGE_EXHAUSTED_MESSAGE = (
     "Έχετε φτάσει το όριο αποθηκευτικού χώρου του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 )
+PROJECT_LIMIT_MESSAGE = "Έχετε φτάσει το όριο έργων του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
+CLIENT_LIMIT_MESSAGE = "Έχετε φτάσει το όριο πελατών του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 
 TRIAL_DAYS_DEFAULT = 60
 
@@ -138,4 +140,32 @@ def check_storage_limit(db: Session, company: Company, plan: Plan, additional_by
     current = get_company_storage_bytes(db, company.id)
     if current + additional_bytes > plan.storage_limit_bytes:
         return {"detail": STORAGE_EXHAUSTED_MESSAGE, "upgrade_required": True}
+    return None
+
+
+def check_project_client_limit(db: Session, company: Company, plan: Plan) -> dict | None:
+    """Returns the flat 402 body if creating another project would push the
+    company to or past plan.project_limit / plan.client_limit, else None.
+    Both are NULL on Professional/Business (and beta) - unlimited there.
+    Only one is ever set per plan in the current seed data (project_limit on
+    construction-starter, client_limit on tax-starter, matching each
+    vertical's primary unit of work), but both are checked independently.
+    client_limit counts projects with is_client=True - a tax-vertical
+    project is always a client engagement (see projects.py's create_project),
+    so this is effectively a total-project count there too."""
+    if plan.project_limit is not None:
+        count = db.scalar(select(func.count()).select_from(Project).where(Project.company_id == company.id)) or 0
+        if count >= plan.project_limit:
+            return {"detail": PROJECT_LIMIT_MESSAGE, "upgrade_required": True}
+    if plan.client_limit is not None:
+        count = (
+            db.scalar(
+                select(func.count())
+                .select_from(Project)
+                .where(Project.company_id == company.id, Project.is_client.is_(True))
+            )
+            or 0
+        )
+        if count >= plan.client_limit:
+            return {"detail": CLIENT_LIMIT_MESSAGE, "upgrade_required": True}
     return None

@@ -1,6 +1,6 @@
 import os
 import secrets
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
@@ -14,8 +14,10 @@ from app.schemas import (
     ActivityEventEntry,
     AuditLogEntry,
     CompanyBillingDetails,
+    CompanyDocumentReviewEntry,
     CompanyDocumentSummary,
     CompanyOverviewResponse,
+    FlagForReviewRequest,
     InviteCreateRequest,
     InviteSummary,
     KbSourceStatusEntry,
@@ -599,6 +601,114 @@ async def company_documents(
         )
         for d, project_name in rows
     ]
+
+
+def _require_company_wide_document(db: Session, user: CurrentUser, document_id: int) -> Document:
+    doc = db.get(Document, document_id)
+    if (
+        not doc
+        or doc.company_id != user.company_id
+        or doc.project_id is not None
+        or doc.customer_id is not None
+        or doc.status != "active"
+    ):
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company-wide document not found")
+    return doc
+
+
+@router.get("/documents/needs-review", response_model=list[CompanyDocumentReviewEntry])
+async def company_documents_needs_review(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[CompanyDocumentReviewEntry]:
+    """Company-wide documents (project_id and customer_id both NULL) this
+    company has flagged for review - either automatically, by the
+    reference_url hash-check (crawler/crawler/company_doc_staleness.py), or
+    manually, by a member's self-flag (POST .../flag-for-review). A
+    deliberately separate, company-scoped queue from the super admin's
+    public-KB one (GET /admin/stale-documents) - see companies.py's
+    _require_company_wide_document, which the super admin's mark-reviewed
+    explicitly refuses to touch (doc.company_id is not None -> 404 there)."""
+    require_company_admin(user)
+    docs = db.scalars(
+        select(Document)
+        .where(
+            Document.company_id == user.company_id,
+            Document.project_id.is_(None),
+            Document.customer_id.is_(None),
+            Document.status == "active",
+            Document.needs_review.is_(True),
+        )
+        .order_by(Document.created_at.desc())
+    ).all()
+    return [
+        CompanyDocumentReviewEntry(
+            id=d.id,
+            title=d.title,
+            created_at=d.created_at,
+            reference_url=d.reference_url,
+            auto_reason=d.auto_needs_review_reason,
+            manual_note=d.manual_review_note,
+        )
+        for d in docs
+    ]
+
+
+@router.post("/documents/{document_id}/flag-for-review", status_code=status.HTTP_204_NO_CONTENT)
+async def flag_company_document_for_review(
+    document_id: int,
+    payload: FlagForReviewRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Any company member (not just an admin) can self-flag a company-wide
+    document - the manual counterpart to the automatic reference_url
+    hash-check, for the common case of an internal note with no external
+    source to re-check. Idempotent: re-flagging an already-flagged document
+    just replaces the note rather than erroring."""
+    doc = _require_company_wide_document(db, user, document_id)
+    doc.needs_review = True
+    doc.manual_review_note = payload.note.strip() if payload.note and payload.note.strip() else None
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=user.company_id,
+        action="company_document_flagged",
+        resource_type="document",
+        resource_id=doc.id,
+    )
+    db.commit()
+
+
+@router.post("/documents/{document_id}/mark-reviewed", status_code=status.HTTP_204_NO_CONTENT)
+async def mark_company_document_reviewed(
+    document_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Clears the flag (auto or manual) on a company-wide document, company
+    admin only - the "Επανεξετάστηκε" button. No AI-assisted revalidation
+    here (that's the super admin's copilot feature, out of scope for a
+    private company document) and no confirmation gate (lower stakes than
+    the shared public KB, one company's own document)."""
+    require_company_admin(user)
+    doc = _require_company_wide_document(db, user, document_id)
+    if not doc.needs_review:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document is not flagged for review")
+
+    doc.needs_review = False
+    doc.auto_needs_review_reason = None
+    doc.manual_review_note = None
+    doc.last_verified_at = date.today()
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=user.company_id,
+        action="company_document_marked_reviewed",
+        resource_type="document",
+        resource_id=doc.id,
+    )
+    db.commit()
 
 
 @router.get("/kb-status", response_model=list[KbSourceStatusEntry])

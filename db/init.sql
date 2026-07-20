@@ -997,3 +997,14 @@ CREATE TABLE IF NOT EXISTS plan_requests (
 );
 
 CREATE INDEX IF NOT EXISTS idx_plan_requests_company ON plan_requests(company_id);
+
+-- Company-wide-document staleness/self-flag queue (company admin's own
+-- review queue, distinct from the super admin's public-KB one). Uploader-
+-- supplied reference_url lets a company-wide upload (project_id and
+-- customer_id both NULL) participate in a periodic content-hash check the
+-- same way a public data source does; a company-wide upload with no
+-- reference_url can only be self-flagged via manual_review_note.
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_url text;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_content_hash text;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_checked_at timestamp;
+ALTER TABLE documents ADD COLUMN IF NOT EXISTS manual_review_note text;

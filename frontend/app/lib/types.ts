@@ -52,6 +52,15 @@ export interface CompanyDocumentSummary {
   created_at: string;
 }
 
+export interface CompanyDocumentReviewEntry {
+  id: number;
+  title: string | null;
+  created_at: string;
+  reference_url: string | null;
+  auto_reason: string | null;
+  manual_note: string | null;
+}
+
 export interface ProjectDocumentSummary {
   id: number;
   title: string;

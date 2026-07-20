@@ -28,7 +28,8 @@ export default function ProjectDocumentsPanel({
   const [docs, setDocs] = useState<ProjectDocumentSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [file, setFile] = useState<File | null>(null);
-  const [scope, setScope] = useState<"project" | "customer" | "company">("project");
+  const [uploadScope, setUploadScope] = useState<"project" | "customer" | "company">("project");
+  const [sourceUrl, setSourceUrl] = useState("");
   const [uploading, setUploading] = useState(false);
   const [uploadError, setUploadError] = useState<string | null>(null);
   // Row id currently showing its inline delete-confirm checkbox (same
@@ -62,7 +63,8 @@ export default function ProjectDocumentsPanel({
     try {
       const formData = new FormData();
       formData.append("files", file);
-      formData.append("scope", scope);
+      formData.append("upload_scope", uploadScope);
+      if (uploadScope === "company" && sourceUrl.trim()) formData.append("source_url", sourceUrl.trim());
       const results = await api.upload<ProjectDocumentUploadResult[]>(
         `/projects/${projectId}/documents/upload`,
         formData,
@@ -76,7 +78,7 @@ export default function ProjectDocumentsPanel({
       // Company-wide uploads don't show up in this project's own list (see
       // GET /projects/{id}/documents's docstring) - they land in the
       // general KB document list instead, so skip prepending those here.
-      if (scope !== "company") {
+      if (uploadScope !== "company") {
         setDocs((prev) => [
           {
             id: result.document_id!,
@@ -84,13 +86,14 @@ export default function ProjectDocumentsPanel({
             extraction_status: result.extraction_status,
             created_at: new Date().toISOString(),
             chunk_count: result.chunk_count,
-            doc_scope: scope,
+            doc_scope: uploadScope,
           },
           ...prev,
         ]);
       }
       setFile(null);
-      setScope("project");
+      setUploadScope("project");
+      setSourceUrl("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
       setUploadError(err instanceof ApiError ? err.message : t("project.documents.uploadFailed"));
@@ -140,7 +143,12 @@ export default function ProjectDocumentsPanel({
 
         <div className={styles.scopeGroup} role="radiogroup" aria-label={t("project.documents.scopeLabel")}>
           <label className={styles.scopeOption}>
-            <input type="radio" name="doc-scope" checked={scope === "project"} onChange={() => setScope("project")} />
+            <input
+              type="radio"
+              name="doc-scope"
+              checked={uploadScope === "project"}
+              onChange={() => setUploadScope("project")}
+            />
             <span>
               <strong>{t("project.documents.scopeProject")}</strong>
               <span className={styles.scopeHint}>{t("project.documents.scopeProjectHint")}</span>
@@ -148,7 +156,12 @@ export default function ProjectDocumentsPanel({
           </label>
           {hasCustomer && (
             <label className={styles.scopeOption}>
-              <input type="radio" name="doc-scope" checked={scope === "customer"} onChange={() => setScope("customer")} />
+              <input
+                type="radio"
+                name="doc-scope"
+                checked={uploadScope === "customer"}
+                onChange={() => setUploadScope("customer")}
+              />
               <span>
                 <strong>{t("project.documents.scopeCustomer")}</strong>
                 <span className={styles.scopeHint}>{t("project.documents.scopeCustomerHint")}</span>
@@ -156,13 +169,30 @@ export default function ProjectDocumentsPanel({
             </label>
           )}
           <label className={styles.scopeOption}>
-            <input type="radio" name="doc-scope" checked={scope === "company"} onChange={() => setScope("company")} />
+            <input
+              type="radio"
+              name="doc-scope"
+              checked={uploadScope === "company"}
+              onChange={() => setUploadScope("company")}
+            />
             <span>
               <strong>{t("project.documents.scopeCompany")}</strong>
               <span className={styles.scopeHint}>{t("project.documents.scopeCompanyHint")}</span>
             </span>
           </label>
         </div>
+
+        {uploadScope === "company" && (
+          <div className={styles.uploadRow} style={{ marginTop: "var(--space-2)" }}>
+            <input
+              type="url"
+              className="input"
+              placeholder={t("project.documents.sourceUrlPlaceholder")}
+              value={sourceUrl}
+              onChange={(e) => setSourceUrl(e.target.value)}
+            />
+          </div>
+        )}
 
         {uploadError && <p className={styles.uploadError}>⚠ {uploadError}</p>}
       </div>

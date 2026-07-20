@@ -354,6 +354,24 @@ class CompanyDocumentSummary(BaseModel):
     created_at: datetime
 
 
+class CompanyDocumentReviewEntry(BaseModel):
+    """One row in the company admin's needs-review queue - company-wide
+    documents only (see companies.py's GET .../documents/needs-review).
+    Exactly one of auto_reason/manual_note is set, telling the UI whether
+    this was flagged by the reference_url hash-check or by a company member."""
+
+    id: int
+    title: str | None
+    created_at: datetime
+    reference_url: str | None
+    auto_reason: str | None
+    manual_note: str | None
+
+
+class FlagForReviewRequest(BaseModel):
+    note: str | None = None
+
+
 class KbSourceStatusEntry(BaseModel):
     source_name: str
     document_count: int

@@ -7,7 +7,7 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon } from "../components/StatIcons";
+import { AlertIcon, BuildingIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon } from "../components/StatIcons";
 import FieldError from "../components/FieldError";
 import Tooltip from "../components/Tooltip";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
@@ -385,6 +385,21 @@ export function SuperAdminDashboard() {
             onCtaClick={() => router.push("/admin/infra-health")}
           />
         )}
+        <AttentionCard
+          tone="success"
+          icon={<BuildingIcon size={14} />}
+          value={stats?.total.real_active_companies ?? 0}
+          label={
+            <>
+              {tUpper("dash.super.realActiveCompanies")}
+              <Tooltip text={t("dash.super.realActiveCompaniesTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+          cta={t("dash.super.viewCompanies")}
+          onCtaClick={() => router.push("/admin/companies")}
+        />
       </div>
 
       <div className={styles.analyticsRow}>

@@ -619,6 +619,7 @@ export interface AdminStats {
   negative_feedback: number;
   platform_tokens_30d: number;
   platform_cost_eur_30d: number;
+  real_active_companies: number;
 }
 
 export interface VerticalStatsEntry {

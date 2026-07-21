@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import type { SubscriptionStatusResponse } from "../lib/types";
 import { ChatIcon } from "./NavIcons";
 import { BookIcon, BugIcon, LightbulbIcon } from "./UiIcons";
 import styles from "./FeedbackWidget.module.css";
@@ -22,6 +23,9 @@ const CATEGORIES: { value: Category; Icon: typeof BugIcon; labelKey: "feedbackWi
 
 // Floating, not nav-embedded, so it never shifts page layout - present on
 // every authenticated page via AppShell, per the beta soft-launch spec.
+// Beta-only: paying customers get support channels instead of a feedback
+// widget. Gated on the same /subscription/status.is_beta field TrialBanner
+// and the chat page's message-pool logic already use - see KNOWN_DECISIONS.md.
 export function FeedbackWidget() {
   const { user } = useAuth();
   const { t } = useLocale();
@@ -33,7 +37,19 @@ export function FeedbackWidget() {
   const [message, setMessage] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
+  const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusResponse | null>(null);
   const wrapperRef = useRef<HTMLDivElement>(null);
+
+  const subscriptionEligible = !!user && user.role !== "super_admin" && user.companyId != null;
+
+  useEffect(() => {
+    if (!subscriptionEligible || !token) return;
+    api
+      .get<SubscriptionStatusResponse>("/subscription/status", token)
+      .then(setSubscriptionStatus)
+      .catch(() => setSubscriptionStatus(null));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [subscriptionEligible, token]);
 
   useEffect(() => {
     if (!open) return;
@@ -78,7 +94,7 @@ export function FeedbackWidget() {
     }
   }
 
-  if (!user) return null;
+  if (!user || !subscriptionStatus?.is_beta) return null;
 
   return (
     <div className={styles.wrapper} ref={wrapperRef}>

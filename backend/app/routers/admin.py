@@ -94,6 +94,7 @@ from app.security import create_access_token, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.embeddings import embed_document
+from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.source_fetch import content_hash, fetch_url_content
 from app.services.sources import group_label
 from app.services.subscription import get_or_create_subscription, get_or_create_usage
@@ -1366,6 +1367,11 @@ async def platform_stats(
         )
         or 0
     )
+    # Fires a one-time notification the first time this crosses a threshold a
+    # KNOWN_DECISIONS.md entry is keyed on (see growth_alerts.py) - cheap and
+    # idempotent, safe to check on every stats load.
+    check_company_count_thresholds(db)
+
     total = AdminStatsResponse(
         total_messages=total_messages,
         gap_rate=gap_rate,
@@ -1374,6 +1380,7 @@ async def platform_stats(
         negative_feedback=negative_feedback,
         platform_tokens_30d=int(platform_tokens_30d),
         platform_cost_eur_30d=round(float(platform_cost_eur_30d), 2),
+        real_active_companies=real_active_company_count(db),
     )
 
     by_vertical = []

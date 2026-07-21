@@ -407,6 +407,14 @@ CREATE TABLE IF NOT EXISTS notifications (
 
 CREATE INDEX IF NOT EXISTS idx_notifications_user_read ON notifications(user_id, is_read);
 
+-- One row per "revisit when N companies" KNOWN_DECISIONS.md trigger that has
+-- already fired a super-admin notification (see app/services/growth_alerts.py) -
+-- a one-time "you crossed the line, go look" signal, not a recurring nag.
+CREATE TABLE IF NOT EXISTS company_count_threshold_alerts (
+    threshold INT PRIMARY KEY,
+    notified_at TIMESTAMP NOT NULL DEFAULT now()
+);
+
 -- ============================================================
 -- Multi-vertical architecture: theke serves more than one professional
 -- domain (construction permits today, tax/accounting next) from the same

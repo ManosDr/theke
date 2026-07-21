@@ -731,6 +731,20 @@ class Notification(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class CompanyCountThresholdAlert(Base):
+    """One row per "revisit when N companies" trigger from KNOWN_DECISIONS.md
+    that has already fired a super-admin notification - the presence of a
+    row for a given threshold is the "already notified, don't repeat" flag
+    (see app/services/growth_alerts.py). Not tied to any one decision entry;
+    a single count crossing (e.g. >3 real active companies) can be the
+    trigger for multiple KNOWN_DECISIONS.md entries at once."""
+
+    __tablename__ = "company_count_threshold_alerts"
+
+    threshold: Mapped[int] = mapped_column(Integer, primary_key=True)
+    notified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

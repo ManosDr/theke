@@ -878,6 +878,10 @@ class AdminStatsResponse(BaseModel):
     # the platform-wide token/cost attention-row stat.
     platform_tokens_30d: int = 0
     platform_cost_eur_30d: float = 0.0
+    # Active companies excluding is_test_account - some KNOWN_DECISIONS.md
+    # entries have a "revisit when more than N active companies" trigger
+    # keyed off this exact number (see app/services/growth_alerts.py).
+    real_active_companies: int = 0
 
 
 class VerticalStatsEntry(BaseModel):

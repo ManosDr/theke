@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
+import { WarningIcon } from "./UiIcons";
 import type { ProjectDocumentSummary, ProjectDocumentUploadResult } from "../lib/types";
 import styles from "./ProjectDocumentsPanel.module.css";
 
@@ -194,7 +195,12 @@ export default function ProjectDocumentsPanel({
           </div>
         )}
 
-        {uploadError && <p className={styles.uploadError}>⚠ {uploadError}</p>}
+        {uploadError && (
+          <p className={styles.uploadError}>
+            <WarningIcon size={13} />
+            {uploadError}
+          </p>
+        )}
       </div>
 
       <div className={`card ${styles.listCard}`}>

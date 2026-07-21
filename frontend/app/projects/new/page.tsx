@@ -11,6 +11,7 @@ import FieldError from "../../components/FieldError";
 import type { PinState } from "../../components/MapPicker";
 import { InfoIcon } from "../../components/StatIcons";
 import Tooltip from "../../components/Tooltip";
+import { HashIcon, MapIcon, PinIcon, RulerIcon, WarningIcon } from "../../components/UiIcons";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
@@ -30,20 +31,20 @@ function LocationSummary({ resolving, resolved }: { resolving: boolean; resolved
   return (
     <div className={`card ${styles.locationPanel}`}>
       <div className={styles.locationRow}>
-        <span>📍 {t("map.address")}</span>
+        <span><PinIcon size={13} /> {t("map.address")}</span>
         <span>{resolved.address ?? "—"}</span>
       </div>
       <div className={styles.locationRow}>
-        <span>🔢 {t("map.kaek")}</span>
+        <span><HashIcon size={13} /> {t("map.kaek")}</span>
         <span>{resolved.kaek ?? t("map.notFound")}</span>
       </div>
       <div className={styles.locationRow}>
-        <span>📐 {t("map.area")}</span>
+        <span><RulerIcon size={13} /> {t("map.area")}</span>
         <span>{resolved.plot_area_sqm != null ? `${resolved.plot_area_sqm} ${t("map.areaUnit")}` : t("map.notAvailable")}</span>
       </div>
       <div className={styles.locationRow}>
         <span>
-          🗺 {t("map.zone")}
+          <MapIcon size={13} /> {t("map.zone")}
           <Tooltip text={t("map.zoneTooltip")}>
             <InfoIcon size={13} />
           </Tooltip>
@@ -52,7 +53,7 @@ function LocationSummary({ resolving, resolved }: { resolving: boolean; resolved
       </div>
       {resolved.archaeological_flag && (
         <div className={styles.archaeologicalCard}>
-          <strong>⚠ {t("map.archaeologicalWarning")}</strong>
+          <strong><WarningIcon size={14} /> {t("map.archaeologicalWarning")}</strong>
           {resolved.archaeological_notes && <p>{resolved.archaeological_notes}</p>}
           <p className="text-muted" style={{ fontSize: "0.8rem" }}>
             {t("map.archaeologicalDisclaimer")}
@@ -387,8 +388,17 @@ function NewProjectContent() {
                 <div>
                   {resolved.archaeological_flag && (
                     <>
-                      <p style={{ color: "var(--color-warning)", fontWeight: 700, marginBottom: 4 }}>
-                        ⚠ {t("map.archaeologicalWarning")}
+                      <p
+                        style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 4,
+                          color: "var(--color-warning)",
+                          fontWeight: 700,
+                          marginBottom: 4,
+                        }}
+                      >
+                        <WarningIcon size={14} /> {t("map.archaeologicalWarning")}
                       </p>
                       <p style={{ fontSize: 11, marginBottom: 4 }}>{t("map.archaeologicalDisclaimer")}</p>
                     </>

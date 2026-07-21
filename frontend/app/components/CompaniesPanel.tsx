@@ -8,6 +8,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
 import FieldError from "./FieldError";
+import { PlusIcon } from "./UiIcons";
 import type {
   AdminResetPasswordResponse,
   AdminStatsByVertical,
@@ -89,8 +90,14 @@ export function CompaniesPanel() {
     <div>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
         <h1>{t("companies.title")}</h1>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating(true)}>
-          + {t("companies.new")}
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}
+          onClick={() => setCreating(true)}
+        >
+          <PlusIcon size={16} />
+          {t("companies.new")}
         </button>
       </div>
 

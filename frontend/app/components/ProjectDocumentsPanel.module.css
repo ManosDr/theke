@@ -26,6 +26,9 @@
 }
 
 .uploadError {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   margin: var(--space-2) 0 0;
   font-size: 0.85rem;
   color: var(--error-red, #c62828);

@@ -1,0 +1,27 @@
+.wrap {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+.select {
+  background: var(--admin-chip-bg);
+  border: none;
+  border-radius: 20px;
+  padding: 7px 28px 7px 14px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  color: var(--admin-navy);
+  appearance: none;
+  -webkit-appearance: none;
+}
+
+.chevron {
+  position: absolute;
+  right: 10px;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--admin-stone);
+}

@@ -9,6 +9,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { FeedbackEntry, FeedbackListResponse, UserFeedbackEntry, UserFeedbackListResponse } from "../lib/types";
 import { ThumbDownIcon, ThumbUpIcon } from "./StatIcons";
+import { BookIcon } from "./UiIcons";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./FeedbackPanel.module.css";
 
@@ -77,7 +78,10 @@ function UserFeedbackSection({ token }: { token: string | null }) {
           get their own always-visible block instead of being just another
           row behind the category filter below. */}
       <section className={`card ${styles.contentGapCard}`}>
-        <h3>📚 {t("adminFeedback.userFeedbackContentGapTitle")}</h3>
+        <h3 style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+          <BookIcon size={18} />
+          {t("adminFeedback.userFeedbackContentGapTitle")}
+        </h3>
         <UserFeedbackTable items={contentGapItems} emptyKey="adminFeedback.contentGapEmpty" />
       </section>
 

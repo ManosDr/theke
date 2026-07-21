@@ -9,15 +9,18 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import {
+  BuildingIcon,
   ClockIcon,
   CoinIcon,
   InfoIcon,
+  MailIcon,
   ShieldCheckIcon,
   UsersIcon,
 } from "../components/StatIcons";
 import MessagePackUpsell from "../components/MessagePackUpsell";
-import { DocumentsIcon } from "../components/NavIcons";
+import { ChatIcon, DocumentsIcon } from "../components/NavIcons";
 import { DocTypeBadge } from "../components/TypeBadge";
+import { PersonIcon, PlusIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
 import Tooltip from "../components/Tooltip";
 import type {
@@ -55,12 +58,12 @@ function timeAgo(iso: string, locale: string): string {
   return `${diffDay}${isGreek ? "η" : "d"}`;
 }
 
-const EVENT_ICON: Record<ActivityEventEntry["type"], string> = {
-  chat_message: "💬",
-  document_uploaded: "📄",
-  project_created: "🏗",
-  customer_added: "👤",
-  user_joined: "✉",
+const EVENT_ICON: Record<ActivityEventEntry["type"], typeof BuildingIcon> = {
+  chat_message: ChatIcon,
+  document_uploaded: DocumentsIcon,
+  project_created: BuildingIcon,
+  customer_added: PersonIcon,
+  user_joined: MailIcon,
 };
 
 export function CompanyAdminDashboard() {
@@ -272,7 +275,12 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
           <ul className={tabStyles.activityList}>
             {data.activity.map((ev, i) => (
               <li key={i} className={tabStyles.activityItem}>
-                <span className={tabStyles.activityIcon}>{EVENT_ICON[ev.type]}</span>
+                <span className={tabStyles.activityIcon}>
+                  {(() => {
+                    const Icon = EVENT_ICON[ev.type];
+                    return <Icon size={16} />;
+                  })()}
+                </span>
                 <span className={tabStyles.activityDesc}>
                   {ev.actor_name ? (
                     <>
@@ -895,8 +903,14 @@ function CustomersTab({ token }: { token: string | null }) {
   return (
     <div className={tabStyles.scrollPane}>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
-        <button type="button" className="btn btn-primary" onClick={() => setCreating((c) => !c)}>
-          + {t("dash.company.newCustomer")}
+        <button
+          type="button"
+          className="btn btn-primary"
+          style={{ display: "inline-flex", alignItems: "center", gap: "var(--space-2)" }}
+          onClick={() => setCreating((c) => !c)}
+        >
+          <PlusIcon size={16} />
+          {t("dash.company.newCustomer")}
         </button>
       </div>
 

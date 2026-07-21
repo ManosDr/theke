@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 
 import { useLocale } from "../lib/i18n";
+import { CloseIcon } from "../components/UiIcons";
 import styles from "./dashboard.module.css";
 import welcomeStyles from "./WelcomeCard.module.css";
 
@@ -61,7 +62,7 @@ export function WelcomeCard({
         aria-label={t("common.dismiss")}
         onClick={dismiss}
       >
-        ×
+        <CloseIcon size={16} />
       </button>
       <h2>{title}</h2>
       <p className="text-muted">{body}</p>

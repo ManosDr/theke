@@ -9,6 +9,7 @@ import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
 import type { DataSourceSummary, DataSourcesByVertical } from "../lib/types";
 import { InfoIcon } from "./StatIcons";
+import { CheckIcon, CloseIcon, DotIcon, LinkIcon, RefreshIcon, WarningIcon } from "./UiIcons";
 import Tooltip from "./Tooltip";
 import styles from "./DataSourcesPanel.module.css";
 import dashStyles from "../dashboard/dashboard.module.css";
@@ -29,13 +30,13 @@ function healthOf(source: DataSourceSummary, syncing: boolean): Health {
   return "healthy";
 }
 
-const HEALTH_ICON: Record<Health, string> = {
-  healthy: "✓",
-  overdue: "⚠",
-  failed: "✗",
-  syncing: "↻",
-  inactive: "●",
-  never_synced: "●",
+const HEALTH_ICON: Record<Health, typeof CheckIcon> = {
+  healthy: CheckIcon,
+  overdue: WarningIcon,
+  failed: CloseIcon,
+  syncing: RefreshIcon,
+  inactive: DotIcon,
+  never_synced: DotIcon,
 };
 
 const FREQUENCIES: DataSourceSummary["crawl_frequency_type"][] = ["daily", "weekly", "monthly", "custom"];
@@ -195,7 +196,10 @@ function SourceCard({
     <div className={`card ${styles.sourceCard} ${styles[health]}`}>
       <div>
         <h3 className={styles.sourceName}>{source.name}</h3>
-        <span className={styles.sourceUrl}>🔗 {source.base_url}</span>
+        <span className={styles.sourceUrl}>
+          <LinkIcon size={13} />
+          {source.base_url}
+        </span>
         <div className={styles.pillRow}>
           <span className={`${styles.pill} ${accent}`}>{t(`vertical.${verticalSlug}` as TranslationKey)}</span>
         </div>
@@ -208,7 +212,10 @@ function SourceCard({
           </div>
         )}
         <div className={`${styles.statusLine} ${styles[health]}`}>
-          {HEALTH_ICON[health]}{" "}
+          {(() => {
+            const HealthIcon = HEALTH_ICON[health];
+            return <HealthIcon size={14} />;
+          })()}{" "}
           {health === "never_synced"
             ? t("adminSources.health.never_synced")
             : health === "failed" && source.last_crawl_error
@@ -229,8 +236,15 @@ function SourceCard({
 
       <div className={styles.actionsCol}>
         <span style={{ display: "flex", alignItems: "center", gap: "4px" }}>
-          <button type="button" className="btn btn-primary" disabled={syncing} onClick={onSync}>
-            {syncing ? `↻ ${t("adminSources.syncing")}` : t("adminSources.syncNow")}
+          <button
+            type="button"
+            className="btn btn-primary"
+            style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}
+            disabled={syncing}
+            onClick={onSync}
+          >
+            {syncing && <RefreshIcon size={14} />}
+            {syncing ? t("adminSources.syncing") : t("adminSources.syncNow")}
           </button>
           <Tooltip text={t("adminSources.syncNowTooltip")}>
             <InfoIcon size={13} />

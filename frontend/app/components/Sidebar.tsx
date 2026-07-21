@@ -232,6 +232,18 @@ export function Sidebar() {
           );
         })}
 
+        <Link
+          href="/help"
+          title={t("nav.help")}
+          aria-current={pathname === "/help" ? "page" : undefined}
+          className={`${styles.navItem} ${pathname === "/help" ? styles.navItemActive : ""}`}
+        >
+          <span className={styles.navIconBox}>
+            <HelpIcon />
+          </span>
+          {!collapsed && <span className={styles.navLabel}>{t("nav.help")}</span>}
+        </Link>
+
         {isSuperAdmin && (
           <>
             {ADMIN_SECTIONS.map((section) => {
@@ -282,17 +294,6 @@ export function Sidebar() {
       </nav>
 
       <div className={styles.footer}>
-        <Link
-          href="/help"
-          title={t("nav.help")}
-          aria-current={pathname === "/help" ? "page" : undefined}
-          className={`${styles.helpLink} ${pathname === "/help" ? styles.helpLinkActive : ""}`}
-        >
-          <span className={styles.navIconBox}>
-            <HelpIcon size={17} />
-          </span>
-          {!collapsed && <span>{t("nav.help")}</span>}
-        </Link>
         <div className={styles.footerRow}>
           <div className={styles.avatar} title={fullName || user?.email}>
             {initials}

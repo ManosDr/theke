@@ -50,6 +50,9 @@
 }
 
 .newOption {
+  flex-direction: row;
+  align-items: center;
+  gap: var(--space-2);
   color: var(--color-link);
   font-weight: 600;
 }
@@ -70,6 +73,9 @@
 }
 
 .changeLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   background: none;
   border: none;
   color: var(--color-text-muted);
@@ -88,6 +94,12 @@
   font-size: 0.85rem;
   color: var(--color-text-muted);
   flex-wrap: wrap;
+}
+
+.selectedMeta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .newField {

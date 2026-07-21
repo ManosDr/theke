@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
+import { CloseIcon } from "./UiIcons";
 import styles from "./MessagePackUpsell.module.css";
 
 const SHOWN_KEY = "theke-messagepack-upsell-shown";
@@ -74,7 +75,7 @@ export default function MessagePackUpsell({
         </>
       )}
       <button type="button" className={styles.dismiss} aria-label={t("common.dismiss")} onClick={() => setVisible(false)}>
-        ×
+        <CloseIcon size={14} />
       </button>
     </div>
   );

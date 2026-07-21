@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
+import { MailIcon } from "./StatIcons";
+import { CloseIcon, PhoneIcon, PlusIcon } from "./UiIcons";
 import type { CustomerSummary } from "../lib/types";
 import styles from "./CustomerCombobox.module.css";
 import FieldError from "./FieldError";
@@ -159,7 +161,8 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
               ))}
               {query.trim().length >= 1 && (
                 <button type="button" className={`${styles.option} ${styles.newOption}`} onClick={startNewCustomer}>
-                  ➕ {t("customer.newCustomer")}: {query.trim()}
+                  <PlusIcon size={14} />
+                  {t("customer.newCustomer")}: {query.trim()}
                 </button>
               )}
             </div>
@@ -172,12 +175,23 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
           <div className={styles.selectedHeader}>
             <strong>{selected.name}</strong>
             <button type="button" className={styles.changeLink} onClick={clearSelection}>
-              ✕ {t("customer.change")}
+              <CloseIcon size={12} />
+              {t("customer.change")}
             </button>
           </div>
           <div className={styles.selectedMeta}>
-            {selected.phone && <span>📞 {selected.phone}</span>}
-            {selected.email && <span>✉ {selected.email}</span>}
+            {selected.phone && (
+              <span>
+                <PhoneIcon size={13} />
+                {selected.phone}
+              </span>
+            )}
+            {selected.email && (
+              <span>
+                <MailIcon size={13} />
+                {selected.email}
+              </span>
+            )}
             {!selected.phone && !selected.email && <span className="text-muted">{t("customer.noContactInfo")}</span>}
           </div>
         </div>
@@ -188,7 +202,8 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
           <div className={styles.selectedHeader}>
             <strong>{t("customer.newCustomer")}</strong>
             <button type="button" className={styles.changeLink} onClick={clearSelection}>
-              ✕ {t("customer.change")}
+              <CloseIcon size={12} />
+              {t("customer.change")}
             </button>
           </div>
           <label className={styles.newField}>

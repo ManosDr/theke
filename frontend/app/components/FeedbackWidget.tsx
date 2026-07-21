@@ -6,16 +6,18 @@ import { useEffect, useRef, useState } from "react";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { ChatIcon } from "./NavIcons";
+import { BookIcon, BugIcon, LightbulbIcon } from "./UiIcons";
 import styles from "./FeedbackWidget.module.css";
 
 type Category = "bug" | "suggestion" | "content_gap";
 
 const MESSAGE_MAX_LENGTH = 500;
 
-const CATEGORIES: { value: Category; emoji: string; labelKey: "feedbackWidget.categoryBug" | "feedbackWidget.categorySuggestion" | "feedbackWidget.categoryContentGap" }[] = [
-  { value: "bug", emoji: "🐛", labelKey: "feedbackWidget.categoryBug" },
-  { value: "suggestion", emoji: "💡", labelKey: "feedbackWidget.categorySuggestion" },
-  { value: "content_gap", emoji: "📚", labelKey: "feedbackWidget.categoryContentGap" },
+const CATEGORIES: { value: Category; Icon: typeof BugIcon; labelKey: "feedbackWidget.categoryBug" | "feedbackWidget.categorySuggestion" | "feedbackWidget.categoryContentGap" }[] = [
+  { value: "bug", Icon: BugIcon, labelKey: "feedbackWidget.categoryBug" },
+  { value: "suggestion", Icon: LightbulbIcon, labelKey: "feedbackWidget.categorySuggestion" },
+  { value: "content_gap", Icon: BookIcon, labelKey: "feedbackWidget.categoryContentGap" },
 ];
 
 // Floating, not nav-embedded, so it never shifts page layout - present on
@@ -95,7 +97,7 @@ export function FeedbackWidget() {
                     className={category === c.value ? styles.categoryButtonActive : styles.categoryButton}
                     onClick={() => setCategory(c.value)}
                   >
-                    <span aria-hidden="true">{c.emoji}</span>
+                    <c.Icon size={16} />
                     {t(c.labelKey)}
                   </button>
                 ))}
@@ -130,7 +132,7 @@ export function FeedbackWidget() {
         aria-expanded={open}
         aria-label={t("feedbackWidget.title")}
       >
-        💬
+        <ChatIcon size={22} />
       </button>
     </div>
   );

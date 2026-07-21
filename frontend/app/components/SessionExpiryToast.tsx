@@ -2,6 +2,7 @@
 
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { CloseIcon } from "./UiIcons";
 import styles from "./SessionExpiryToast.module.css";
 
 // Rendered inside LocaleProvider (see providers.tsx) so it can call
@@ -33,7 +34,7 @@ export function SessionExpiryToast() {
           onClick={dismissSessionExpiryWarning}
           aria-label={t("common.dismiss")}
         >
-          ✕
+          <CloseIcon size={14} />
         </button>
       </div>
     </div>

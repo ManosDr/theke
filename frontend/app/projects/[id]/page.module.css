@@ -103,6 +103,9 @@
 }
 
 .locationRow > span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   color: var(--color-text-muted);
   font-weight: 600;
 }
@@ -116,6 +119,9 @@
 }
 
 .archaeologicalCard strong {
+  display: flex;
+  align-items: center;
+  gap: 4px;
   color: var(--color-warning);
 }
 

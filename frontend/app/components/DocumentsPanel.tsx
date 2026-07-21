@@ -15,7 +15,8 @@ import type {
   RevalidationStatusResponse,
   VerticalSummary,
 } from "../lib/types";
-import { InfoIcon } from "./StatIcons";
+import { ClockIcon, InfoIcon } from "./StatIcons";
+import { CheckIcon, CloseIcon, DotIcon, EyeIcon, LinkIcon, PencilIcon, WarningIcon } from "./UiIcons";
 import Tooltip from "./Tooltip";
 import styles from "./DocumentsPanel.module.css";
 import dashStyles from "../dashboard/dashboard.module.css";
@@ -50,14 +51,14 @@ const STATUS_COLOR: Record<string, string> = {
   removed: "var(--admin-danger)",
 };
 
-const STATUS_ICON: Record<string, string> = {
-  active: "●",
-  superseded: "🔗",
-  needs_review: "●",
-  manual_entry: "✎",
-  reference_only: "👁",
-  manual_entry_pending: "⏱",
-  removed: "✗",
+const STATUS_ICON: Record<string, typeof DotIcon> = {
+  active: DotIcon,
+  superseded: LinkIcon,
+  needs_review: DotIcon,
+  manual_entry: PencilIcon,
+  reference_only: EyeIcon,
+  manual_entry_pending: ClockIcon,
+  removed: CloseIcon,
 };
 
 const PAGE_SIZE = 25;
@@ -465,7 +466,8 @@ export function DocumentsPanel() {
                           {doc.title ?? "—"}
                         </button>
                         {doc.replaced_by && (
-                          <span className={styles.replacementCaption}>
+                          <span className={styles.replacementCaption} style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                            <LinkIcon size={11} />
                             {t("docs.replacedBy", { title: doc.replaced_by.title ?? `#${doc.replaced_by.id}` })}
                           </span>
                         )}
@@ -489,7 +491,11 @@ export function DocumentsPanel() {
                       <td className="text-muted">{doc.content_type ?? "—"}</td>
                       <td>
                         <span className={styles.statusBadge} style={{ color: STATUS_COLOR[eff] }}>
-                          {STATUS_ICON[eff]} {t(`docs.status.${eff}` as TranslationKey)}
+                          {(() => {
+                            const StatusIcon = STATUS_ICON[eff];
+                            return <StatusIcon size={13} />;
+                          })()}
+                          {t(`docs.status.${eff}` as TranslationKey)}
                         </span>
                       </td>
                       <td className="text-muted">
@@ -579,7 +585,8 @@ export function DocumentsPanel() {
                           ) : revalidationResult?.status === "source_unavailable" ? (
                             <div>
                               <p>
-                                <strong style={{ color: "var(--admin-danger)" }}>
+                                <strong style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--admin-danger)" }}>
+                                  <CloseIcon size={14} />
                                   {t("docs.revalidate.unavailableTitle")}
                                 </strong>
                               </p>
@@ -600,7 +607,8 @@ export function DocumentsPanel() {
                           ) : revalidationResult?.still_accurate === true ? (
                             <div>
                               <p>
-                                <strong style={{ color: "var(--admin-success)" }}>
+                                <strong style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--admin-success)" }}>
+                                  <CheckIcon size={14} />
                                   {t("docs.revalidate.accurateTitle")}
                                 </strong>{" "}
                                 <span className="badge">{revalidationResult.confidence}</span>
@@ -624,7 +632,8 @@ export function DocumentsPanel() {
                           ) : revalidationResult?.still_accurate === false ? (
                             <div>
                               <p>
-                                <strong style={{ color: "var(--admin-warning)" }}>
+                                <strong style={{ display: "inline-flex", alignItems: "center", gap: "4px", color: "var(--admin-warning)" }}>
+                                  <WarningIcon size={14} />
                                   {t("docs.revalidate.changesTitle")}
                                 </strong>{" "}
                                 <span className="badge">{revalidationResult.confidence}</span>
@@ -726,7 +735,11 @@ export function DocumentsPanel() {
                     {drawerDoc.vertical_slug ? t(`vertical.${drawerDoc.vertical_slug}` as TranslationKey) : "—"}
                   </span>
                   <span className={styles.statusBadge} style={{ color: STATUS_COLOR[effectiveStatus(drawerDoc)] }}>
-                    {STATUS_ICON[effectiveStatus(drawerDoc)]} {t(`docs.status.${effectiveStatus(drawerDoc)}` as TranslationKey)}
+                    {(() => {
+                      const StatusIcon = STATUS_ICON[effectiveStatus(drawerDoc)];
+                      return <StatusIcon size={13} />;
+                    })()}
+                    {t(`docs.status.${effectiveStatus(drawerDoc)}` as TranslationKey)}
                   </span>
                 </div>
               </div>

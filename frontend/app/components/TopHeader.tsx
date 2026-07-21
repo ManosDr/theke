@@ -11,6 +11,7 @@ import type { SubscriptionStatusResponse } from "../lib/types";
 import type { TranslationKey } from "../lib/translations";
 import { useTheme } from "../lib/theme";
 import { getInitials } from "../lib/userDisplay";
+import { LanguageToggle } from "./LanguageToggle";
 import { NotificationBell } from "./NotificationBell";
 import { MoonIcon, SunIcon } from "./StatIcons";
 import styles from "./TopHeader.module.css";
@@ -83,40 +84,6 @@ const BREADCRUMB_KEYS: Record<string, TranslationKey> = {
   "/admin/companies": "breadcrumb.companies",
   "/admin/verticals": "breadcrumb.verticals",
 };
-
-function LanguageSelect() {
-  const { locale, locales, setLocale, t } = useLocale();
-  return (
-    <div className={styles.selectWrap}>
-      <select
-        className={styles.languageSelect}
-        value={locale}
-        onChange={(e) => setLocale(e.target.value)}
-        aria-label={t("topbar.language")}
-      >
-        {locales.map((l) => (
-          <option key={l.code} value={l.code}>
-            {l.name}
-          </option>
-        ))}
-      </select>
-      <svg
-        className={styles.selectChevron}
-        width="11"
-        height="11"
-        viewBox="0 0 24 24"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth={2.5}
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        aria-hidden="true"
-      >
-        <polyline points="6 9 12 15 18 9" />
-      </svg>
-    </div>
-  );
-}
 
 function UserMenu() {
   const { user, logout } = useAuth();
@@ -221,7 +188,7 @@ export function TopHeader() {
           </button>
         </div>
 
-        <LanguageSelect />
+        <LanguageToggle />
 
         <button
           type="button"

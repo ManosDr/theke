@@ -7,6 +7,7 @@ import { API_URL, ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { BuildingIcon, FlagIcon } from "../components/StatIcons";
+import { PinIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
 import type { CustomerSummary, MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
@@ -203,8 +204,11 @@ export function MemberDashboard() {
                       <td>
                         <Link href={`/projects/${p.id}`}>{p.name}</Link>
                         {p.lat != null && p.lon != null && (
-                          <span title={p.plot_address ?? t("project.list.hasLocation")} style={{ marginLeft: 6 }}>
-                            📍
+                          <span
+                            title={p.plot_address ?? t("project.list.hasLocation")}
+                            style={{ marginLeft: 6, display: "inline-flex", verticalAlign: "middle", color: "var(--color-text-muted)" }}
+                          >
+                            <PinIcon size={14} />
                           </span>
                         )}
                       </td>

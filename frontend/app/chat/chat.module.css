@@ -119,6 +119,9 @@
 }
 
 .locationStripToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: none;
   background: none;
   cursor: pointer;
@@ -132,6 +135,9 @@
 }
 
 .archaeologicalBadge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   border: none;
   background: none;
   cursor: pointer;

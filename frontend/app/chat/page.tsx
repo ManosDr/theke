@@ -6,6 +6,7 @@ import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { AppShell } from "../components/AppShell";
 import MessagePackUpsell from "../components/MessagePackUpsell";
 import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
+import { PinIcon, WarningIcon } from "../components/UiIcons";
 import { ApiError, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
@@ -619,7 +620,8 @@ function ChatContent() {
           {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
             <div className={styles.locationStrip}>
               <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
-                📍{locationExpanded ? ` ${t("chat.locationStrip.collapse")}` : ` ${t("chat.locationStrip.expand")}`}
+                <PinIcon size={13} />
+                {locationExpanded ? t("chat.locationStrip.collapse") : t("chat.locationStrip.expand")}
               </button>
               {locationExpanded && (
                 <span className={styles.locationStripBody}>
@@ -635,7 +637,7 @@ function ChatContent() {
                         className={styles.archaeologicalBadge}
                         onClick={() => setArchaeologicalExpanded((v) => !v)}
                       >
-                        ⚠ {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
+                        <WarningIcon size={12} /> {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
                       </button>
                     </>
                   )}

@@ -12,6 +12,7 @@ import type { PinState } from "../../components/MapPicker";
 import ProjectDocumentsPanel from "../../components/ProjectDocumentsPanel";
 import { InfoIcon } from "../../components/StatIcons";
 import Tooltip from "../../components/Tooltip";
+import { HashIcon, MapIcon, PinIcon, RulerIcon, WarningIcon } from "../../components/UiIcons";
 import { ApiError, api } from "../../lib/api";
 import { RequireAuth, useAuth } from "../../lib/auth";
 import { useLocale } from "../../lib/i18n";
@@ -395,20 +396,20 @@ function ProjectDetailContent() {
                 <MapPicker lat={project.lat ?? null} lon={project.lon ?? null} pinState="resolved" onPick={() => {}} height={280} />
                 <div className={`card ${styles.locationPanel}`}>
                   <div className={styles.locationRow}>
-                    <span>📍 {t("map.address")}</span>
+                    <span><PinIcon size={13} /> {t("map.address")}</span>
                     <span>{project.plot_address ?? "—"}</span>
                   </div>
                   <div className={styles.locationRow}>
-                    <span>🔢 {t("map.kaek")}</span>
+                    <span><HashIcon size={13} /> {t("map.kaek")}</span>
                     <span>{project.kaek ?? t("map.notFound")}</span>
                   </div>
                   <div className={styles.locationRow}>
-                    <span>📐 {t("map.area")}</span>
+                    <span><RulerIcon size={13} /> {t("map.area")}</span>
                     <span>{project.plot_area_sqm != null ? `${project.plot_area_sqm} ${t("map.areaUnit")}` : t("map.notAvailable")}</span>
                   </div>
                   <div className={styles.locationRow}>
                     <span>
-                      🗺 {t("map.zone")}
+                      <MapIcon size={13} /> {t("map.zone")}
                       <Tooltip text={t("map.zoneTooltip")}>
                         <InfoIcon size={13} />
                       </Tooltip>
@@ -446,7 +447,7 @@ function ProjectDetailContent() {
                   </div>
                   {project.archaeological_flag && (
                     <div className={styles.archaeologicalCard}>
-                      <strong>⚠ {t("map.archaeologicalWarning")}</strong>
+                      <strong><WarningIcon size={14} /> {t("map.archaeologicalWarning")}</strong>
                       {project.archaeological_notes && <p>{project.archaeological_notes}</p>}
                       <p className="text-muted" style={{ fontSize: "0.8rem" }}>
                         {t("map.archaeologicalDisclaimer")}

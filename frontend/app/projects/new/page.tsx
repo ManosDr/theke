@@ -84,7 +84,7 @@ function NewProjectContent() {
   const [regionId, setRegionId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [fieldErrors, setFieldErrors] = useState<{ name?: string; region?: string; customer?: string }>({});
+  const [fieldErrors, setFieldErrors] = useState<{ name?: string; region?: string }>({});
   // Bumped on every failed submit attempt so child fields (e.g. the
   // customer sub-form's own name/AFM checks) know to display their
   // validation state, without us lifting that state up into this component.
@@ -144,7 +144,6 @@ function NewProjectContent() {
     const errors: typeof fieldErrors = {};
     if (!name.trim()) errors.name = t("project.new.errorTitle");
     if (usesRegionalScoping && !regionId) errors.region = t("project.new.errorRegion");
-    if (!customerState.customerId && !customerState.newCustomer) errors.customer = t("project.new.errorCustomer");
     setFieldErrors(errors);
     setValidateSignal((n) => n + 1);
     return Object.keys(errors).length === 0;
@@ -249,13 +248,9 @@ function NewProjectContent() {
               {t("project.new.clientName")}
               <CustomerCombobox
                 token={token}
-                onChange={(state) => {
-                  setCustomerState(state);
-                  if (state.customerId || state.newCustomer) setFieldErrors((prev) => ({ ...prev, customer: undefined }));
-                }}
+                onChange={setCustomerState}
                 validateSignal={validateSignal}
               />
-              {fieldErrors.customer && <FieldError message={fieldErrors.customer} />}
             </label>
             <label className={styles.field}>
               {t("project.new.projectName")}
@@ -312,13 +307,9 @@ function NewProjectContent() {
               {t("project.new.customerName")}
               <CustomerCombobox
                 token={token}
-                onChange={(state) => {
-                  setCustomerState(state);
-                  if (state.customerId || state.newCustomer) setFieldErrors((prev) => ({ ...prev, customer: undefined }));
-                }}
+                onChange={setCustomerState}
                 validateSignal={validateSignal}
               />
-              {fieldErrors.customer && <FieldError message={fieldErrors.customer} />}
             </label>
           </section>
 

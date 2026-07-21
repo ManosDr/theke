@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
@@ -422,6 +423,12 @@ function ChatContent() {
             <>
               <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
               <p className={styles.emptyStateHint}>{t("chat.emptyStateHint")}</p>
+              {company && !company.company_has_messages && (
+                <p className={styles.emptyStateHint}>
+                  {t("chat.firstSessionHintPrefix")}{" "}
+                  <Link href="/help">{t("chat.firstSessionHintLink")}</Link>.
+                </p>
+              )}
             </>
           )}
           {messages.map((m, i) => (

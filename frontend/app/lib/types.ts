@@ -175,6 +175,8 @@ export interface MyCompanySummary {
   billing_address: string | null;
   dpa_accepted_at: string | null;
   dpa_version: string | null;
+  current_user_has_messages: boolean;
+  company_has_messages: boolean;
 }
 
 export interface CompanyBillingDetails {

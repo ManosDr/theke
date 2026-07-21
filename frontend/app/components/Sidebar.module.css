@@ -303,6 +303,35 @@
   padding: 12px 8px;
 }
 
+/* Sits inside the dark-navy .footer, above .footerRow - reuses the
+   footer's own light-on-navy palette (#b7c2dc/#fff, matching
+   .footerRole/.signOutButton) rather than .navItem, whose
+   --admin-text-body color is tuned for the light sidebar body and would
+   be unreadable against this background. */
+.helpLink {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 4px;
+  margin-bottom: 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  color: #b7c2dc;
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.helpLink:hover,
+.helpLinkActive {
+  color: #ffffff;
+}
+
+.sidebarCollapsed .helpLink {
+  justify-content: center;
+  border-bottom: none;
+  padding: 4px;
+}
+
 .footerRow {
   display: flex;
   align-items: center;

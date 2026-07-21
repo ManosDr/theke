@@ -556,6 +556,15 @@ class MyCompanySummary(BaseModel):
     # "Αποδεχτήκατε την έκδοση X στις Y" display.
     dpa_accepted_at: datetime | None = None
     dpa_version: str | None = None
+    # Whether the requesting user has ever sent a chat message (lifetime, not
+    # scoped to 30 days) - drives the dashboard welcome card's dismiss-vs-show
+    # logic (see MemberDashboard/CompanyAdminDashboard's WelcomeCard usage).
+    current_user_has_messages: bool = False
+    # Whether ANYONE at the company has ever sent a chat message - distinct
+    # from current_user_has_messages (per-user), this gates the chat page's
+    # extra "how sourcing works" onboarding line shown only for a company's
+    # very first ever session (see chat/page.tsx).
+    company_has_messages: bool = False
 
 
 class RemovalRequestSummary(BaseModel):

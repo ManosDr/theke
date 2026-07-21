@@ -57,6 +57,12 @@ async def get_my_company(
 
     vertical = db.get(Vertical, company.vertical_id)
     has_logo = bool(company.logo_path and os.path.exists(company.logo_path))
+    has_messages = db.execute(
+        select(ChatSession.id).where(ChatSession.user_id == user.user_id).limit(1)
+    ).first() is not None
+    company_has_messages = db.execute(
+        select(ChatSession.id).where(ChatSession.company_id == company.id).limit(1)
+    ).first() is not None
     return MyCompanySummary(
         id=company.id,
         name=company.name,
@@ -74,6 +80,8 @@ async def get_my_company(
         billing_address=company.billing_address,
         dpa_accepted_at=company.dpa_accepted_at,
         dpa_version=company.dpa_version,
+        current_user_has_messages=has_messages,
+        company_has_messages=company_has_messages,
     )
 
 

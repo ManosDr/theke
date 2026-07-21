@@ -26,7 +26,7 @@ from a dedicated admin surface.
   Nginx + a Hetzner VPS for production (see `infra/nginx.conf`)
 - **External services**: ArcGIS FeatureServer (cadastral parcel lookup by
   KAEK or point-in-polygon), Nominatim (geocoding), the Ktimatologio viewer
-  (parcel detail links)
+  (parcel detail links), Resend (password-reset and invite emails)
 
 ## Setup (development)
 

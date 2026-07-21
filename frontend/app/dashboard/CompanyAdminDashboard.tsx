@@ -37,6 +37,7 @@ import type {
   UserSummary,
 } from "../lib/types";
 import { StatCard } from "./StatCard";
+import { WelcomeCard } from "./WelcomeCard";
 import styles from "./dashboard.module.css";
 import tabStyles from "./CompanyAdminDashboard.module.css";
 
@@ -69,6 +70,7 @@ export function CompanyAdminDashboard() {
 
   const [tab, setTab] = useState<Tab>("overview");
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
+  const [overview, setOverview] = useState<CompanyOverviewResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
@@ -89,10 +91,21 @@ export function CompanyAdminDashboard() {
       .then(setCompany)
       .catch((err) => setError(err instanceof ApiError ? err.message : "Failed to load company"))
       .finally(() => setLoading(false));
+    api
+      .get<CompanyOverviewResponse>("/companies/me/overview", token)
+      .then(setOverview)
+      .catch(() => setOverview(null));
   }, [token]);
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={styles.emptyState}>{error}</p>;
+
+  const isFirstRun =
+    company !== null &&
+    overview !== null &&
+    overview.projects_total === 0 &&
+    overview.customers_total === 0 &&
+    !company.current_user_has_messages;
 
   return (
     <div className={tabStyles.wrapper}>
@@ -103,6 +116,16 @@ export function CompanyAdminDashboard() {
             : t("dash.company.title")}
         </h1>
       </div>
+
+      {company && (
+        <WelcomeCard
+          companyId={company.id}
+          userEmail={user?.email ?? ""}
+          verticalSlug={company.vertical_slug}
+          verticalDisplayName={company.vertical_display_name}
+          show={isFirstRun}
+        />
+      )}
 
       <div className={tabStyles.tabBar} role="tablist">
         {TABS.map((tKey) => (
@@ -147,25 +170,8 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
 
   const topUsers = usage ? [...usage.by_user].sort((a, b) => b.total_tokens_30d - a.total_tokens_30d).slice(0, 10) : [];
 
-  const isFirstRun = data.projects_total === 0 && data.customers_total === 0 && data.messages_30d === 0;
-
   return (
     <div className={tabStyles.scrollPane}>
-      {isFirstRun && (
-        <section className={`card ${styles.section}`} style={{ textAlign: "center" }}>
-          <h2>{t("dash.company.firstRunTitle")}</h2>
-          <p className="text-muted">{t("dash.company.firstRunBody")}</p>
-          <div style={{ display: "flex", gap: "var(--space-3)", justifyContent: "center", marginTop: "var(--space-3)" }}>
-            <Link href="/projects/new" className="btn btn-primary">
-              {t("dash.company.firstRunCreateProject")}
-            </Link>
-            <Link href="/chat" className="btn btn-secondary">
-              {t("dash.company.firstRunStartChat")}
-            </Link>
-          </div>
-        </section>
-      )}
-
       <div className={styles.grid}>
         <StatCard
           tone="primary"

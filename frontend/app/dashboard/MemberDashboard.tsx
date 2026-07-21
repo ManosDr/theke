@@ -10,6 +10,7 @@ import { BuildingIcon, FlagIcon } from "../components/StatIcons";
 import FieldError from "../components/FieldError";
 import type { CustomerSummary, MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
+import { WelcomeCard } from "./WelcomeCard";
 import styles from "./dashboard.module.css";
 
 export function MemberDashboard() {
@@ -120,9 +121,24 @@ export function MemberDashboard() {
   }
 
   const defaultProjects = projects.filter((p) => p.is_default);
+  const isFirstRun =
+    !isMunicipality &&
+    company !== null &&
+    projects.length === 0 &&
+    customers.length === 0 &&
+    !company.current_user_has_messages;
 
   return (
     <div>
+      {company && user && (
+        <WelcomeCard
+          companyId={company.id}
+          userEmail={user.email}
+          verticalSlug={company.vertical_slug}
+          verticalDisplayName={company.vertical_display_name}
+          show={isFirstRun}
+        />
+      )}
       {company?.type === "municipality" && company.has_logo && (
         <img
           src={`${API_URL}/companies/${company.id}/logo`}

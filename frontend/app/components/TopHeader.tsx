@@ -85,7 +85,7 @@ const BREADCRUMB_KEYS: Record<string, TranslationKey> = {
   "/admin/verticals": "breadcrumb.verticals",
 };
 
-function UserMenu() {
+export function UserMenu() {
   const { user, logout } = useAuth();
   const { t } = useLocale();
   const router = useRouter();

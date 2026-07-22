@@ -10,12 +10,33 @@ import styles from "./AppShell.module.css";
 import { TopHeader } from "./TopHeader";
 import { TrialBanner } from "./TrialBanner";
 
-export function AppShell({ children, fullWidth = false }: { children: ReactNode; fullWidth?: boolean }) {
+export function AppShell({
+  children,
+  fullWidth = false,
+  mobileHeader,
+}: {
+  children: ReactNode;
+  fullWidth?: boolean;
+  // Swaps in a page-specific compact header below the mobile breakpoint,
+  // in place of the shared TopHeader row - the shared header keeps
+  // rendering normally (all widths) everywhere this isn't passed, so
+  // no other page is affected. See chat/page.tsx's mobile redesign.
+  mobileHeader?: ReactNode;
+}) {
   return (
     <div className={styles.shell}>
       <Sidebar />
       <div className={styles.content}>
-        <TopHeader />
+        {mobileHeader ? (
+          <>
+            <div className={styles.mobileHeaderSlot}>{mobileHeader}</div>
+            <div className={styles.desktopHeaderSlot}>
+              <TopHeader />
+            </div>
+          </>
+        ) : (
+          <TopHeader />
+        )}
         <ImpersonationBanner />
         <TrialBanner />
         <Day45Banner />

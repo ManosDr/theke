@@ -10,6 +10,7 @@ import { useCompany } from "../lib/company";
 import { useLocale } from "../lib/i18n";
 import { getInitials } from "../lib/userDisplay";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
+import { LanguageToggle } from "./LanguageToggle";
 import { LogoMark } from "./Logo";
 import {
   BillingIcon,
@@ -331,6 +332,18 @@ export function Sidebar() {
           </>
         )}
       </nav>
+
+      {/* Chat's mobile top bar drops the language selector to cut icon
+          count (see chat/page.tsx's ChatMobileTopBar) - it needs a home
+          somewhere still reachable, and the drawer it now opens from is
+          the natural place. CSS-scoped to the mobile drawer only (see
+          .mobileLanguageRow); on every other page/breakpoint this simply
+          doesn't render. */}
+      {pathname === "/chat" && (
+        <div className={styles.mobileLanguageRow}>
+          <LanguageToggle />
+        </div>
+      )}
 
       <div className={styles.footer}>
         <div className={styles.footerRow}>

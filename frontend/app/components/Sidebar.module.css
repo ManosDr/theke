@@ -368,6 +368,22 @@
   font-weight: 600;
 }
 
+/* Only ever rendered (see Sidebar.tsx) while on /chat, whose mobile top
+   bar drops the language selector to reduce icon count - hidden outside
+   the mobile drawer since desktop/tablet Chat still has TopHeader's own
+   LanguageToggle. */
+.mobileLanguageRow {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mobileLanguageRow {
+    display: block;
+    padding: 4px 18px 14px;
+    flex-shrink: 0;
+  }
+}
+
 /* Footer */
 .footer {
   padding: 16px 18px;

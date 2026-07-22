@@ -4,14 +4,19 @@ import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 
 import { AppShell } from "../components/AppShell";
+import { ChatIcon, ChevronIcon } from "../components/NavIcons";
+import { NotificationBell } from "../components/NotificationBell";
 import MessagePackUpsell from "../components/MessagePackUpsell";
-import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
-import { PinIcon, WarningIcon } from "../components/UiIcons";
+import { InfoIcon, MoonIcon, SunIcon, ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
+import { UserMenu } from "../components/TopHeader";
+import { CloseIcon, PinIcon, RefreshIcon, SendIcon, WarningIcon } from "../components/UiIcons";
 import { ApiError, NETWORK_ERROR_STATUS, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
+import { useTheme } from "../lib/theme";
 import type { TranslationKey } from "../lib/translations";
+import { getInitials } from "../lib/userDisplay";
 import type {
   ChatCitation,
   ChatHistoryResponse,
@@ -64,9 +69,25 @@ const CHAT_DRAFT_STORAGE_KEY = "theke-chat-draft";
 // client-side from timestamps already on every message; no schema change.
 const SESSION_GAP_MS = 3 * 60 * 60 * 1000;
 
+// Mobile disclaimer dismiss - same per-session idiom as the draft/
+// location-strip keys above, so it reappears on a genuinely new session
+// rather than being gone forever after the first tap.
+const DISCLAIMER_DISMISS_KEY = "theke-chat-disclaimer-dismissed";
+
 function isUnverified(status: string | null): boolean {
   return status === "reference_only" || status === "manual_entry_pending";
 }
+
+// Vertical-aware, static prompts - not AI-generated per-conversation
+// follow-ups (no backend field exists for that; fabricating unrelated
+// "follow-up" chips after a real answer in a compliance tool would read as
+// a claim the system doesn't back up). These only ever appear pre-
+// conversation, in the empty state, as generic starting points.
+const SUGGESTION_KEYS: Record<"construction" | "accounting" | "generic", TranslationKey[]> = {
+  construction: ["chat.suggestionConstruction1", "chat.suggestionConstruction2", "chat.suggestionConstruction3"],
+  accounting: ["chat.suggestionAccounting1", "chat.suggestionAccounting2", "chat.suggestionAccounting3"],
+  generic: ["chat.suggestionGeneric1", "chat.suggestionGeneric2", "chat.suggestionGeneric3"],
+};
 
 interface Divider {
   index: number; // renders immediately before messages[index]
@@ -118,7 +139,46 @@ function computeDividers(
   return Array.from(byIndex.values()).sort((a, b) => a.index - b.index);
 }
 
-function ChatContent() {
+// Mobile-only compact header for the Chat page specifically (swapped in via
+// AppShell's `mobileHeader` prop, below its 640px breakpoint) - hamburger
+// stays the existing fixed Sidebar trigger (this bar just leaves it room,
+// see .mobileTopBar's padding-left), title + context-sheet trigger + theme/
+// notifications/avatar replace TopHeader's row, which also drops the
+// breadcrumb/font-scale controls that don't fit a 56px bar anyway. Language
+// selector moves into the nav drawer (see Sidebar.tsx's mobileLanguageRow)
+// to keep this row to 4 icons per the design spec, not 6.
+function ChatMobileTopBar({ onOpenSheet }: { onOpenSheet: () => void }) {
+  const { t } = useLocale();
+  const { theme, setTheme } = useTheme();
+
+  return (
+    <div className={styles.mobileTopBar}>
+      <span className={styles.mobileTopBarTitle}>{t("nav.chat")}</span>
+      <div className={styles.mobileTopBarActions}>
+        <button
+          type="button"
+          className={styles.mobileIconButton}
+          onClick={onOpenSheet}
+          aria-label={t("chat.contextSearchTitle")}
+        >
+          <InfoIcon size={16} />
+        </button>
+        <button
+          type="button"
+          className={styles.mobileIconButton}
+          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          aria-label={t("topbar.toggleTheme")}
+        >
+          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+        </button>
+        <NotificationBell />
+        <UserMenu />
+      </div>
+    </div>
+  );
+}
+
+function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: boolean; onOpenSheet: () => void; onCloseSheet: () => void }) {
   const { user } = useAuth();
   const { t, tUpper, locale } = useLocale();
   const token = user?.token ?? null;
@@ -128,6 +188,21 @@ function ChatContent() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Swipe-down-to-close on the sheet's drag handle - a plain touch-delta
+  // threshold, not a full drag-follows-finger gesture library; closes once
+  // a downward swipe clears SWIPE_CLOSE_THRESHOLD_PX, same as tapping the
+  // handle/scrim/close button.
+  const sheetTouchStartY = useRef<number | null>(null);
+  function handleSheetTouchStart(e: React.TouchEvent) {
+    sheetTouchStartY.current = e.touches[0]?.clientY ?? null;
+  }
+  function handleSheetTouchEnd(e: React.TouchEvent) {
+    const startY = sheetTouchStartY.current;
+    sheetTouchStartY.current = null;
+    const endY = e.changedTouches[0]?.clientY;
+    if (startY != null && endY != null && endY - startY > 60) onCloseSheet();
+  }
 
   // Restore a draft left over from before an interruption (see
   // CHAT_DRAFT_STORAGE_KEY above) - runs once on mount, before the user
@@ -145,6 +220,18 @@ function ChatContent() {
     if (input) sessionStorage.setItem(CHAT_DRAFT_STORAGE_KEY, input);
     else sessionStorage.removeItem(CHAT_DRAFT_STORAGE_KEY);
   }, [input]);
+
+  // Mobile-only condensed disclaimer's dismiss state - desktop's own
+  // disclaimer has no dismiss control and always shows (see render below),
+  // this only governs the mobile row.
+  const [disclaimerDismissed, setDisclaimerDismissed] = useState(false);
+  useEffect(() => {
+    setDisclaimerDismissed(sessionStorage.getItem(DISCLAIMER_DISMISS_KEY) === "true");
+  }, []);
+  function dismissDisclaimer() {
+    sessionStorage.setItem(DISCLAIMER_DISMISS_KEY, "true");
+    setDisclaimerDismissed(true);
+  }
 
   // Session separators/restart tracking - purely frontend state, reset on
   // every history reload (project switch, page refresh) by design: a
@@ -410,12 +497,184 @@ function ChatContent() {
           ? "register.typeAccounting"
           : "dash.super.platform";
 
+  const companyType = user?.companyType;
+  const suggestionKeys =
+    SUGGESTION_KEYS[companyType === "construction" || companyType === "accounting" ? companyType : "generic"];
+
+  const disclaimerText = company?.vertical_disclaimer_text || t("chat.disclaimer");
+  const initials = getInitials(user?.firstName, user?.lastName, user?.email);
+  const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : t("chat.noProjectContext")} — ${t("chat.tapForContextSearch")}`;
+
+  // "YOUR CONTEXT" + "QUICK DOCUMENT SEARCH" - identical content, rendered
+  // in two different places (desktop's always-visible right panel, and
+  // mobile's bottom sheet). A plain closure rather than its own component:
+  // it reads a dozen+ locals from ChatContent directly instead of needing
+  // them all threaded through as props. idSuffix keeps the <select>/<label>
+  // pairing valid HTML when both copies exist in the DOM at once (one just
+  // CSS-hidden per breakpoint, see chat.module.css).
+  function contextSearchPanel(idSuffix: string) {
+    const projectSelectId = `project-select-${idSuffix}`;
+    return (
+      <>
+        <section className={`card ${styles.sidebarSection}`}>
+          <h3>{tUpper("chat.yourContext")}</h3>
+          <div className={styles.contextRow}>
+            <span className="text-muted">{t("chat.role")}</span>
+            <span>{user ? t(`role.${user.role}` as TranslationKey) : ""}</span>
+          </div>
+          <div className={styles.contextRow}>
+            <span className="text-muted">{t("chat.accountType")}</span>
+            <span>{t(accountTypeKey)}</span>
+          </div>
+          {projects.length > 0 ? (
+            <div style={{ marginTop: "var(--space-3)" }}>
+              <label htmlFor={projectSelectId} className="text-muted" style={{ fontSize: "0.85rem" }}>
+                {t("chat.selectProject")}
+              </label>
+              <select
+                id={projectSelectId}
+                className="input"
+                style={{ marginTop: "var(--space-1)" }}
+                value={selectedProjectId ?? ""}
+                onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
+              >
+                <option value="">{t("chat.noProjectsOption")}</option>
+                {projects.map((p) => (
+                  <option key={p.id} value={p.id}>
+                    {p.name} ({p.municipality})
+                  </option>
+                ))}
+              </select>
+              {selectedRegionName && (
+                <div className={styles.contextRow}>
+                  <span className="text-muted">{t("chat.regionLabel")}</span>
+                  <span>{selectedRegionName}</span>
+                </div>
+              )}
+            </div>
+          ) : (
+            <p className="text-muted" style={{ fontSize: "0.85rem" }}>
+              {t("chat.noDefaultProject")}
+            </p>
+          )}
+
+          {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
+            <div className={styles.locationStrip}>
+              <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
+                <PinIcon size={13} />
+                {locationExpanded ? t("chat.locationStrip.collapse") : t("chat.locationStrip.expand")}
+              </button>
+              {locationExpanded && (
+                <span className={styles.locationStripBody}>
+                  {selectedProject.plot_address ?? "—"}
+                  {" · "}
+                  {t("map.kaek")}: {selectedProject.kaek ?? "—"}
+                  {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
+                  {selectedProject.archaeological_flag && (
+                    <>
+                      {" · "}
+                      <button
+                        type="button"
+                        className={styles.archaeologicalBadge}
+                        onClick={() => setArchaeologicalExpanded((v) => !v)}
+                      >
+                        <WarningIcon size={12} /> {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
+                      </button>
+                    </>
+                  )}
+                </span>
+              )}
+              {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
+                <div className={styles.archaeologicalPanel}>
+                  {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
+                  <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                    {t("map.archaeologicalDisclaimer")}
+                  </p>
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
+                  >
+                    {t("chat.locationStrip.askAboutZone")}
+                  </button>
+                </div>
+              )}
+              {locationExpanded && !selectedProject.archaeological_flag && (
+                <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
+                  {t("map.noArchaeologicalDataNote")}
+                </p>
+              )}
+            </div>
+          )}
+        </section>
+
+        <section className={`card ${styles.sidebarSection}`}>
+          <h3>{tUpper("chat.quickSearch")}</h3>
+          <form onSubmit={searchKb} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+            <input
+              className="input"
+              placeholder={t("chat.searchPlaceholder")}
+              value={kbQuery}
+              onChange={(e) => setKbQuery(e.target.value)}
+            />
+            <button type="submit" className="btn btn-secondary">
+              {t("chat.go")}
+            </button>
+          </form>
+          {kbResults.map((doc) => (
+            <a
+              key={doc.id}
+              href={`/documents/${doc.id}?q=${encodeURIComponent(kbQuery.trim())}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className={styles.searchResult}
+            >
+              <strong>{highlightMatches(doc.title ?? "", kbQuery)}</strong>
+              {doc.snippet && <p className="text-muted">{renderMarkedSnippet(doc.snippet, kbQuery)}…</p>}
+            </a>
+          ))}
+        </section>
+      </>
+    );
+  }
+
   return (
     <div className={styles.layout}>
       <div className={`card ${styles.chatPanel}`}>
-        <div className={styles.disclaimerCompact} title={company?.vertical_disclaimer_text || t("chat.disclaimer")}>
-          {company?.vertical_disclaimer_text || t("chat.disclaimer")}
+        {/* Always visible, not dismissible - matches the current desktop
+            behavior exactly, only the visual treatment changed (icon +
+            single-line row using the existing warning tokens). */}
+        <div className={styles.disclaimerCompact} title={disclaimerText}>
+          <WarningIcon size={13} />
+          <span>{disclaimerText}</span>
         </div>
+
+        {/* Mobile-only condensed row with its own dismiss, see
+            DISCLAIMER_DISMISS_KEY above - hidden entirely (not just
+            visually) once dismissed, and hidden by CSS above 640px
+            regardless, so it never doubles up with .disclaimerCompact. */}
+        {!disclaimerDismissed && (
+          <div className={styles.disclaimerMobile}>
+            <WarningIcon size={12} />
+            <span>{disclaimerText}</span>
+            <button
+              type="button"
+              className={styles.disclaimerDismissButton}
+              onClick={dismissDisclaimer}
+              aria-label={t("chat.close")}
+            >
+              <CloseIcon size={12} />
+            </button>
+          </div>
+        )}
+
+        {/* Mobile-only - opens the context/search bottom sheet, replacing
+            the always-in-flow right panel that doesn't fit this width. */}
+        <button type="button" className={styles.mobileContextStrip} onClick={onOpenSheet}>
+          <span className={styles.mobileContextStripAvatar}>{initials}</span>
+          <span className={styles.mobileContextStripText}>{contextStripLabel}</span>
+          <ChevronIcon size={14} />
+        </button>
 
         {((poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8) ||
           (rateLimitStatus && rateLimitStatus.used >= 15)) && (
@@ -457,8 +716,23 @@ function ChatContent() {
         <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
           {!historyLoading && messages.length === 0 && (
-            <>
+            <div className={styles.emptyStateWrap}>
+              <div className={styles.emptyStateIcon}>
+                <ChatIcon size={24} />
+              </div>
               <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+              <div className={styles.suggestionChips}>
+                {suggestionKeys.map((key) => (
+                  <button
+                    key={key}
+                    type="button"
+                    className={styles.suggestionChip}
+                    onClick={() => setInput(t(key))}
+                  >
+                    {t(key)}
+                  </button>
+                ))}
+              </div>
               <p className={styles.emptyStateHint}>{t("chat.emptyStateHint")}</p>
               {company && !company.company_has_messages && (
                 <p className={styles.emptyStateHint}>
@@ -466,7 +740,7 @@ function ChatContent() {
                   <Link href="/help">{t("chat.firstSessionHintLink")}</Link>.
                 </p>
               )}
-            </>
+            </div>
           )}
           {messages.map((m, i) => (
             <Fragment key={i}>
@@ -592,6 +866,7 @@ function ChatContent() {
         </div>
 
         {poolExhausted && <p className={styles.poolExhaustedNotice}>{t("chat.poolExhausted")}</p>}
+
         <div className={styles.composer}>
           <input
             className="input"
@@ -608,138 +883,87 @@ function ChatContent() {
             {t("chat.newStart")}
           </button>
         </div>
+
+        {/* Mobile-only rebuild: circular icon targets (44px min tap size)
+            in one row instead of the desktop composer's text-label
+            buttons, which got cramped at phone widths. */}
+        <div className={styles.composerMobile}>
+          <button
+            type="button"
+            className={styles.composerIconButton}
+            onClick={startNewSession}
+            aria-label={t("chat.newStart")}
+          >
+            <RefreshIcon size={18} />
+          </button>
+          <input
+            className={styles.composerMobileInput}
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+            placeholder={t("chat.inputPlaceholder")}
+            disabled={poolExhausted}
+          />
+          <button
+            type="button"
+            className={`${styles.composerIconButton} ${styles.composerSendButton}`}
+            onClick={() => sendMessage()}
+            disabled={loading || poolExhausted}
+            aria-label={t("chat.send")}
+          >
+            <SendIcon size={18} />
+          </button>
+        </div>
       </div>
 
-      <aside className={styles.sidebar}>
-        <section className={`card ${styles.sidebarSection}`}>
-          <h3>{tUpper("chat.yourContext")}</h3>
-          <div className={styles.contextRow}>
-            <span className="text-muted">{t("chat.role")}</span>
-            <span>{user ? t(`role.${user.role}` as TranslationKey) : ""}</span>
-          </div>
-          <div className={styles.contextRow}>
-            <span className="text-muted">{t("chat.accountType")}</span>
-            <span>{t(accountTypeKey)}</span>
-          </div>
-          {projects.length > 0 ? (
-            <div style={{ marginTop: "var(--space-3)" }}>
-              <label htmlFor="project-select" className="text-muted" style={{ fontSize: "0.85rem" }}>
-                {t("chat.selectProject")}
-              </label>
-              <select
-                id="project-select"
-                className="input"
-                style={{ marginTop: "var(--space-1)" }}
-                value={selectedProjectId ?? ""}
-                onChange={(e) => setSelectedProjectId(e.target.value ? Number(e.target.value) : null)}
-              >
-                <option value="">{t("chat.noProjectsOption")}</option>
-                {projects.map((p) => (
-                  <option key={p.id} value={p.id}>
-                    {p.name} ({p.municipality})
-                  </option>
-                ))}
-              </select>
-              {selectedRegionName && (
-                <div className={styles.contextRow}>
-                  <span className="text-muted">{t("chat.regionLabel")}</span>
-                  <span>{selectedRegionName}</span>
-                </div>
-              )}
-            </div>
-          ) : (
-            <p className="text-muted" style={{ fontSize: "0.85rem" }}>
-              {t("chat.noDefaultProject")}
-            </p>
-          )}
+      <aside className={styles.sidebar}>{contextSearchPanel("desktop")}</aside>
 
-          {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
-            <div className={styles.locationStrip}>
-              <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
-                <PinIcon size={13} />
-                {locationExpanded ? t("chat.locationStrip.collapse") : t("chat.locationStrip.expand")}
-              </button>
-              {locationExpanded && (
-                <span className={styles.locationStripBody}>
-                  {selectedProject.plot_address ?? "—"}
-                  {" · "}
-                  {t("map.kaek")}: {selectedProject.kaek ?? "—"}
-                  {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
-                  {selectedProject.archaeological_flag && (
-                    <>
-                      {" · "}
-                      <button
-                        type="button"
-                        className={styles.archaeologicalBadge}
-                        onClick={() => setArchaeologicalExpanded((v) => !v)}
-                      >
-                        <WarningIcon size={12} /> {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
-                      </button>
-                    </>
-                  )}
-                </span>
-              )}
-              {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
-                <div className={styles.archaeologicalPanel}>
-                  {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
-                  <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                    {t("map.archaeologicalDisclaimer")}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
-                  >
-                    {t("chat.locationStrip.askAboutZone")}
-                  </button>
-                </div>
-              )}
-              {locationExpanded && !selectedProject.archaeological_flag && (
-                <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
-                  {t("map.noArchaeologicalDataNote")}
-                </p>
-              )}
-            </div>
-          )}
-        </section>
-
-        <section className={`card ${styles.sidebarSection}`}>
-          <h3>{tUpper("chat.quickSearch")}</h3>
-          <form onSubmit={searchKb} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
-            <input
-              className="input"
-              placeholder={t("chat.searchPlaceholder")}
-              value={kbQuery}
-              onChange={(e) => setKbQuery(e.target.value)}
-            />
-            <button type="submit" className="btn btn-secondary">
-              {t("chat.go")}
+      {/* Mobile-only bottom sheet - same content as the desktop <aside>
+          above (see contextSearchPanel), reached via the context strip
+          under the disclaimer or the top bar's info icon instead of always
+          being in-flow, since there's no room for a 270px right column at
+          phone widths. */}
+      <div
+        className={`${styles.sheetScrim} ${sheetOpen ? styles.sheetScrimOpen : ""}`}
+        onClick={onCloseSheet}
+        aria-hidden="true"
+      />
+      <div className={`${styles.sheet} ${sheetOpen ? styles.sheetOpenState : ""}`} role="dialog" aria-modal="true">
+        <button
+          type="button"
+          className={styles.sheetHandle}
+          onClick={onCloseSheet}
+          onTouchStart={handleSheetTouchStart}
+          onTouchEnd={handleSheetTouchEnd}
+          aria-label={t("chat.close")}
+        />
+        <div className={styles.sheetBody}>
+          <div className={styles.sheetHeader}>
+            <span>{t("chat.contextSearchTitle")}</span>
+            <button type="button" className={styles.sheetCloseButton} onClick={onCloseSheet} aria-label={t("chat.close")}>
+              <CloseIcon size={16} />
             </button>
-          </form>
-          {kbResults.map((doc) => (
-            <a
-              key={doc.id}
-              href={`/documents/${doc.id}?q=${encodeURIComponent(kbQuery.trim())}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className={styles.searchResult}
-            >
-              <strong>{highlightMatches(doc.title ?? "", kbQuery)}</strong>
-              {doc.snippet && <p className="text-muted">{renderMarkedSnippet(doc.snippet, kbQuery)}…</p>}
-            </a>
-          ))}
-        </section>
-      </aside>
+          </div>
+          {contextSearchPanel("mobile")}
+        </div>
+      </div>
     </div>
+  );
+}
+
+function ChatShellWrapper() {
+  const [sheetOpen, setSheetOpen] = useState(false);
+  return (
+    <AppShell mobileHeader={<ChatMobileTopBar onOpenSheet={() => setSheetOpen(true)} />}>
+      <ChatContent sheetOpen={sheetOpen} onOpenSheet={() => setSheetOpen(true)} onCloseSheet={() => setSheetOpen(false)} />
+    </AppShell>
   );
 }
 
 export default function ChatPage() {
   return (
     <RequireAuth>
-      <AppShell>
-        <ChatContent />
-      </AppShell>
+      <ChatShellWrapper />
     </RequireAuth>
   );
 }

@@ -42,3 +42,24 @@
     padding: var(--space-3);
   }
 }
+
+/* Only rendered at all when AppShell gets a `mobileHeader` (see
+   chat/page.tsx) - swaps which of the two header rows is visible per
+   breakpoint, mirroring the sidebar's own 640px drawer threshold. */
+.mobileHeaderSlot {
+  display: none;
+}
+
+.desktopHeaderSlot {
+  display: contents;
+}
+
+@media (max-width: 640px) {
+  .mobileHeaderSlot {
+    display: block;
+  }
+
+  .desktopHeaderSlot {
+    display: none;
+  }
+}

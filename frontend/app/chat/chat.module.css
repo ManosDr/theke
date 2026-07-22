@@ -15,14 +15,121 @@
 
 /* Compact, but wraps to as many lines as the text needs rather than
    truncating - on a narrow screen a single forced line clipped the
-   disclaimer mid-word. */
+   disclaimer mid-word. Icon + copy row (chat redesign) using the existing
+   warning tokens rather than the design reference's literal hex values,
+   per the token-reuse instruction. */
 .disclaimerCompact {
-  padding: var(--space-1) var(--space-4);
+  padding: var(--space-2) var(--space-4);
   background: var(--color-warning-bg);
+  border-bottom: 1px solid var(--admin-warning-border);
   color: var(--color-text-muted);
   font-size: 0.72rem;
-  text-align: center;
-  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.disclaimerCompact svg {
+  flex-shrink: 0;
+  color: var(--color-warning);
+}
+
+/* Mobile-only condensed disclaimer with its own dismiss - see
+   DISCLAIMER_DISMISS_KEY in page.tsx. Hidden above 640px; .disclaimerCompact
+   above covers desktop/tablet and is never dismissible there. */
+.disclaimerMobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .disclaimerCompact {
+    display: none;
+  }
+
+  .disclaimerMobile {
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    margin: var(--space-2) var(--space-3) 0;
+    padding: 7px 11px;
+    background: var(--color-warning-bg);
+    border: 1px solid var(--admin-warning-border);
+    border-radius: 8px;
+    color: var(--color-text-muted);
+    font-size: 11.5px;
+    line-height: 1.4;
+  }
+
+  .disclaimerMobile svg {
+    flex-shrink: 0;
+    color: var(--color-warning);
+  }
+
+  .disclaimerMobile span {
+    flex: 1;
+  }
+}
+
+.disclaimerDismissButton {
+  flex-shrink: 0;
+  border: none;
+  background: none;
+  padding: 2px;
+  color: var(--color-text-muted);
+  cursor: pointer;
+  display: flex;
+}
+
+/* Mobile-only summary strip below the disclaimer - opens the context/
+   search bottom sheet. Hidden above 640px, where the right-hand <aside>
+   (see .sidebar) is always in flow instead. */
+.mobileContextStrip {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .mobileContextStrip {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
+    margin: var(--space-2) var(--space-3) 0;
+    padding: 9px var(--space-3);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border);
+    border-radius: 9px;
+    text-align: left;
+    cursor: pointer;
+    color: inherit;
+  }
+
+  .mobileContextStripAvatar {
+    flex-shrink: 0;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
+    font-weight: 700;
+    font-size: 10.5px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .mobileContextStripText {
+    flex: 1;
+    min-width: 0;
+    font-size: 12px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mobileContextStrip svg {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
 }
 
 /* Always rendered (unlike the old projectContextBar, which only appeared
@@ -273,12 +380,63 @@
   gap: var(--space-4);
 }
 
+/* Fills whatever height .messages has available and centers its content -
+   on mobile in particular this removes the dead space below a short
+   welcome message that used to just sit at the top of a tall viewport. */
+.emptyStateWrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+}
+
+.emptyStateIcon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
 /* The welcome/placeholder text shown before any message is sent - smaller
    and italic so it reads as ambient guidance, not a real response. */
 .emptyState {
+  max-width: 420px;
   font-size: 0.85rem;
   font-style: italic;
   color: var(--color-text-muted);
+  margin: 0;
+}
+
+.suggestionChips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: var(--space-2);
+  max-width: 460px;
+}
+
+.suggestionChip {
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  border-radius: 20px;
+  padding: 8px 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  cursor: pointer;
+}
+
+.suggestionChip:hover {
+  border-color: var(--color-link);
+  color: var(--color-link);
 }
 
 /* Secondary line below the welcome message, empty state only - smaller
@@ -350,6 +508,70 @@
   flex: 1;
 }
 
+/* Mobile-only rebuild - circular icon buttons + pill input, all 44px
+   minimum tap targets, replacing .composer's text-label row which got
+   cramped at phone widths. Hidden above 640px; .composer above covers
+   desktop/tablet. */
+.composerMobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .composer {
+    display: none;
+  }
+
+  .composerMobile {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: var(--space-3);
+    border-top: 1px solid var(--color-border);
+  }
+
+  .composerIconButton {
+    flex-shrink: 0;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: none;
+    background: var(--color-surface-alt);
+    color: var(--color-text);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+  }
+
+  .composerSendButton {
+    background: var(--color-primary);
+    color: var(--color-text-on-primary);
+  }
+
+  .composerSendButton:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .composerMobileInput {
+    flex: 1;
+    min-width: 0;
+    height: 44px;
+    border: 1px solid var(--color-border);
+    border-radius: 22px;
+    padding: 0 var(--space-4);
+    font-size: 13.5px;
+    font-family: inherit;
+    color: var(--color-text);
+    background: var(--color-surface);
+  }
+
+  .composerMobileInput:focus {
+    outline: 2px solid var(--color-link);
+    outline-offset: 1px;
+  }
+}
+
 .sidebar {
   display: flex;
   flex-direction: column;
@@ -358,14 +580,27 @@
   overflow-y: auto;
 }
 
+@media (max-width: 640px) {
+  .sidebar {
+    display: none;
+  }
+}
+
 .sidebarSection {
+  /* Visible border + 12px radius (chat redesign's right-panel polish) -
+     the shared .card primitive only carries a shadow, no border, so this
+     is scoped to the chat page rather than changing .card globally. */
   padding: var(--space-4);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  box-shadow: none;
 }
 
 .sidebarSection h3 {
   margin: 0 0 var(--space-3);
-  font-size: 0.9rem;
-  letter-spacing: 0.03em;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
   color: var(--color-text-muted);
 }
 
@@ -410,5 +645,181 @@
 
   .chatPanel {
     height: 60dvh;
+  }
+}
+
+@media (max-width: 640px) {
+  /* Full-height single column - the bottom sheet/composer are fixed
+     overlays, not part of this flow, so .chatPanel can just fill the
+     screen instead of the 900px block's 60dvh compromise (which existed
+     to leave room for .sidebar stacking below it - .sidebar is hidden
+     entirely at this width, see above). */
+  .layout {
+    height: calc(100dvh - 56px);
+  }
+
+  .chatPanel {
+    height: 100%;
+  }
+
+  .message {
+    max-width: 82%;
+    padding: 11px 13px;
+    border-radius: 13px;
+    font-size: 13.5px;
+  }
+}
+
+/* Mobile-only top bar (see ChatMobileTopBar in page.tsx, rendered through
+   AppShell's `mobileHeader` slot - that slot itself is already display:none
+   above 640px, see AppShell.module.css, so no extra breakpoint guard is
+   needed on these rules). */
+.mobileTopBar {
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  /* Room for the existing fixed Sidebar hamburger trigger (40px +
+     var(--space-3) left offset) - same convention as TopHeader.module.css's
+     own 640px override, reused here since this bar replaces that header. */
+  padding: 0 var(--space-3) 0 64px;
+  background: var(--color-surface);
+  border-bottom: 1px solid var(--color-border);
+}
+
+.mobileTopBarTitle {
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-text);
+}
+
+.mobileTopBarActions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.mobileIconButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: none;
+  background: var(--color-surface-alt);
+  color: var(--color-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+/* Context/search bottom sheet - mobile-only pattern, so both the scrim
+   and panel are hidden entirely (not just visually) above 640px, matching
+   .sidebar/.sheet's complementary breakpoints. */
+.sheetScrim {
+  display: none;
+}
+
+.sheet {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .sheetScrim {
+    display: block;
+    position: fixed;
+    inset: 0;
+    background: rgba(15, 20, 35, 0.45);
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 250ms ease;
+    z-index: 26;
+  }
+
+  .sheetScrimOpen {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  .sheet {
+    display: block;
+    position: fixed;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    max-height: 72dvh;
+    background: var(--color-surface);
+    border-radius: 18px 18px 0 0;
+    box-shadow: 0 -10px 30px rgba(20, 25, 40, 0.2);
+    transform: translateY(100%);
+    transition: transform 280ms ease;
+    z-index: 27;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sheetOpenState {
+    transform: translateY(0);
+  }
+
+  .sheetHandle {
+    flex-shrink: 0;
+    width: 100%;
+    height: 24px;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    position: relative;
+  }
+
+  .sheetHandle::after {
+    content: "";
+    position: absolute;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--color-border);
+  }
+
+  .sheetBody {
+    flex: 1;
+    overflow-y: auto;
+    padding: 0 var(--space-4) var(--space-5);
+    display: flex;
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .sheetHeader {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 0 var(--space-2);
+    font-size: 15px;
+    font-weight: 800;
+    color: var(--color-text);
+  }
+
+  .sheetCloseButton {
+    border: none;
+    background: none;
+    color: var(--color-text-muted);
+    cursor: pointer;
+    display: flex;
+    padding: 4px;
+  }
+
+  /* Inside the sheet, the two context/search cards sit on the sheet's own
+     surface rather than doubling up borders - flat, slightly tinted
+     sections instead of .sidebarSection's bordered-card treatment. */
+  .sheet .sidebarSection {
+    border: none;
+    border-radius: 12px;
+    background: var(--color-surface-alt);
+    padding: var(--space-4);
   }
 }

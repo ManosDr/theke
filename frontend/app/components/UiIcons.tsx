@@ -173,3 +173,15 @@ export function RefreshIcon({ size = 20 }: IconProps) {
     </svg>
   );
 }
+
+// Chat composer "Send" action - not in the prototype's icon set (it used a
+// raw "↑" glyph) but drawn in the same stroke-based linear style as the
+// rest of this file rather than importing anything external.
+export function SendIcon({ size = 20 }: IconProps) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" {...commonProps} aria-hidden="true">
+      <path d="M12 19V5" />
+      <path d="M6 11l6-6 6 6" />
+    </svg>
+  );
+}

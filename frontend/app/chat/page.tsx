@@ -7,7 +7,7 @@ import { AppShell } from "../components/AppShell";
 import MessagePackUpsell from "../components/MessagePackUpsell";
 import { ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { PinIcon, WarningIcon } from "../components/UiIcons";
-import { ApiError, api } from "../lib/api";
+import { ApiError, NETWORK_ERROR_STATUS, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
@@ -46,6 +46,18 @@ interface Message {
 // Messages, not conversational turns - caps what's sent to the completion
 // as context, not what's shown on screen (the full history stays visible).
 const MAX_HISTORY_MESSAGES = 10;
+
+// A real chat completion (RAG retrieval + GPT call) normally finishes well
+// under this - past it, on a job site with a spotty connection, hanging
+// forever with no feedback is worse than failing with a clear retry path.
+const CHAT_TIMEOUT_MS = 30_000;
+
+// A brief interruption (tab switch, screen lock, mobile OS reclaiming a
+// backgrounded tab and reloading it on return) shouldn't lose a half-typed
+// question - same sessionStorage idiom already used for
+// "theke-location-strip-expanded" below, cleared automatically once the
+// browser tab/session actually ends, not a permanent offline-storage need.
+const CHAT_DRAFT_STORAGE_KEY = "theke-chat-draft";
 
 // A gap of more than this between two consecutive messages starts a new
 // visual "session" in the timeline - purely a display grouping, computed
@@ -116,6 +128,23 @@ function ChatContent() {
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Restore a draft left over from before an interruption (see
+  // CHAT_DRAFT_STORAGE_KEY above) - runs once on mount, before the user
+  // could have typed anything new, so there's no risk of clobbering a
+  // fresh keystroke.
+  useEffect(() => {
+    const stored = sessionStorage.getItem(CHAT_DRAFT_STORAGE_KEY);
+    if (stored) setInput(stored);
+  }, []);
+
+  // Mirrors every keystroke to sessionStorage - clears the stored draft
+  // once input empties (message sent, or manually cleared), so a
+  // successfully sent question doesn't reappear as a stale draft next time.
+  useEffect(() => {
+    if (input) sessionStorage.setItem(CHAT_DRAFT_STORAGE_KEY, input);
+    else sessionStorage.removeItem(CHAT_DRAFT_STORAGE_KEY);
+  }, [input]);
 
   // Session separators/restart tracking - purely frontend state, reset on
   // every history reload (project switch, page refresh) by design: a
@@ -288,7 +317,8 @@ function ChatContent() {
           conversation_history: history,
           project_id: selectedProjectId ?? undefined,
         },
-        token
+        token,
+        CHAT_TIMEOUT_MS
       );
       setMessages((prev) => [
         ...prev,
@@ -302,11 +332,17 @@ function ChatContent() {
         },
       ]);
     } catch (err) {
+      const isNetworkError = err instanceof ApiError && err.status === NETWORK_ERROR_STATUS;
+      // A timeout/connection drop never reached the backend, so nothing
+      // was actually sent - restore the question to the input instead of
+      // leaving it stranded only in the (already-posted) message bubble
+      // above, so retrying is one tap on Send, not a retype.
+      if (isNetworkError) setInput(question);
       setMessages((prev) => [
         ...prev,
         {
           role: "assistant",
-          text: err instanceof ApiError ? err.message : "Error reaching the backend.",
+          text: isNetworkError ? t("chat.networkError") : err instanceof ApiError ? err.message : t("chat.networkError"),
           createdAt: Date.now(),
         },
       ]);

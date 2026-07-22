@@ -39,7 +39,11 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-1);
-  font-size: 13px;
+  /* Bumped from 13px - a field-use mobile-readability pass found this
+     under the ~16px body-text baseline; short bold captions like these
+     read fine a little smaller than full body text, so this isn't a full
+     jump to 16px, just enough to be meaningfully less cramped on a phone. */
+  font-size: 15px;
   font-weight: 600;
   color: var(--color-text-muted);
   margin-bottom: var(--space-3);

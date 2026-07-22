@@ -14,14 +14,41 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, options: RequestInit, token?: string | null): Promise<T> {
+// status 0 marks a request that never got a response at all - the request
+// timed out (AbortController below) or the browser's fetch() itself threw
+// (offline, DNS failure, connection dropped mid-flight) - as opposed to a
+// real HTTP error status from the backend. Callers check for this to show
+// a "no connection" message instead of a generic/backend one - see
+// chat/page.tsx's sendMessage and ProjectDocumentsPanel's handleUpload,
+// both real-world "used on a job site, spotty signal" scenarios.
+export const NETWORK_ERROR_STATUS = 0;
+
+async function request<T>(
+  path: string,
+  options: RequestInit,
+  token?: string | null,
+  timeoutMs?: number
+): Promise<T> {
   const headers: Record<string, string> = { ...((options.headers as Record<string, string>) ?? {}) };
   if (token) headers["Authorization"] = `Bearer ${token}`;
   if (options.body && !(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
 
-  const res = await fetch(`${API_URL}${path}`, { ...options, headers });
+  const controller = timeoutMs ? new AbortController() : undefined;
+  const timeoutId = controller ? setTimeout(() => controller.abort(), timeoutMs) : undefined;
+
+  let res: Response;
+  try {
+    res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller?.signal });
+  } catch (err) {
+    // AbortError (our own timeout) and a raw network failure (offline,
+    // DNS, connection reset mid-request) both mean "no usable response
+    // ever arrived" - same signal to the caller either way.
+    throw new ApiError(NETWORK_ERROR_STATUS, err instanceof Error ? err.message : "Network error");
+  } finally {
+    if (timeoutId) clearTimeout(timeoutId);
+  }
 
   // Only treat this as a session expiry if the call actually carried a
   // token - a 401 from e.g. /auth/login (wrong password, no token yet)
@@ -62,13 +89,13 @@ async function request<T>(path: string, options: RequestInit, token?: string | n
 
 export const api = {
   get: <T>(path: string, token?: string | null) => request<T>(path, { method: "GET" }, token),
-  post: <T>(path: string, body?: unknown, token?: string | null) =>
-    request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }, token),
+  post: <T>(path: string, body?: unknown, token?: string | null, timeoutMs?: number) =>
+    request<T>(path, { method: "POST", body: body !== undefined ? JSON.stringify(body) : undefined }, token, timeoutMs),
   patch: <T>(path: string, body?: unknown, token?: string | null) =>
     request<T>(path, { method: "PATCH", body: body !== undefined ? JSON.stringify(body) : undefined }, token),
   del: <T>(path: string, token?: string | null) => request<T>(path, { method: "DELETE" }, token),
-  upload: <T>(path: string, formData: FormData, token?: string | null) =>
-    request<T>(path, { method: "POST", body: formData }, token),
+  upload: <T>(path: string, formData: FormData, token?: string | null, timeoutMs?: number) =>
+    request<T>(path, { method: "POST", body: formData }, token, timeoutMs),
   // Triggers a browser download for a non-JSON response (data export,
   // invoice PDF) - can't reuse request() above since that always calls
   // res.json(). Auth still goes through the Authorization header (not a

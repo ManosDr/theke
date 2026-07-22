@@ -2,13 +2,19 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { ApiError, api } from "../lib/api";
+import { ApiError, NETWORK_ERROR_STATUS, api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
 import { WarningIcon } from "./UiIcons";
 import type { ProjectDocumentSummary, ProjectDocumentUploadResult } from "../lib/types";
 import styles from "./ProjectDocumentsPanel.module.css";
 
 const ACCEPTED_EXTENSIONS = ".pdf,.docx,.txt";
+
+// Uploads are a larger, slower request than a chat message (real file
+// transfer, not just a short JSON body) - allow more time before giving up
+// on a job-site connection, but still fail with a clear retry path instead
+// of hanging indefinitely.
+const UPLOAD_TIMEOUT_MS = 90_000;
 
 function formatSize(bytes: number): string {
   if (bytes < 1024) return `${bytes} B`;
@@ -69,7 +75,8 @@ export default function ProjectDocumentsPanel({
       const results = await api.upload<ProjectDocumentUploadResult[]>(
         `/projects/${projectId}/documents/upload`,
         formData,
-        token
+        token,
+        UPLOAD_TIMEOUT_MS
       );
       const result = results[0];
       if (!result || result.error) {
@@ -97,7 +104,18 @@ export default function ProjectDocumentsPanel({
       setSourceUrl("");
       if (fileInputRef.current) fileInputRef.current.value = "";
     } catch (err) {
-      setUploadError(err instanceof ApiError ? err.message : t("project.documents.uploadFailed"));
+      // On a timeout or connection drop, the file was never fully uploaded
+      // - `file` is deliberately left set above (only cleared on success),
+      // so the chosen file survives and pressing Upload again just retries
+      // with the same selection, no need to re-pick the file.
+      const isNetworkError = err instanceof ApiError && err.status === NETWORK_ERROR_STATUS;
+      setUploadError(
+        isNetworkError
+          ? t("project.documents.networkError")
+          : err instanceof ApiError
+            ? err.message
+            : t("project.documents.uploadFailed")
+      );
     } finally {
       setUploading(false);
     }

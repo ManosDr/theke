@@ -1,0 +1,294 @@
+{
+  "meta": {
+    "exported_at": "2026-07-22T19:46:45Z",
+    "source": [
+      "frontend/app/globals.css"
+    ],
+    "structure_note": "All color custom properties in this codebase live in exactly one file (frontend/app/globals.css), declared twice each: once in :root (light theme) and once in [data-theme=\"dark\"] (dark theme overrides). There are two parallel, coexisting palettes rather than one: a 'core' set (--color-*, the original app-wide primitives used in chat/login/pricing/shared badges) and an 'admin' set (--admin-*, a second palette ported wholesale from a separate 'Theke Admin design' prototype and layered on top of the core set for the sidebar, top bar, and every admin-facing panel/dashboard). This file preserves that real split (tokens.core / tokens.admin / tokens.chat) instead of forcing everything into a single flat list. A few tokens are intentionally NOT included below because they are not CSS custom properties at all - see 'excluded_non_variable_colors'.",
+    "excluded_non_variable_colors": [
+      {
+        "value": "#33BE6E",
+        "found_in": "frontend/app/components/Logo.tsx",
+        "note": "The Logo/LogoMark brand-mark green. Hardcoded on purpose per an explicit code comment ('Colors are fixed per the brand spec regardless of light/dark theme') - it is not a CSS variable and editing this JSON will not change it. If a rebrand ever needs to touch the logo mark itself, it must be edited directly in Logo.tsx."
+      },
+      {
+        "value": "#1B2A4A / #F57F17",
+        "found_in": "frontend/app/components/MapPicker.tsx (PIN_NAVY, PIN_AMBER constants)",
+        "note": "Map pin marker colors, duplicated as plain JS string literals because Leaflet's divIcon needs a literal SVG markup string, not a CSS var(). Currently equal to --admin-navy/--color-primary and --admin-warning respectively, but nothing enforces that - a rebrand that changes those tokens will silently leave map pins on the old colors."
+      },
+      {
+        "value": "#1b2a4a",
+        "found_in": "frontend/app/layout.tsx (viewport.themeColor)",
+        "note": "Browser-chrome theme-color meta tag, duplicated as a literal because Next.js metadata is evaluated at build time. Only has a light-mode value - the OS/browser chrome (e.g. mobile status bar) does not follow the app into dark mode."
+      }
+    ],
+    "instructions": "Edit only the 'value' fields below. Do not rename keys, remove entries, or change structure. Return this same file with updated hex values."
+  },
+  "tokens": {
+    "core": {
+      "background": {
+        "page": {
+          "light": { "value": "#f7f9fc", "usage": "Page background behind every card/surface", "used_in": ["body (globals.css)"] },
+          "dark": { "value": "#0d1b2e", "usage": "Page background behind every card/surface", "used_in": ["body (globals.css)"] }
+        },
+        "surface": {
+          "light": { "value": "#ffffff", "usage": "Default card/panel/input background", "used_in": [".card, .input (globals.css)", "chat/chat.module.css", "components/CompaniesPanel.module.css", "components/CustomerCombobox.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/Sidebar.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/TopHeader.module.css", "components/TrialBanner.module.css", "components/VerticalEditorPanel.module.css", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/StatCard.module.css", "pricing/pricing.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#16213a", "usage": "Default card/panel/input background", "used_in": ["same call sites as light"] }
+        },
+        "surface_alt": {
+          "light": { "value": "#eef1f6", "usage": "Secondary/inset surface - table stripes, chips, citation pills, empty-state icon tiles", "used_in": ["chat/chat.module.css", "components/CompaniesPanel.module.css", "components/DocumentsPanel.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/LegalDocView.module.css", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/TopHeader.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#1e2a44", "usage": "Secondary/inset surface - table stripes, chips, citation pills, empty-state icon tiles", "used_in": ["same call sites as light"] }
+        }
+      },
+      "border": {
+        "default": {
+          "light": { "value": "#e4e9f2", "usage": "Default 1px hairline border on cards, inputs, dividers", "used_in": ["chat/chat.module.css", "components/CompaniesPanel.module.css", "components/CustomerCombobox.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/LegalDocView.module.css", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/TopHeader.module.css", "dashboard/ActivityChart.tsx", "dashboard/SentimentDonut.tsx", "dashboard/dashboard.module.css", "login/login.module.css", "search/search.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#2a3752", "usage": "Default 1px hairline border on cards, inputs, dividers", "used_in": ["same call sites as light"] }
+        }
+      },
+      "text": {
+        "primary": {
+          "light": { "value": "#151d48", "usage": "Default body/heading text color", "used_in": ["body (globals.css)", "chat/chat.module.css", "components/CompaniesPanel.module.css", "components/CustomerCombobox.module.css", "components/DocumentsPanel.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/LegalDocView.module.css", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SessionExpiryToast.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/SentimentDonut.tsx", "dashboard/dashboard.module.css", "help/help.module.css", "login/login.module.css", "pricing/pricing.module.css", "projects/new/page.module.css"] },
+          "dark": { "value": "#ececec", "usage": "Default body/heading text color", "used_in": ["same call sites as light"] }
+        },
+        "muted": {
+          "light": { "value": "#737791", "usage": "Secondary/caption text, placeholders, .text-muted utility class", "used_in": ["account/account.module.css", "chat/chat.module.css", "components/CompaniesPanel.module.css", "components/CustomerCombobox.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/LegalDocView.module.css", "components/LegalFooter.module.css", "components/MapPicker.module.css", "components/MessagePackUpsell.module.css", "components/NotificationBell.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "customers/[id]/page.module.css", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/MemberDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/WelcomeCard.module.css", "dashboard/dashboard.module.css", "documents/[id]/page.module.css", "help/help.module.css", "login/login.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css", "projects/new/page.module.css", "register/page.tsx", "search/search.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#7b91b0", "usage": "Secondary/caption text, placeholders, .text-muted utility class", "used_in": ["same call sites as light"] }
+        },
+        "on_primary": {
+          "light": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a --color-primary fill (e.g. primary buttons, user chat bubble, avatar initials)", "used_in": ["chat/chat.module.css (.messageUser)", "components/FeedbackWidget.module.css", "components/MapPicker.module.css", "projects/[id]/page.module.css"] },
+          "dark": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a --color-primary fill (e.g. primary buttons, user chat bubble, avatar initials)", "used_in": ["same call sites as light - not overridden in dark theme"] }
+        },
+        "on_accent": {
+          "light": { "value": "#151d48", "usage": "Declared for text on top of --color-accent fills, but see note", "used_in": [] },
+          "dark": { "value": "#151d48", "usage": "Declared for text on top of --color-accent fills, but see note", "used_in": [] },
+          "note": "DEAD TOKEN - declared in both themes but not referenced by any var(--color-text-on-accent) anywhere in the codebase. Safe to repurpose or remove; see report for details."
+        }
+      },
+      "brand": {
+        "primary": {
+          "light": { "value": "#1b2a4a", "usage": "Primary navy - fill for primary buttons, active states, user chat bubble, avatar background; matches --admin-accent-navy exactly", "used_in": ["chat/chat.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/MapPicker.tsx", "components/Sidebar.module.css", "components/SuspendedTenantsPanel.tsx", "components/TopHeader.module.css", "dashboard/ActivityChart.tsx", "dashboard/StatCard.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css"] },
+          "dark": { "value": "#3e5a9e", "usage": "Primary navy - fill for primary buttons, active states, user chat bubble, avatar background", "used_in": ["same call sites as light"] }
+        },
+        "primary_hover": {
+          "light": { "value": "#2a6fdb", "usage": "Hover state for primary-filled buttons/backgrounds", "used_in": ["components/FeedbackWidget.module.css"] },
+          "dark": { "value": "#5c7dc4", "usage": "Hover state for primary-filled buttons/backgrounds", "used_in": ["components/FeedbackWidget.module.css"] }
+        },
+        "link": {
+          "light": { "value": "#1b2a4a", "usage": "Foreground use for links/active tabs/focus rings - aliases --color-primary in light mode (huge contrast against white already)", "used_in": ["account/account.module.css", "chat/chat.module.css", "components/CustomerCombobox.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/LegalFooter.module.css", "components/MapPicker.module.css", "components/MessagePackUpsell.module.css", "components/NotificationBell.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/WelcomeCard.module.css", "documents/[id]/page.module.css", "login/login.module.css", "sources/sources.module.css", "a, focus-visible outline (globals.css)"] },
+          "dark": { "value": "#8da3e0", "usage": "Foreground use for links/active tabs/focus rings - a lighter periwinkle than --color-primary specifically because the dark-mode primary (#3e5a9e) fails WCAG AA (~2.5:1) as text/border color", "used_in": ["same call sites as light"] }
+        },
+        "link_hover": {
+          "light": { "value": "#2a6fdb", "usage": "Hover state for link-colored text/foreground elements", "used_in": ["dashboard/WelcomeCard.module.css", "a:hover (globals.css)"] },
+          "dark": { "value": "#aebfea", "usage": "Hover state for link-colored text/foreground elements", "used_in": ["same call sites as light"] }
+        },
+        "accent": {
+          "light": { "value": "#ffa800", "usage": "Amber accent - identical to --color-warning in light mode", "used_in": ["dashboard/StatCard.module.css"] },
+          "dark": { "value": "#ffcf00", "usage": "Amber accent - identical to --color-warning in dark mode", "used_in": ["dashboard/StatCard.module.css"] }
+        },
+        "accent_hover": {
+          "light": { "value": "#e69500", "usage": "Hover state for --color-accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] },
+          "dark": { "value": "#ffa800", "usage": "Hover state for --color-accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] }
+        }
+      },
+      "status": {
+        "success": {
+          "light": { "value": "#27ae60", "usage": "Success text/icon color (healthy status, positive deltas)", "used_in": ["account/account.module.css", "account/page.tsx", "chat/chat.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "dashboard/AttentionCard.module.css", "pricing/pricing.module.css"] },
+          "dark": { "value": "#00d08b", "usage": "Success text/icon color (healthy status, positive deltas)", "used_in": ["same call sites as light"] }
+        },
+        "success_bg": {
+          "light": { "value": "#dcfce7", "usage": "Background tint behind success text/badges (.badge-success)", "used_in": ["components/FeedbackPanel.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "pricing/pricing.module.css"] },
+          "dark": { "value": "#123b2c", "usage": "Background tint behind success text/badges (.badge-success)", "used_in": ["same call sites as light"] }
+        },
+        "warning": {
+          "light": { "value": "#ffa800", "usage": "Warning text/icon color (needs-attention status)", "used_in": ["account/account.module.css", "account/page.tsx", "chat/chat.module.css", "components/FeedbackPanel.module.css", "components/InfraHealthPanel.tsx", "components/LegalDocView.module.css", "components/SubscriptionsPanel.module.css", "components/TopHeader.module.css", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/SentimentDonut.tsx", "projects/[id]/page.module.css", "projects/new/page.module.css", "projects/new/page.tsx", "sources/sources.module.css"] },
+          "dark": { "value": "#ffcf00", "usage": "Warning text/icon color (needs-attention status)", "used_in": ["same call sites as light"] }
+        },
+        "warning_bg": {
+          "light": { "value": "#fff4de", "usage": "Background tint behind warning text/badges, disclaimers", "used_in": ["chat/chat.module.css (disclaimer)", "components/FeedbackPanel.module.css", "components/LegalDocView.module.css", "components/MessagePackUpsell.module.css", "components/SubscriptionsPanel.module.css", "components/TopHeader.module.css", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "projects/[id]/page.module.css", "projects/new/page.module.css", "sources/sources.module.css", "mark (globals.css)"] },
+          "dark": { "value": "#3a2f0a", "usage": "Background tint behind warning text/badges, disclaimers", "used_in": ["same call sites as light"] }
+        },
+        "danger": {
+          "light": { "value": "#f64e60", "usage": "Danger/error text/icon color (critical status, destructive actions)", "used_in": ["account/account.module.css", "account/page.tsx", "chat/chat.module.css", "components/ChatGapRatePanel.tsx", "components/CompaniesPanel.tsx", "components/FeedbackPanel.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/SubscriptionsPanel.tsx", "components/SuspendedTenantsPanel.tsx", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/SuperAdminDashboard.tsx", "login/login.module.css", "pricing/page.tsx", "projects/new/page.tsx", ".btn-danger (globals.css)"] },
+          "dark": { "value": "#f64e60", "usage": "Danger/error text/icon color (critical status, destructive actions) - not overridden in dark theme", "used_in": ["same call sites as light"] }
+        },
+        "danger_bg": {
+          "light": { "value": "#ffe2e5", "usage": "Background tint behind danger text/badges", "used_in": ["chat/chat.module.css", "components/MapPicker.module.css", "components/SubscriptionsPanel.module.css", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "login/login.module.css", ".btn-danger (globals.css)"] },
+          "dark": { "value": "#3a1620", "usage": "Background tint behind danger text/badges", "used_in": ["same call sites as light"] }
+        },
+        "info": {
+          "light": { "value": "#0d9488", "usage": "Teal - neutral/informational stat tone, second ActivityChart line color, distinct hue from --color-primary's blue family", "used_in": ["components/FeedbackPanel.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#2dd4bf", "usage": "Teal - neutral/informational stat tone", "used_in": ["same call sites as light"] }
+        },
+        "info_bg": {
+          "light": { "value": "#d9f2ef", "usage": "Background tint behind info text/badges", "used_in": ["components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "sources/sources.module.css"] },
+          "dark": { "value": "#0f2e2a", "usage": "Background tint behind info text/badges", "used_in": ["same call sites as light"] }
+        },
+        "purple": {
+          "light": { "value": "#8950fc", "usage": "Purple accent tone for a 4th badge/stat-card family (documents/knowledge-base icons)", "used_in": ["chat/chat.module.css (empty-state icon)", "components/TypeBadge.tsx", "dashboard/StatCard.module.css"] },
+          "dark": { "value": "#a855f7", "usage": "Purple accent tone for a 4th badge/stat-card family", "used_in": ["same call sites as light"] }
+        },
+        "purple_bg": {
+          "light": { "value": "#f3e8ff", "usage": "Background tint behind purple text/badges", "used_in": ["components/TypeBadge.tsx"] },
+          "dark": { "value": "#2a1a45", "usage": "Background tint behind purple text/badges", "used_in": ["components/TypeBadge.tsx"] }
+        },
+        "error_field": {
+          "light": { "value": "#c62828", "usage": "Inline field-validation error color - deliberately distinct from --color-danger (that's for banners/badges); not theme-swapped", "used_in": ["components/CustomerCombobox.module.css", "components/DocumentsPanel.tsx", "components/FieldError.module.css", "components/ProjectDocumentsPanel.module.css", "projects/new/page.module.css", ".input[aria-invalid] (globals.css)"] },
+          "dark": { "value": "#c62828", "usage": "Inline field-validation error color - same value in both themes", "used_in": ["same call sites as light"] }
+        }
+      }
+    },
+    "admin": {
+      "surface": {
+        "topbar_bg": {
+          "light": { "value": "#ffffff", "usage": "Top header bar background across admin/app-shell screens", "used_in": ["components/TopHeader.module.css"] },
+          "dark": { "value": "#1a2439", "usage": "Top header bar background across admin/app-shell screens", "used_in": ["components/TopHeader.module.css"] }
+        },
+        "parchment": {
+          "light": { "value": "#f4f6fa", "usage": "Main app-shell content-area background (AppShell), the post-login page canvas behind the sidebar/topbar", "used_in": ["components/AppShell.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/VerticalEditorPanel.module.css"] },
+          "dark": { "value": "#111a2e", "usage": "Main app-shell content-area background", "used_in": ["same call sites as light"] }
+        },
+        "navy_solid": {
+          "light": { "value": "#1b2a4a", "usage": "Fixed-dark background for the vertical-editor's raw system-prompt textarea - stays dark in both themes on purpose so the 'advanced/raw' surface reads consistently", "used_in": ["components/VerticalEditorPanel.module.css"] },
+          "dark": { "value": "#1b2a4a", "usage": "Same fixed-dark background, not overridden in dark theme (by design)", "used_in": ["components/VerticalEditorPanel.module.css"] }
+        },
+        "card_border": {
+          "light": { "value": "#e3e7f0", "usage": "Border for admin-shell cards/sidebar edge (cooler-toned sibling of --color-border)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css"] },
+          "dark": { "value": "#2c3a57", "usage": "Border for admin-shell cards/sidebar edge", "used_in": ["same call sites as light"] }
+        },
+        "row_border": {
+          "light": { "value": "#eef1f7", "usage": "Divider between list rows / nav sections in admin screens", "used_in": ["account/account.module.css", "components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#26314c", "usage": "Divider between list rows / nav sections in admin screens", "used_in": ["same call sites as light"] }
+        },
+        "chip_bg": {
+          "light": { "value": "#eef1f7", "usage": "Pill/chip background (nav hover, TypeBadge neutral chips, font-scale control)", "used_in": ["components/CompaniesPanel.module.css", "components/CompaniesPanel.tsx", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/LanguageToggle.module.css", "components/NotificationBell.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/TypeBadge.tsx", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css"] },
+          "dark": { "value": "#243252", "usage": "Pill/chip background", "used_in": ["same call sites as light"] }
+        }
+      },
+      "text": {
+        "heading_navy": {
+          "light": { "value": "#1b2a4a", "usage": "Admin-screen heading/icon text tone - inverts to near-white in dark mode (unlike --admin-accent-navy, which brightens instead)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/NotificationBell.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#f1efe9", "usage": "Admin-screen heading/icon text tone - near-white in dark mode", "used_in": ["same call sites as light"] }
+        },
+        "muted_stone": {
+          "light": { "value": "#7c8194", "usage": "Muted label/caption text in admin screens (cool-gray sibling of --color-text-muted)", "used_in": ["account/account.module.css", "components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/TypeBadge.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#a6adc2", "usage": "Muted label/caption text in admin screens", "used_in": ["same call sites as light"] }
+        },
+        "body": {
+          "light": { "value": "#4a4a4a", "usage": "Default/inactive body text - nav item labels, vertical-switcher segments (a third text tone distinct from heading_navy and muted_stone)", "used_in": ["components/Sidebar.module.css", "components/Sidebar.tsx"] },
+          "dark": { "value": "#d7dae6", "usage": "Default/inactive body text", "used_in": ["same call sites as light"] }
+        }
+      },
+      "brand": {
+        "accent_navy": {
+          "light": { "value": "#1b2a4a", "usage": "Filled/active surface navy - sidebar footer, active nav-child pill, 'All' vertical-switcher segment, sync-now buttons. Theme-adaptive fill (brightens rather than inverting, unlike heading_navy)", "used_in": ["components/DataSourcesPanel.module.css", "components/Sidebar.module.css", "components/Sidebar.tsx", "dashboard/CompanyAdminDashboard.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#3e5a9e", "usage": "Filled/active surface navy", "used_in": ["same call sites as light"] }
+        }
+      },
+      "vertical": {
+        "construction": {
+          "light": { "value": "#2d5016", "usage": "Construction-vertical accent (badge text/icon, dashboard card left-border and pill)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#7fc77f", "usage": "Construction-vertical accent", "used_in": ["same call sites as light"] }
+        },
+        "construction_bg": {
+          "light": { "value": "#eaf1e4", "usage": "Background tint behind the construction badge/pill", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#1c2e1c", "usage": "Background tint behind the construction badge/pill", "used_in": ["same call sites as light"] }
+        },
+        "tax": {
+          "light": { "value": "#8b5e3c", "usage": "Tax & Accounting-vertical accent ('Tax bronze' - a deliberate, previously-confirmed convention distinct from the newer design-review's proposed amber)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#d9a468", "usage": "Tax & Accounting-vertical accent", "used_in": ["same call sites as light"] }
+        },
+        "tax_bg": {
+          "light": { "value": "#f3e9e0", "usage": "Background tint behind the tax badge/pill", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#332319", "usage": "Background tint behind the tax badge/pill", "used_in": ["same call sites as light"] }
+        },
+        "construction_on_dark": {
+          "light": { "value": "#2d5016", "usage": "Declared for a brighter construction accent specifically for text-on-dark-card use, but see note", "used_in": [] },
+          "dark": { "value": "#7fc77f", "usage": "Declared for a brighter construction accent specifically for text-on-dark-card use, but see note", "used_in": [] },
+          "note": "DEAD TOKEN - declared in both themes, never consumed via var(--admin-construction-on-dark) anywhere. Same values as 'construction' above."
+        },
+        "tax_on_dark": {
+          "light": { "value": "#8b5e3c", "usage": "Declared for a brighter tax accent specifically for text-on-dark-card use, but see note", "used_in": [] },
+          "dark": { "value": "#d9a468", "usage": "Declared for a brighter tax accent specifically for text-on-dark-card use, but see note", "used_in": [] },
+          "note": "DEAD TOKEN - declared in both themes, never consumed via var(--admin-tax-on-dark) anywhere. Same values as 'tax' above."
+        }
+      },
+      "status": {
+        "neutral": {
+          "light": { "value": "#1b2a4a", "usage": "Neutral/default badge tone in admin panels - identical value to admin.brand.accent_navy", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#3e5a9e", "usage": "Neutral/default badge tone in admin panels", "used_in": ["same call sites as light"] }
+        },
+        "neutral_bg": {
+          "light": { "value": "#eaecf1", "usage": "Background tint behind the neutral admin badge", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#23304a", "usage": "Background tint behind the neutral admin badge", "used_in": ["same call sites as light"] }
+        },
+        "success": {
+          "light": { "value": "#2e7d32", "usage": "Admin-panel success tone", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.tsx", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#2e7d32", "usage": "Admin-panel success tone - NOT overridden in dark theme (see report: possible gap, sibling core.status.success does flip for dark mode)", "used_in": ["same call sites as light"] }
+        },
+        "warning": {
+          "light": { "value": "#f57f17", "usage": "Admin-panel warning tone (also literally duplicated as MapPicker's PIN_AMBER JS constant)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/SessionExpiryToast.module.css", "components/StaleDocumentsQueue.tsx", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#f57f17", "usage": "Admin-panel warning tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
+        },
+        "warning_bg": {
+          "light": { "value": "#fff4de", "usage": "Background tint behind the admin warning tone/badge", "used_in": ["components/CompaniesPanel.module.css", "components/SessionExpiryToast.module.css", "components/VerticalEditorPanel.module.css"] },
+          "dark": { "value": "#3a2f0a", "usage": "Background tint behind the admin warning tone/badge", "used_in": ["same call sites as light"] }
+        },
+        "warning_border": {
+          "light": { "value": "#f5d999", "usage": "Border for admin warning callouts/disclaimers", "used_in": ["chat/chat.module.css (disclaimer border)", "components/CompaniesPanel.module.css", "components/SessionExpiryToast.module.css", "components/VerticalEditorPanel.module.css"] },
+          "dark": { "value": "#5a4a1a", "usage": "Border for admin warning callouts/disclaimers", "used_in": ["same call sites as light"] }
+        },
+        "danger": {
+          "light": { "value": "#c62828", "usage": "Admin-panel danger tone - identical value to core.status.error_field", "used_in": ["components/CompaniesPanel.tsx", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#c62828", "usage": "Admin-panel danger tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
+        },
+        "info": {
+          "light": { "value": "#2a6fdb", "usage": "Admin-panel info tone - identical value to core.brand.primary_hover in light mode", "used_in": ["components/DataSourcesPanel.module.css", "sources/sources.module.css"] },
+          "dark": { "value": "#2a6fdb", "usage": "Admin-panel info tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
+        }
+      }
+    },
+    "chat": {
+      "user_bubble_bg": {
+        "light": { "value": "#1b2a4a", "usage": "Background of the user's own chat message bubble - reuses core.brand.primary, not a dedicated token", "used_in": ["chat/chat.module.css (.messageUser)"] },
+        "dark": { "value": "#3e5a9e", "usage": "Background of the user's own chat message bubble", "used_in": ["chat/chat.module.css (.messageUser)"] }
+      },
+      "user_bubble_text": {
+        "light": { "value": "#ffffff", "usage": "Text color inside the user's chat bubble - reuses core.text.on_primary", "used_in": ["chat/chat.module.css (.messageUser)"] },
+        "dark": { "value": "#ffffff", "usage": "Text color inside the user's chat bubble", "used_in": ["chat/chat.module.css (.messageUser)"] }
+      },
+      "assistant_bubble_bg": {
+        "light": { "value": "#ffffff", "usage": "Background of the assistant's chat message bubble - reuses core.background.surface", "used_in": ["chat/chat.module.css (.messageAssistant)"] },
+        "dark": { "value": "#16213a", "usage": "Background of the assistant's chat message bubble", "used_in": ["chat/chat.module.css (.messageAssistant)"] }
+      },
+      "assistant_bubble_border": {
+        "light": { "value": "#e4e9f2", "usage": "1px border around the assistant's chat message bubble - reuses core.border.default", "used_in": ["chat/chat.module.css (.messageAssistant)"] },
+        "dark": { "value": "#2a3752", "usage": "1px border around the assistant's chat message bubble", "used_in": ["chat/chat.module.css (.messageAssistant)"] }
+      },
+      "citation_chip_bg": {
+        "light": { "value": "#eef1f6", "usage": "Background of each source-citation pill under an assistant message - reuses core.background.surface_alt", "used_in": ["chat/chat.module.css (.citations li)"] },
+        "dark": { "value": "#1e2a44", "usage": "Background of each source-citation pill", "used_in": ["chat/chat.module.css (.citations li)"] }
+      },
+      "citation_chip_text": {
+        "light": { "value": "#737791", "usage": "Text color of the citation-chip link/label - reuses core.text.muted", "used_in": ["chat/chat.module.css (.citationLink)"] },
+        "dark": { "value": "#7b91b0", "usage": "Text color of the citation-chip link/label", "used_in": ["chat/chat.module.css (.citationLink)"] }
+      },
+      "disclaimer_bg": {
+        "light": { "value": "#fff4de", "usage": "Background of the 'AI can make mistakes' disclaimer strip - reuses core.status.warning_bg", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
+        "dark": { "value": "#3a2f0a", "usage": "Background of the disclaimer strip", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
+      },
+      "disclaimer_border": {
+        "light": { "value": "#f5d999", "usage": "Bottom border of the disclaimer strip - reuses admin.status.warning_border", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
+        "dark": { "value": "#5a4a1a", "usage": "Bottom border of the disclaimer strip", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
+      },
+      "disclaimer_text": {
+        "light": { "value": "#737791", "usage": "Disclaimer copy text color - reuses core.text.muted", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
+        "dark": { "value": "#7b91b0", "usage": "Disclaimer copy text color", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
+      },
+      "disclaimer_icon": {
+        "light": { "value": "#ffa800", "usage": "Disclaimer icon color - reuses core.status.warning", "used_in": ["chat/chat.module.css (.disclaimerCompact svg, .disclaimerMobile svg)"] },
+        "dark": { "value": "#ffcf00", "usage": "Disclaimer icon color", "used_in": ["chat/chat.module.css (.disclaimerCompact svg, .disclaimerMobile svg)"] }
+      }
+    }
+  }
+}

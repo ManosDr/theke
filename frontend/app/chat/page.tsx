@@ -488,9 +488,15 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           ? "register.typeAccounting"
           : "dash.super.platform";
 
-  const companyType = user?.companyType;
+  // Keyed off the company's actual vertical (construction/tax_accounting),
+  // not user.companyType directly - a municipality's companyType is
+  // "municipality", not "construction", but its vertical_slug is still
+  // "construction", so it should see the same real construction examples
+  // as any other construction-vertical company. Only super_admin (no
+  // company at all) falls through to the vertical-blind "generic" set.
+  const verticalSlug = company?.vertical_slug;
   const suggestionKeys =
-    SUGGESTION_KEYS[companyType === "construction" || companyType === "accounting" ? companyType : "generic"];
+    SUGGESTION_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
 
   const disclaimerText = company?.vertical_disclaimer_text || t("chat.disclaimer");
   const initials = getInitials(user?.firstName, user?.lastName, user?.email);
@@ -636,7 +642,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
             behavior exactly, only the visual treatment changed (icon +
             single-line row using the existing warning tokens). */}
         <div className={styles.disclaimerCompact} title={disclaimerText}>
-          <WarningIcon size={13} />
+          <InfoIcon size={13} />
           <span>{disclaimerText}</span>
         </div>
 
@@ -645,8 +651,8 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
             visually) once dismissed, and hidden by CSS above 640px
             regardless, so it never doubles up with .disclaimerCompact. */}
         {!disclaimerDismissed && (
-          <div className={styles.disclaimerMobile}>
-            <WarningIcon size={12} />
+          <div className={styles.disclaimerMobile} title={disclaimerText}>
+            <InfoIcon size={12} />
             <span>{disclaimerText}</span>
             <button
               type="button"
@@ -725,6 +731,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                 ))}
               </div>
               <p className={styles.emptyStateHint}>{t("chat.emptyStateHint")}</p>
+              <p className={styles.emptyStateHintMobile}>{t("chat.emptyStateHintMobile")}</p>
               {company && !company.company_has_messages && (
                 <p className={styles.emptyStateHint}>
                   {t("chat.firstSessionHintPrefix")}{" "}
@@ -853,6 +860,20 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               </div>
             ))}
           {loading && <p className="text-muted">{t("chat.thinking")}</p>}
+          {/* Same static per-vertical prompts as the empty state's own
+              chips (not per-conversation AI-generated follow-ups - see
+              SUGGESTION_KEYS' own comment on why), repeated once below the
+              active thread as an ongoing quick-start row, left-aligned to
+              the thread's own left edge rather than centered. */}
+          {!historyLoading && !loading && messages.length > 0 && (
+            <div className={styles.followupChips}>
+              {suggestionKeys.map((key) => (
+                <button key={key} type="button" className={styles.suggestionChip} onClick={() => setInput(t(key))}>
+                  {t(key)}
+                </button>
+              ))}
+            </div>
+          )}
           <div ref={messagesEndRef} />
         </div>
 

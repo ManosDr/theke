@@ -399,7 +399,10 @@
   height: 52px;
   border-radius: 14px;
   background: var(--color-surface-alt);
-  color: var(--color-text-muted);
+  /* Existing purple accent token (same one TypeBadge/StatCard already use),
+     not a new arbitrary color - a plain gray/black stroke read as an error
+     or disabled state next to the rest of the page's accent colors. */
+  color: var(--color-purple);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -420,7 +423,11 @@
   flex-wrap: wrap;
   justify-content: center;
   gap: var(--space-2);
-  max-width: 460px;
+  /* Wide enough that the two shortest of the three chips reliably share a
+     row before wrapping (natural flex-wrap, not a fixed split) - 460px left
+     under 10px of margin for the current copy, tipping into 1-then-1-then-1
+     on minor content/locale changes. */
+  max-width: 480px;
 }
 
 .suggestionChip {
@@ -439,6 +446,18 @@
   color: var(--color-link);
 }
 
+/* Same chip visual as .suggestionChips (the .suggestionChip buttons inside
+   are shared), but left-aligned from the thread's own edge and unwrapped
+   from the empty state's centered/width-capped treatment - this row sits
+   below an active conversation, not centered in empty space. */
+.followupChips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-start;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+}
+
 /* Secondary line below the welcome message, empty state only - smaller
    and dimmer than .emptyState so it reads as a minor aside, not part of
    the welcome copy itself. Reuses --color-text-muted (rather than a new
@@ -450,11 +469,38 @@
   margin-top: var(--space-1);
 }
 
+/* Shorter mobile-only variant of .emptyStateHint - a distinct copy string
+   (chat.emptyStateHintMobile), not the desktop string reused at a smaller
+   size, since the desktop phrasing doesn't shrink to fit comfortably on a
+   phone width. Same CSS-toggle pair convention as .disclaimerCompact/
+   .disclaimerMobile above. */
+.emptyStateHintMobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .emptyStateHint {
+    display: none;
+  }
+
+  .emptyStateHintMobile {
+    display: block;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+  }
+}
+
 .message {
   max-width: 80%;
   padding: var(--space-3) var(--space-4);
-  border-radius: var(--radius-md);
-  line-height: 1.4;
+  /* Literal px, not var(--radius-md) (16px) - matches the chat redesign's
+     14px bubble-radius spec exactly, same literal-override convention the
+     640px block below already uses for its own (13px) mobile value. */
+  border-radius: 14px;
+  font-size: 14px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -466,25 +512,36 @@
 
 .messageAssistant {
   align-self: flex-start;
-  background: var(--color-surface-alt);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
 }
 
+/* Source citations, redesigned as a wrapped row of small pill chips (per
+   the chat redesign spec) instead of a vertical bulleted list - each <li>
+   below becomes its own pill via the child selector, so the citation
+   content itself (link, authority, contact info, pending-verification
+   badge) is unchanged, only the layout/chrome around it. */
 .citations {
   margin: var(--space-3) 0 0;
-  /* list-style: none removes the bullet marker but NOT the <ul> UA
-     default padding-inline-start (~40px) - without this, the [1] labels
-     sat indented from the answer text above them instead of flush. */
   padding: var(--space-2) 0 0;
   border-top: 1px solid var(--color-border);
   list-style: none;
-  font-size: 0.8rem;
   display: flex;
-  flex-direction: column;
-  gap: var(--space-1);
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.citations li {
+  background: var(--color-surface-alt);
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 11px;
+  line-height: 1.5;
 }
 
 .citationLink {
   color: var(--color-text-muted);
+  font-weight: 600;
 }
 
 .poolExhaustedNotice {

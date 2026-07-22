@@ -182,6 +182,7 @@ export default function ProjectDocumentsPanel({
             </span>
           </label>
         </div>
+        <p className={styles.fileInfo}>{t("project.documents.isolationNote")}</p>
 
         {uploadScope === "company" && (
           <div className={styles.uploadRow} style={{ marginTop: "var(--space-2)" }}>

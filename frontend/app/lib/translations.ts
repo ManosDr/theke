@@ -95,6 +95,7 @@ export const translations = {
     "sidebar.openMenu": "Open menu",
     "sidebar.closeMenu": "Close menu",
     "sidebar.myAccount": "My Account",
+    "sidebar.settings": "Settings",
 
     "topbar.decreaseFont": "Decrease font size",
     "topbar.increaseFont": "Increase font size",
@@ -1291,6 +1292,7 @@ export const translations = {
     "sidebar.openMenu": "Άνοιγμα μενού",
     "sidebar.closeMenu": "Κλείσιμο μενού",
     "sidebar.myAccount": "Ο Λογαριασμός μου",
+    "sidebar.settings": "Ρυθμίσεις",
 
     "topbar.decreaseFont": "Μείωση μεγέθους γραμματοσειράς",
     "topbar.increaseFont": "Αύξηση μεγέθους γραμματοσειράς",

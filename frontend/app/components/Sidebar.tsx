@@ -7,7 +7,9 @@ import { useEffect, useState } from "react";
 import { API_URL } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useCompany } from "../lib/company";
+import { useFontScale } from "../lib/fontScale";
 import { useLocale } from "../lib/i18n";
+import { useTheme } from "../lib/theme";
 import { getInitials } from "../lib/userDisplay";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
 import { LanguageToggle } from "./LanguageToggle";
@@ -24,7 +26,7 @@ import {
   SettingsIcon,
   SourcesIcon,
 } from "./NavIcons";
-import { LogoutIcon } from "./StatIcons";
+import { LogoutIcon, MoonIcon, SunIcon } from "./StatIcons";
 import { CloseIcon } from "./UiIcons";
 import styles from "./Sidebar.module.css";
 
@@ -155,6 +157,8 @@ function CompanyBranding({ collapsed }: { collapsed: boolean }) {
 export function Sidebar() {
   const { user, logout } = useAuth();
   const { t } = useLocale();
+  const { theme, setTheme } = useTheme();
+  const { scale, increase, decrease } = useFontScale();
   const router = useRouter();
   const pathname = usePathname() ?? "";
   const [collapsed, setCollapsed] = useState(false);
@@ -333,15 +337,50 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Chat's mobile top bar drops the language selector to cut icon
-          count (see chat/page.tsx's ChatMobileTopBar) - it needs a home
-          somewhere still reachable, and the drawer it now opens from is
-          the natural place. CSS-scoped to the mobile drawer only (see
-          .mobileLanguageRow); on every other page/breakpoint this simply
-          doesn't render. */}
+      {/* Chat's mobile top bar drops language/theme/font-scale entirely to
+          keep that row to navigation + account-critical actions only (see
+          chat/page.tsx's ChatMobileTopBar) - they need a home somewhere
+          still reachable, and the drawer it now opens from is the natural
+          place. Grouped under its own label so they read as a deliberate
+          settings section, not loose items appended to the nav list.
+          CSS-scoped to the mobile drawer only (see .mobileSettingsSection);
+          on every other page/breakpoint this simply doesn't render. */}
       {pathname === "/chat" && (
-        <div className={styles.mobileLanguageRow}>
-          <LanguageToggle />
+        <div className={styles.mobileSettingsSection}>
+          <div className={styles.mobileSettingsLabel}>{t("sidebar.settings")}</div>
+          <div className={styles.mobileSettingsRow}>
+            <div className={styles.mobileFontScaleGroup}>
+              <button
+                type="button"
+                className={styles.mobileFontScaleButton}
+                title={t("topbar.decreaseFont")}
+                aria-label={t("topbar.decreaseFont")}
+                onClick={decrease}
+              >
+                A-
+              </button>
+              <span className={styles.mobileFontScalePct}>{scale}%</span>
+              <button
+                type="button"
+                className={`${styles.mobileFontScaleButton} ${styles.mobileFontScaleButtonBig}`}
+                title={t("topbar.increaseFont")}
+                aria-label={t("topbar.increaseFont")}
+                onClick={increase}
+              >
+                A+
+              </button>
+            </div>
+            <LanguageToggle />
+            <button
+              type="button"
+              className={styles.mobileThemeButton}
+              title={t("topbar.toggleTheme")}
+              aria-label={t("topbar.toggleTheme")}
+              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+            >
+              {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+            </button>
+          </div>
         </div>
       )}
 

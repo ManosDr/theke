@@ -7,14 +7,13 @@ import { AppShell } from "../components/AppShell";
 import { ChatIcon, ChevronIcon } from "../components/NavIcons";
 import { NotificationBell } from "../components/NotificationBell";
 import MessagePackUpsell from "../components/MessagePackUpsell";
-import { InfoIcon, MoonIcon, SunIcon, ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
+import { InfoIcon, ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { UserMenu } from "../components/TopHeader";
 import { CloseIcon, PinIcon, RefreshIcon, SendIcon, WarningIcon } from "../components/UiIcons";
 import { ApiError, NETWORK_ERROR_STATUS, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
 import { useLocale } from "../lib/i18n";
-import { useTheme } from "../lib/theme";
 import type { TranslationKey } from "../lib/translations";
 import { getInitials } from "../lib/userDisplay";
 import type {
@@ -142,14 +141,14 @@ function computeDividers(
 // Mobile-only compact header for the Chat page specifically (swapped in via
 // AppShell's `mobileHeader` prop, below its 640px breakpoint) - hamburger
 // stays the existing fixed Sidebar trigger (this bar just leaves it room,
-// see .mobileTopBar's padding-left), title + context-sheet trigger + theme/
+// see .mobileTopBar's padding-left), title + context-sheet trigger +
 // notifications/avatar replace TopHeader's row, which also drops the
-// breadcrumb/font-scale controls that don't fit a 56px bar anyway. Language
-// selector moves into the nav drawer (see Sidebar.tsx's mobileLanguageRow)
-// to keep this row to 4 icons per the design spec, not 6.
+// breadcrumb/font-scale controls that don't fit a 56px bar anyway.
+// Language, theme, and font-scale all move into the nav drawer's settings
+// section (see Sidebar.tsx's mobileSettingsSection) to keep this row to
+// navigation + account-critical actions only, not preference controls.
 function ChatMobileTopBar({ onOpenSheet }: { onOpenSheet: () => void }) {
   const { t } = useLocale();
-  const { theme, setTheme } = useTheme();
 
   return (
     <div className={styles.mobileTopBar}>
@@ -162,14 +161,6 @@ function ChatMobileTopBar({ onOpenSheet }: { onOpenSheet: () => void }) {
           aria-label={t("chat.contextSearchTitle")}
         >
           <InfoIcon size={16} />
-        </button>
-        <button
-          type="button"
-          className={styles.mobileIconButton}
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-          aria-label={t("topbar.toggleTheme")}
-        >
-          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
         </button>
         <NotificationBell />
         <UserMenu />

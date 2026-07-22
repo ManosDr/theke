@@ -197,27 +197,17 @@
 @media (max-width: 640px) {
   .header {
     padding-left: 64px;
-    /* Kept wrap-capable as a safety net even though .desktopOnlyActions
-       (font-scale/language/theme, moved to the Sidebar drawer below this
-       breakpoint) no longer crowds this row - a long TrialBadge string on
-       a very narrow phone could still need the second row. */
-    height: auto;
-    min-height: 64px;
-    flex-wrap: wrap;
-    row-gap: var(--space-2);
-    padding-top: var(--space-2);
-    padding-bottom: var(--space-2);
+    /* Fixed single-line height, matching Sidebar.module.css's
+       .mobileMenuTrigger (40px tall, 12px from top - vertically centered
+       only when this header is exactly 64px, not the taller wrapped height
+       flex-wrap used to allow). Title and actions now stay on one row and
+       share the same vertical center as the fixed hamburger button. */
+    height: 64px;
+    flex-wrap: nowrap;
   }
 
   .actions {
-    /* Overrides the base rule's flex-shrink:0 - without this, .actions
-       keeps its full intrinsic (unwrapped) width as a single flex item of
-       .header, so even with .header's own flex-wrap:wrap it just overflows
-       on its own row instead of actually wrapping internally. */
-    flex-shrink: 1;
-    flex-wrap: wrap;
-    width: 100%;
-    justify-content: flex-end;
+    flex-wrap: nowrap;
   }
 
   .desktopOnlyActions {

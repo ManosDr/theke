@@ -15,7 +15,7 @@
   transition: width 180ms ease, min-width 180ms ease, max-width 180ms ease;
   position: sticky;
   top: 0;
-  height: 100vh;
+  height: 100dvh;
   z-index: 20;
 }
 
@@ -47,13 +47,6 @@
   color: var(--admin-navy);
   letter-spacing: -0.5px;
   line-height: 1;
-}
-
-.wordmarkSub {
-  font-size: 11px;
-  color: var(--admin-stone);
-  margin-top: 3px;
-  font-weight: 500;
 }
 
 .collapseToggle {
@@ -435,4 +428,15 @@
   display: flex;
   align-items: center;
   flex-shrink: 0;
+}
+
+/* The icon itself is small (15px) but the drawer is a touch surface at this
+   width - pad the button's own tap area out to a reasonable minimum
+   instead of enlarging the icon, matching the field-use-resilience pass's
+   44px guidance for the composer buttons. */
+@media (max-width: 640px) {
+  .signOutButton {
+    padding: var(--space-2);
+    margin: calc(var(--space-2) * -1);
+  }
 }

@@ -6,6 +6,12 @@
   margin-bottom: var(--space-4);
 }
 
+@media (max-width: 640px) {
+  .header {
+    flex-wrap: wrap;
+  }
+}
+
 .header h1 {
   margin-bottom: 4px;
 }
@@ -135,5 +141,14 @@
   display: inline-block;
   margin-top: var(--space-5);
   color: var(--color-text-muted);
-  font-size: 13px;
+  /* Bumped from 13px, same reasoning as the .field labels elsewhere in
+     this file - a primary navigation link reads a little cramped at 13px. */
+  font-size: 15px;
+}
+
+@media (max-width: 640px) {
+  .backLink {
+    padding: var(--space-2) 0;
+    margin: var(--space-4) calc(var(--space-2) * -1) calc(var(--space-2) * -1);
+  }
 }

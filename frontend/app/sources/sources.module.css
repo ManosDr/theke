@@ -91,6 +91,15 @@
   font-weight: 600;
 }
 
+/* Larger tap area on mobile without shifting desktop layout - the negative
+   margin exactly offsets the added padding. */
+@media (max-width: 640px) {
+  .backLink {
+    padding: var(--space-2) 0;
+    margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  }
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;
@@ -124,4 +133,94 @@
   color: var(--color-text-muted);
   text-align: center;
   padding: var(--space-5) 0;
+}
+
+/* Super admin's three-tier Sources view (SuperAdminSourcesView.tsx) - the
+   tab bar and per-tier accent colors. Public/company/customer reuse three
+   already-established tokens rather than introducing new ones, in
+   increasing "privacy weight" order: public KB (neutral/info blue) →
+   company-wide (info blue, same family, one step in) → customer-scoped
+   (warning amber, the most private tier - "handle with care"), matching
+   how a badge/dot color already signals category elsewhere in the admin
+   (e.g. the Construction/Tax vertical dots). */
+.tierTabBar {
+  display: flex;
+  gap: var(--space-2);
+  margin: var(--space-4) 0 var(--space-5);
+  border-bottom: 1px solid var(--admin-row-border);
+}
+
+.tierTab {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  background: none;
+  border-bottom: 2px solid transparent;
+  font-weight: 600;
+  font-size: 0.9rem;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}
+
+.tierTab:hover {
+  color: var(--admin-navy);
+}
+
+.tierTabActive {
+  color: var(--admin-navy);
+  border-bottom-color: var(--admin-accent-navy);
+}
+
+.tierDot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.tierBadgePublic {
+  background: var(--admin-info);
+}
+
+.tierBadgeCompany {
+  background: var(--admin-info);
+  opacity: 0.7;
+}
+
+.tierBadgeCustomer {
+  background: var(--color-warning);
+}
+
+/* The two badge classes also used as inline <span class="badge"> labels
+   (not just the tab-bar dots) - text/bg pairing instead of a plain dot. */
+span.tierBadgeCompany {
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  background: var(--admin-info-bg, var(--color-info-bg));
+  color: var(--admin-info);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+span.tierBadgeCustomer {
+  width: auto;
+  height: auto;
+  border-radius: var(--radius-sm);
+  padding: 2px var(--space-2);
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+  font-size: 0.78rem;
+  font-weight: 600;
+}
+
+.tileCompany {
+  border-left: 3px solid var(--admin-info);
+}
+
+.tileCustomer {
+  border-left: 3px solid var(--color-warning);
 }

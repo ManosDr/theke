@@ -201,15 +201,20 @@ export function Sidebar() {
 
   return (
     <>
-      <button
-        type="button"
-        className={styles.mobileMenuTrigger}
-        onClick={() => setMobileOpen(true)}
-        aria-label={t("sidebar.openMenu")}
-        aria-expanded={mobileOpen}
-      >
-        <MenuIcon size={22} />
-      </button>
+      {/* Rendered only while closed - once the drawer is open, its own
+          close (X) button is the way to dismiss it, so showing both at once
+          just duplicates the control and risks overlapping the open panel. */}
+      {!mobileOpen && (
+        <button
+          type="button"
+          className={styles.mobileMenuTrigger}
+          onClick={() => setMobileOpen(true)}
+          aria-label={t("sidebar.openMenu")}
+          aria-expanded={mobileOpen}
+        >
+          <MenuIcon size={22} />
+        </button>
+      )}
       {mobileOpen && (
         <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)} aria-hidden="true" />
       )}
@@ -222,7 +227,6 @@ export function Sidebar() {
           ) : (
             <div>
               <div className={styles.wordmarkText}>theke</div>
-              <div className={styles.wordmarkSub}>{t("sidebar.adminLabel")}</div>
             </div>
           )}
           <button

@@ -37,6 +37,22 @@
   font-size: 0.88rem;
 }
 
+/* This table has no .card/scroll-pane ancestor to contain overflow (unlike
+   the dashboard tables) - at mobile widths its many columns don't fit
+   375px, so scope the scroll to the table itself rather than the whole
+   page. table {display:block} keeps row/cell layout intact while making
+   the table element itself a scrollable block. Super admin screens like
+   this one are desktop-first by design, so this just removes the page-
+   level scrollbar; it doesn't attempt a stacked-card mobile redesign. */
+@media (max-width: 640px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+}
+
 .table th {
   text-align: left;
   padding: var(--space-2) var(--space-3);

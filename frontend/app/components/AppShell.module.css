@@ -30,6 +30,11 @@
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Without this, a nested flex chain lets a wide table's intrinsic width
+     propagate all the way up past the viewport instead of being clipped/
+     scrolled by an inner .card's own overflow-x:auto - the classic flex
+     "min-width defaults to auto, not 0" overflow bug. */
+  min-width: 0;
 }
 
 @media (max-width: 640px) {

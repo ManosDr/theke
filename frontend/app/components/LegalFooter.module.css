@@ -22,6 +22,21 @@
   opacity: 0.5;
 }
 
+/* Below this width, wrapping the inline row left dangling "·" separators
+   stranded alone on their own line. Stack vertically instead - the gap
+   itself reads as the separator, so the dots are hidden rather than
+   wrapped. */
+@media (max-width: 480px) {
+  .footer {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .sep {
+    display: none;
+  }
+}
+
 .draftLink {
   color: var(--color-text-muted);
   opacity: 0.6;

@@ -26,6 +26,18 @@
   font-size: 0.88rem;
 }
 
+/* No .card/scroll-pane ancestor to contain overflow - scope the scroll to
+   the table itself at mobile widths rather than the whole page. See the
+   identical fix/comment in SubscriptionsPanel.module.css. */
+@media (max-width: 640px) {
+  .table {
+    display: block;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    white-space: nowrap;
+  }
+}
+
 .table th {
   text-align: left;
   padding: var(--space-2) var(--space-3);

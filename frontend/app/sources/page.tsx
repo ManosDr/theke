@@ -10,6 +10,7 @@ import { RequireAuth, useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { BrowseResponse, DocumentSummary, RegionSummary, SourceGroupSummary } from "../lib/types";
+import { SuperAdminSourcesView } from "./SuperAdminSourcesView";
 import styles from "./sources.module.css";
 
 const PAGE_SIZE = 20;
@@ -79,8 +80,19 @@ function SourcesContent() {
     apiParams.set("limit", String(PAGE_SIZE));
     apiParams.set("offset", String(nextOffset));
 
-    const result = await api.get<BrowseResponse>(`/documents/browse?${apiParams.toString()}`, user?.token);
-    setData(result);
+    try {
+      const result = await api.get<BrowseResponse>(`/documents/browse?${apiParams.toString()}`, user?.token);
+      setData(result);
+    } catch {
+      // An unhandled rejection here left `data` null forever, showing the
+      // loading state indefinitely instead of an (empty) result - this
+      // endpoint 403s outright for a super_admin (no single company/
+      // vertical to scope to), which is exactly why super_admin never
+      // reaches this component at all (see SourcesPage below) - but any
+      // other transient failure should still resolve to an empty list
+      // rather than hang.
+      setData({ total: 0, items: [] });
+    }
   }
 
   useEffect(() => {
@@ -254,13 +266,27 @@ function SourcesContent() {
   );
 }
 
+// A super_admin isn't a member of any single company, so the tenant-facing
+// SourcesContent above (which filters through the caller's own company/
+// vertical) structurally doesn't apply to them - GET /documents/browse
+// 403s for that exact reason (see get_company_vertical in the backend).
+// SuperAdminSourcesView is a different screen entirely: full visibility
+// across every company/customer, not a filtered view of one.
+function SourcesRoleGate() {
+  const { user } = useAuth();
+  if (user?.role === "super_admin") return <SuperAdminSourcesView />;
+  return (
+    <Suspense fallback={<p className="text-muted">Loading…</p>}>
+      <SourcesContent />
+    </Suspense>
+  );
+}
+
 export default function SourcesPage() {
   return (
     <RequireAuth>
       <AppShell>
-        <Suspense fallback={<p className="text-muted">Loading…</p>}>
-          <SourcesContent />
-        </Suspense>
+        <SourcesRoleGate />
       </AppShell>
     </RequireAuth>
   );

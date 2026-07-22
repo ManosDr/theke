@@ -31,6 +31,13 @@
   font-weight: 600;
 }
 
+@media (max-width: 640px) {
+  .backLink {
+    padding: var(--space-2) 0;
+    margin: calc(var(--space-2) * -1) 0 var(--space-3);
+  }
+}
+
 .findBar {
   display: flex;
   align-items: center;

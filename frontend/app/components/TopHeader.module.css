@@ -183,9 +183,34 @@
 
 /* Room for Sidebar.tsx's fixed hamburger trigger (40px + var(--space-3)
    left offset), which overlaps the header's own left edge below the same
-   640px threshold Sidebar.module.css switches to drawer mode at. */
+   640px threshold Sidebar.module.css switches to drawer mode at. Still
+   applies everywhere this header renders except /chat, which swaps it for
+   its own compact mobile header below this breakpoint instead (see
+   AppShell's `mobileHeader` prop) - not scoped by route here since plain
+   CSS can't see the pathname either way. */
 @media (max-width: 640px) {
   .header {
     padding-left: 64px;
+    /* TrialBadge + LanguageToggle + theme/notifications/avatar icons
+       together don't fit one row at phone widths (title takes space too) -
+       wrap to a second row instead of forcing the whole page to scroll
+       sideways to reach them. */
+    height: auto;
+    min-height: 64px;
+    flex-wrap: wrap;
+    row-gap: var(--space-2);
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-2);
+  }
+
+  .actions {
+    /* Overrides the base rule's flex-shrink:0 - without this, .actions
+       keeps its full intrinsic (unwrapped) width as a single flex item of
+       .header, so even with .header's own flex-wrap:wrap it just overflows
+       on its own row instead of actually wrapping internally. */
+    flex-shrink: 1;
+    flex-wrap: wrap;
+    width: 100%;
+    justify-content: flex-end;
   }
 }

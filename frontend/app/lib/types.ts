@@ -281,6 +281,27 @@ export interface CustomerSummary {
   last_project_at: string | null;
 }
 
+// Super admin's full-source-visibility screen (GET /admin/companies-documents,
+// /admin/companies/{id}/customers-documents) - see SuperAdminSourcesView.
+export interface CompanyDocumentsSummary {
+  company_id: number;
+  company_name: string;
+  company_type: string;
+  vertical_slug: string | null;
+  document_count: number;
+  storage_bytes: number;
+  customer_count: number;
+}
+
+export interface CustomerDocumentsSummary {
+  id: number;
+  name: string;
+  afm: string | null;
+  phone: string | null;
+  email: string | null;
+  document_count: number;
+}
+
 export interface CustomerProjectSummary {
   id: number;
   name: string | null;

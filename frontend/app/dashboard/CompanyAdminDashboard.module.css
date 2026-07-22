@@ -3,6 +3,7 @@
   flex-direction: column;
   height: 100%;
   min-height: 0;
+  min-width: 0;
   padding: var(--space-5);
 }
 
@@ -28,6 +29,21 @@
   font-size: 0.9rem;
   color: var(--color-text-muted);
   cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+/* Company admin stays desktop-optimized by design (out of scope for a full
+   mobile redesign - see KNOWN_DECISIONS.md), but the tab row itself must
+   not force the whole page to scroll sideways to reach the icons/actions
+   past it. Scroll is contained to the tab strip instead, same pattern as a
+   native app's horizontally-scrollable tab bar - it stays dense on mobile,
+   it just doesn't leak. */
+@media (max-width: 640px) {
+  .tabBar {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
 }
 
 .tabButton:hover {
@@ -42,6 +58,7 @@
 .tabContent {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   display: flex;
   flex-direction: column;
 }
@@ -49,7 +66,9 @@
 .scrollPane {
   flex: 1;
   min-height: 0;
+  min-width: 0;
   overflow-y: auto;
+  overflow-x: auto;
 }
 
 .activityList {

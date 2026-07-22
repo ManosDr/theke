@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from openai import OpenAI, OpenAIError
-from sqlalchemy import delete, func, select, text
+from sqlalchemy import delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -16,6 +16,7 @@ from app.models import (
     ChatSession,
     Company,
     CompanySubscription,
+    Customer,
     DataSource,
     Document,
     DocumentValidation,
@@ -48,9 +49,11 @@ from app.schemas import (
     CompanyCreateWithAdminRequest,
     CompanyCreateWithAdminResponse,
     CompanyDetail,
+    CompanyDocumentsSummary,
     CompanyProjectSummary,
     CompanySummary,
     CompanyUserSummary,
+    CustomerDocumentsSummary,
     DataSourceSummary,
     DataSourceSyncStatus,
     DataSourceUpdateRequest,
@@ -834,6 +837,146 @@ async def list_admin_documents(
     return BrowseResponse(
         total=total, items=[_to_admin_summary(db, doc, vertical_slugs, still_accurate_map) for doc in results]
     )
+
+
+# --- Full source visibility (Sources/Πηγές, super admin) ---
+#
+# The tenant-facing GET /documents/browse (routers/documents.py) 403s for a
+# super_admin outright (it depends on get_company_vertical, which requires
+# exactly one company) - a super_admin has no company_id, so it isn't just
+# under-scoped for them, it's structurally the wrong endpoint. These three
+# endpoints back a dedicated super-admin view instead: the existing
+# GET /admin/documents above already covers the public KB tier
+# (company_id IS NULL); these cover the other two tiers - company-wide docs
+# (company_id set, project_id and customer_id both NULL) and customer-scoped
+# docs (customer_id set) - across every company, since a super_admin isn't
+# a member of any one of them.
+
+
+@router.get("/companies-documents", response_model=list[CompanyDocumentsSummary])
+async def list_companies_documents_summary(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[CompanyDocumentsSummary]:
+    """Every company (not just ones with existing company-wide documents) -
+    a company with zero company-wide docs can still have customers with
+    their own documents, so it still needs a tile to drill into."""
+    require_super_admin(user)
+    companies = db.scalars(select(Company).order_by(Company.name)).all()
+    if not companies:
+        return []
+
+    doc_rows = db.execute(
+        select(Document.company_id, func.count(), func.coalesce(func.sum(Document.file_size_bytes), 0))
+        .where(
+            Document.status == "active",
+            Document.company_id.is_not(None),
+            Document.project_id.is_(None),
+            Document.customer_id.is_(None),
+        )
+        .group_by(Document.company_id)
+    ).all()
+    doc_counts = {row[0]: row[1] for row in doc_rows}
+    storage = {row[0]: row[2] for row in doc_rows}
+    customer_counts = dict(db.execute(select(Customer.company_id, func.count()).group_by(Customer.company_id)).all())
+    verticals = {v.id: v.slug for v in db.scalars(select(Vertical))}
+
+    return [
+        CompanyDocumentsSummary(
+            company_id=c.id,
+            company_name=c.name,
+            company_type=c.type,
+            vertical_slug=verticals.get(c.vertical_id),
+            document_count=doc_counts.get(c.id, 0),
+            storage_bytes=storage.get(c.id, 0),
+            customer_count=customer_counts.get(c.id, 0),
+        )
+        for c in companies
+    ]
+
+
+@router.get("/companies/{company_id}/company-documents", response_model=BrowseResponse)
+async def list_company_wide_documents(
+    company_id: int,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> BrowseResponse:
+    """A single company's company-wide documents (project_id and
+    customer_id both NULL) - the "Έγγραφα Εταιρειών" tier's drill-down,
+    clicking a company tile from list_companies_documents_summary above."""
+    require_super_admin(user)
+    stmt = select(Document).where(
+        Document.status == "active",
+        Document.company_id == company_id,
+        Document.project_id.is_(None),
+        Document.customer_id.is_(None),
+    )
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    results = db.scalars(stmt.order_by(Document.created_at.desc()).limit(limit).offset(offset)).all()
+    return BrowseResponse(total=total, items=[_to_admin_summary(db, doc) for doc in results])
+
+
+@router.get("/companies/{company_id}/customers-documents", response_model=list[CustomerDocumentsSummary])
+async def list_company_customers_with_documents(
+    company_id: int,
+    q: str = "",
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[CustomerDocumentsSummary]:
+    """Every customer of one company, with its document count - the
+    "Έγγραφα Πελατών" tier's filterable customer list (item 8c), searchable
+    by the same name/ΑΦΜ/phone fields the customers table already has.
+    Unlike GET /customers (routers/customers.py), which is scoped to the
+    caller's own company, company_id here is a path param - a super_admin
+    has no company of their own to default to."""
+    require_super_admin(user)
+    stmt = select(Customer).where(Customer.company_id == company_id)
+    term = q.strip()
+    if term:
+        stmt = stmt.where(
+            or_(
+                Customer.name.ilike(f"%{term}%"),
+                Customer.afm.ilike(f"%{term}%"),
+                Customer.phone.ilike(f"%{term}%"),
+            )
+        )
+    customers = db.scalars(stmt.order_by(Customer.name)).all()
+    if not customers:
+        return []
+
+    doc_counts = dict(
+        db.execute(
+            select(Document.customer_id, func.count())
+            .where(Document.status == "active", Document.customer_id.in_([c.id for c in customers]))
+            .group_by(Document.customer_id)
+        ).all()
+    )
+    return [
+        CustomerDocumentsSummary(
+            id=c.id, name=c.name, afm=c.afm, phone=c.phone, email=c.email, document_count=doc_counts.get(c.id, 0)
+        )
+        for c in customers
+    ]
+
+
+@router.get("/customers/{customer_id}/customer-documents", response_model=BrowseResponse)
+async def list_customer_scoped_documents(
+    customer_id: int,
+    limit: int = Query(default=50, le=200),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> BrowseResponse:
+    """A single customer's customer-scoped documents - the "Έγγραφα
+    Πελατών" tier's drill-down, selecting a customer from
+    list_company_customers_with_documents above."""
+    require_super_admin(user)
+    stmt = select(Document).where(Document.status == "active", Document.customer_id == customer_id)
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    results = db.scalars(stmt.order_by(Document.created_at.desc()).limit(limit).offset(offset)).all()
+    return BrowseResponse(total=total, items=[_to_admin_summary(db, doc) for doc in results])
 
 
 @router.post("/documents/{document_id}/mark-superseded", response_model=list[DocumentSummary])

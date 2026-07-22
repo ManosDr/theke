@@ -658,6 +658,29 @@ class CustomerSummary(BaseModel):
     last_project_at: datetime | None = None
 
 
+# Super admin's full-source-visibility screen (GET /admin/companies-documents,
+# /admin/companies/{id}/customers-documents) - see routers/admin.py. Distinct
+# from CompanySummary/CustomerSummary above, which back the existing
+# company/customer management screens and don't carry document counts.
+class CompanyDocumentsSummary(BaseModel):
+    company_id: int
+    company_name: str
+    company_type: str
+    vertical_slug: str | None = None
+    document_count: int = 0
+    storage_bytes: int = 0
+    customer_count: int = 0
+
+
+class CustomerDocumentsSummary(BaseModel):
+    id: int
+    name: str
+    afm: str | None = None
+    phone: str | None = None
+    email: str | None = None
+    document_count: int = 0
+
+
 class CustomerProjectSummary(BaseModel):
     id: int
     name: str | None

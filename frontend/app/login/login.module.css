@@ -15,6 +15,19 @@
   right: var(--space-4);
 }
 
+/* .page centers its content vertically (justify-content:center), which on
+   a narrow/short viewport can land the logo+tagline close enough to the
+   top that they overlap the absolutely-positioned language/theme toggle
+   row above. Reserving fixed top space (roughly the toggle row's own
+   height + its own top offset) guarantees clearance regardless of how
+   tall the centered content ends up being, instead of relying on
+   centering math to coincidentally avoid it. */
+@media (max-width: 480px) {
+  .page {
+    padding-top: 72px;
+  }
+}
+
 .intro {
   text-align: center;
   display: flex;

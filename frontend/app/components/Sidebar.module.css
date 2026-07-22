@@ -368,10 +368,11 @@
   font-weight: 600;
 }
 
-/* Only ever rendered (see Sidebar.tsx) while on /chat, whose mobile top bar
-   drops language/theme/font-scale entirely to keep that row to navigation +
-   account-critical actions only - hidden outside the mobile drawer since
-   desktop/tablet Chat still has TopHeader's own controls for all three. */
+/* Rendered on every page (see Sidebar.tsx) - every mobile top bar drops
+   language/theme/font-scale to keep that row to navigation + account-
+   critical actions only, whether it's TopHeader's shared header or Chat's
+   own compact one. Hidden outside the mobile drawer since desktop/tablet
+   still has those controls in the top bar itself. */
 .mobileSettingsSection {
   display: none;
 }

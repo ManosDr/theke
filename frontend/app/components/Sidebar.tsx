@@ -337,52 +337,52 @@ export function Sidebar() {
         )}
       </nav>
 
-      {/* Chat's mobile top bar drops language/theme/font-scale entirely to
-          keep that row to navigation + account-critical actions only (see
-          chat/page.tsx's ChatMobileTopBar) - they need a home somewhere
-          still reachable, and the drawer it now opens from is the natural
+      {/* Every page's mobile top bar drops language/theme/font-scale to
+          keep that row to navigation + account-critical actions only - both
+          TopHeader.module.css's own .desktopOnlyActions (the shared header
+          every page but Chat uses) and chat/page.tsx's ChatMobileTopBar
+          hide these below 640px, so they need a home somewhere still
+          reachable, and the drawer they all open from is the natural
           place. Grouped under its own label so they read as a deliberate
           settings section, not loose items appended to the nav list.
-          CSS-scoped to the mobile drawer only (see .mobileSettingsSection);
-          on every other page/breakpoint this simply doesn't render. */}
-      {pathname === "/chat" && (
-        <div className={styles.mobileSettingsSection}>
-          <div className={styles.mobileSettingsLabel}>{t("sidebar.settings")}</div>
-          <div className={styles.mobileSettingsRow}>
-            <div className={styles.mobileFontScaleGroup}>
-              <button
-                type="button"
-                className={styles.mobileFontScaleButton}
-                title={t("topbar.decreaseFont")}
-                aria-label={t("topbar.decreaseFont")}
-                onClick={decrease}
-              >
-                A-
-              </button>
-              <span className={styles.mobileFontScalePct}>{scale}%</span>
-              <button
-                type="button"
-                className={`${styles.mobileFontScaleButton} ${styles.mobileFontScaleButtonBig}`}
-                title={t("topbar.increaseFont")}
-                aria-label={t("topbar.increaseFont")}
-                onClick={increase}
-              >
-                A+
-              </button>
-            </div>
-            <LanguageToggle />
+          Layout-level, not scoped to any one route - CSS-scoped only to
+          the mobile drawer width (see .mobileSettingsSection). */}
+      <div className={styles.mobileSettingsSection}>
+        <div className={styles.mobileSettingsLabel}>{t("sidebar.settings")}</div>
+        <div className={styles.mobileSettingsRow}>
+          <div className={styles.mobileFontScaleGroup}>
             <button
               type="button"
-              className={styles.mobileThemeButton}
-              title={t("topbar.toggleTheme")}
-              aria-label={t("topbar.toggleTheme")}
-              onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+              className={styles.mobileFontScaleButton}
+              title={t("topbar.decreaseFont")}
+              aria-label={t("topbar.decreaseFont")}
+              onClick={decrease}
             >
-              {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+              A-
+            </button>
+            <span className={styles.mobileFontScalePct}>{scale}%</span>
+            <button
+              type="button"
+              className={`${styles.mobileFontScaleButton} ${styles.mobileFontScaleButtonBig}`}
+              title={t("topbar.increaseFont")}
+              aria-label={t("topbar.increaseFont")}
+              onClick={increase}
+            >
+              A+
             </button>
           </div>
+          <LanguageToggle />
+          <button
+            type="button"
+            className={styles.mobileThemeButton}
+            title={t("topbar.toggleTheme")}
+            aria-label={t("topbar.toggleTheme")}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
+          >
+            {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
+          </button>
         </div>
-      )}
+      </div>
 
       <div className={styles.footer}>
         <div className={styles.footerRow}>

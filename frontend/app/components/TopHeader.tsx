@@ -173,32 +173,40 @@ export function TopHeader() {
       <div className={styles.actions}>
         <TrialBadge />
 
-        <div className={styles.fontScaleGroup}>
-          <button type="button" className={styles.fontScaleButton} title={t("topbar.decreaseFont")} onClick={decrease}>
-            A-
-          </button>
-          <span className={styles.fontScalePct}>{scale}%</span>
+        {/* Preference controls, not navigation or account-critical actions -
+            hidden below 640px (see .desktopOnlyActions) in favor of the
+            same three controls living in the Sidebar drawer's settings
+            section, which is what a phone-width top bar has room for.
+            Layout-level (this header is shared by every page except Chat's
+            own compact mobile header), not a Chat-specific treatment. */}
+        <div className={styles.desktopOnlyActions}>
+          <div className={styles.fontScaleGroup}>
+            <button type="button" className={styles.fontScaleButton} title={t("topbar.decreaseFont")} onClick={decrease}>
+              A-
+            </button>
+            <span className={styles.fontScalePct}>{scale}%</span>
+            <button
+              type="button"
+              className={`${styles.fontScaleButton} ${styles.fontScaleButtonBig}`}
+              title={t("topbar.increaseFont")}
+              onClick={increase}
+            >
+              A+
+            </button>
+          </div>
+
+          <LanguageToggle />
+
           <button
             type="button"
-            className={`${styles.fontScaleButton} ${styles.fontScaleButtonBig}`}
-            title={t("topbar.increaseFont")}
-            onClick={increase}
+            className={styles.iconPill}
+            title={t("topbar.toggleTheme")}
+            aria-label={t("topbar.toggleTheme")}
+            onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
           >
-            A+
+            {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
           </button>
         </div>
-
-        <LanguageToggle />
-
-        <button
-          type="button"
-          className={styles.iconPill}
-          title={t("topbar.toggleTheme")}
-          aria-label={t("topbar.toggleTheme")}
-          onClick={() => setTheme(theme === "dark" ? "light" : "dark")}
-        >
-          {theme === "dark" ? <SunIcon size={16} /> : <MoonIcon size={16} />}
-        </button>
 
         <NotificationBell />
 

@@ -48,6 +48,12 @@
   flex-shrink: 0;
 }
 
+.desktopOnlyActions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
 .fontScaleGroup {
   display: flex;
   align-items: center;
@@ -191,10 +197,10 @@
 @media (max-width: 640px) {
   .header {
     padding-left: 64px;
-    /* TrialBadge + LanguageToggle + theme/notifications/avatar icons
-       together don't fit one row at phone widths (title takes space too) -
-       wrap to a second row instead of forcing the whole page to scroll
-       sideways to reach them. */
+    /* Kept wrap-capable as a safety net even though .desktopOnlyActions
+       (font-scale/language/theme, moved to the Sidebar drawer below this
+       breakpoint) no longer crowds this row - a long TrialBadge string on
+       a very narrow phone could still need the second row. */
     height: auto;
     min-height: 64px;
     flex-wrap: wrap;
@@ -212,5 +218,9 @@
     flex-wrap: wrap;
     width: 100%;
     justify-content: flex-end;
+  }
+
+  .desktopOnlyActions {
+    display: none;
   }
 }

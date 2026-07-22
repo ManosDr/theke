@@ -120,9 +120,14 @@ SOURCES = [
     },
     {
         "name": "dimos_dramas_ydom",
-        "description": "Δήμος Δράμας - Building Permits Department (regional, Drama). Deliberate re-test of the "
-        "multi-<article> decoy bug (see crawler/crawler/ingest.py's ExtractedContent.ambiguous) - this page's "
-        "template embeds a 'recent posts' widget that adds extra <article> tags ahead of the real content.",
+        # Deliberate re-test of the multi-<article> decoy bug (see
+        # crawler/crawler/ingest.py's ExtractedContent.ambiguous) - this page's
+        # template embeds a "recent posts" widget that adds extra <article>
+        # tags ahead of the real content. Keep this note as a code comment,
+        # not in "description" below - description is used verbatim as the
+        # ingested document's public-facing title (see main.py's
+        # DIRECT_MODE_HANDLERS call), so it must read like a real title.
+        "description": "Δήμος Δράμας - Building Permits Department (regional, Drama)",
         "url": "https://dimos-dramas.gr/service/dimarchos/genikos-grammateas/dnsi-poleodomias/tm-ekdosis-ikonomikon-adion-elegchou-kataskevon/",
         "mode": "html_page",  # robots.txt only disallows /suggest/, /Forms/, /Dictionary/, etc. - not this page
         "enabled": True,

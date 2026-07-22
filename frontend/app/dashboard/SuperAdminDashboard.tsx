@@ -381,7 +381,7 @@ export function SuperAdminDashboard() {
           onCtaClick={() => router.push("/admin/stale-documents")}
         />
         <AttentionCard
-          tone="warning"
+          tone="info"
           icon={<CoinIcon size={14} />}
           value={`€${platformCost30d.toFixed(2)}`}
           label={
@@ -418,7 +418,7 @@ export function SuperAdminDashboard() {
           />
         )}
         <AttentionCard
-          tone="success"
+          tone="info"
           icon={<BuildingIcon size={14} />}
           value={realActiveCompanies}
           label={

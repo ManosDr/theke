@@ -2,7 +2,7 @@ import type { ReactNode } from "react";
 
 import styles from "./AttentionCard.module.css";
 
-export type AttentionTone = "success" | "warning" | "danger";
+export type AttentionTone = "success" | "warning" | "danger" | "info";
 
 export function AttentionCard({
   label,

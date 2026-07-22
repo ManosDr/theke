@@ -95,6 +95,10 @@
   background: var(--color-danger);
 }
 
+.tone-info .iconBadge {
+  background: var(--color-info);
+}
+
 .tone-danger .label,
 .tone-danger .value,
 .tone-danger .cta {

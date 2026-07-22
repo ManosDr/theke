@@ -3,7 +3,7 @@
   align-items: center;
   gap: 4px;
   font-size: 0.75rem;
-  color: var(--error-red, #c62828);
+  color: var(--admin-danger);
   margin: 4px 0 0;
 }
 

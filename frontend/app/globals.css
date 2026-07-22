@@ -9,19 +9,28 @@
   --color-bg: #f7f9fc;
   --color-surface: #ffffff;
   --color-surface-alt: #eef1f6;
+  /* Subtle hover-state tint over --color-surface (e.g. CustomerCombobox's
+     result rows) - a translucent overlay rather than a flat hex so it
+     composites correctly over whatever surface it sits on. Previously
+     referenced as var(--color-surface-hover, rgba(0,0,0,0.04)) with no
+     real declaration behind it - the fallback silently carried the whole
+     app, invisibly in dark mode since a flat black tint barely registers
+     on an already-dark card. */
+  --color-surface-hover: rgba(21, 29, 72, 0.05);
   --color-border: #e4e9f2;
 
   /* Text */
   --color-text: #151d48;
   --color-text-muted: #737791;
   --color-text-on-primary: #ffffff;
-  --color-text-on-accent: #151d48;
 
   /* Brand - matches --admin-accent-navy exactly (the sidebar's own navy)
      so every primary action/link/chart line reads as the same identity as
      the sidebar/avatar, instead of the old unrelated green. Hover lifts to
-     --admin-info's blue (#2a6fdb, previously only hardcoded onto the
-     avatar circle) for a clear but still same-family interactive state. */
+     a brighter blue (#2a6fdb) intentionally shared with --admin-danger's
+     sibling admin-status blue role (DataSourcesPanel's syncing indicator,
+     source-tier badges, formerly --admin-info) - one interactive-blue
+     identity across both roles, not a coincidence. */
   --color-primary: #1b2a4a;
   --color-primary-hover: #2a6fdb;
   --color-accent: #ffa800;
@@ -44,9 +53,6 @@
   --color-warning-bg: #fff4de;
   --color-danger: #f64e60;
   --color-danger-bg: #ffe2e5;
-  /* Distinct from --color-danger (used for banners/badges) - reserved for
-     inline field-validation messages per the design spec. */
-  --error-red: #c62828;
 
   /* Extra tones for stat tiles/badges. --color-info was a bright blue
      (#0095ff) - fine on its own, but once --color-primary became navy
@@ -70,16 +76,6 @@
   --radius-sm: 8px;
   --radius-md: 16px;
   --radius-lg: 24px;
-
-  /* Sidebar gradient - originally the Theke Admin design prototype's exact
-     [data-app-theme="light"] --sidebar-grad stops (white fading to a light
-     green). Overridden per explicit direction: the footer/user-info block
-     at the bottom of the sidebar paints its own solid --admin-accent-navy
-     background on top of this gradient, so the gradient's own tail color
-     was invisible anyway - it now fades into that same navy instead of
-     green, so the color appears to originate at the footer and lighten
-     upward rather than jumping from an unrelated tint straight to navy. */
-  --gradient-sidebar: linear-gradient(180deg, #ffffff 0%, #ffffff 55%, #1b2a4a 85%, #1b2a4a 100%);
 
   --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
 
@@ -109,6 +105,16 @@
      --admin-navy (headings) and --admin-stone (muted labels) - used for
      default/inactive body text like nav item labels and switcher segments. */
   --admin-text-body: #4a4a4a;
+  /* Readable secondary/body text for content sitting on a permanently-dark
+     navy surface - the sidebar footer, active navy-filled pills/buttons,
+     and the vertical-editor's raw system-prompt textarea. Previously each
+     of those three spots hand-picked its own ad hoc light value (#fff,
+     #b7c2dc, #d8e0f0) with nothing connecting them; a rebrand of the navy
+     family would have had to hunt down three separate literals. Same value
+     in both themes on purpose, same reasoning as --admin-navy-solid - this
+     token exists specifically for surfaces that stay dark regardless of
+     the app's own light/dark theme. */
+  --admin-text-on-dark: #c7d0e8;
   /* Was #f5f0e8 (warm cream/beige) - the whole post-login app shell reads
      this token (see AppShell.module.css), so its warmth was the single
      biggest source of the app feeling visually split from the navy/blue
@@ -121,10 +127,8 @@
   --admin-row-border: #eef1f7;
   --admin-chip-bg: #eef1f7;
   --admin-construction: #2d5016;
-  --admin-construction-on-dark: #2d5016;
   --admin-construction-bg: #eaf1e4;
   --admin-tax: #8b5e3c;
-  --admin-tax-on-dark: #8b5e3c;
   --admin-tax-bg: #f3e9e0;
   --admin-neutral: #1b2a4a;
   --admin-neutral-bg: #eaecf1;
@@ -132,8 +136,14 @@
   --admin-warning: #f57f17;
   --admin-warning-bg: #fff4de;
   --admin-warning-border: #f5d999;
+  /* Also used for inline field-validation borders/text (DocumentsPanel,
+     CustomerCombobox, FieldError, project forms) - previously a separate
+     --error-red token with the identical #c62828 value, consolidated here
+     since the two always rendered the same color. Kept the --admin-danger
+     name over --error-red: wider call-site footprint (admin badges,
+     delete/suspend confirmations, failed-sync status, not just form
+     validation) and doesn't bake a specific hue into the token's own name. */
   --admin-danger: #c62828;
-  --admin-info: #2a6fdb;
   --admin-shadow-card: 0 1px 2px rgba(27, 42, 74, 0.04);
   --admin-shadow-modal: 0 20px 60px rgba(27, 42, 74, 0.3);
   --admin-shadow-drawer: -8px 0 24px rgba(27, 42, 74, 0.2);
@@ -154,12 +164,15 @@
   --color-bg: #0d1b2e;
   --color-surface: #16213a;
   --color-surface-alt: #1e2a44;
+  /* Light-on-dark tint (light overlays read as "raised/hovered" on a dark
+     surface the way dark overlays do on light surfaces) - the light
+     theme's rgba(0,0,0,...) direction would go the wrong way here. */
+  --color-surface-hover: rgba(255, 255, 255, 0.07);
   --color-border: #2a3752;
 
   --color-text: #ececec;
   --color-text-muted: #7b91b0;
   --color-text-on-primary: #ffffff;
-  --color-text-on-accent: #151d48;
 
   /* Same navy-blue identity as light mode, riding the theme-adaptive curve
      --admin-accent-navy already uses: brightens rather than staying at the
@@ -197,37 +210,35 @@
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
 
-  /* Fades into --admin-accent-navy (dark theme's value, #3e5a9e - a lighter
-     blue than the body tone below) instead of the darker #16233c it used
-     to end on, for the same reason as the light-theme override above: the
-     footer's solid navy sits right below this and should read as a
-     continuation of the gradient, not a seam. */
-  --gradient-sidebar: linear-gradient(180deg, #1a2439 0%, #1a2439 55%, #3e5a9e 85%, #3e5a9e 100%);
-
   /* Dark-mode admin palette, per the handoff's [data-app-theme="dark"] token
-     set. The two vertical accents get brighter variants specifically for
-     text-on-dark-card use (e.g. "View details →" links) - see
-     --admin-construction-on-dark/--admin-tax-on-dark below - while badges/
-     pills keep the base accent tinted against a *-bg tone, same as light mode. */
+     set, plus proper dark-mode values for --admin-success/--admin-warning
+     (previously missing - both silently inherited their light-mode value
+     into dark mode via the cascade, unlike their --color-success/
+     --color-warning siblings which do brighten for dark). --admin-danger
+     is explicitly restated here with the *same* value as light mode,
+     matching --color-danger's own already-established "constant across
+     themes" pattern - not an oversight, a deliberate parallel. */
   --admin-navy: #f1efe9;
   --admin-accent-navy: #3e5a9e;
   --admin-stone: #a6adc2;
   --admin-text-body: #d7dae6;
+  --admin-text-on-dark: #c7d0e8;
   --admin-parchment: #111a2e;
   --admin-topbar-bg: #1a2439;
   --admin-card-border: #2c3a57;
   --admin-row-border: #26314c;
   --admin-chip-bg: #243252;
   --admin-construction: #7fc77f;
-  --admin-construction-on-dark: #7fc77f;
   --admin-construction-bg: #1c2e1c;
   --admin-tax: #d9a468;
-  --admin-tax-on-dark: #d9a468;
   --admin-tax-bg: #332319;
   --admin-neutral: #3e5a9e;
   --admin-neutral-bg: #23304a;
+  --admin-success: #4ade80;
+  --admin-warning: #fb923c;
   --admin-warning-bg: #3a2f0a;
   --admin-warning-border: #5a4a1a;
+  --admin-danger: #c62828;
   --admin-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
   --admin-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
   --admin-shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.4);
@@ -416,7 +427,7 @@ button {
    without each page repeating this rule in its own CSS module - set via
    aria-invalid, not a class, so it doubles as the accessibility signal. */
 .input[aria-invalid="true"] {
-  border-color: var(--error-red, #c62828);
+  border-color: var(--admin-danger);
 }
 
 .badge {

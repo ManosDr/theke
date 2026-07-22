@@ -68,7 +68,7 @@
 
 .field input[aria-invalid="true"],
 .field select[aria-invalid="true"] {
-  border-color: var(--error-red, #c62828);
+  border-color: var(--admin-danger);
 }
 
 .saveHint {

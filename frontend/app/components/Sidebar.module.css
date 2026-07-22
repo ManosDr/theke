@@ -471,7 +471,7 @@
   height: 32px;
   border-radius: 50%;
   background: var(--color-primary);
-  color: #fff;
+  color: var(--color-text-on-primary);
   border: 2px solid #fff;
   display: flex;
   align-items: center;
@@ -489,7 +489,7 @@
 .footerEmail {
   font-size: 12.5px;
   font-weight: 600;
-  color: #ffffff;
+  color: var(--color-text-on-primary);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -497,13 +497,13 @@
 
 .footerRole {
   font-size: 11px;
-  color: #b7c2dc;
+  color: var(--admin-text-on-dark);
 }
 
 .signOutButton {
   background: none;
   border: none;
-  color: #b7c2dc;
+  color: var(--admin-text-on-dark);
   cursor: pointer;
   display: flex;
   align-items: center;

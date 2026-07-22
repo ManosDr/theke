@@ -54,7 +54,7 @@
 }
 
 .sourceCard.syncing {
-  border-left-color: var(--admin-info);
+  border-left-color: var(--color-primary-hover);
   animation: pulseBorder 1.8s ease-in-out infinite;
 }
 
@@ -129,7 +129,7 @@
 .statusLine.healthy { color: var(--admin-success); }
 .statusLine.overdue { color: var(--admin-warning); }
 .statusLine.failed { color: var(--admin-danger); }
-.statusLine.syncing { color: var(--admin-info); }
+.statusLine.syncing { color: var(--color-primary-hover); }
 .statusLine.inactive, .statusLine.never_synced { color: var(--admin-stone); }
 
 .freqPill {
@@ -181,7 +181,7 @@
 
 .freqButtonActive {
   background: var(--admin-accent-navy);
-  color: #ffffff;
+  color: var(--admin-text-on-dark);
   border-color: var(--admin-accent-navy);
 }
 

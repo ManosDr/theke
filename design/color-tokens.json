@@ -1,25 +1,35 @@
 {
   "meta": {
-    "exported_at": "2026-07-22T19:46:45Z",
+    "exported_at": "2026-07-22T20:35:00Z",
     "source": [
       "frontend/app/globals.css"
     ],
-    "structure_note": "All color custom properties in this codebase live in exactly one file (frontend/app/globals.css), declared twice each: once in :root (light theme) and once in [data-theme=\"dark\"] (dark theme overrides). There are two parallel, coexisting palettes rather than one: a 'core' set (--color-*, the original app-wide primitives used in chat/login/pricing/shared badges) and an 'admin' set (--admin-*, a second palette ported wholesale from a separate 'Theke Admin design' prototype and layered on top of the core set for the sidebar, top bar, and every admin-facing panel/dashboard). This file preserves that real split (tokens.core / tokens.admin / tokens.chat) instead of forcing everything into a single flat list. A few tokens are intentionally NOT included below because they are not CSS custom properties at all - see 'excluded_non_variable_colors'.",
+    "structure_note": "All color custom properties in this codebase live in exactly one file (frontend/app/globals.css), declared twice each: once in :root (light theme) and once in [data-theme=\"dark\"] (dark theme overrides). There are two parallel, coexisting palettes rather than one: a 'core' set (--color-*, the original app-wide primitives used in chat/login/pricing/shared badges) and an 'admin' set (--admin-*, a second palette ported from a separate 'Theke Admin design' prototype and layered on top of the core set for the sidebar, top bar, and every admin-facing panel/dashboard). This file preserves that real split (tokens.core / tokens.admin / tokens.chat) instead of forcing everything into a single flat list.",
+    "changelog_since_last_export": [
+      "Removed 3 dead tokens that were declared but never referenced: --color-text-on-accent, --admin-construction-on-dark, --admin-tax-on-dark. (A 4th dead token, --gradient-sidebar, was also removed from the CSS but was never part of this JSON export - it's a gradient, not a flat color.)",
+      "Unified --admin-danger and --error-red (both were #c62828 in light mode, and both fell back to the same value in dark mode) into a single --admin-danger token. Survivor chosen for broader existing usage (admin badges, delete/suspend confirmations, failed-sync status - 13 call sites vs. --error-red's 6 form-validation-only call sites) and because it doesn't bake a hue into the token's own name.",
+      "Unified --admin-info and --color-primary-hover (both were #2a6fdb in light mode, and this pairing was actually already an intentional documented choice, not an accidental duplicate) into a single --color-primary-hover token. Survivor chosen because it's the foundational core primitive powering the universal .btn-primary:hover rule and already had a proper, tested dark-mode value (#5c7dc4) - renaming that foundational rule to an --admin-* token would have been an architectural regression even though --admin-info had more raw call sites.",
+      "Added genuine dark-mode values for admin.status.success (#2e7d32 -> #4ade80) and admin.status.warning (#f57f17 -> #fb923c), matching the brightening pattern their core.status siblings already use. admin.status.danger is explicitly restated with the SAME value in both themes (deliberate - matches core.status.danger's own established 'constant across themes' pattern, not an oversight).",
+      "Declared --color-surface-hover properly (was previously referenced with an undeclared fallback, rgba(0,0,0,0.04), invisible in dark mode). New value: rgba(21,29,72,0.05) light / rgba(255,255,255,0.07) dark.",
+      "Added a new token, admin.text.text_on_dark (--admin-text-on-dark), consolidating three previously ad hoc hardcoded values (#fff, #b7c2dc, #d8e0f0) used for secondary/body text on permanently-dark navy surfaces (sidebar footer role label + sign-out icon, DataSourcesPanel's active frequency-pill label, VerticalEditorPanel's system-prompt textarea text). Genuinely maximal-contrast name/heading text on the same surfaces (the user's own name in the sidebar footer, the avatar initial) was left pointed at the existing core.text.on_primary token instead, preserving the footer's existing two-tier visual hierarchy rather than flattening it.",
+      "Fixed a hardcoded #d8d0c2 (a leftover from the old warm-beige palette) on the collapsed sidebar's inactive vertical-switcher dot - now uses admin.surface.card_border, the sidebar's own established border token.",
+      "Net token count: 59 -> 56 (-3 dead, -1 danger merge, -1 info merge, +1 surface_hover, +1 text_on_dark)."
+    ],
     "excluded_non_variable_colors": [
       {
         "value": "#33BE6E",
         "found_in": "frontend/app/components/Logo.tsx",
-        "note": "The Logo/LogoMark brand-mark green. Hardcoded on purpose per an explicit code comment ('Colors are fixed per the brand spec regardless of light/dark theme') - it is not a CSS variable and editing this JSON will not change it. If a rebrand ever needs to touch the logo mark itself, it must be edited directly in Logo.tsx."
+        "note": "The Logo/LogoMark brand-mark green. Hardcoded on purpose per an explicit code comment ('Colors are fixed per the brand spec regardless of light/dark theme') - it is not a CSS variable and editing this JSON will not change it."
       },
       {
         "value": "#1B2A4A / #F57F17",
         "found_in": "frontend/app/components/MapPicker.tsx (PIN_NAVY, PIN_AMBER constants)",
-        "note": "Map pin marker colors, duplicated as plain JS string literals because Leaflet's divIcon needs a literal SVG markup string, not a CSS var(). Currently equal to --admin-navy/--color-primary and --admin-warning respectively, but nothing enforces that - a rebrand that changes those tokens will silently leave map pins on the old colors."
+        "note": "Map pin marker colors, duplicated as plain JS string literals because Leaflet's divIcon needs a literal SVG markup string, not a CSS var(). Still un-tokenized after this cleanup pass - out of scope (Leaflet API constraint, not a CSS bug)."
       },
       {
         "value": "#1b2a4a",
         "found_in": "frontend/app/layout.tsx (viewport.themeColor)",
-        "note": "Browser-chrome theme-color meta tag, duplicated as a literal because Next.js metadata is evaluated at build time. Only has a light-mode value - the OS/browser chrome (e.g. mobile status bar) does not follow the app into dark mode."
+        "note": "Browser-chrome theme-color meta tag, duplicated as a literal because Next.js metadata is evaluated at build time. Only has a light-mode value."
       }
     ],
     "instructions": "Edit only the 'value' fields below. Do not rename keys, remove entries, or change structure. Return this same file with updated hex values."
@@ -38,6 +48,11 @@
         "surface_alt": {
           "light": { "value": "#eef1f6", "usage": "Secondary/inset surface - table stripes, chips, citation pills, empty-state icon tiles", "used_in": ["chat/chat.module.css", "components/CompaniesPanel.module.css", "components/DocumentsPanel.module.css", "components/FeedbackPanel.module.css", "components/FeedbackWidget.module.css", "components/LegalDocView.module.css", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/TopHeader.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css", "sources/sources.module.css"] },
           "dark": { "value": "#1e2a44", "usage": "Secondary/inset surface - table stripes, chips, citation pills, empty-state icon tiles", "used_in": ["same call sites as light"] }
+        },
+        "surface_hover": {
+          "light": { "value": "rgba(21, 29, 72, 0.05)", "usage": "Subtle hover-state tint over core.background.surface (e.g. CustomerCombobox result rows). A translucent overlay, not a flat hex, so it composites correctly over whatever surface it sits on.", "used_in": ["components/CustomerCombobox.module.css"] },
+          "dark": { "value": "rgba(255, 255, 255, 0.07)", "usage": "Subtle hover-state tint over core.background.surface (light-on-dark direction, since a dark overlay barely registers on an already-dark card)", "used_in": ["components/CustomerCombobox.module.css"] },
+          "note": "NEWLY DECLARED - previously referenced as var(--color-surface-hover, rgba(0,0,0,0.04)) with no real declaration behind it, so every theme silently used the same near-invisible-in-dark-mode fallback."
         }
       },
       "border": {
@@ -56,39 +71,34 @@
           "dark": { "value": "#7b91b0", "usage": "Secondary/caption text, placeholders, .text-muted utility class", "used_in": ["same call sites as light"] }
         },
         "on_primary": {
-          "light": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a --color-primary fill (e.g. primary buttons, user chat bubble, avatar initials)", "used_in": ["chat/chat.module.css (.messageUser)", "components/FeedbackWidget.module.css", "components/MapPicker.module.css", "projects/[id]/page.module.css"] },
-          "dark": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a --color-primary fill (e.g. primary buttons, user chat bubble, avatar initials)", "used_in": ["same call sites as light - not overridden in dark theme"] }
-        },
-        "on_accent": {
-          "light": { "value": "#151d48", "usage": "Declared for text on top of --color-accent fills, but see note", "used_in": [] },
-          "dark": { "value": "#151d48", "usage": "Declared for text on top of --color-accent fills, but see note", "used_in": [] },
-          "note": "DEAD TOKEN - declared in both themes but not referenced by any var(--color-text-on-accent) anywhere in the codebase. Safe to repurpose or remove; see report for details."
+          "light": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a core.brand.primary fill (e.g. primary buttons, user chat bubble, sidebar avatar initial, sidebar footer name)", "used_in": ["chat/chat.module.css (.messageUser)", "components/FeedbackWidget.module.css", "components/MapPicker.module.css", "components/Sidebar.module.css (.avatar, .footerEmail)", "projects/[id]/page.module.css"] },
+          "dark": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a core.brand.primary fill", "used_in": ["same call sites as light - not overridden in dark theme"] }
         }
       },
       "brand": {
         "primary": {
-          "light": { "value": "#1b2a4a", "usage": "Primary navy - fill for primary buttons, active states, user chat bubble, avatar background; matches --admin-accent-navy exactly", "used_in": ["chat/chat.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/MapPicker.tsx", "components/Sidebar.module.css", "components/SuspendedTenantsPanel.tsx", "components/TopHeader.module.css", "dashboard/ActivityChart.tsx", "dashboard/StatCard.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css"] },
+          "light": { "value": "#1b2a4a", "usage": "Primary navy - fill for primary buttons, active states, user chat bubble, avatar background; matches admin.brand.accent_navy exactly", "used_in": ["chat/chat.module.css", "components/FeedbackWidget.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/MapPicker.tsx", "components/Sidebar.module.css", "components/SuspendedTenantsPanel.tsx", "components/TopHeader.module.css", "dashboard/ActivityChart.tsx", "dashboard/StatCard.module.css", "pricing/pricing.module.css", "projects/[id]/page.module.css"] },
           "dark": { "value": "#3e5a9e", "usage": "Primary navy - fill for primary buttons, active states, user chat bubble, avatar background", "used_in": ["same call sites as light"] }
         },
         "primary_hover": {
-          "light": { "value": "#2a6fdb", "usage": "Hover state for primary-filled buttons/backgrounds", "used_in": ["components/FeedbackWidget.module.css"] },
-          "dark": { "value": "#5c7dc4", "usage": "Hover state for primary-filled buttons/backgrounds", "used_in": ["components/FeedbackWidget.module.css"] }
+          "light": { "value": "#2a6fdb", "usage": "Hover state for primary-filled buttons/backgrounds. Also the color used for admin 'info/syncing' status UI (DataSourcesPanel's syncing indicator + source-tier badges, sources.module.css) - unified from a separate --admin-info token that held the identical value.", "used_in": ["components/FeedbackWidget.module.css", "components/DataSourcesPanel.module.css (.sourceCard.syncing, .statusLine.syncing)", "sources/sources.module.css (.tierBadgePublic, .tierBadgeCompany, .tileCompany, span.tierBadgeCompany)"] },
+          "dark": { "value": "#5c7dc4", "usage": "Hover state for primary-filled buttons/backgrounds; also the admin info/syncing status color", "used_in": ["same call sites as light"] }
         },
         "link": {
-          "light": { "value": "#1b2a4a", "usage": "Foreground use for links/active tabs/focus rings - aliases --color-primary in light mode (huge contrast against white already)", "used_in": ["account/account.module.css", "chat/chat.module.css", "components/CustomerCombobox.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/LegalFooter.module.css", "components/MapPicker.module.css", "components/MessagePackUpsell.module.css", "components/NotificationBell.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/WelcomeCard.module.css", "documents/[id]/page.module.css", "login/login.module.css", "sources/sources.module.css", "a, focus-visible outline (globals.css)"] },
-          "dark": { "value": "#8da3e0", "usage": "Foreground use for links/active tabs/focus rings - a lighter periwinkle than --color-primary specifically because the dark-mode primary (#3e5a9e) fails WCAG AA (~2.5:1) as text/border color", "used_in": ["same call sites as light"] }
+          "light": { "value": "#1b2a4a", "usage": "Foreground use for links/active tabs/focus rings - aliases core.brand.primary in light mode (huge contrast against white already)", "used_in": ["account/account.module.css", "chat/chat.module.css", "components/CustomerCombobox.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/LegalFooter.module.css", "components/MapPicker.module.css", "components/MessagePackUpsell.module.css", "components/NotificationBell.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/Tooltip.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/WelcomeCard.module.css", "documents/[id]/page.module.css", "login/login.module.css", "sources/sources.module.css", "a, focus-visible outline (globals.css)"] },
+          "dark": { "value": "#8da3e0", "usage": "Foreground use for links/active tabs/focus rings - a lighter periwinkle than core.brand.primary specifically because the dark-mode primary (#3e5a9e) fails WCAG AA (~2.5:1) as text/border color", "used_in": ["same call sites as light"] }
         },
         "link_hover": {
           "light": { "value": "#2a6fdb", "usage": "Hover state for link-colored text/foreground elements", "used_in": ["dashboard/WelcomeCard.module.css", "a:hover (globals.css)"] },
           "dark": { "value": "#aebfea", "usage": "Hover state for link-colored text/foreground elements", "used_in": ["same call sites as light"] }
         },
         "accent": {
-          "light": { "value": "#ffa800", "usage": "Amber accent - identical to --color-warning in light mode", "used_in": ["dashboard/StatCard.module.css"] },
-          "dark": { "value": "#ffcf00", "usage": "Amber accent - identical to --color-warning in dark mode", "used_in": ["dashboard/StatCard.module.css"] }
+          "light": { "value": "#ffa800", "usage": "Amber accent - identical to core.status.warning in light mode", "used_in": ["dashboard/StatCard.module.css"] },
+          "dark": { "value": "#ffcf00", "usage": "Amber accent - identical to core.status.warning in dark mode", "used_in": ["dashboard/StatCard.module.css"] }
         },
         "accent_hover": {
-          "light": { "value": "#e69500", "usage": "Hover state for --color-accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] },
-          "dark": { "value": "#ffa800", "usage": "Hover state for --color-accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] }
+          "light": { "value": "#e69500", "usage": "Hover state for core.brand.accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] },
+          "dark": { "value": "#ffa800", "usage": "Hover state for core.brand.accent fills", "used_in": ["components/SubscriptionsPanel.module.css"] }
         }
       },
       "status": {
@@ -109,15 +119,15 @@
           "dark": { "value": "#3a2f0a", "usage": "Background tint behind warning text/badges, disclaimers", "used_in": ["same call sites as light"] }
         },
         "danger": {
-          "light": { "value": "#f64e60", "usage": "Danger/error text/icon color (critical status, destructive actions)", "used_in": ["account/account.module.css", "account/page.tsx", "chat/chat.module.css", "components/ChatGapRatePanel.tsx", "components/CompaniesPanel.tsx", "components/FeedbackPanel.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/SubscriptionsPanel.tsx", "components/SuspendedTenantsPanel.tsx", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/SuperAdminDashboard.tsx", "login/login.module.css", "pricing/page.tsx", "projects/new/page.tsx", ".btn-danger (globals.css)"] },
-          "dark": { "value": "#f64e60", "usage": "Danger/error text/icon color (critical status, destructive actions) - not overridden in dark theme", "used_in": ["same call sites as light"] }
+          "light": { "value": "#f64e60", "usage": "Danger/error text/icon color (critical status, destructive actions). Lighter coral-red than admin.status.danger by design - two deliberately distinct reds for banners/badges (this one) vs. admin panels + form validation (that one).", "used_in": ["account/account.module.css", "account/page.tsx", "chat/chat.module.css", "components/ChatGapRatePanel.tsx", "components/CompaniesPanel.tsx", "components/FeedbackPanel.module.css", "components/InfraHealthPanel.tsx", "components/MapPicker.module.css", "components/NotificationBell.module.css", "components/SubscriptionsPanel.module.css", "components/SubscriptionsPanel.tsx", "components/SuspendedTenantsPanel.tsx", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/SuperAdminDashboard.tsx", "login/login.module.css", "pricing/page.tsx", "projects/new/page.tsx", ".btn-danger (globals.css)"] },
+          "dark": { "value": "#f64e60", "usage": "Danger/error text/icon color - not overridden in dark theme", "used_in": ["same call sites as light"] }
         },
         "danger_bg": {
           "light": { "value": "#ffe2e5", "usage": "Background tint behind danger text/badges", "used_in": ["chat/chat.module.css", "components/MapPicker.module.css", "components/SubscriptionsPanel.module.css", "components/TrialBanner.module.css", "components/TypeBadge.tsx", "login/login.module.css", ".btn-danger (globals.css)"] },
           "dark": { "value": "#3a1620", "usage": "Background tint behind danger text/badges", "used_in": ["same call sites as light"] }
         },
         "info": {
-          "light": { "value": "#0d9488", "usage": "Teal - neutral/informational stat tone, second ActivityChart line color, distinct hue from --color-primary's blue family", "used_in": ["components/FeedbackPanel.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/dashboard.module.css"] },
+          "light": { "value": "#0d9488", "usage": "Teal - neutral/informational stat tone, second ActivityChart line color, distinct hue from core.brand.primary's blue family", "used_in": ["components/FeedbackPanel.module.css", "components/ProjectDocumentsPanel.module.css", "components/SubscriptionsPanel.module.css", "components/TypeBadge.tsx", "dashboard/ActivityChart.tsx", "dashboard/AttentionCard.module.css", "dashboard/CompanyAdminDashboard.tsx", "dashboard/StatCard.module.css", "dashboard/dashboard.module.css"] },
           "dark": { "value": "#2dd4bf", "usage": "Teal - neutral/informational stat tone", "used_in": ["same call sites as light"] }
         },
         "info_bg": {
@@ -131,10 +141,6 @@
         "purple_bg": {
           "light": { "value": "#f3e8ff", "usage": "Background tint behind purple text/badges", "used_in": ["components/TypeBadge.tsx"] },
           "dark": { "value": "#2a1a45", "usage": "Background tint behind purple text/badges", "used_in": ["components/TypeBadge.tsx"] }
-        },
-        "error_field": {
-          "light": { "value": "#c62828", "usage": "Inline field-validation error color - deliberately distinct from --color-danger (that's for banners/badges); not theme-swapped", "used_in": ["components/CustomerCombobox.module.css", "components/DocumentsPanel.tsx", "components/FieldError.module.css", "components/ProjectDocumentsPanel.module.css", "projects/new/page.module.css", ".input[aria-invalid] (globals.css)"] },
-          "dark": { "value": "#c62828", "usage": "Inline field-validation error color - same value in both themes", "used_in": ["same call sites as light"] }
         }
       }
     },
@@ -153,7 +159,7 @@
           "dark": { "value": "#1b2a4a", "usage": "Same fixed-dark background, not overridden in dark theme (by design)", "used_in": ["components/VerticalEditorPanel.module.css"] }
         },
         "card_border": {
-          "light": { "value": "#e3e7f0", "usage": "Border for admin-shell cards/sidebar edge (cooler-toned sibling of --color-border)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css"] },
+          "light": { "value": "#e3e7f0", "usage": "Border for admin-shell cards/sidebar edge (cooler-toned sibling of core.border.default). Also used for the collapsed sidebar's inactive vertical-switcher dot border (previously a hardcoded leftover #d8d0c2 from the old warm-beige palette).", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.module.css", "components/Sidebar.tsx (collapsed switcher dot)", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css"] },
           "dark": { "value": "#2c3a57", "usage": "Border for admin-shell cards/sidebar edge", "used_in": ["same call sites as light"] }
         },
         "row_border": {
@@ -167,16 +173,21 @@
       },
       "text": {
         "heading_navy": {
-          "light": { "value": "#1b2a4a", "usage": "Admin-screen heading/icon text tone - inverts to near-white in dark mode (unlike --admin-accent-navy, which brightens instead)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/NotificationBell.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "sources/sources.module.css"] },
+          "light": { "value": "#1b2a4a", "usage": "Admin-screen heading/icon text tone - inverts to near-white in dark mode (unlike admin.brand.accent_navy, which brightens instead)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/NotificationBell.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/VerticalEditorPanel.module.css", "dashboard/CompanyAdminDashboard.module.css", "dashboard/dashboard.module.css", "sources/sources.module.css"] },
           "dark": { "value": "#f1efe9", "usage": "Admin-screen heading/icon text tone - near-white in dark mode", "used_in": ["same call sites as light"] }
         },
         "muted_stone": {
-          "light": { "value": "#7c8194", "usage": "Muted label/caption text in admin screens (cool-gray sibling of --color-text-muted)", "used_in": ["account/account.module.css", "components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/TypeBadge.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "light": { "value": "#7c8194", "usage": "Muted label/caption text in admin screens (cool-gray sibling of core.text.muted)", "used_in": ["account/account.module.css", "components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/LanguageToggle.module.css", "components/Sidebar.module.css", "components/TopHeader.module.css", "components/TypeBadge.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
           "dark": { "value": "#a6adc2", "usage": "Muted label/caption text in admin screens", "used_in": ["same call sites as light"] }
         },
         "body": {
           "light": { "value": "#4a4a4a", "usage": "Default/inactive body text - nav item labels, vertical-switcher segments (a third text tone distinct from heading_navy and muted_stone)", "used_in": ["components/Sidebar.module.css", "components/Sidebar.tsx"] },
           "dark": { "value": "#d7dae6", "usage": "Default/inactive body text", "used_in": ["same call sites as light"] }
+        },
+        "text_on_dark": {
+          "light": { "value": "#c7d0e8", "usage": "Readable secondary/body text for content sitting on a permanently-dark navy surface: sidebar footer role label + sign-out icon, DataSourcesPanel's active frequency-pill label, VerticalEditorPanel's system-prompt textarea text. Same value in both app themes - exists specifically for surfaces that stay dark regardless of the app's own light/dark theme.", "used_in": ["components/Sidebar.module.css (.footerRole, .signOutButton)", "components/DataSourcesPanel.module.css (.freqButtonActive)", "components/VerticalEditorPanel.module.css (.systemPromptTextarea)"] },
+          "dark": { "value": "#c7d0e8", "usage": "Same as light - deliberately constant across themes", "used_in": ["same call sites as light"] },
+          "note": "NEWLY ADDED - previously three separate ad hoc hardcoded values (#fff, #b7c2dc, #d8e0f0) with nothing connecting them. The footer's own NAME/avatar-initial text was deliberately left on core.text.on_primary instead of this token, preserving the existing prominent-name / muted-role two-tier hierarchy rather than flattening both to the same tone."
         }
       },
       "brand": {
@@ -195,22 +206,12 @@
           "dark": { "value": "#1c2e1c", "usage": "Background tint behind the construction badge/pill", "used_in": ["same call sites as light"] }
         },
         "tax": {
-          "light": { "value": "#8b5e3c", "usage": "Tax & Accounting-vertical accent ('Tax bronze' - a deliberate, previously-confirmed convention distinct from the newer design-review's proposed amber)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
+          "light": { "value": "#8b5e3c", "usage": "Tax & Accounting-vertical accent ('Tax bronze' - a deliberate, previously-confirmed convention distinct from the design-review mock's proposed amber)", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/Sidebar.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
           "dark": { "value": "#d9a468", "usage": "Tax & Accounting-vertical accent", "used_in": ["same call sites as light"] }
         },
         "tax_bg": {
           "light": { "value": "#f3e9e0", "usage": "Background tint behind the tax badge/pill", "used_in": ["components/CompaniesPanel.module.css", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "dashboard/dashboard.module.css"] },
           "dark": { "value": "#332319", "usage": "Background tint behind the tax badge/pill", "used_in": ["same call sites as light"] }
-        },
-        "construction_on_dark": {
-          "light": { "value": "#2d5016", "usage": "Declared for a brighter construction accent specifically for text-on-dark-card use, but see note", "used_in": [] },
-          "dark": { "value": "#7fc77f", "usage": "Declared for a brighter construction accent specifically for text-on-dark-card use, but see note", "used_in": [] },
-          "note": "DEAD TOKEN - declared in both themes, never consumed via var(--admin-construction-on-dark) anywhere. Same values as 'construction' above."
-        },
-        "tax_on_dark": {
-          "light": { "value": "#8b5e3c", "usage": "Declared for a brighter tax accent specifically for text-on-dark-card use, but see note", "used_in": [] },
-          "dark": { "value": "#d9a468", "usage": "Declared for a brighter tax accent specifically for text-on-dark-card use, but see note", "used_in": [] },
-          "note": "DEAD TOKEN - declared in both themes, never consumed via var(--admin-tax-on-dark) anywhere. Same values as 'tax' above."
         }
       },
       "status": {
@@ -223,12 +224,12 @@
           "dark": { "value": "#23304a", "usage": "Background tint behind the neutral admin badge", "used_in": ["same call sites as light"] }
         },
         "success": {
-          "light": { "value": "#2e7d32", "usage": "Admin-panel success tone", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.tsx", "dashboard/dashboard.module.css"] },
-          "dark": { "value": "#2e7d32", "usage": "Admin-panel success tone - NOT overridden in dark theme (see report: possible gap, sibling core.status.success does flip for dark mode)", "used_in": ["same call sites as light"] }
+          "light": { "value": "#2e7d32", "usage": "Admin-panel success tone (e.g. healthy data-source sync status)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.tsx", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#4ade80", "usage": "Admin-panel success tone - NEWLY brightened for dark mode (was previously inheriting the light value unchanged), matching the direction core.status.success already brightens.", "used_in": ["same call sites as light"] }
         },
         "warning": {
-          "light": { "value": "#f57f17", "usage": "Admin-panel warning tone (also literally duplicated as MapPicker's PIN_AMBER JS constant)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/SessionExpiryToast.module.css", "components/StaleDocumentsQueue.tsx", "dashboard/dashboard.module.css"] },
-          "dark": { "value": "#f57f17", "usage": "Admin-panel warning tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
+          "light": { "value": "#f57f17", "usage": "Admin-panel warning tone (e.g. overdue data-source sync)", "used_in": ["components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/SessionExpiryToast.module.css", "components/StaleDocumentsQueue.tsx", "dashboard/dashboard.module.css"] },
+          "dark": { "value": "#fb923c", "usage": "Admin-panel warning tone - NEWLY brightened for dark mode, staying in the orange family (distinct from core.status.warning's own, more yellow, dark tone) while matching the sibling brightening direction.", "used_in": ["same call sites as light"] }
         },
         "warning_bg": {
           "light": { "value": "#fff4de", "usage": "Background tint behind the admin warning tone/badge", "used_in": ["components/CompaniesPanel.module.css", "components/SessionExpiryToast.module.css", "components/VerticalEditorPanel.module.css"] },
@@ -239,12 +240,8 @@
           "dark": { "value": "#5a4a1a", "usage": "Border for admin warning callouts/disclaimers", "used_in": ["same call sites as light"] }
         },
         "danger": {
-          "light": { "value": "#c62828", "usage": "Admin-panel danger tone - identical value to core.status.error_field", "used_in": ["components/CompaniesPanel.tsx", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css"] },
-          "dark": { "value": "#c62828", "usage": "Admin-panel danger tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
-        },
-        "info": {
-          "light": { "value": "#2a6fdb", "usage": "Admin-panel info tone - identical value to core.brand.primary_hover in light mode", "used_in": ["components/DataSourcesPanel.module.css", "sources/sources.module.css"] },
-          "dark": { "value": "#2a6fdb", "usage": "Admin-panel info tone - NOT overridden in dark theme (see report: possible gap)", "used_in": ["same call sites as light"] }
+          "light": { "value": "#c62828", "usage": "Admin-panel danger tone (delete/suspend confirmations, failed-sync status) AND inline field-validation borders/text app-wide. Unified from two previously separate tokens (--admin-danger, --error-red) that always held the identical value.", "used_in": ["components/CompaniesPanel.tsx", "components/DataSourcesPanel.module.css", "components/DocumentsPanel.module.css", "components/DocumentsPanel.tsx", "components/VerticalEditorPanel.module.css", "dashboard/dashboard.module.css", "components/CustomerCombobox.module.css", "components/FieldError.module.css", "components/ProjectDocumentsPanel.module.css", "projects/new/page.module.css", ".input[aria-invalid] (globals.css)"] },
+          "dark": { "value": "#c62828", "usage": "Same value in both themes - deliberate, matching core.status.danger's own established 'constant across themes' pattern, restated explicitly rather than left as an implicit cascade fallback.", "used_in": ["same call sites as light"] }
         }
       }
     },

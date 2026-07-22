@@ -91,7 +91,7 @@
 
 .systemPromptTextarea {
   background: var(--admin-navy-solid) !important;
-  color: #d8e0f0 !important;
+  color: var(--admin-text-on-dark) !important;
   font-family: monospace !important;
   min-height: 140px;
 }

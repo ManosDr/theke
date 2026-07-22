@@ -181,11 +181,11 @@
 }
 
 .tierBadgePublic {
-  background: var(--admin-info);
+  background: var(--color-primary-hover);
 }
 
 .tierBadgeCompany {
-  background: var(--admin-info);
+  background: var(--color-primary-hover);
   opacity: 0.7;
 }
 
@@ -200,8 +200,8 @@ span.tierBadgeCompany {
   height: auto;
   border-radius: var(--radius-sm);
   padding: 2px var(--space-2);
-  background: var(--admin-info-bg, var(--color-info-bg));
-  color: var(--admin-info);
+  background: var(--color-info-bg);
+  color: var(--color-primary-hover);
   font-size: 0.78rem;
   font-weight: 600;
 }
@@ -218,7 +218,7 @@ span.tierBadgeCustomer {
 }
 
 .tileCompany {
-  border-left: 3px solid var(--admin-info);
+  border-left: 3px solid var(--color-primary-hover);
 }
 
 .tileCustomer {

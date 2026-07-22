@@ -1004,7 +1004,7 @@ function CreateDocumentModal({
         <input className="input" value={regionId} onChange={(e) => setRegionId(e.target.value)} style={{ width: "100%" }} />
 
         {error && (
-          <p className={styles.modalHelper} style={{ color: "var(--error-red)" }}>
+          <p className={styles.modalHelper} style={{ color: "var(--admin-danger)" }}>
             {error}
           </p>
         )}

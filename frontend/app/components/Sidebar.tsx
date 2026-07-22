@@ -117,7 +117,7 @@ function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
                 type="button"
                 title={t(opt.labelKey)}
                 className={styles.switcherDot}
-                style={{ borderColor: active ? accent : "#d8d0c2", background: active ? accent : "transparent" }}
+                style={{ borderColor: active ? accent : "var(--admin-card-border)", background: active ? accent : "transparent" }}
                 onClick={() => setSelectedVertical(opt.value)}
               />
             );

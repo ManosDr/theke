@@ -647,6 +647,7 @@ export const translations = {
     // dashboard - super admin
     "dash.super.title": "Platform overview",
     "dash.super.subtitle": "Everything that needs your attention, at a glance.",
+    "dash.super.subtitleFiltered": "Filtered to {{vertical}} - everything below scopes to this vertical only.",
     "dash.super.totalTenants": "Total tenants",
     "dash.super.constructionCompanies": "Construction companies",
     "dash.super.municipalities": "Municipalities",
@@ -665,6 +666,7 @@ export const translations = {
     "dash.super.positiveFeedback": "Thumbs up",
     "dash.super.negativeFeedback": "Thumbs down",
     "dash.super.sentiment": "Sentiment (thumbs)",
+    "dash.super.queriesByVertical": "Queries by vertical",
     "dash.super.feedbackCaptionEmpty": "No feedback yet — 0 up / 0 down",
     "dash.super.feedbackCaption": "{{up}} up / {{down}} down",
     "dash.super.activity": "Platform activity",
@@ -1841,6 +1843,7 @@ export const translations = {
     // dashboard - super admin
     "dash.super.title": "Επισκόπηση πλατφόρμας",
     "dash.super.subtitle": "Ό,τι χρειάζεται την προσοχή σας, με μια ματιά.",
+    "dash.super.subtitleFiltered": "Φιλτραρισμένο σε {{vertical}} - όλα τα παρακάτω αφορούν μόνο αυτόν τον κλάδο.",
     "dash.super.totalTenants": "Συνολικοί χρήστες πλατφόρμας",
     "dash.super.constructionCompanies": "Κατασκευαστικές εταιρείες",
     "dash.super.municipalities": "Δήμοι",
@@ -1859,6 +1862,7 @@ export const translations = {
     "dash.super.positiveFeedback": "Θετικές αξιολογήσεις",
     "dash.super.negativeFeedback": "Αρνητικές αξιολογήσεις",
     "dash.super.sentiment": "Συναίσθημα (αξιολογήσεις)",
+    "dash.super.queriesByVertical": "Ερωτήματα ανά κλάδο",
     "dash.super.feedbackCaptionEmpty": "Καμία αξιολόγηση ακόμη — 0 θετικές / 0 αρνητικές",
     "dash.super.feedbackCaption": "{{up}} θετικές / {{down}} αρνητικές",
     "dash.super.activity": "Δραστηριότητα πλατφόρμας",

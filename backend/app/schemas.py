@@ -844,6 +844,10 @@ class StaleDocumentSummary(BaseModel):
     # staleness sweep - the admin Documents screen shows this text inline
     # and uses its presence to power the "Αυτόματη σήμανση" filter.
     auto_needs_review_reason: str | None = None
+    # Every stale doc here is public/national KB (company_id IS NULL, see
+    # list_stale_documents), but still belongs to exactly one vertical -
+    # lets the super admin dashboard's vertical filter scope this list too.
+    vertical_slug: str
 
 
 class DocumentValidationResult(BaseModel):
@@ -913,6 +917,11 @@ class VerticalStatsEntry(BaseModel):
     gap_rate: float
     active_documents: int
     active_companies: int
+    positive_feedback: int = 0
+    negative_feedback: int = 0
+    platform_tokens_30d: int = 0
+    platform_cost_eur_30d: float = 0.0
+    suspended_companies: int = 0
 
 
 class AdminStatsByVerticalResponse(BaseModel):

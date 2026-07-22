@@ -389,6 +389,7 @@ export interface StaleDocumentSummary {
   region_id: string | null;
   last_verified_at: string | null;
   auto_needs_review_reason: string | null;
+  vertical_slug: string;
 }
 
 export interface DocumentReplacementRef {
@@ -649,6 +650,11 @@ export interface VerticalStatsEntry {
   gap_rate: number;
   active_documents: number;
   active_companies: number;
+  positive_feedback: number;
+  negative_feedback: number;
+  platform_tokens_30d: number;
+  platform_cost_eur_30d: number;
+  suspended_companies: number;
 }
 
 // GET /admin/stats now returns this shape - `total` carries the same fields

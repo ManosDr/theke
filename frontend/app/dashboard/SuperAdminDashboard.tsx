@@ -21,6 +21,7 @@ import type {
 } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { AttentionCard } from "./AttentionCard";
+import { QueriesByVerticalBars } from "./QueriesByVerticalBars";
 import { SentimentDonut } from "./SentimentDonut";
 import { VerticalStatsCard } from "./VerticalStatsCard";
 import styles from "./dashboard.module.css";
@@ -267,17 +268,39 @@ export function SuperAdminDashboard() {
   if (error) return <p className={styles.emptyState}>{error}</p>;
 
   const companyNameById = new Map(companies.map((c) => [c.id, c.name]));
-  const suspendedCount = companies.filter((c) => c.is_suspended).length;
+  const companyVerticalById = new Map(companies.map((c) => [c.id, c.vertical_slug]));
   const statsByVertical = new Map(stats?.by_vertical.map((v) => [v.slug, v]) ?? []);
   const visibleVerticals =
     selectedVertical === "all" ? verticals : verticals.filter((v) => v.slug === selectedVertical);
 
-  const gapRate = stats?.total.gap_rate ?? 0;
+  // Every section below scopes to this instead of just the top
+  // VerticalStatsCard row - selecting a vertical in the sidebar now filters
+  // the whole page, not one card.
+  const scopedStats = selectedVertical === "all" ? null : statsByVertical.get(selectedVertical);
+  const scopedCompanies =
+    selectedVertical === "all" ? companies : companies.filter((c) => c.vertical_slug === selectedVertical);
+  const scopedStaleDocs =
+    selectedVertical === "all" ? staleDocs : staleDocs.filter((d) => d.vertical_slug === selectedVertical);
+  // company_id-null entries (platform-level actions with no single owning
+  // company, e.g. a locale added) have no vertical of their own - dropped
+  // from a vertical-filtered view rather than shown under every vertical.
+  const scopedAuditLog =
+    selectedVertical === "all"
+      ? auditLog
+      : auditLog.filter((e) => e.company_id != null && companyVerticalById.get(e.company_id) === selectedVertical);
+
+  const suspendedCount = scopedCompanies.filter((c) => c.is_suspended).length;
+  const statsSelectedVertical = verticals.find((v) => v.slug === selectedVertical);
+
+  const gapRate = scopedStats?.gap_rate ?? stats?.total.gap_rate ?? 0;
   const gapTone = gapRate >= 50 ? "danger" : gapRate >= 20 ? "warning" : "success";
-  const staleTone = staleDocs.length > 0 ? "warning" : "success";
+  const staleTone = scopedStaleDocs.length > 0 ? "warning" : "success";
   const suspendedTone = suspendedCount > 0 ? "danger" : "success";
 
-  const infraLevel = infraHealth?.latest?.threshold_level ?? null;
+  // A single shared vector index/DB has no per-vertical dimension at all -
+  // only shown in the unfiltered "all" view rather than fabricating a split
+  // that doesn't exist.
+  const infraLevel = selectedVertical === "all" ? (infraHealth?.latest?.threshold_level ?? null) : null;
   const infraTone = infraLevel === "critical" ? "danger" : infraLevel === "warning" ? "warning" : "success";
   const infraTrendLabel =
     infraHealth?.trend === "up"
@@ -288,10 +311,15 @@ export function SuperAdminDashboard() {
           ? t("dash.super.infraHealthTrendFlat")
           : "";
 
-  const totalFeedback = (stats?.total.positive_feedback ?? 0) + (stats?.total.negative_feedback ?? 0);
+  const totalMessages = scopedStats?.messages ?? stats?.total.total_messages ?? 0;
+  const activeDocumentsCount = scopedStats?.active_documents ?? stats?.total.active_documents ?? 0;
+  const positiveFeedback = scopedStats?.positive_feedback ?? stats?.total.positive_feedback ?? 0;
+  const negativeFeedback = scopedStats?.negative_feedback ?? stats?.total.negative_feedback ?? 0;
+  const totalFeedback = positiveFeedback + negativeFeedback;
+  const realActiveCompanies = scopedStats?.active_companies ?? stats?.total.real_active_companies ?? 0;
 
-  const platformTokens30d = stats?.total.platform_tokens_30d ?? 0;
-  const platformCost30d = stats?.total.platform_cost_eur_30d ?? 0;
+  const platformTokens30d = scopedStats?.platform_tokens_30d ?? stats?.total.platform_tokens_30d ?? 0;
+  const platformCost30d = scopedStats?.platform_cost_eur_30d ?? stats?.total.platform_cost_eur_30d ?? 0;
   const platformTokensLabel =
     platformTokens30d >= 1_000_000
       ? t("dash.super.tokensMillions", { count: (platformTokens30d / 1_000_000).toFixed(1) })
@@ -301,7 +329,11 @@ export function SuperAdminDashboard() {
     <div>
       <div className={styles.overviewHeader}>
         <h1>{t("dash.super.title")}</h1>
-        <p className={styles.overviewSubtitle}>{t("dash.super.subtitle")}</p>
+        <p className={styles.overviewSubtitle}>
+          {selectedVertical === "all" || !statsSelectedVertical
+            ? t("dash.super.subtitle")
+            : t("dash.super.subtitleFiltered", { vertical: statsSelectedVertical.display_name })}
+        </p>
       </div>
 
       <div className={styles.verticalCardsRow}>
@@ -343,7 +375,7 @@ export function SuperAdminDashboard() {
         <AttentionCard
           tone={staleTone}
           icon={<ClockIcon size={14} />}
-          value={staleDocs.length}
+          value={scopedStaleDocs.length}
           label={tUpper("dash.super.staleDocs")}
           cta={t("dash.super.reviewQueue")}
           onCtaClick={() => router.push("/admin/stale-documents")}
@@ -363,7 +395,7 @@ export function SuperAdminDashboard() {
           cta={t("dash.super.reviewCosts")}
           onCtaClick={() => router.push("/admin/companies")}
         />
-        {infraHealth?.latest && (
+        {infraHealth?.latest && selectedVertical === "all" && (
           <AttentionCard
             tone={infraTone}
             icon={<DatabaseIcon size={14} />}
@@ -388,7 +420,7 @@ export function SuperAdminDashboard() {
         <AttentionCard
           tone="success"
           icon={<BuildingIcon size={14} />}
-          value={stats?.total.real_active_companies ?? 0}
+          value={realActiveCompanies}
           label={
             <>
               {tUpper("dash.super.realActiveCompanies")}
@@ -408,7 +440,7 @@ export function SuperAdminDashboard() {
             <h2>{t("dash.super.activity")}</h2>
           </div>
           <p className={styles.chartCaption}>{t("dash.super.activityCaption")}</p>
-          <ActivityChart entries={auditLog} />
+          <ActivityChart entries={scopedAuditLog} />
         </section>
 
         <section className={`card ${styles.section} ${styles.kbHealthPanel}`}>
@@ -422,11 +454,11 @@ export function SuperAdminDashboard() {
             <>
               <div className={styles.kbHealthStats}>
                 <div>
-                  <span className={styles.value}>{stats.total.total_messages}</span>
+                  <span className={styles.value}>{totalMessages}</span>
                   <span className={styles.label}>{t("dash.super.totalMessages")}</span>
                 </div>
                 <div>
-                  <span className={styles.value}>{stats.total.active_documents}</span>
+                  <span className={styles.value}>{activeDocumentsCount}</span>
                   <span className={styles.label}>
                     {t("dash.super.activeDocuments")}
                     <Tooltip text={t("dash.super.activeDocumentsTooltip")}>
@@ -435,16 +467,19 @@ export function SuperAdminDashboard() {
                   </span>
                 </div>
               </div>
+              {selectedVertical === "all" && (
+                <QueriesByVerticalBars verticals={verticals} statsByVertical={statsByVertical} />
+              )}
               <div className={styles.sentimentRow}>
-                <SentimentDonut positive={stats.total.positive_feedback} negative={stats.total.negative_feedback} />
+                <SentimentDonut positive={positiveFeedback} negative={negativeFeedback} />
                 <div>
                   <div className={styles.sentimentLabel}>{t("dash.super.sentiment")}</div>
                   <div className={styles.sentimentCaption}>
                     {totalFeedback === 0
                       ? t("dash.super.feedbackCaptionEmpty")
                       : t("dash.super.feedbackCaption", {
-                          up: stats.total.positive_feedback,
-                          down: stats.total.negative_feedback,
+                          up: positiveFeedback,
+                          down: negativeFeedback,
                         })}
                   </div>
                 </div>
@@ -458,7 +493,7 @@ export function SuperAdminDashboard() {
         <span className={styles.tenantsStripLabel}>{t("dash.super.companies")}</span>
         <div className={styles.tenantStats}>
           <div className={styles.tenantStat}>
-            <span className={styles.value}>{companies.length}</span>
+            <span className={styles.value}>{scopedCompanies.length}</span>
             <span className={styles.label}>{t("dash.super.totalTenants")}</span>
           </div>
         </div>
@@ -488,7 +523,7 @@ export function SuperAdminDashboard() {
         </div>
 
         {activeTab === "staleness" &&
-          (staleDocs.length === 0 ? (
+          (scopedStaleDocs.length === 0 ? (
             <p className={styles.emptyState}>{t("dash.super.noStaleDocs")}</p>
           ) : (
             <table className={styles.table}>
@@ -501,7 +536,7 @@ export function SuperAdminDashboard() {
                 </tr>
               </thead>
               <tbody>
-                {staleDocs.map((doc) => (
+                {scopedStaleDocs.map((doc) => (
                   <tr key={doc.id}>
                     <td>{doc.title}</td>
                     <td className="text-muted">{doc.source_group ?? "—"}</td>
@@ -520,7 +555,7 @@ export function SuperAdminDashboard() {
         {activeTab === "languages" && <LanguagesPanel />}
 
         {activeTab === "audit" &&
-          (auditLog.length === 0 ? (
+          (scopedAuditLog.length === 0 ? (
             <p className={styles.emptyState}>{t("dash.super.noActivity")}</p>
           ) : (
             <>
@@ -534,7 +569,7 @@ export function SuperAdminDashboard() {
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLog.slice(0, 8).map((entry) => (
+                  {scopedAuditLog.slice(0, 8).map((entry) => (
                     <tr key={entry.id}>
                       <td>{entry.action}</td>
                       <td className="text-muted">
@@ -547,7 +582,7 @@ export function SuperAdminDashboard() {
                 </tbody>
               </table>
               <p className="text-muted" style={{ marginTop: "var(--space-3)" }}>
-                {t("dash.super.showingOf", { shown: Math.min(8, auditLog.length), total: auditLog.length })}
+                {t("dash.super.showingOf", { shown: Math.min(8, scopedAuditLog.length), total: scopedAuditLog.length })}
               </p>
             </>
           ))}

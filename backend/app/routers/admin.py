@@ -1112,6 +1112,7 @@ async def list_stale_documents(
     if auto_only:
         stmt = stmt.where(Document.auto_needs_review_reason.is_not(None))
     docs = db.scalars(stmt.order_by(Document.last_verified_at.asc().nullsfirst())).all()
+    vertical_slug_by_id = {v.id: v.slug for v in db.scalars(select(Vertical))}
     return [
         StaleDocumentSummary(
             id=doc.id,
@@ -1121,6 +1122,7 @@ async def list_stale_documents(
             region_id=doc.region_id,
             last_verified_at=doc.last_verified_at,
             auto_needs_review_reason=doc.auto_needs_review_reason,
+            vertical_slug=vertical_slug_by_id[doc.vertical_id],
         )
         for doc in docs
     ]
@@ -1567,6 +1569,55 @@ async def platform_stats(
             )
             or 0
         )
+        v_suspended = (
+            db.scalar(
+                select(func.count())
+                .select_from(Company)
+                .where(Company.vertical_id == v.id, Company.is_suspended.is_(True))
+            )
+            or 0
+        )
+        v_tokens_30d = (
+            db.scalar(
+                select(func.coalesce(func.sum(ChatSession.total_tokens), 0))
+                .select_from(ChatSession)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id, ChatSession.created_at >= since_30d, Company.is_test_account.is_(False))
+            )
+            or 0
+        )
+        v_cost_30d = (
+            db.scalar(
+                select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0))
+                .select_from(ChatSession)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id, ChatSession.created_at >= since_30d, Company.is_test_account.is_(False))
+            )
+            or 0
+        )
+        # Not filtered by is_test_account, matching the total-level
+        # positive_feedback/negative_feedback above (see this function's own
+        # comment on why - KNOWN_DECISIONS.md).
+        v_positive = (
+            db.scalar(
+                select(func.count())
+                .select_from(MessageFeedback)
+                .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id, MessageFeedback.rating == "positive")
+            )
+            or 0
+        )
+        v_negative = (
+            db.scalar(
+                select(func.count())
+                .select_from(MessageFeedback)
+                .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(Company.vertical_id == v.id, MessageFeedback.rating == "negative")
+            )
+            or 0
+        )
         by_vertical.append(
             VerticalStatsEntry(
                 slug=v.slug,
@@ -1574,6 +1625,11 @@ async def platform_stats(
                 gap_rate=round(v_gap / v_messages * 100, 1) if v_messages else 0.0,
                 active_documents=v_docs,
                 active_companies=v_companies,
+                suspended_companies=v_suspended,
+                platform_tokens_30d=int(v_tokens_30d),
+                platform_cost_eur_30d=round(float(v_cost_30d), 2),
+                positive_feedback=v_positive,
+                negative_feedback=v_negative,
             )
         )
 

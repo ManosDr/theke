@@ -1,6 +1,6 @@
 "use client";
 
-import { CartesianGrid, Legend, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 import { useLocale } from "../lib/i18n";
 import type { AuditLogEntry } from "../lib/types";
@@ -46,7 +46,17 @@ export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]
 
   return (
     <ResponsiveContainer width="100%" height={260}>
-      <LineChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+      <ComposedChart data={data} margin={{ top: 8, right: 8, left: -20, bottom: 0 }}>
+        <defs>
+          {/* Soft teal fill under the logins line, fading to transparent -
+              the one series worth visually emphasizing (logins are the
+              platform's core engagement signal); "other activity" stays a
+              plain line so the two don't compete for attention. */}
+          <linearGradient id="loginsFill" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="var(--color-info)" stopOpacity={0.35} />
+            <stop offset="100%" stopColor="var(--color-info)" stopOpacity={0} />
+          </linearGradient>
+        </defs>
         <CartesianGrid strokeDasharray="3 3" stroke="var(--color-border)" vertical={false} />
         <XAxis dataKey="date" stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
         <YAxis allowDecimals={false} stroke="var(--color-text-muted)" fontSize={12} tickLine={false} axisLine={false} />
@@ -62,12 +72,13 @@ export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]
           iconType="circle"
           formatter={(value) => <span style={{ color: "var(--color-text-muted)" }}>{value}</span>}
         />
-        <Line
+        <Area
           type="monotone"
           dataKey="logins"
           name={t("dash.super.chartLogins")}
           stroke="var(--color-info)"
           strokeWidth={2.5}
+          fill="url(#loginsFill)"
           dot={false}
           activeDot={{ r: 5 }}
         />
@@ -80,7 +91,7 @@ export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]
           dot={false}
           activeDot={{ r: 5 }}
         />
-      </LineChart>
+      </ComposedChart>
     </ResponsiveContainer>
   );
 }

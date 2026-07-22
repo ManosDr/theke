@@ -255,7 +255,9 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
               border: "none",
               padding: 0,
               marginTop: "var(--space-3)",
-              color: "var(--color-link)",
+              // Matches the super admin dashboard's own teal link/CTA
+              // convention (--color-info), not the site-wide navy link.
+              color: "var(--color-info)",
               fontWeight: 600,
               cursor: "pointer",
             }}

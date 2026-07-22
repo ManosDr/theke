@@ -35,11 +35,14 @@
   min-width: 0;
 }
 
+/* Circular, matching StatCard's own .icon (company admin's equivalent
+   tile) - was a rounded square, the one visual mismatch between the two
+   dashboards' otherwise-identical tone system. */
 .iconBadge {
   flex-shrink: 0;
-  width: 26px;
-  height: 26px;
-  border-radius: 7px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -55,13 +58,16 @@
 }
 
 .value {
-  font-size: 1.9rem;
+  font-size: 2rem;
   font-weight: 800;
   line-height: 1;
   min-width: 0;
   color: var(--color-text);
 }
 
+/* --color-info (teal) rather than --color-link (navy) - matches this
+   dashboard's own established convention of teal for interactive links/
+   CTAs against navy headings and values, not the site-wide link color. */
 .cta {
   background: none;
   border: none;
@@ -70,7 +76,11 @@
   font-weight: 600;
   text-align: right;
   min-width: 0;
-  color: var(--color-link);
+  color: var(--color-info);
+}
+
+.cta:hover {
+  text-decoration: underline;
 }
 
 .tone-success .iconBadge {

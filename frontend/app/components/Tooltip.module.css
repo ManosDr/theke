@@ -22,11 +22,14 @@
   color: var(--color-link);
 }
 
+/* position:fixed + portaled into document.body (see Tooltip.tsx) - escapes
+   any ancestor's overflow:hidden, which clipped this bubble entirely
+   invisible when it was position:absolute nested inside a truncating
+   label. top/left are set inline per-instance from the trigger's own
+   getBoundingClientRect(). */
 .bubble {
-  position: absolute;
-  bottom: calc(100% + 9px);
-  left: 50%;
-  transform: translateX(-50%);
+  position: fixed;
+  transform: translate(-50%, calc(-100% - 9px));
   width: max-content;
   max-width: 280px;
   background: var(--color-surface);
@@ -39,7 +42,16 @@
   font-weight: 400;
   line-height: 1.45;
   text-align: left;
-  z-index: 30;
+  /* Above everything else in the app (modals, sheets, etc.) - matches the
+     existing "always on top" convention used by MapPicker's overlay and
+     SessionExpiryToast. */
+  z-index: 1000;
+}
+
+/* Flipped placement (see Tooltip.tsx's openTooltip) for a trigger too
+   close to the viewport top for the default above-trigger bubble to fit. */
+.bubbleBelow {
+  transform: translate(-50%, 9px);
 }
 
 .arrow {
@@ -53,4 +65,15 @@
   border-bottom: 1px solid var(--color-border);
   transform: translateX(-50%) rotate(45deg);
   margin-top: -5px;
+}
+
+.bubbleBelow .arrow {
+  top: auto;
+  bottom: 100%;
+  border-right: none;
+  border-bottom: none;
+  border-left: 1px solid var(--color-border);
+  border-top: 1px solid var(--color-border);
+  margin-top: 0;
+  margin-bottom: -5px;
 }

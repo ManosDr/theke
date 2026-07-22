@@ -180,3 +180,12 @@
     display: none;
   }
 }
+
+/* Room for Sidebar.tsx's fixed hamburger trigger (40px + var(--space-3)
+   left offset), which overlaps the header's own left edge below the same
+   640px threshold Sidebar.module.css switches to drawer mode at. */
+@media (max-width: 640px) {
+  .header {
+    padding-left: 64px;
+  }
+}

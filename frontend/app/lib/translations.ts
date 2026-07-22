@@ -92,6 +92,8 @@ export const translations = {
     "sidebar.adminLabel": "Admin",
     "sidebar.collapse": "Collapse sidebar",
     "sidebar.expand": "Expand sidebar",
+    "sidebar.openMenu": "Open menu",
+    "sidebar.closeMenu": "Close menu",
     "sidebar.myAccount": "My Account",
 
     "topbar.decreaseFont": "Decrease font size",
@@ -1252,6 +1254,8 @@ export const translations = {
     "sidebar.adminLabel": "Διαχείριση",
     "sidebar.collapse": "Σύμπτυξη πλαϊνής μπάρας",
     "sidebar.expand": "Ανάπτυξη πλαϊνής μπάρας",
+    "sidebar.openMenu": "Άνοιγμα μενού",
+    "sidebar.closeMenu": "Κλείσιμο μενού",
     "sidebar.myAccount": "Ο Λογαριασμός μου",
 
     "topbar.decreaseFont": "Μείωση μεγέθους γραμματοσειράς",

@@ -16,6 +16,7 @@ import {
   ChatIcon,
   CompaniesIcon,
   HelpIcon,
+  MenuIcon,
   NavDashboardIcon,
   NavKnowledgeBaseIcon,
   SearchIcon,
@@ -23,6 +24,7 @@ import {
   SourcesIcon,
 } from "./NavIcons";
 import { LogoutIcon } from "./StatIcons";
+import { CloseIcon } from "./UiIcons";
 import styles from "./Sidebar.module.css";
 
 const NAV_ITEMS = [
@@ -156,10 +158,20 @@ export function Sidebar() {
   const pathname = usePathname() ?? "";
   const [collapsed, setCollapsed] = useState(false);
   const [navOpen, setNavOpen] = useState<Record<string, boolean>>({ kb: true, org: false, settings: false });
+  // Below 768px the sidebar becomes an off-canvas drawer instead of the
+  // desktop expand/collapse toggle above - `collapsed` stays irrelevant
+  // there (CSS forces full width whenever the drawer is open).
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   useEffect(() => {
     setCollapsed(localStorage.getItem(COLLAPSE_STORAGE_KEY) === "true");
   }, []);
+
+  // Auto-close the drawer on navigation - a drawer that stays open after
+  // the user has already tapped through to the next screen just blocks it.
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
 
   function toggleCollapsed() {
     setCollapsed((prev) => {
@@ -188,26 +200,49 @@ export function Sidebar() {
   const initials = getInitials(user?.firstName, user?.lastName, user?.email);
 
   return (
-    <aside className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""}`}>
-      <div className={styles.wordmarkRow}>
-        {collapsed ? (
-          <LogoMark size={24} />
-        ) : (
-          <div>
-            <div className={styles.wordmarkText}>theke</div>
-            <div className={styles.wordmarkSub}>{t("sidebar.adminLabel")}</div>
-          </div>
-        )}
-        <button
-          type="button"
-          className={styles.collapseToggle}
-          onClick={toggleCollapsed}
-          title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-          aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
-        >
-          <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
-        </button>
-      </div>
+    <>
+      <button
+        type="button"
+        className={styles.mobileMenuTrigger}
+        onClick={() => setMobileOpen(true)}
+        aria-label={t("sidebar.openMenu")}
+        aria-expanded={mobileOpen}
+      >
+        <MenuIcon size={22} />
+      </button>
+      {mobileOpen && (
+        <div className={styles.mobileBackdrop} onClick={() => setMobileOpen(false)} aria-hidden="true" />
+      )}
+      <aside
+        className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""} ${mobileOpen ? styles.sidebarMobileOpen : ""}`}
+      >
+        <div className={styles.wordmarkRow}>
+          {collapsed ? (
+            <LogoMark size={24} />
+          ) : (
+            <div>
+              <div className={styles.wordmarkText}>theke</div>
+              <div className={styles.wordmarkSub}>{t("sidebar.adminLabel")}</div>
+            </div>
+          )}
+          <button
+            type="button"
+            className={styles.mobileCloseButton}
+            onClick={() => setMobileOpen(false)}
+            aria-label={t("sidebar.closeMenu")}
+          >
+            <CloseIcon size={18} />
+          </button>
+          <button
+            type="button"
+            className={styles.collapseToggle}
+            onClick={toggleCollapsed}
+            title={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+            aria-label={collapsed ? t("sidebar.expand") : t("sidebar.collapse")}
+          >
+            <span aria-hidden="true">{collapsed ? "›" : "‹"}</span>
+          </button>
+        </div>
 
       {!isSuperAdmin && <CompanyBranding collapsed={collapsed} />}
 
@@ -317,6 +352,7 @@ export function Sidebar() {
           )}
         </div>
       </div>
-    </aside>
+      </aside>
+    </>
   );
 }

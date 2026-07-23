@@ -72,7 +72,7 @@ class Company(Base):
     billing_address: Mapped[str | None] = mapped_column(Text)
     # Set only via the super_admin "Νέα Εταιρεία" modal's "Δοκιμαστικός
     # χρήστης" toggle - excludes this company from platform-wide reporting
-    # (GET /admin/stats, token-cost totals, the day-45 conversion nudge) so
+    # (GET /admin/stats, token-cost totals, the trial-nudge conversion banner) so
     # internal/demo usage never inflates real numbers. A reporting
     # exclusion only - every feature still works normally for the company.
     is_test_account: Mapped[bool] = mapped_column(default=False)

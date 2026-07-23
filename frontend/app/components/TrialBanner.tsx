@@ -9,8 +9,10 @@ import { useLocale } from "../lib/i18n";
 import type { SubscriptionStatusResponse } from "../lib/types";
 import styles from "./TrialBanner.module.css";
 
-const AMBER_THRESHOLD_DAYS = 14;
-const URGENT_THRESHOLD_DAYS = 3;
+// Proportional to the 30-day trial (TRIAL_DAYS_DEFAULT) - was 14/3 out of a
+// 60-day trial, same ~23%/5% position scaled down.
+const AMBER_THRESHOLD_DAYS = 7;
+const URGENT_THRESHOLD_DAYS = 2;
 
 function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);

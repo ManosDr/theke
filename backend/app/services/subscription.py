@@ -20,7 +20,7 @@ STORAGE_EXHAUSTED_MESSAGE = (
 PROJECT_LIMIT_MESSAGE = "Έχετε φτάσει το όριο έργων του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 CLIENT_LIMIT_MESSAGE = "Έχετε φτάσει το όριο πελατών του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 
-TRIAL_DAYS_DEFAULT = 60
+TRIAL_DAYS_DEFAULT = 30
 
 
 def _current_period() -> tuple[date, date]:

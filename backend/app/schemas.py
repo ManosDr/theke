@@ -477,11 +477,11 @@ class CompanyCreateWithAdminRequest(BaseModel):
     # "Δοκιμαστικός χρήστης" toggle - when true, the created company is
     # tagged Company.is_test_account (excluded from platform-wide
     # reporting) and its trial length uses trial_days instead of the
-    # standard TRIAL_DAYS_DEFAULT (60). trial_days is accepted regardless
+    # standard TRIAL_DAYS_DEFAULT (30). trial_days is accepted regardless
     # of is_test_account so a super admin can also hand a real prospect a
     # non-default trial length without marking them a test account.
     is_test_account: bool = False
-    trial_days: int = 60  # matches app/services/subscription.py's TRIAL_DAYS_DEFAULT
+    trial_days: int = 30  # matches app/services/subscription.py's TRIAL_DAYS_DEFAULT
 
     @field_validator("company_type")
     @classmethod
@@ -1152,15 +1152,17 @@ class SubscriptionStatusResponse(BaseModel):
     status: Literal["trial", "active", "expired", "cancelled", "suspended"]
     trial_ends_at: datetime | None
     # started_at on the subscription row - the trial-day-count anchor for
-    # the day-45 conversion nudge (Phase 4c), computed client-side the same
-    # way TrialBanner already derives days-remaining from trial_ends_at.
+    # TrialNudgeBanner's conversion nudge (Phase 4c; component renamed away
+    # from Day45Banner when the trial length changed from 60 to 30 days -
+    # see KNOWN_DECISIONS.md), computed client-side the same way TrialBanner
+    # already derives days-remaining from trial_ends_at.
     trial_started_at: datetime
     current_period_end: datetime | None
     messages_used: int
     messages_limit: int
     users_count: int
     user_limit: int
-    # Lets the frontend suppress the day-45 conversion nudge for
+    # Lets the frontend suppress TrialNudgeBanner's conversion nudge for
     # is_test_account companies (see Phase 5) without a second request.
     is_test_account: bool
 

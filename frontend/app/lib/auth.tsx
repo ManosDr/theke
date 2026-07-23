@@ -37,7 +37,7 @@ export type Role = "super_admin" | "admin" | "member";
 // Construction firms and municipalities both consume the "construction"
 // vertical's content (see register/page.tsx's own comment on this same
 // mapping) - only "accounting" maps to "tax_accounting". Shared here so the
-// pricing page and the day-45 conversion banner don't each re-derive it.
+// pricing page and TrialNudgeBanner's conversion nudge don't each re-derive it.
 export function companyTypeToVerticalSlug(companyType: CompanyType | null): "construction" | "tax_accounting" {
   return companyType === "accounting" ? "tax_accounting" : "construction";
 }

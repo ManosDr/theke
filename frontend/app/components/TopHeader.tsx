@@ -47,7 +47,7 @@ function useTrialDaysRemaining(): number | null {
 }
 
 // Always visible while on trial (unlike TrialBanner, which only appears in
-// the final 14 days) - a persistent, low-key reminder of how much beta time
+// the final 7 days) - a persistent, low-key reminder of how much beta time
 // is left, per item 19 of the batch-1 fix list. Desktop-only (see .trialBadge's
 // own media query) - at tablet/mobile widths this pill left too little room
 // for the page title next to it (measured down to a few px wide), so
@@ -75,18 +75,20 @@ function TrialBadge() {
 
 // Tablet/mobile counterpart to TrialBadge - same "days remaining" info, but
 // rendered as a subtle full-width bar at the very top of the main content
-// area (see AppShell) instead of a topbar pill, and only for days > 14: once
-// TrialBanner's own amber/urgent bar takes over in the final 14 days (that
+// area (see AppShell) instead of a topbar pill, and only for days > 7: once
+// TrialBanner's own amber/urgent bar takes over in the final 7 days (that
 // one renders at every width already), showing both would be a redundant
-// double banner. CSS-hidden above 900px rather than not rendering at all,
-// so it doesn't need its own separate width check in JS.
+// double banner. Mirrors TrialBanner's own AMBER_THRESHOLD_DAYS - if that
+// changes, this needs to change with it. CSS-hidden above 900px rather than
+// not rendering at all, so it doesn't need its own separate width check in
+// JS.
 export function TrialBadgeBar() {
   const { user } = useAuth();
   const { t } = useLocale();
   const router = useRouter();
   const days = useTrialDaysRemaining();
 
-  if (days == null || days <= 14) return null;
+  if (days == null || days <= 7) return null;
 
   return (
     <button

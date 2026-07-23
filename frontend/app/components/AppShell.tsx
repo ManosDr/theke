@@ -2,13 +2,13 @@
 
 import type { ReactNode } from "react";
 
-import { Day45Banner } from "./Day45Banner";
 import { FeedbackWidget } from "./FeedbackWidget";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { Sidebar } from "./Sidebar";
 import styles from "./AppShell.module.css";
 import { TopHeader, TrialBadgeBar } from "./TopHeader";
 import { TrialBanner } from "./TrialBanner";
+import { TrialNudgeBanner } from "./TrialNudgeBanner";
 
 export function AppShell({
   children,
@@ -40,7 +40,7 @@ export function AppShell({
         <TrialBadgeBar />
         <ImpersonationBanner />
         <TrialBanner />
-        <Day45Banner />
+        <TrialNudgeBanner />
         <main className={`${styles.main} ${fullWidth ? styles.mainFullWidth : ""}`}>{children}</main>
       </div>
       <FeedbackWidget />

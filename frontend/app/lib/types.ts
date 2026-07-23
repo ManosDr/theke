@@ -37,8 +37,6 @@ export interface CompanyOverviewResponse {
   projects_total: number;
   private_documents_count: number;
   public_documents_count: number;
-  total_tokens_30d: number;
-  estimated_cost_eur_30d: number;
   activity: ActivityEventEntry[];
   positive_feedback: number;
   negative_feedback: number;

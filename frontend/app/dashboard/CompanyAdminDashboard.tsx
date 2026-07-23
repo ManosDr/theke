@@ -11,7 +11,6 @@ import type { TranslationKey } from "../lib/translations";
 import {
   BuildingIcon,
   ClockIcon,
-  CoinIcon,
   InfoIcon,
   MailIcon,
   ShieldCheckIcon,
@@ -36,12 +35,11 @@ import type {
   ProjectSummary,
   RemovalRequestSummary,
   SubscriptionStatusResponse,
-  TokenUsageSummary,
   UserSummary,
 } from "../lib/types";
 import { CompanyActivityChart } from "./CompanyActivityChart";
 import { SentimentDonut } from "./SentimentDonut";
-import { StatCard } from "./StatCard";
+import { StatCard, type StatTone } from "./StatCard";
 import { WelcomeCard } from "./WelcomeCard";
 import styles from "./dashboard.module.css";
 import tabStyles from "./CompanyAdminDashboard.module.css";
@@ -149,7 +147,7 @@ export function CompanyAdminDashboard() {
 
       <div className={tabStyles.tabContent}>
         {tab === "overview" && (
-          <OverviewTab token={token} onNavigateToUsers={() => setTab("users")} onNavigateToDocuments={() => setTab("documents")} />
+          <OverviewTab token={token} onNavigateToDocuments={() => setTab("documents")} />
         )}
         {tab === "users" && <UsersTab token={token} />}
         {tab === "documents" && <DocumentsTab token={token} />}
@@ -162,23 +160,21 @@ export function CompanyAdminDashboard() {
 
 function OverviewTab({
   token,
-  onNavigateToUsers,
   onNavigateToDocuments,
 }: {
   token: string | null;
-  onNavigateToUsers: () => void;
   onNavigateToDocuments: () => void;
 }) {
   const { t, tUpper, locale } = useLocale();
   const [data, setData] = useState<CompanyOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
-  const [usage, setUsage] = useState<TokenUsageSummary | null>(null);
+  const [sub, setSub] = useState<SubscriptionStatusResponse | null>(null);
   const [needsReview, setNeedsReview] = useState<CompanyDocumentReviewEntry[]>([]);
 
   useEffect(() => {
     if (!token) return;
     api.get<CompanyOverviewResponse>("/companies/me/overview", token).then(setData).finally(() => setLoading(false));
-    api.get<TokenUsageSummary>("/companies/me/usage", token).then(setUsage).catch(() => setUsage(null));
+    api.get<SubscriptionStatusResponse>("/subscription/status", token).then(setSub).catch(() => setSub(null));
     api
       .get<CompanyDocumentReviewEntry[]>("/companies/me/documents/needs-review", token)
       .then(setNeedsReview)
@@ -188,7 +184,14 @@ function OverviewTab({
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (!data) return null;
 
-  const topUsers = usage ? [...usage.by_user].sort((a, b) => b.total_tokens_30d - a.total_tokens_30d).slice(0, 10) : [];
+  // Message-pool usage relative to the plan's ceiling, not a raw token/cost
+  // figure - showing Theke's own unit cost here would incentivize a company
+  // to over-consume "to get their money's worth", which works against the
+  // business. Token/EUR visibility stays super-admin-only (Companies ->
+  // Usage tab). Beta/unlimited plans have no real ceiling, so a percentage
+  // fill would be meaningless - show the raw count with no bar instead.
+  const poolPct = sub && !sub.is_beta ? Math.min(100, Math.round((sub.messages_used / Math.max(sub.messages_limit, 1)) * 100)) : null;
+  const poolTone: StatTone = poolPct == null ? "info" : poolPct >= 90 ? "danger" : poolPct >= 70 ? "warning" : "success";
 
   return (
     <div className={tabStyles.scrollPane}>
@@ -224,19 +227,22 @@ function OverviewTab({
           value={`${data.private_documents_count}/${data.public_documents_count}`}
           label={t("dash.company.statDocumentsSub", { private: data.private_documents_count, public: data.public_documents_count })}
         />
-        <StatCard
-          tone="danger"
-          icon={<CoinIcon />}
-          value={data.total_tokens_30d.toLocaleString()}
-          label={
-            <>
-              {`${t("dash.company.statTokens")} · €${data.estimated_cost_eur_30d.toFixed(2)}`}
-              <Tooltip text={t("dash.company.tokensTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-        />
+        {sub && (
+          <StatCard
+            tone={poolTone}
+            icon={<ChatIcon />}
+            value={sub.is_beta ? sub.messages_used.toLocaleString() : `${sub.messages_used.toLocaleString()}/${sub.messages_limit.toLocaleString()}`}
+            progressPercent={poolPct ?? undefined}
+            label={
+              <>
+                {sub.is_beta ? `${t("dash.company.statMessagePool")} · ${t("dash.company.sub.unlimitedBeta")}` : t("dash.company.statMessagePool")}
+                <Tooltip text={t("dash.company.messagePoolTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+          />
+        )}
       </div>
 
       <div className={styles.analyticsRow}>
@@ -299,51 +305,6 @@ function OverviewTab({
           {t("dash.company.viewDocuments")}
         </button>
       </section>
-
-      {topUsers.length > 0 && (
-        <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
-          <div className={styles.sectionHeader}>
-            <h2>{t("dash.company.usageByUser")}</h2>
-          </div>
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{tUpper("dash.company.usageColUser")}</th>
-                <th>{tUpper("dash.company.usageColMessages")}</th>
-                <th>{tUpper("dash.company.usageColTokens")}</th>
-                <th>{tUpper("dash.company.usageColCost")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {topUsers.map((u) => (
-                <tr key={u.user_id}>
-                  <td>{u.name}</td>
-                  <td>{u.message_count}</td>
-                  <td>{u.total_tokens_30d.toLocaleString()}</td>
-                  <td>€{u.estimated_cost_eur_30d.toFixed(2)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <button
-            type="button"
-            onClick={onNavigateToUsers}
-            style={{
-              background: "none",
-              border: "none",
-              padding: 0,
-              marginTop: "var(--space-3)",
-              // Matches the super admin dashboard's own teal link/CTA
-              // convention (--color-info), not the site-wide navy link.
-              color: "var(--color-info)",
-              fontWeight: 600,
-              cursor: "pointer",
-            }}
-          >
-            {t("dash.company.usageSeeAll")}
-          </button>
-        </section>
-      )}
 
       <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <div className={styles.sectionHeader}>

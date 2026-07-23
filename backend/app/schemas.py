@@ -332,8 +332,6 @@ class CompanyOverviewResponse(BaseModel):
     projects_total: int
     private_documents_count: int
     public_documents_count: int
-    total_tokens_30d: int
-    estimated_cost_eur_30d: float
     activity: list["ActivityEventEntry"]
     positive_feedback: int = 0
     negative_feedback: int = 0

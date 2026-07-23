@@ -41,6 +41,28 @@
   font-size: 0.85rem;
 }
 
+.labelCol {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  min-width: 0;
+}
+
+.progressTrack {
+  width: 100%;
+  min-width: 80px;
+  height: 5px;
+  border-radius: 999px;
+  background: var(--color-surface-alt);
+  overflow: hidden;
+}
+
+.progressFill {
+  height: 100%;
+  border-radius: 999px;
+  background: var(--color-link);
+}
+
 .tone-primary .icon {
   background: var(--color-primary);
 }
@@ -58,6 +80,26 @@
 }
 
 .tone-danger .icon {
+  background: var(--color-danger);
+}
+
+.tone-success .icon {
+  background: var(--color-success);
+}
+
+.tone-warning .icon {
+  background: var(--color-warning);
+}
+
+.tone-success .progressFill {
+  background: var(--color-success);
+}
+
+.tone-warning .progressFill {
+  background: var(--color-warning);
+}
+
+.tone-danger .progressFill {
   background: var(--color-danger);
 }
 

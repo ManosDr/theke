@@ -35,14 +35,12 @@ from app.schemas import (
     KbSourceStatusEntry,
     MyCompanySummary,
     RoleChangeRequest,
-    TokenUsageSummary,
     UserSummary,
 )
 from app.services.audit import log_action
 from app.services.authorization import require_company_admin
 from app.services.documents import UPLOAD_DIR
 from app.services.sources import group_label
-from app.services.usage import company_token_usage
 from app.services.visibility import visible_documents_filter
 
 router = APIRouter(prefix="/companies/me", tags=["companies"])
@@ -549,23 +547,6 @@ async def company_overview(
 
     events.sort(key=lambda e: e.created_at, reverse=True)
 
-    total_tokens_30d = (
-        db.scalar(
-            select(func.coalesce(func.sum(ChatSession.total_tokens), 0)).where(
-                ChatSession.company_id == company_id, ChatSession.created_at >= since_30d
-            )
-        )
-        or 0
-    )
-    estimated_cost_eur_30d = (
-        db.scalar(
-            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0)).where(
-                ChatSession.company_id == company_id, ChatSession.created_at >= since_30d
-            )
-        )
-        or 0
-    )
-
     # Full (uncapped) timestamp list for the last 14 days, not the 10-per-
     # type curated `events` feed above - that feed only ever shows the 10
     # most recent chat sessions total, so bucketing it by day would badly
@@ -610,29 +591,11 @@ async def company_overview(
         projects_total=projects_total,
         private_documents_count=private_documents_count,
         public_documents_count=public_documents_count,
-        total_tokens_30d=int(total_tokens_30d),
-        estimated_cost_eur_30d=round(float(estimated_cost_eur_30d), 4),
         activity=events[:10],
         positive_feedback=positive_feedback,
         negative_feedback=negative_feedback,
         messages_last_14d=messages_last_14d,
     )
-
-
-@router.get("/usage", response_model=TokenUsageSummary)
-async def company_usage(
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-) -> TokenUsageSummary:
-    """Same shape and same underlying query as the super-admin company
-    detail view's token_usage field (see company_token_usage) - just scoped
-    to the caller's own company instead of a path-param company_id, and
-    gated on company admin rather than super_admin."""
-    require_company_admin(user)
-    company_id = user.company_id
-    since_30d = datetime.utcnow() - timedelta(days=30)
-    users = db.scalars(select(User).where(User.company_id == company_id)).all()
-    return company_token_usage(db, company_id, since_30d, users)
 
 
 @router.get("/documents", response_model=list[CompanyDocumentSummary])

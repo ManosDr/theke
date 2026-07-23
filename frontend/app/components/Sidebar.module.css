@@ -475,7 +475,7 @@
   border-radius: 50%;
   background: var(--color-primary);
   color: var(--color-text-on-primary);
-  border: 2px solid var(--color-text-on-primary);
+  border: 2px solid var(--color-surface-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;

@@ -18,6 +18,14 @@
      on an already-dark card. */
   --color-surface-hover: rgba(21, 29, 72, 0.05);
   --color-border: #e4e9f2;
+  /* Small decorative fills/borders sitting on top of a solid colored
+     surface - a switcher dot's active fill, an avatar's ring border - NOT
+     text. Was incorrectly pointed at --color-text-on-primary during an
+     earlier cleanup pass just because both happened to be #ffffff; a
+     background/border color and a text color are different concerns even
+     when their current values match, so this gets its own token instead
+     of borrowing the text one. */
+  --color-surface-on-primary: #ffffff;
 
   /* Text */
   --color-text: #151d48;
@@ -169,6 +177,7 @@
      theme's rgba(0,0,0,...) direction would go the wrong way here. */
   --color-surface-hover: rgba(255, 255, 255, 0.07);
   --color-border: #2a3752;
+  --color-surface-on-primary: #ffffff;
 
   --color-text: #ececec;
   --color-text-muted: #7b91b0;

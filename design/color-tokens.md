@@ -10,7 +10,7 @@ The codebase actually runs **two parallel palettes**, not one flat list:
 
 Swatches below are inline HTML `<span>` color chips — they render in any Markdown viewer that allows raw HTML (GitHub, VS Code preview, etc.).
 
-**56 tokens total** (down from 59 in the previous export — see changelog below).
+**57 tokens total** (down from 59 two exports ago, up by 1 since the last export — see changelog below).
 
 ## What changed since the last export
 
@@ -23,6 +23,7 @@ Swatches below are inline HTML `<span>` color chips — they render in any Markd
 - New token: `admin.text.text_on_dark` — consolidates three previously ad hoc values (`#fff`, `#b7c2dc`, `#d8e0f0`) used for secondary text on permanently-dark navy surfaces.
 - Fixed a hardcoded `#d8d0c2` leftover (old warm-beige palette) on the sidebar's collapsed vertical-switcher dot → now uses `admin.surface.card_border`.
 - **Follow-up pass:** swept the whole frontend for remaining raw hex in CSS/inline styles - every one was a "text/icon on a colored fill" case, so all were repointed at the existing `core.text.on_primary` token rather than adding anything new (Sidebar's active nav-child text, avatar border, vertical-switcher active segment; TopHeader/StatCard/AttentionCard's avatar/icon text; two status-pill and two inline danger-button labels). One hardcoded dark-theme background (`Sidebar.module.css`'s `.navItemActive`, was `#25344f`) was replaced with the same `color-mix(...)` pattern its light-theme sibling already uses, mixed against the dark surface instead of white - ties it back to `admin.brand.accent_navy` instead of an unrelated hex.
+- **Correction to the follow-up pass:** 2 of those repointed call sites were actually background/border properties, not text - Sidebar's vertical-switcher active-dot fill and the avatar's ring border. A background/border color is a different design-system concern from a text color even when the hex currently matches (`#ffffff` in both cases), so a future rebrand could need to change one independently of the other. Split them out into a new token, **`core.background.on_primary`** - grouped as ONE token (not two) since both share the identical value and role. `core.text.on_primary`'s remaining ~11 call sites were re-verified as genuine `color:`/icon-foreground usages and left untouched.
 
 ---
 
@@ -34,6 +35,7 @@ Swatches below are inline HTML `<span>` color chips — they render in any Markd
 | `core.background.surface` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#16213a;border:1px solid #ccc;vertical-align:middle;"></span> `#16213a` | Default card/panel/input background |
 | `core.background.surface_alt` | <span style="display:inline-block;width:14px;height:14px;background:#eef1f6;border:1px solid #ccc;vertical-align:middle;"></span> `#eef1f6` | <span style="display:inline-block;width:14px;height:14px;background:#1e2a44;border:1px solid #ccc;vertical-align:middle;"></span> `#1e2a44` | Secondary/inset surface — table stripes, chips, citation pills |
 | `core.background.surface_hover` 🆕 | <span style="display:inline-block;width:14px;height:14px;background:rgba(21,29,72,0.05);border:1px solid #ccc;vertical-align:middle;"></span> `rgba(21,29,72,0.05)` | <span style="display:inline-block;width:14px;height:14px;background:#1e2a44;border:1px solid #ccc;vertical-align:middle;"></span> `rgba(255,255,255,0.07)` | Subtle hover tint over `core.background.surface` (e.g. CustomerCombobox rows) |
+| `core.background.on_primary` 🆕 | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | Small decorative fill/border sitting on a solid colored surface - sidebar vertical-switcher active dot, avatar ring border. Deliberately separate from `core.text.on_primary` even though the value matches - background/border and text are different concerns (see changelog) |
 
 ## core — border
 
@@ -47,7 +49,7 @@ Swatches below are inline HTML `<span>` color chips — they render in any Markd
 |---|---|---|---|
 | `core.text.primary` | <span style="display:inline-block;width:14px;height:14px;background:#151d48;border:1px solid #ccc;vertical-align:middle;"></span> `#151d48` | <span style="display:inline-block;width:14px;height:14px;background:#ececec;border:1px solid #ccc;vertical-align:middle;"></span> `#ececec` | Default body/heading text |
 | `core.text.muted` | <span style="display:inline-block;width:14px;height:14px;background:#737791;border:1px solid #ccc;vertical-align:middle;"></span> `#737791` | <span style="display:inline-block;width:14px;height:14px;background:#7b91b0;border:1px solid #ccc;vertical-align:middle;"></span> `#7b91b0` | Secondary/caption text, placeholders |
-| `core.text.on_primary` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | Text/icon on any solid colored fill - buttons, user chat bubble, sidebar avatar/footer name/active nav item, status pills, admin danger confirm buttons (broadened in the follow-up sweep, see changelog) |
+| `core.text.on_primary` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | Text/icon color (the `color` property specifically, not background or border) on any solid colored fill - buttons, user chat bubble, sidebar avatar initial/footer name/active nav item text, status-pill text, admin danger confirm-button labels. The avatar's ring border and switcher-dot fill were moved out to `core.background.on_primary` (see changelog) |
 
 ## core — brand
 

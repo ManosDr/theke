@@ -135,7 +135,7 @@ function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
             >
               <span
                 className={styles.switcherDotInline}
-                style={{ background: active ? "var(--color-text-on-primary)" : accent }}
+                style={{ background: active ? "var(--color-surface-on-primary)" : accent }}
               />
               <span>{t(opt.labelKey)}</span>
             </button>

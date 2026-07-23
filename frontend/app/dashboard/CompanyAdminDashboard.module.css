@@ -12,9 +12,17 @@
   margin-bottom: var(--space-3);
 }
 
+/* Wraps instead of scrolling - the app-wide rule is no horizontal scroll
+   anywhere (see KNOWN_DECISIONS.md), which an earlier pass carved an
+   exception out of for this specific tab strip (a contained horizontal
+   scroll, not a page-level one) on the reasoning that company admin stays
+   desktop-optimized. That exception is retired: at tablet/mobile widths
+   the 5 tabs (particularly "Πελάτες & Έργα", the longest label) don't fit
+   on one line at normal size, so they wrap to a second row instead. */
 .tabBar {
   display: flex;
-  gap: var(--space-2);
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
   border-bottom: 1px solid var(--admin-row-border);
   flex-shrink: 0;
   margin-bottom: var(--space-4);
@@ -33,16 +41,10 @@
   flex-shrink: 0;
 }
 
-/* Company admin stays desktop-optimized by design (out of scope for a full
-   mobile redesign - see KNOWN_DECISIONS.md), but the tab row itself must
-   not force the whole page to scroll sideways to reach the icons/actions
-   past it. Scroll is contained to the tab strip instead, same pattern as a
-   native app's horizontally-scrollable tab bar - it stays dense on mobile,
-   it just doesn't leak. */
 @media (max-width: 640px) {
-  .tabBar {
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
+  .tabButton {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.82rem;
   }
 }
 

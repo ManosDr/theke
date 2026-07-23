@@ -1157,7 +1157,7 @@ function RemoveModal({
           </button>
           <button
             className="btn"
-            style={{ background: "var(--admin-danger)", color: "#fff", borderColor: "var(--admin-danger)" }}
+            style={{ background: "var(--admin-danger)", color: "var(--color-text-on-primary)", borderColor: "var(--admin-danger)" }}
             disabled={submitting}
             onClick={confirmRemove}
           >

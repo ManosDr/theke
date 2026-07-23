@@ -127,10 +127,16 @@ function VerticalSwitcher({ collapsed }: { collapsed: boolean }) {
               key={opt.value}
               type="button"
               className={styles.switcherSegment}
-              style={{ background: active ? accent : "transparent", color: active ? "#fff" : "var(--admin-text-body)" }}
+              style={{
+                background: active ? accent : "transparent",
+                color: active ? "var(--color-text-on-primary)" : "var(--admin-text-body)",
+              }}
               onClick={() => setSelectedVertical(opt.value)}
             >
-              <span className={styles.switcherDotInline} style={{ background: active ? "#fff" : accent }} />
+              <span
+                className={styles.switcherDotInline}
+                style={{ background: active ? "var(--color-text-on-primary)" : accent }}
+              />
               <span>{t(opt.labelKey)}</span>
             </button>
           );

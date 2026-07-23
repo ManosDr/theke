@@ -310,7 +310,10 @@
 
 [data-theme="dark"] .navItemActive,
 [data-theme="dark"] .navItemActive:hover {
-  background: #25344f;
+  /* Same color-mix approach as the light-mode rule above, just mixed
+     against the dark surface instead of white - was a hand-picked hex
+     with nothing tying it back to --admin-accent-navy. */
+  background: color-mix(in srgb, var(--admin-accent-navy) 25%, var(--color-surface));
 }
 
 .navIconBox {
@@ -363,7 +366,7 @@
 .navChildItemActive,
 .navChildItemActive:hover {
   background: var(--admin-accent-navy);
-  color: #fff;
+  color: var(--color-text-on-primary);
   font-weight: 600;
 }
 
@@ -472,7 +475,7 @@
   border-radius: 50%;
   background: var(--color-primary);
   color: var(--color-text-on-primary);
-  border: 2px solid #fff;
+  border: 2px solid var(--color-text-on-primary);
   display: flex;
   align-items: center;
   justify-content: center;

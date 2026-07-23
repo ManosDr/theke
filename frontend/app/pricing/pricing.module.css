@@ -67,8 +67,8 @@
   position: absolute;
   top: var(--space-4);
   right: var(--space-4);
-  background: var(--color-success-bg, var(--color-primary));
-  color: var(--color-success, #fff);
+  background: var(--color-success-bg);
+  color: var(--color-success);
   font-size: 0.75rem;
   font-weight: 700;
   padding: 2px var(--space-2);

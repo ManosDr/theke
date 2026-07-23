@@ -1,6 +1,6 @@
 {
   "meta": {
-    "exported_at": "2026-07-22T20:35:00Z",
+    "exported_at": "2026-07-23T09:00:00Z",
     "source": [
       "frontend/app/globals.css"
     ],
@@ -13,7 +13,8 @@
       "Declared --color-surface-hover properly (was previously referenced with an undeclared fallback, rgba(0,0,0,0.04), invisible in dark mode). New value: rgba(21,29,72,0.05) light / rgba(255,255,255,0.07) dark.",
       "Added a new token, admin.text.text_on_dark (--admin-text-on-dark), consolidating three previously ad hoc hardcoded values (#fff, #b7c2dc, #d8e0f0) used for secondary/body text on permanently-dark navy surfaces (sidebar footer role label + sign-out icon, DataSourcesPanel's active frequency-pill label, VerticalEditorPanel's system-prompt textarea text). Genuinely maximal-contrast name/heading text on the same surfaces (the user's own name in the sidebar footer, the avatar initial) was left pointed at the existing core.text.on_primary token instead, preserving the footer's existing two-tier visual hierarchy rather than flattening it.",
       "Fixed a hardcoded #d8d0c2 (a leftover from the old warm-beige palette) on the collapsed sidebar's inactive vertical-switcher dot - now uses admin.surface.card_border, the sidebar's own established border token.",
-      "Net token count: 59 -> 56 (-3 dead, -1 danger merge, -1 info merge, +1 surface_hover, +1 text_on_dark)."
+      "Net token count: 59 -> 56 (-3 dead, -1 danger merge, -1 info merge, +1 surface_hover, +1 text_on_dark).",
+      "Follow-up pass: swept the whole frontend for remaining raw hex in CSS/inline-style contexts (every one was a 'text/icon sitting on a colored fill' case, same role as core.text.on_primary) and repointed them at that existing token instead of adding anything new: Sidebar.tsx's vertical-switcher active-segment text+dot, Sidebar.module.css's .navChildItemActive text and .avatar border, TopHeader.module.css/StatCard.module.css/AttentionCard.module.css's avatar/icon-badge text, SessionExpiryToast.module.css and SubscriptionsPanel.module.css's status-pill text, and two inline danger-button labels in CompaniesPanel.tsx/DocumentsPanel.tsx. Also replaced a hand-picked dark-theme background (Sidebar.module.css's .navItemActive, was a hardcoded #25344f) with the same color-mix(...) pattern the light-theme rule right above it already uses, just mixed against the dark surface instead of white - ties it back to --admin-accent-navy instead of an unrelated hex. Removed two now-redundant var(..., #fallback) hex fallbacks in pricing.module.css (the token they fell back from is always declared)."
     ],
     "excluded_non_variable_colors": [
       {
@@ -22,9 +23,9 @@
         "note": "The Logo/LogoMark brand-mark green. Hardcoded on purpose per an explicit code comment ('Colors are fixed per the brand spec regardless of light/dark theme') - it is not a CSS variable and editing this JSON will not change it."
       },
       {
-        "value": "#1B2A4A / #F57F17",
-        "found_in": "frontend/app/components/MapPicker.tsx (PIN_NAVY, PIN_AMBER constants)",
-        "note": "Map pin marker colors, duplicated as plain JS string literals because Leaflet's divIcon needs a literal SVG markup string, not a CSS var(). Still un-tokenized after this cleanup pass - out of scope (Leaflet API constraint, not a CSS bug)."
+        "value": "#1B2A4A / #F57F17 / #fff",
+        "found_in": "frontend/app/components/MapPicker.tsx (PIN_NAVY, PIN_AMBER constants, plus the white glyph fills/strokes inside the pin SVG markup itself)",
+        "note": "Map pin marker colors, duplicated as plain JS string literals (some inside a template-literal SVG string) because Leaflet's divIcon needs literal markup, not a CSS var(). Still un-tokenized after this cleanup pass - out of scope (Leaflet API constraint, not a CSS bug)."
       },
       {
         "value": "#1b2a4a",
@@ -71,8 +72,8 @@
           "dark": { "value": "#7b91b0", "usage": "Secondary/caption text, placeholders, .text-muted utility class", "used_in": ["same call sites as light"] }
         },
         "on_primary": {
-          "light": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a core.brand.primary fill (e.g. primary buttons, user chat bubble, sidebar avatar initial, sidebar footer name)", "used_in": ["chat/chat.module.css (.messageUser)", "components/FeedbackWidget.module.css", "components/MapPicker.module.css", "components/Sidebar.module.css (.avatar, .footerEmail)", "projects/[id]/page.module.css"] },
-          "dark": { "value": "#ffffff", "usage": "Text/icon color for content sitting on a core.brand.primary fill", "used_in": ["same call sites as light - not overridden in dark theme"] }
+          "light": { "value": "#ffffff", "usage": "Text/icon color for content sitting on any solid colored fill (primary buttons, user chat bubble, sidebar avatar initial + footer name, status pills, admin danger/warning confirm buttons) - broadened from just core.brand.primary during a follow-up pass that repointed every remaining raw #fff/#ffffff foreground literal at this one token", "used_in": ["chat/chat.module.css (.messageUser)", "components/FeedbackWidget.module.css", "components/MapPicker.module.css", "components/Sidebar.module.css (.avatar, .footerEmail, .navChildItemActive)", "components/Sidebar.tsx (vertical-switcher active segment + dot)", "components/TopHeader.module.css (.avatar)", "dashboard/StatCard.module.css (.icon)", "dashboard/AttentionCard.module.css (.iconBadge)", "components/SessionExpiryToast.module.css (.reLoginButton)", "components/SubscriptionsPanel.module.css (.status-suspended)", "components/CompaniesPanel.tsx (suspend-confirm button)", "components/DocumentsPanel.tsx (remove-confirm button)", "projects/[id]/page.module.css"] },
+          "dark": { "value": "#ffffff", "usage": "Text/icon color for content sitting on any solid colored fill", "used_in": ["same call sites as light - not overridden in dark theme"] }
         }
       },
       "brand": {

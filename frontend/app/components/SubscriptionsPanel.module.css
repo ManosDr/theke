@@ -90,7 +90,7 @@
 
 .status-suspended {
   background: var(--color-accent-hover);
-  color: #fff;
+  color: var(--color-text-on-primary);
 }
 
 .progressBar {

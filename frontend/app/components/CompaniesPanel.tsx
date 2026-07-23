@@ -734,7 +734,7 @@ function CompanyDetailModal({
               </button>
               <button
                 className="btn"
-                style={{ background: "var(--admin-danger)", color: "#fff", borderColor: "var(--admin-danger)" }}
+                style={{ background: "var(--admin-danger)", color: "var(--color-text-on-primary)", borderColor: "var(--admin-danger)" }}
                 onClick={() => {
                   setConfirmingSuspend(false);
                   onToggleSuspend();

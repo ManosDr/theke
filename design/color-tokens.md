@@ -22,6 +22,7 @@ Swatches below are inline HTML `<span>` color chips — they render in any Markd
 - New token: `core.background.surface_hover` — was referenced with an undeclared fallback (`rgba(0,0,0,0.04)`), invisible in dark mode.
 - New token: `admin.text.text_on_dark` — consolidates three previously ad hoc values (`#fff`, `#b7c2dc`, `#d8e0f0`) used for secondary text on permanently-dark navy surfaces.
 - Fixed a hardcoded `#d8d0c2` leftover (old warm-beige palette) on the sidebar's collapsed vertical-switcher dot → now uses `admin.surface.card_border`.
+- **Follow-up pass:** swept the whole frontend for remaining raw hex in CSS/inline styles - every one was a "text/icon on a colored fill" case, so all were repointed at the existing `core.text.on_primary` token rather than adding anything new (Sidebar's active nav-child text, avatar border, vertical-switcher active segment; TopHeader/StatCard/AttentionCard's avatar/icon text; two status-pill and two inline danger-button labels). One hardcoded dark-theme background (`Sidebar.module.css`'s `.navItemActive`, was `#25344f`) was replaced with the same `color-mix(...)` pattern its light-theme sibling already uses, mixed against the dark surface instead of white - ties it back to `admin.brand.accent_navy` instead of an unrelated hex.
 
 ---
 
@@ -46,7 +47,7 @@ Swatches below are inline HTML `<span>` color chips — they render in any Markd
 |---|---|---|---|
 | `core.text.primary` | <span style="display:inline-block;width:14px;height:14px;background:#151d48;border:1px solid #ccc;vertical-align:middle;"></span> `#151d48` | <span style="display:inline-block;width:14px;height:14px;background:#ececec;border:1px solid #ccc;vertical-align:middle;"></span> `#ececec` | Default body/heading text |
 | `core.text.muted` | <span style="display:inline-block;width:14px;height:14px;background:#737791;border:1px solid #ccc;vertical-align:middle;"></span> `#737791` | <span style="display:inline-block;width:14px;height:14px;background:#7b91b0;border:1px solid #ccc;vertical-align:middle;"></span> `#7b91b0` | Secondary/caption text, placeholders |
-| `core.text.on_primary` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | Text/icon on a primary fill (buttons, user chat bubble, sidebar avatar + footer name) |
+| `core.text.on_primary` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | <span style="display:inline-block;width:14px;height:14px;background:#ffffff;border:1px solid #ccc;vertical-align:middle;"></span> `#ffffff` | Text/icon on any solid colored fill - buttons, user chat bubble, sidebar avatar/footer name/active nav item, status pills, admin danger confirm buttons (broadened in the follow-up sweep, see changelog) |
 
 ## core — brand
 

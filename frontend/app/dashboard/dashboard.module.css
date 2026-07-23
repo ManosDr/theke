@@ -28,19 +28,24 @@
   margin: 2px 0 0;
 }
 
+/* Flexbox, not grid - same reasoning as .grid above. Card count actually
+   varies here too (5 on a filtered vertical view, 6 on "all" once
+   infra-health is shown): grid-template-columns: repeat(auto-fit,
+   minmax(240px, 1fr)) was tried first and still left a gap - auto-fit only
+   collapses tracks that are empty across the WHOLE grid, not per row, so a
+   partially-filled last row (e.g. 2 cards in a 4-column layout) still
+   leaves visible empty cells. Flex-wrap has no such limitation: the last
+   row's actual cards simply grow to fill the remaining width, for any
+   count. */
 .attentionRow {
-  display: grid;
-  /* Always exactly 4 AttentionCards (suspended/gap-rate/stale-docs/cost) -
-     4 equal columns, not 3, so the last card never falls onto its own row. */
-  grid-template-columns: repeat(4, 1fr);
+  display: flex;
+  flex-wrap: wrap;
   gap: var(--space-4);
   margin-bottom: var(--space-4);
 }
 
-@media (max-width: 900px) {
-  .attentionRow {
-    grid-template-columns: 1fr;
-  }
+.attentionRow > * {
+  flex: 1 1 240px;
 }
 
 /* Flexbox, not grid: flex's cross-axis stretch reliably equalizes sibling

@@ -1539,3 +1539,15 @@ Each source URL was found via search, then confirmed live with real substantive 
 **Verified:** logged in as a regular member (not admin) - `/account`'s Χρήση section shows only the message count, plan name, and company pool status; no token or euro figure anywhere on the page.
 
 **Revisit when:** never expected to - if a future plan ever introduces genuine per-user quotas (not just the company-wide pool), `usage.messages_30d` could grow a matching `progressPercent` the same way the company dashboard's stat card did, but that's a new product decision, not a gap in this fix.
+
+## Super admin dashboard AttentionCard row: fixed 4-column grid replaced with flex-wrap
+
+**Context:** `.attentionRow` (`dashboard.module.css`) was `grid-template-columns: repeat(4, 1fr)` with a comment claiming "always exactly 4 AttentionCards" - stale even at the time, since the row actually renders 5 cards always (suspended/gap-rate/stale-docs/platform-cost/real-active-companies) plus a 6th (infra-health) only on the unfiltered "all" view. Neither 5 nor 6 divides evenly into 4 columns, so the last row always left a visible gap (2 empty cells on "all", 3 on a filtered vertical).
+
+**First attempt, rejected:** `grid-template-columns: repeat(auto-fit, minmax(240px, 1fr))`, as a literal reading of "make it count-agnostic" suggests. Measured live at 6 cards and it still gapped: `auto-fit`'s track-collapsing only kicks in for tracks that are empty across the *entire* grid, not per-row - with 6 items in a grid that fits 4 per row, columns 3-4 are used by row 1, so they're never "globally empty" and don't collapse, leaving row 2's 2 cards stuck at 2 of 4 columns with visible empty space to their right. Confirmed via `getBoundingClientRect()` on the actual rendered cards, not just visual inspection.
+
+**Actual fix:** switched to the same flexbox pattern `.grid` (this same file) already uses for the identical problem - `display:flex; flex-wrap:wrap` with children `flex: 1 1 240px`. Flex has no "per-row vs whole-grid" distinction: whatever cards land in the last row simply grow via `flex-grow:1` to fill the remaining width, for any count. `.grid`'s own comment already documented this exact reasoning ("Flexbox, not grid... a fixed-track grid leaves a genuinely empty cell whenever the count doesn't divide evenly") - `.attentionRow` just hadn't been given the same treatment when it was first built assuming a fixed count.
+
+**Verified (via `getBoundingClientRect()` on live-rendered cards, not just eyeballing):** 6 cards ("all" view) - row of 4 at equal width, row of 2 each stretched to fill the row, no gap. 5 cards (filtered vertical) - row of 4, then 1 card stretched to the full row width. Sanity-checked 4 and 7 cards too (via runtime DOM hide/clone, not a source edit - nothing to revert) - 4 fills one row exactly, 7 gives a row of 4 plus a row of 3 evenly stretched. Removed the now-redundant `@media (max-width: 900px)` column override - flex-wrap already collapses to one card per row at narrow widths without it.
+
+**Revisit when:** never expected to - card count can grow or shrink (a new AttentionCard added/removed) without touching this CSS again.

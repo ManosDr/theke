@@ -9,7 +9,19 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import AuditLog, ChatSession, Company, Customer, DataSource, Document, Invite, Project, User, Vertical
+from app.models import (
+    AuditLog,
+    ChatSession,
+    Company,
+    Customer,
+    DataSource,
+    Document,
+    Invite,
+    MessageFeedback,
+    Project,
+    User,
+    Vertical,
+)
 from app.schemas import (
     ActivityEventEntry,
     AuditLogEntry,
@@ -554,6 +566,41 @@ async def company_overview(
         or 0
     )
 
+    # Full (uncapped) timestamp list for the last 14 days, not the 10-per-
+    # type curated `events` feed above - that feed only ever shows the 10
+    # most recent chat sessions total, so bucketing it by day would badly
+    # undercount older days for any company with real chat volume. The
+    # dashboard activity chart buckets this list client-side into daily
+    # counts, the same pattern SuperAdminDashboard's ActivityChart already
+    # uses for the platform-wide audit log.
+    since_14d = datetime.utcnow() - timedelta(days=14)
+    messages_last_14d = list(
+        db.scalars(
+            select(ChatSession.created_at).where(
+                ChatSession.company_id == company_id, ChatSession.created_at >= since_14d
+            )
+        ).all()
+    )
+
+    positive_feedback = (
+        db.scalar(
+            select(func.count())
+            .select_from(MessageFeedback)
+            .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+            .where(ChatSession.company_id == company_id, MessageFeedback.rating == "positive")
+        )
+        or 0
+    )
+    negative_feedback = (
+        db.scalar(
+            select(func.count())
+            .select_from(MessageFeedback)
+            .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+            .where(ChatSession.company_id == company_id, MessageFeedback.rating == "negative")
+        )
+        or 0
+    )
+
     return CompanyOverviewResponse(
         users_total=len(users),
         users_active_30d=len(active_user_ids),
@@ -566,6 +613,9 @@ async def company_overview(
         total_tokens_30d=int(total_tokens_30d),
         estimated_cost_eur_30d=round(float(estimated_cost_eur_30d), 4),
         activity=events[:10],
+        positive_feedback=positive_feedback,
+        negative_feedback=negative_feedback,
+        messages_last_14d=messages_last_14d,
     )
 
 

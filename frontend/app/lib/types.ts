@@ -40,6 +40,9 @@ export interface CompanyOverviewResponse {
   total_tokens_30d: number;
   estimated_cost_eur_30d: number;
   activity: ActivityEventEntry[];
+  positive_feedback: number;
+  negative_feedback: number;
+  messages_last_14d: string[];
 }
 
 export interface CompanyDocumentSummary {

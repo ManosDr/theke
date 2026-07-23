@@ -39,6 +39,8 @@ import type {
   TokenUsageSummary,
   UserSummary,
 } from "../lib/types";
+import { CompanyActivityChart } from "./CompanyActivityChart";
+import { SentimentDonut } from "./SentimentDonut";
 import { StatCard } from "./StatCard";
 import { WelcomeCard } from "./WelcomeCard";
 import styles from "./dashboard.module.css";
@@ -146,7 +148,9 @@ export function CompanyAdminDashboard() {
       </div>
 
       <div className={tabStyles.tabContent}>
-        {tab === "overview" && <OverviewTab token={token} onNavigateToUsers={() => setTab("users")} />}
+        {tab === "overview" && (
+          <OverviewTab token={token} onNavigateToUsers={() => setTab("users")} onNavigateToDocuments={() => setTab("documents")} />
+        )}
         {tab === "users" && <UsersTab token={token} />}
         {tab === "documents" && <DocumentsTab token={token} />}
         {tab === "customers" && <CustomersTab token={token} />}
@@ -156,16 +160,29 @@ export function CompanyAdminDashboard() {
   );
 }
 
-function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNavigateToUsers: () => void }) {
+function OverviewTab({
+  token,
+  onNavigateToUsers,
+  onNavigateToDocuments,
+}: {
+  token: string | null;
+  onNavigateToUsers: () => void;
+  onNavigateToDocuments: () => void;
+}) {
   const { t, tUpper, locale } = useLocale();
   const [data, setData] = useState<CompanyOverviewResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [usage, setUsage] = useState<TokenUsageSummary | null>(null);
+  const [needsReview, setNeedsReview] = useState<CompanyDocumentReviewEntry[]>([]);
 
   useEffect(() => {
     if (!token) return;
     api.get<CompanyOverviewResponse>("/companies/me/overview", token).then(setData).finally(() => setLoading(false));
     api.get<TokenUsageSummary>("/companies/me/usage", token).then(setUsage).catch(() => setUsage(null));
+    api
+      .get<CompanyDocumentReviewEntry[]>("/companies/me/documents/needs-review", token)
+      .then(setNeedsReview)
+      .catch(() => setNeedsReview([]));
   }, [token]);
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
@@ -221,6 +238,67 @@ function OverviewTab({ token, onNavigateToUsers }: { token: string | null; onNav
           }
         />
       </div>
+
+      <div className={styles.analyticsRow}>
+        <section className={`card ${styles.section} ${styles.chartCard}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.company.chartTitle")}</h2>
+          </div>
+          <p className={styles.chartCaption}>{t("dash.super.activityCaption")}</p>
+          <CompanyActivityChart messages={data.messages_last_14d} />
+        </section>
+
+        <section className={`card ${styles.section} ${styles.kbHealthPanel}`}>
+          <div className={styles.sectionHeader}>
+            <h2>{t("dash.super.sentiment")}</h2>
+          </div>
+          <div className={styles.sentimentRow}>
+            <SentimentDonut positive={data.positive_feedback} negative={data.negative_feedback} size={96} />
+            <div>
+              <div className={styles.sentimentCaption}>
+                {data.positive_feedback + data.negative_feedback === 0
+                  ? t("dash.super.feedbackCaptionEmpty")
+                  : t("dash.super.feedbackCaption", { up: data.positive_feedback, down: data.negative_feedback })}
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+
+      <section className={`card ${styles.section}`}>
+        <div className={styles.sectionHeader}>
+          <h2>{t("dash.company.stalenessTitle")}</h2>
+        </div>
+        {needsReview.length === 0 ? (
+          <p className={styles.emptyState}>{t("dash.super.noStaleDocs")}</p>
+        ) : (
+          <table className={styles.table}>
+            <thead>
+              <tr>
+                <th>{tUpper("dash.super.colTitle")}</th>
+                <th>{tUpper("dash.super.colSource")}</th>
+                <th>{tUpper("dash.company.colFlaggedSince")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {needsReview.map((doc) => (
+                <tr key={doc.id}>
+                  <td>{doc.title}</td>
+                  <td className="text-muted">{doc.reference_url ?? "—"}</td>
+                  <td className="text-muted">{new Date(doc.created_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+        <button
+          type="button"
+          onClick={onNavigateToDocuments}
+          style={{ background: "none", border: "none", padding: 0, marginTop: "var(--space-3)", color: "var(--color-info)", fontWeight: 600, cursor: "pointer" }}
+        >
+          {t("dash.company.viewDocuments")}
+        </button>
+      </section>
 
       {topUsers.length > 0 && (
         <section className={`card ${styles.section}`} style={{ marginTop: "var(--space-4)" }}>

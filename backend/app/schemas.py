@@ -335,6 +335,9 @@ class CompanyOverviewResponse(BaseModel):
     total_tokens_30d: int
     estimated_cost_eur_30d: float
     activity: list["ActivityEventEntry"]
+    positive_feedback: int = 0
+    negative_feedback: int = 0
+    messages_last_14d: list[datetime] = []
 
 
 class ActivityEventEntry(BaseModel):

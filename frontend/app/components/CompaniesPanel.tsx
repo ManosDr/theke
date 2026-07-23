@@ -28,12 +28,15 @@ const ACCENT_CLASS: Record<string, string> = {
   tax_accounting: styles.accentTax,
 };
 
+type CompanyTab = "companies" | "municipalities";
+
 export function CompaniesPanel() {
   const { user } = useAuth();
   const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const { selectedVertical } = useVertical();
 
+  const [tab, setTab] = useState<CompanyTab>("companies");
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
   const [verticals, setVerticals] = useState<VerticalSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,8 +67,13 @@ export function CompaniesPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  const visibleCompanies =
+  const byVertical =
     selectedVertical === "all" ? companies : companies.filter((c) => c.vertical_slug === selectedVertical);
+  // Municipalities are billed and treated differently from private-sector
+  // companies (construction firms, accounting firms) - a separate tab
+  // rather than just another row in the same list, so the two are never
+  // scanned/managed as if they were the same kind of customer.
+  const visibleCompanies = byVertical.filter((c) => (tab === "municipalities" ? c.type === "municipality" : c.type !== "municipality"));
 
   async function openDetail(company: CompanySummary) {
     if (!token) return;
@@ -101,9 +109,32 @@ export function CompaniesPanel() {
         </button>
       </div>
 
-      <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+      <div className={styles.tabBar} role="tablist" style={{ marginTop: "var(--space-4)" }}>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "companies"}
+          className={`${styles.tabButton} ${tab === "companies" ? styles.tabButtonActive : ""}`}
+          onClick={() => setTab("companies")}
+        >
+          {t("companies.tabCompanies")}
+        </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "municipalities"}
+          className={`${styles.tabButton} ${tab === "municipalities" ? styles.tabButtonActive : ""}`}
+          onClick={() => setTab("municipalities")}
+        >
+          {t("companies.tabMunicipalities")}
+        </button>
+      </div>
+
+      <section className={`card ${dashStyles.section}`}>
         {visibleCompanies.length === 0 ? (
-          <p className={dashStyles.emptyState}>{t("companies.empty")}</p>
+          <p className={dashStyles.emptyState}>
+            {tab === "municipalities" ? t("companies.emptyMunicipalities") : t("companies.empty")}
+          </p>
         ) : (
           <table className={dashStyles.table}>
             <thead>

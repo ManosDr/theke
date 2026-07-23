@@ -267,14 +267,6 @@ function SectionUsage({ token, companyName }: { token: string | null; companyNam
           {t("account.usageMessages")}
           <strong>{usage.messages_30d}</strong>
         </div>
-        <div className={styles.field}>
-          {t("account.usageTokens")}
-          <strong>{usage.total_tokens_30d.toLocaleString()}</strong>
-        </div>
-        <div className={styles.field}>
-          {t("account.usageCost")}
-          <strong>€{usage.estimated_cost_eur_30d.toFixed(2)}</strong>
-        </div>
         {sub && (
           <div className={styles.field}>
             {t("account.usagePlan")}

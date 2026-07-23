@@ -1102,8 +1102,6 @@ class ChatRateLimitStatus(BaseModel):
 
 class UserUsageSummary(BaseModel):
     messages_30d: int
-    total_tokens_30d: int
-    estimated_cost_eur_30d: float
 
 
 class FeedbackEntry(BaseModel):

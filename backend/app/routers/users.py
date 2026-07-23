@@ -59,8 +59,12 @@ async def get_my_usage(
     user: CurrentUser = Depends(get_current_user),
 ) -> UserUsageSummary:
     """Informational only, no hard cap per user (that's the hourly rate
-    limit's job) - lets a member see their own 30-day footprint alongside
-    the company-wide total their admin already sees."""
+    limit's job) - lets a member see their own 30-day message footprint
+    alongside the company-wide pool their admin already sees. Deliberately
+    no token/cost figures here - see KNOWN_DECISIONS.md: showing a user
+    their own AI cost incentivizes over-consumption to "get their money's
+    worth", the same reasoning that already removed this from the company
+    admin dashboard."""
     since_30d = datetime.utcnow() - timedelta(days=30)
     messages_30d = (
         db.scalar(
@@ -70,22 +74,4 @@ async def get_my_usage(
         )
         or 0
     )
-    total_tokens_30d = (
-        db.scalar(
-            select(func.coalesce(func.sum(ChatSession.total_tokens), 0))
-            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
-        )
-        or 0
-    )
-    estimated_cost_eur_30d = (
-        db.scalar(
-            select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0))
-            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
-        )
-        or 0
-    )
-    return UserUsageSummary(
-        messages_30d=messages_30d,
-        total_tokens_30d=int(total_tokens_30d),
-        estimated_cost_eur_30d=round(float(estimated_cost_eur_30d), 4),
-    )
+    return UserUsageSummary(messages_30d=messages_30d)

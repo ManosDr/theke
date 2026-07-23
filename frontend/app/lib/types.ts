@@ -491,8 +491,6 @@ export interface ChatRateLimitStatus {
 
 export interface UserUsageSummary {
   messages_30d: number;
-  total_tokens_30d: number;
-  estimated_cost_eur_30d: number;
 }
 
 export type SubscriptionStatusValue = "trial" | "active" | "expired" | "cancelled" | "suspended";

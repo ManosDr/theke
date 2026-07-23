@@ -1527,3 +1527,15 @@ Each source URL was found via search, then confirmed live with real substantive 
 **Scope note:** the same "companies and municipalities together" pattern also exists on the super admin Συνδρομές (billing/subscriptions) screen's own company list - arguably the more billing-relevant of the two - but `SubscriptionEntry` doesn't currently carry a `company_type` field, so splitting that one would need a backend schema addition, not just a frontend filter. Left alone since the user's ask was specifically about "the same list on the super admin page" (singular) and this pass was scoped to the Companies screen; flagged here rather than silently extended.
 
 **Revisit when:** if the Συνδρομές screen's company list should get the same split, add `company_type` to `SubscriptionEntry`/the `/admin/subscriptions` query (mirroring how `CompanySummary.type` is already exposed) and reuse the same two-tab pattern.
+
+## Account page usage section: token/EUR cost removed, individual message count kept as-is
+
+**Context:** the company-level token/cost removal (see the entry above titled "fix: remove token/cost visibility from company admin dashboard...") left one more surface with the identical problem: `/account`'s own "Χρήση" section showed `GET /users/me/usage`'s `total_tokens_30d`/`estimated_cost_eur_30d` to *every* user, not just admins - a broader exposure than the company dashboard had, since every member (not just the company admin) could see "this cost €X" and feel nudged to use the product more to justify it.
+
+**Fix:** removed `total_tokens_30d`/`estimated_cost_eur_30d` from `UserUsageSummary` (schema, type, and the two `func.sum(...)` queries computing them in `GET /users/me/usage`) - endpoint kept, since `messages_30d` is still needed and has no other source (it's a per-user rolling-30-day count, distinct from the company-wide monthly pool `/subscription/status` already provides).
+
+**Replacement framing - no new work needed:** the page already showed exactly the right shape of information alongside the token/cost fields being removed: `usage.messages_30d` as a bare informational count ("Μηνύματα: N", no bar, no limit - because there genuinely isn't a per-user limit to show one against, pools are company-wide) and, separately, `sub.messages_used`/`sub.messages_limit`/`is_beta` as the company pool row ("Μηνύματα εταιρείας τον μήνα") - the identical message-pool-relative framing just applied to the company dashboard fix. No new UI, translation keys, or component needed - just deleting the two harmful fields left the honest picture already in place.
+
+**Verified:** logged in as a regular member (not admin) - `/account`'s Χρήση section shows only the message count, plan name, and company pool status; no token or euro figure anywhere on the page.
+
+**Revisit when:** never expected to - if a future plan ever introduces genuine per-user quotas (not just the company-wide pool), `usage.messages_30d` could grow a matching `progressPercent` the same way the company dashboard's stat card did, but that's a new product decision, not a gap in this fix.

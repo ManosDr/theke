@@ -12,17 +12,18 @@
   margin-bottom: var(--space-3);
 }
 
-/* Wraps instead of scrolling - the app-wide rule is no horizontal scroll
-   anywhere (see KNOWN_DECISIONS.md), which an earlier pass carved an
-   exception out of for this specific tab strip (a contained horizontal
-   scroll, not a page-level one) on the reasoning that company admin stays
-   desktop-optimized. That exception is retired: at tablet/mobile widths
-   the 5 tabs (particularly "Πελάτες & Έργα", the longest label) don't fit
-   on one line at normal size, so they wrap to a second row instead. */
+/* No horizontal scroll anywhere (see KNOWN_DECISIONS.md) - an earlier pass
+   carved a contained-scroll exception out for this tab strip, then a
+   follow-up retired that in favor of flex-wrap. Both were compromises: a
+   single row is the actual goal, so tab padding/font/gap shrink at
+   tablet/mobile widths until the 5 tabs (particularly "Πελάτες & Έργα",
+   the longest label) fit one row without any scroll or wrap. flex-wrap
+   stays on as a last-resort safety net for a locale/label combination
+   that somehow still doesn't fit, rather than reintroducing scroll. */
 .tabBar {
   display: flex;
   flex-wrap: wrap;
-  gap: var(--space-1) var(--space-2);
+  gap: 2px 4px;
   border-bottom: 1px solid var(--admin-row-border);
   flex-shrink: 0;
   margin-bottom: var(--space-4);
@@ -41,10 +42,29 @@
   flex-shrink: 0;
 }
 
-@media (max-width: 640px) {
+@media (max-width: 900px) {
+  .wrapper {
+    padding: var(--space-4) var(--space-3);
+  }
+
   .tabButton {
-    padding: var(--space-2) var(--space-3);
-    font-size: 0.82rem;
+    padding: 8px 6px;
+    font-size: 0.72rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrapper {
+    padding: var(--space-3) var(--space-2);
+  }
+
+  .tabBar {
+    gap: 2px 2px;
+  }
+
+  .tabButton {
+    padding: 7px 4px;
+    font-size: 0.62rem;
   }
 }
 

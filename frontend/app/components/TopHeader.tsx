@@ -20,15 +20,12 @@ function daysUntil(iso: string): number {
   return Math.ceil((new Date(iso).getTime() - Date.now()) / 86_400_000);
 }
 
-// Always visible while on trial (unlike TrialBanner, which only appears in
-// the final 14 days) - a persistent, low-key reminder of how much beta time
-// is left, per item 19 of the batch-1 fix list. super_admin has no
-// company_id, so this fetches nothing and renders nothing for that role,
-// same as TrialBanner.
-function TrialBadge() {
+// Shared by both the topbar pill (desktop) and the main-content bar
+// (mobile/tablet, see TrialBadgeBar below) - super_admin has no company_id,
+// so this fetches nothing and returns null for that role, same as
+// TrialBanner.
+function useTrialDaysRemaining(): number | null {
   const { user } = useAuth();
-  const { t } = useLocale();
-  const router = useRouter();
   const [status, setStatus] = useState<SubscriptionStatusResponse | null>(null);
 
   const eligible = !!user && user.role !== "super_admin" && user.companyId != null;
@@ -46,6 +43,23 @@ function TrialBadge() {
 
   const days = daysUntil(status.trial_ends_at);
   if (days < 0) return null;
+  return days;
+}
+
+// Always visible while on trial (unlike TrialBanner, which only appears in
+// the final 14 days) - a persistent, low-key reminder of how much beta time
+// is left, per item 19 of the batch-1 fix list. Desktop-only (see .trialBadge's
+// own media query) - at tablet/mobile widths this pill left too little room
+// for the page title next to it (measured down to a few px wide), so
+// TrialBadgeBar below takes over as a full-width bar in the main content
+// area instead of squeezing into the topbar row.
+function TrialBadge() {
+  const { user } = useAuth();
+  const { t } = useLocale();
+  const router = useRouter();
+  const days = useTrialDaysRemaining();
+
+  if (days == null) return null;
 
   return (
     <button
@@ -55,6 +69,32 @@ function TrialBadge() {
       title={t("trialBanner.badgeTooltip")}
     >
       {t("trialBanner.badgeLabel", { days: days <= 1 ? t("trialBanner.oneDay") : t("trialBanner.days", { days }) })}
+    </button>
+  );
+}
+
+// Tablet/mobile counterpart to TrialBadge - same "days remaining" info, but
+// rendered as a subtle full-width bar at the very top of the main content
+// area (see AppShell) instead of a topbar pill, and only for days > 14: once
+// TrialBanner's own amber/urgent bar takes over in the final 14 days (that
+// one renders at every width already), showing both would be a redundant
+// double banner. CSS-hidden above 900px rather than not rendering at all,
+// so it doesn't need its own separate width check in JS.
+export function TrialBadgeBar() {
+  const { user } = useAuth();
+  const { t } = useLocale();
+  const router = useRouter();
+  const days = useTrialDaysRemaining();
+
+  if (days == null || days <= 14) return null;
+
+  return (
+    <button
+      type="button"
+      className={styles.trialBadgeBar}
+      onClick={() => router.push(user!.role === "admin" ? "/dashboard?tab=subscription" : "/account")}
+    >
+      {t("trialBanner.badgeLabel", { days: t("trialBanner.days", { days }) })}
     </button>
   );
 }

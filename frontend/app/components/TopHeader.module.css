@@ -103,6 +103,42 @@
   filter: brightness(0.95);
 }
 
+/* Below this, TrialBadgeBar (rendered in AppShell's main content, not the
+   topbar) takes over instead - the pill left too little room next to it for
+   the page title at these widths. */
+@media (max-width: 900px) {
+  .trialBadge {
+    display: none;
+  }
+}
+
+/* TrialBadgeBar - full-width subtle bar, informational rather than urgent
+   (unlike TrialBanner's amber/red), so it uses --color-info instead of
+   --color-warning. Hidden above 900px, where the topbar pill (.trialBadge
+   above) covers the same information instead. */
+.trialBadgeBar {
+  display: none;
+}
+
+@media (max-width: 900px) {
+  .trialBadgeBar {
+    display: block;
+    width: 100%;
+    background: var(--color-info-bg);
+    color: var(--color-info);
+    border: none;
+    padding: var(--space-2) var(--space-4);
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-align: center;
+    cursor: pointer;
+  }
+
+  .trialBadgeBar:hover {
+    filter: brightness(0.95);
+  }
+}
+
 .iconPill {
   background: var(--admin-chip-bg);
   border: none;

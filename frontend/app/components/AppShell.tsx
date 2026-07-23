@@ -7,7 +7,7 @@ import { FeedbackWidget } from "./FeedbackWidget";
 import { ImpersonationBanner } from "./ImpersonationBanner";
 import { Sidebar } from "./Sidebar";
 import styles from "./AppShell.module.css";
-import { TopHeader } from "./TopHeader";
+import { TopHeader, TrialBadgeBar } from "./TopHeader";
 import { TrialBanner } from "./TrialBanner";
 
 export function AppShell({
@@ -37,6 +37,7 @@ export function AppShell({
         ) : (
           <TopHeader />
         )}
+        <TrialBadgeBar />
         <ImpersonationBanner />
         <TrialBanner />
         <Day45Banner />

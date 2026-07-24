@@ -626,6 +626,11 @@ class ProjectSummary(BaseModel):
     gis_zone_source: str | None = None
     archaeological_flag: bool = False
     archaeological_notes: str | None = None
+    # English translation, same Greek-fallback pattern as the vertical
+    # content fields - not auto-populated (check_archaeological_flag() only
+    # writes the Greek notes), set by hand per project when a real
+    # translation exists.
+    archaeological_notes_en: str | None = None
     archaeological_site_name: str | None = None
     archaeological_distance_m: int | None = None
     plot_in_plan: bool | None = None

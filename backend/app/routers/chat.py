@@ -689,8 +689,16 @@ async def chat_message(
                 archaeological_contact_lines = _gap_contact_lines(db, region_id, locale)
                 contact_label = CONTACT_INFO_LABEL_EN if is_en else CONTACT_INFO_LABEL
                 location_lead = NO_KB_DOCS_LOCATION_LEAD_EN if is_en else NO_KB_DOCS_LOCATION_LEAD
+                # Falls back to the Greek notes when no English translation
+                # has been entered for this project yet - same pattern as
+                # get_disclaimer() above.
+                archaeological_notes = (
+                    (project.archaeological_notes_en or project.archaeological_notes)
+                    if is_en
+                    else project.archaeological_notes
+                )
                 gap_answer = (
-                    f"{location_lead}\n\n{project.archaeological_notes}"
+                    f"{location_lead}\n\n{archaeological_notes}"
                     + (f"\n\n{contact_label}\n{archaeological_contact_lines}" if archaeological_contact_lines else "")
                     + f"\n\n{get_disclaimer(vertical, locale)}"
                 )

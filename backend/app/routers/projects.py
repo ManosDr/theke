@@ -56,6 +56,7 @@ def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
         gis_zone_source=p.gis_zone_source,
         archaeological_flag=p.archaeological_flag,
         archaeological_notes=p.archaeological_notes,
+        archaeological_notes_en=p.archaeological_notes_en,
         archaeological_site_name=p.archaeological_site_name,
         archaeological_distance_m=p.archaeological_distance_m,
         plot_in_plan=p.plot_in_plan,

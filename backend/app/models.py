@@ -377,6 +377,11 @@ class Project(Base):
     # live API (see KNOWN_DECISIONS.md).
     archaeological_flag: Mapped[bool] = mapped_column(default=False)
     archaeological_notes: Mapped[str | None] = mapped_column(Text)
+    # English translation, same Greek-fallback pattern as Vertical's
+    # disclaimer_text_en/welcome_message_en - not auto-populated by
+    # check_archaeological_flag() (that only writes the Greek notes), set
+    # by hand per project when a real English translation exists.
+    archaeological_notes_en: Mapped[str | None] = mapped_column(Text)
     archaeological_site_name: Mapped[str | None] = mapped_column(Text)
     archaeological_distance_m: Mapped[int | None] = mapped_column(Integer)
     location_resolved_at: Mapped[datetime | None] = mapped_column(DateTime)

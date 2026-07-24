@@ -587,7 +587,12 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               )}
               {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
                 <div className={styles.archaeologicalPanel}>
-                  {selectedProject.archaeological_notes && <p>{selectedProject.archaeological_notes}</p>}
+                  {(() => {
+                    const notes =
+                      (locale === "en" ? selectedProject.archaeological_notes_en : null) ||
+                      selectedProject.archaeological_notes;
+                    return notes && <p>{notes}</p>;
+                  })()}
                   <p className="text-muted" style={{ fontSize: "0.8rem" }}>
                     {t("map.archaeologicalDisclaimer")}
                   </p>

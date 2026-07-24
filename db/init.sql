@@ -601,6 +601,10 @@ ALTER TABLE projects ADD COLUMN IF NOT EXISTS gis_zone_source VARCHAR;
 -- give the LLM a specific site and distance rather than just a boolean.
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_flag BOOLEAN NOT NULL DEFAULT false;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_notes TEXT;
+-- English translation (Phase 1g), same Greek-fallback pattern as
+-- verticals.disclaimer_text_en/welcome_message_en - not auto-populated,
+-- set by hand per project when a real translation exists.
+ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_notes_en TEXT;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_site_name VARCHAR;
 ALTER TABLE projects ADD COLUMN IF NOT EXISTS archaeological_distance_m INTEGER;
 

@@ -266,6 +266,7 @@ export interface ProjectSummary {
   gis_zone_source?: string | null;
   archaeological_flag?: boolean;
   archaeological_notes?: string | null;
+  archaeological_notes_en?: string | null;
   archaeological_site_name?: string | null;
   archaeological_distance_m?: number | null;
   plot_in_plan?: boolean | null;

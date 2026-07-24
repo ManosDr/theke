@@ -25,7 +25,7 @@ type Tab = "info" | "documents";
 
 function ProjectDetailContent() {
   const { user } = useAuth();
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const params = useParams<{ id: string }>();
   const token = user?.token ?? null;
 
@@ -448,7 +448,11 @@ function ProjectDetailContent() {
                   {project.archaeological_flag && (
                     <div className={styles.archaeologicalCard}>
                       <strong><WarningIcon size={14} /> {t("map.archaeologicalWarning")}</strong>
-                      {project.archaeological_notes && <p>{project.archaeological_notes}</p>}
+                      {(() => {
+                        const notes =
+                          (locale === "en" ? project.archaeological_notes_en : null) || project.archaeological_notes;
+                        return notes && <p>{notes}</p>;
+                      })()}
                       <p className="text-muted" style={{ fontSize: "0.8rem" }}>
                         {t("map.archaeologicalDisclaimer")}
                       </p>

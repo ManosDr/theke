@@ -546,6 +546,29 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const suggestionKeys =
     SUGGESTION_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
 
+  // Context-aware empty-state chips - only when a specific project/customer
+  // context is active (selectedProject), only for the true empty state (see
+  // render site below), never the "ongoing quick-start row" that repeats
+  // suggestionKeys under an active thread. Tax-vertical projects (a Project
+  // row wrapping a Customer, see customer_id) simply don't carry
+  // archaeological_flag/plot_in_plan/region_id, so they fall through to the
+  // generic vertical-aware chips below without a separate tax-specific
+  // branch - there's currently nothing customer-level distinctive enough to
+  // build a chip from (see the fix's own spec).
+  const emptyStateChips: string[] = (() => {
+    if (!selectedProject) return suggestionKeys.map((key) => t(key));
+    const candidates: string[] = [];
+    if (selectedProject.archaeological_flag) candidates.push(t("chat.suggestionContextArchaeological"));
+    if (selectedProject.plot_in_plan === true) candidates.push(t("chat.suggestionContextPlotInsidePlan"));
+    else if (selectedProject.plot_in_plan === false) candidates.push(t("chat.suggestionContextPlotOutsidePlan"));
+    if (selectedProject.region_id) {
+      const region = regions.find((r) => r.region_id === selectedProject.region_id);
+      const regionName = region ? (locale === "en" ? region.region_name_en : region.region_name_el) : null;
+      if (regionName) candidates.push(t("chat.suggestionContextRegion", { region: regionName }));
+    }
+    return candidates.length > 0 ? candidates.slice(0, 3) : suggestionKeys.map((key) => t(key));
+  })();
+
   const disclaimerText =
     (locale === "en" ? company?.vertical_disclaimer_text_en : null) ||
     company?.vertical_disclaimer_text ||
@@ -852,14 +875,14 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   t("chat.placeholder")}
               </p>
               <div className={styles.suggestionChips}>
-                {suggestionKeys.map((key) => (
+                {emptyStateChips.map((text) => (
                   <button
-                    key={key}
+                    key={text}
                     type="button"
                     className={styles.suggestionChip}
-                    onClick={() => setInput(t(key))}
+                    onClick={() => setInput(text)}
                   >
-                    {t(key)}
+                    {text}
                   </button>
                 ))}
               </div>

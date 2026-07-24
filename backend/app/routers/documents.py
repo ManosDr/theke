@@ -7,7 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import CurrentUser, get_company_vertical, get_current_user
+from app.dependencies import CurrentUser, get_current_user, get_vertical_scope
 from app.models import Company, Document, DocumentRemovalRequest, Plan, Vertical
 from app.schemas import (
     BrowseResponse,
@@ -86,7 +86,7 @@ async def search_documents(
     municipality: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-    vertical: Vertical = Depends(get_company_vertical),
+    vertical: Vertical | None = Depends(get_vertical_scope),
 ) -> list[DocumentSummary]:
     stmt = (
         select(Document)
@@ -94,7 +94,7 @@ async def search_documents(
             text("to_tsvector('greek', coalesce(title, '') || ' ' || coalesce(content, '')) @@ plainto_tsquery('greek', :q)")
         )
         .where(Document.status == "active")
-        .where(visible_documents_filter(db, user, vertical.id, municipality=municipality))
+        .where(visible_documents_filter(db, user, vertical.id if vertical else None, municipality=municipality))
         .params(q=q)
         .limit(20)
     )
@@ -106,18 +106,20 @@ async def search_documents(
 async def list_sources(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-    vertical: Vertical = Depends(get_company_vertical),
+    vertical: Vertical | None = Depends(get_vertical_scope),
 ) -> list[SourceGroupSummary]:
     """Distinct crawl sources with counts, grouped for the Sources page's
     buttons (e.g. both e-ΕΦΚΑ pages count under one 'e-ΕΦΚΑ' button).
     Public/crawled documents only - source_name is never set on uploads.
     Goes through visible_documents_filter so a region-scoped source (e.g.
-    ΔΕΥΑ Καβάλας) only shows up for users whose company has a project there.
+    ΔΕΥΑ Καβάλας) only shows up for users whose company has a project there
+    - or, for a super_admin (vertical is None), every public source across
+    both verticals with no region restriction at all.
     """
     rows = db.execute(
         select(Document.source_name, func.count())
         .where(Document.status == "active", Document.source_name.isnot(None))
-        .where(visible_documents_filter(db, user, vertical.id))
+        .where(visible_documents_filter(db, user, vertical.id if vertical else None))
         .group_by(Document.source_name)
     ).all()
 
@@ -144,7 +146,7 @@ async def browse_documents(
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-    vertical: Vertical = Depends(get_company_vertical),
+    vertical: Vertical | None = Depends(get_vertical_scope),
 ) -> BrowseResponse:
     """Listing/filtering endpoint behind both the Sources drill-down (filter
     by `group`) and the Search page (any combination of filters, `q` optional
@@ -155,7 +157,7 @@ async def browse_documents(
     stmt = (
         select(Document)
         .where(Document.status == "active")
-        .where(visible_documents_filter(db, user, vertical.id, municipality=municipality))
+        .where(visible_documents_filter(db, user, vertical.id if vertical else None, municipality=municipality))
     )
 
     if group:
@@ -472,14 +474,16 @@ async def get_document(
     document_id: int,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-    vertical: Vertical = Depends(get_company_vertical),
+    vertical: Vertical | None = Depends(get_vertical_scope),
 ) -> DocumentDetail:
     doc = db.get(Document, document_id)
     if not doc or doc.status != "active":
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
 
     visible_ids = db.scalars(
-        select(Document.id).where(Document.id == document_id).where(visible_documents_filter(db, user, vertical.id))
+        select(Document.id)
+        .where(Document.id == document_id)
+        .where(visible_documents_filter(db, user, vertical.id if vertical else None))
     ).all()
     if not visible_ids:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")

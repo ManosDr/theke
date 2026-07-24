@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
-from app.dependencies import CurrentUser, get_company_vertical, get_current_user
+from app.dependencies import CurrentUser, get_current_user, get_vertical_scope
 from app.models import Vertical
 from app.schemas import SearchRequest, SearchResponse, SearchResultItem
 from app.services.rag import search_documents
@@ -25,7 +25,7 @@ def search(
     payload: SearchRequest,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-    vertical: Vertical = Depends(get_company_vertical),
+    vertical: Vertical | None = Depends(get_vertical_scope),
 ) -> SearchResponse:
     """Semantic (embedding) search only - no completion is generated here,
     deliberately: this stays a lightweight introspection endpoint (real
@@ -34,14 +34,16 @@ def search(
     let search quality be inspected directly before Phase 2.3 wired
     retrieval into /chat's GPT call. needs_review documents are excluded by
     visible_documents_filter regardless of how close a match they'd
-    otherwise be - see app/services/visibility.py.
+    otherwise be - see app/services/visibility.py. `vertical` is None for a
+    super_admin (get_vertical_scope) - unrestricted public KB, no vertical
+    or region filter, same exception as chat.py's endpoints.
     """
     if len(payload.query) > MAX_QUERY_LENGTH:
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=QUERY_TOO_LONG_MESSAGE)
 
     try:
         outcome = search_documents(
-            db, user, payload.query, vertical.id, region_id=payload.region_id, top_k=payload.top_k
+            db, user, payload.query, vertical.id if vertical else None, region_id=payload.region_id, top_k=payload.top_k
         )
     except OpenAIError as exc:
         logger.error("OpenAI embedding failed: %s", exc)

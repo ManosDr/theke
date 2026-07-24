@@ -78,14 +78,39 @@ def get_company_vertical(
     db: Session = Depends(get_db),
 ) -> Vertical:
     """The vertical (construction, tax_accounting, ...) of the current
-    user's company. Used by chat, search, and admin endpoints to scope
-    which documents are visible and which system prompt/disclaimer applies.
-    Raises 403 for a super_admin (company_id is None) or a company whose
-    vertical_id somehow doesn't resolve - both endpoints requiring a
-    vertical assume the caller belongs to exactly one company/vertical,
-    never a platform-wide account."""
+    user's company. Used by endpoints that require a real company to
+    operate at all (project/document writes) - raises 403 for a
+    super_admin (company_id is None) or a company whose vertical_id somehow
+    doesn't resolve, since there's nothing for either of those to write
+    into. Read-only chat/search endpoints should use get_vertical_scope
+    instead, which gives a super_admin an unrestricted-KB exception rather
+    than rejecting them outright - see that function's own docstring."""
     if user.company_id is None:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This endpoint requires a company account")
+    company = db.get(Company, user.company_id)
+    vertical = db.get(Vertical, company.vertical_id) if company else None
+    if not vertical:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company has no assigned vertical")
+    return vertical
+
+
+def get_vertical_scope(
+    user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> Vertical | None:
+    """Like get_company_vertical, but a super_admin (company_id is None)
+    gets None back instead of a 403. None signals "no single vertical to
+    scope to" to every read-only chat/search endpoint that depends on this:
+    those endpoints treat it as an explicit exception - the full public
+    knowledge base, across both verticals, with no regional/company
+    scoping applied - not an error, mirroring the "super_admin sees
+    everything" principle already established for the Sources screen
+    (see admin.py's dedicated full-source-visibility endpoints). Still
+    raises for a real company with no assigned vertical, same as
+    get_company_vertical - that's a genuine data problem, not something a
+    super_admin exception should paper over."""
+    if user.company_id is None:
+        return None
     company = db.get(Company, user.company_id)
     vertical = db.get(Vertical, company.vertical_id) if company else None
     if not vertical:

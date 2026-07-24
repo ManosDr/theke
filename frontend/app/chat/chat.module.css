@@ -8,10 +8,16 @@
    and the gap-signal-driven "limited sources" tag (see .limitedSourcesTag,
    keyed off Message.gap exactly as .gapBadge was). */
 
+/* AppShell's `edgeToEdge` prop (see chat/page.tsx) makes .main a flex
+   column with no padding, so this just needs to claim the rest of that
+   column - no magic-number height calc needed, and unlike the old fixed
+   subtraction this stays correct regardless of whether a trial/impersonation
+   banner is also taking up space above it. */
 .pageWrap {
   display: flex;
   flex-direction: column;
-  height: calc(100dvh - 140px);
+  flex: 1;
+  min-height: 0;
 }
 
 /* Full-width, above both columns - the design's own "static disclaimer"
@@ -1148,11 +1154,10 @@
      overlays, not part of this flow, so .chatPanel can just fill the
      screen instead of the 900px block's 60dvh compromise (which existed
      to leave room for .sidebar stacking below it - .sidebar is hidden
-     entirely at this width, see above). */
-  .pageWrap {
-    height: calc(100dvh - 56px);
-  }
-
+     entirely at this width, see above). .pageWrap itself needs no height
+     override here - it's already flex:1 inside AppShell's edge-to-edge
+     .main, which correctly shrinks to "100dvh minus the mobile top bar"
+     on its own. */
   .layout {
     height: 100%;
   }

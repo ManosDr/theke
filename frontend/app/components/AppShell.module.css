@@ -37,9 +37,52 @@
   min-width: 0;
 }
 
+/* For pages that render their own full-height, edge-to-edge chrome (see
+   chat/page.tsx's `edgeToEdge` prop) - unlike .mainFullWidth (which only
+   drops the 1200px cap, still keeping .main's own gutter/background so a
+   wide table reads as a padded card), this drops .main's padding and
+   max-width entirely, so the page's own content touches the top bar with
+   no gap and owns 100% of the surface with no --admin-parchment gutter
+   showing around it. Scoped to whichever page opts in - every other page
+   (including the admin dashboard's .mainFullWidth) is unaffected. */
+.mainEdgeToEdge {
+  padding: 0;
+  max-width: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  /* .main's own flex:1/flex-basis:0% would otherwise fight this element's
+     explicit height below: flex-grow only redistributes space within a
+     container that already has a DEFINITE height, and .content doesn't
+     (.shell/.content use min-height:100dvh, not height:100dvh, so a tall
+     page just grows the whole shell and scrolls the outer page - correct
+     for every other page). flex:none makes this box's own explicit height
+     authoritative instead of participating in that (here, indeterminate)
+     flex distribution. */
+  flex: none;
+  /* Capped at the viewport so THIS page's own internal scroll region (see
+     chat.module.css's .messagesScroll) handles a long conversation instead
+     of the outer page scrolling. 64px is TopHeader's own fixed height (see
+     TopHeader.module.css's .header) - the only sibling this takes space
+     from when no trial/impersonation banner is also showing. */
+  height: calc(100dvh - 64px);
+}
+
 @media (max-width: 640px) {
   .main {
     padding: var(--space-3);
+  }
+
+  /* Must come after the .main mobile rule above - same selector
+     specificity, so source order decides the winner when both classes are
+     applied together (see .mainEdgeToEdge's own comment). 56px matches
+     ChatMobileTopBar's own fixed height (see chat.module.css's
+     .mobileTopBar), which replaces the desktop TopHeader at this width. */
+  .mainEdgeToEdge {
+    padding: 0;
+    height: calc(100dvh - 56px);
   }
 }
 

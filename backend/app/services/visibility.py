@@ -10,7 +10,7 @@ Postgres RLS backstop yet, so any raw SQL / psycopg access (e.g. the
 crawler, or a future admin script) bypasses this entirely.
 """
 
-from sqlalchemy import ColumnElement, or_, select
+from sqlalchemy import ColumnElement, or_, select, true
 from sqlalchemy.orm import Session
 
 from app.dependencies import CurrentUser
@@ -34,7 +34,7 @@ def company_region_ids(db: Session, user: CurrentUser) -> list[str]:
 def visible_documents_filter(
     db: Session,
     user: CurrentUser,
-    vertical_id: int,
+    vertical_id: int | None,
     municipality: str | None = None,
     project_id: int | None = None,
     customer_id: int | None = None,
@@ -62,7 +62,23 @@ def visible_documents_filter(
       visible there.
     - `vertical_id` scopes every branch above to one vertical - a construction
       company can never see a tax_accounting document and vice versa,
-      regardless of company/municipality/region matching.
+      regardless of company/municipality/region matching. None means no
+      vertical filter at all - only ever passed by a super_admin caller
+      (get_vertical_scope), never by a real company's own request, since a
+      real company always has exactly one resolved vertical.
+    - A caller with no company (company_id is None - a super_admin) sees
+      every public document unconditionally, national AND regional, across
+      every region - not just the national slice a company-less account
+      would otherwise be left with once the regional branch above finds no
+      company projects to match against. This is the one exception this
+      filter grants: a super_admin isn't a member of any company, so there's
+      no company/region to scope by, and per the "super_admin sees
+      everything" principle (see admin.py's dedicated Sources endpoints)
+      that means the full public KB, not an empty/narrowed one. It still
+      never grants a company's own private (company_id-set) documents,
+      customer-scoped documents, or project-scoped documents - those stay
+      gated behind an actual company/project/customer match below, which a
+      super_admin never has.
     - `status == 'superseded'` documents never appear here - they're
       retired-but-kept-for-history, visible only in admin KB management
       (which queries Document directly, same reasoning as needs_review).
@@ -81,16 +97,16 @@ def visible_documents_filter(
       can draw on both public law and the client's uploaded documents in the
       same answer.
     """
-    region_ids = company_region_ids(db, user)
-
-    conditions: list[ColumnElement[bool]] = [
-        Document.company_id.is_(None) & (Document.scope != "regional"),
-    ]
-    if region_ids:
-        conditions.append(
-            Document.company_id.is_(None) & (Document.scope == "regional") & Document.region_id.in_(region_ids)
-        )
-    if user.company_id is not None:
+    conditions: list[ColumnElement[bool]]
+    if user.company_id is None:
+        conditions = [Document.company_id.is_(None)]
+    else:
+        region_ids = company_region_ids(db, user)
+        conditions = [Document.company_id.is_(None) & (Document.scope != "regional")]
+        if region_ids:
+            conditions.append(
+                Document.company_id.is_(None) & (Document.scope == "regional") & Document.region_id.in_(region_ids)
+            )
         conditions.append(Document.company_id == user.company_id)
     if municipality:
         conditions.append(Document.municipality == municipality)
@@ -117,10 +133,12 @@ def visible_documents_filter(
             & (Document.company_id == user.company_id)
         )
 
+    vertical_condition = Document.vertical_id == vertical_id if vertical_id is not None else true()
+
     return (
         or_(*conditions)
         & Document.needs_review.is_(False)
         & (Document.status != "superseded")
-        & (Document.vertical_id == vertical_id)
+        & vertical_condition
         & scoped_condition
     )

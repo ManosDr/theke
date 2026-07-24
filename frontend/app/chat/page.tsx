@@ -1229,7 +1229,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
 function ChatShellWrapper() {
   const [sheetOpen, setSheetOpen] = useState(false);
   return (
-    <AppShell mobileHeader={<ChatMobileTopBar onOpenSheet={() => setSheetOpen(true)} />}>
+    <AppShell edgeToEdge mobileHeader={<ChatMobileTopBar onOpenSheet={() => setSheetOpen(true)} />}>
       <ChatContent sheetOpen={sheetOpen} onOpenSheet={() => setSheetOpen(true)} onCloseSheet={() => setSheetOpen(false)} />
     </AppShell>
   );

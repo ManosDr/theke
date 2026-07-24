@@ -2,6 +2,27 @@
   position: relative;
 }
 
+/* Leading search icon - chat v2 redesign's input-styling pass over this
+   otherwise-unchanged component (see its own comment: reused for both
+   context-switching and default-pin picking, no behavior here changed). */
+.inputWrap {
+  position: relative;
+}
+
+.inputWrap input {
+  padding-left: 34px;
+}
+
+.inputIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+  display: flex;
+}
+
 .dropdown {
   position: absolute;
   top: calc(100% + 4px);

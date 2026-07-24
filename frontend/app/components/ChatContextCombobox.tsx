@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useLocale } from "../lib/i18n";
 import type { ProjectSummary, RegionSummary } from "../lib/types";
+import { SearchIcon } from "./NavIcons";
 import styles from "./ChatContextCombobox.module.css";
 
 interface ChatContextComboboxProps {
@@ -66,18 +67,23 @@ export default function ChatContextCombobox({ projects, regions, placeholder, on
 
   return (
     <div className={styles.container} ref={containerRef}>
-      <input
-        className="input"
-        type="text"
-        value={query}
-        onChange={(e) => {
-          setQuery(e.target.value);
-          setOpen(true);
-        }}
-        onFocus={() => setOpen(true)}
-        placeholder={placeholder}
-        autoComplete="off"
-      />
+      <div className={styles.inputWrap}>
+        <span className={styles.inputIcon}>
+          <SearchIcon size={15} />
+        </span>
+        <input
+          className="input"
+          type="text"
+          value={query}
+          onChange={(e) => {
+            setQuery(e.target.value);
+            setOpen(true);
+          }}
+          onFocus={() => setOpen(true)}
+          placeholder={placeholder}
+          autoComplete="off"
+        />
+      </div>
       {open && (
         <div className={styles.dropdown}>
           {showPublicOption && (

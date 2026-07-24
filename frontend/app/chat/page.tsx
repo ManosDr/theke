@@ -2,15 +2,27 @@
 
 import Link from "next/link";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode } from "react";
 
 import { AppShell } from "../components/AppShell";
 import ChatContextCombobox from "../components/ChatContextCombobox";
-import { ChatIcon, ChevronIcon } from "../components/NavIcons";
+import { ChatIcon, ChevronIcon, SearchIcon } from "../components/NavIcons";
 import { NotificationBell } from "../components/NotificationBell";
 import MessagePackUpsell from "../components/MessagePackUpsell";
 import { InfoIcon, ThumbDownIcon, ThumbUpIcon } from "../components/StatIcons";
 import { UserMenu } from "../components/TopHeader";
-import { CloseIcon, PinIcon, RefreshIcon, SendIcon, WarningIcon } from "../components/UiIcons";
+import {
+  ArrowRightIcon,
+  CheckIcon,
+  CloseIcon,
+  CopyIcon,
+  ExternalLinkIcon,
+  PinIcon,
+  RefreshIcon,
+  SendIcon,
+  SparkleIcon,
+  WarningIcon,
+} from "../components/UiIcons";
 import { ApiError, NETWORK_ERROR_STATUS, api } from "../lib/api";
 import { RequireAuth, useAuth } from "../lib/auth";
 import { highlightMatches, renderMarkedSnippet } from "../lib/highlight";
@@ -76,6 +88,31 @@ const DISCLAIMER_DISMISS_KEY = "theke-chat-disclaimer-dismissed";
 
 function isUnverified(status: string | null): boolean {
   return status === "reference_only" || status === "manual_entry_pending";
+}
+
+// The backend's own system prompt instructs the model to embed inline
+// "[1]", "[2]" markers next to the sentence each citation supports (see
+// chat.py's prompt) - so `answer` already contains these as plain
+// substrings. This turns each marker that has a matching citation into a
+// real link to that citation's source_url, per the v2 redesign's inline-
+// citation spec; a marker with no matching citation (out-of-range index,
+// or no citations at all) is left as plain text rather than guessing.
+function renderAnswerBody(text: string, citations: ChatCitation[] | undefined): ReactNode {
+  if (!citations || citations.length === 0) return text;
+  return text.split(/(\[\d+\])/g).map((part, i) => {
+    const match = part.match(/^\[(\d+)\]$/);
+    const citation = match ? citations[Number(match[1]) - 1] : undefined;
+    if (!citation) return <Fragment key={i}>{part}</Fragment>;
+    return citation.source_url ? (
+      <a key={i} href={citation.source_url} target="_blank" rel="noreferrer" className={styles.inlineCitation}>
+        {part}
+      </a>
+    ) : (
+      <span key={i} className={styles.inlineCitation}>
+        {part}
+      </span>
+    );
+  });
 }
 
 // Vertical-aware, static prompts - not AI-generated per-conversation
@@ -509,6 +546,54 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
     setDislikePromptIndex(null);
   }
 
+  // Copy-to-clipboard feedback button - new in the v2 redesign, no backend
+  // involvement. copiedIndex flips the icon to a checkmark for 1.5s as
+  // confirmation, then reverts; keyed by message index like the other
+  // per-message feedback state above.
+  const [copiedIndex, setCopiedIndex] = useState<number | null>(null);
+  async function copyAnswer(messageIndex: number, text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopiedIndex(messageIndex);
+      setTimeout(() => setCopiedIndex((cur) => (cur === messageIndex ? null : cur)), 1500);
+    } catch {
+      // Clipboard access denied/unavailable - silently no-op, same as this
+      // page's other best-effort UI conveniences.
+    }
+  }
+
+  // Source-row rendering shared between the clickable (<a>, has a real
+  // source_url) and static (<div>, no URL yet) cases - keeps the existing
+  // contact-info/pending-verification-badge display alongside the new
+  // numbered-badge/tag-pill/external-link-icon row layout.
+  function renderSourceRow(c: ChatCitation, index: number) {
+    const inner = (
+      <>
+        <span className={styles.sourceBadge}>{index + 1}</span>
+        <span className={styles.sourceBody}>
+          <span className={styles.sourceTitle}>{c.title ?? t("chat.untitledSource")}</span>
+          {(c.contact_phone || c.contact_email) && (
+            <span className={styles.sourceMeta}>{[c.contact_phone, c.contact_email].filter(Boolean).join(", ")}</span>
+          )}
+        </span>
+        {c.authority && <span className={styles.sourceTag}>{c.authority}</span>}
+        {isUnverified(c.extraction_status) && <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>}
+        <span className={styles.sourceExt}>
+          <ExternalLinkIcon size={14} />
+        </span>
+      </>
+    );
+    return c.source_url ? (
+      <a key={c.document_id} href={c.source_url} target="_blank" rel="noreferrer" className={styles.sourceRow}>
+        {inner}
+      </a>
+    ) : (
+      <div key={c.document_id} className={`${styles.sourceRow} ${styles.sourceRowStatic}`}>
+        {inner}
+      </div>
+    );
+  }
+
   async function searchKb(e: React.FormEvent) {
     e.preventDefault();
     if (!kbQuery.trim() || !token) return;
@@ -673,22 +758,27 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                     <button type="button" className={styles.linkButton} onClick={() => setPickingDefault(false)}>
                       {t("common.cancel")}
                     </button>
+                  ) : selectedProject ? (
+                    <div className={styles.activeProjectChip}>
+                      <div style={{ minWidth: 0 }}>
+                        <div className={styles.activeProjectChipLabel}>{t("chat.projectLabel")}</div>
+                        <div className={styles.activeProjectChipValue}>
+                          {selectedProject.customer_name || selectedProject.name}
+                        </div>
+                      </div>
+                      <button
+                        type="button"
+                        className={styles.activeProjectChipClear}
+                        onClick={() => setSelectedProjectId(null)}
+                        aria-label={t("common.cancel")}
+                      >
+                        <CloseIcon size={12} />
+                      </button>
+                    </div>
                   ) : (
                     <div className={styles.contextRow}>
-                      <span className="text-muted">{t("chat.projectLabel")}</span>
-                      <span>
-                        {selectedProject ? selectedProject.customer_name || selectedProject.name : t("chat.context.publicOption")}
-                        {selectedProject && (
-                          <button
-                            type="button"
-                            className={styles.linkButton}
-                            onClick={() => setSelectedProjectId(null)}
-                            style={{ marginLeft: "var(--space-2)" }}
-                          >
-                            <CloseIcon size={11} />
-                          </button>
-                        )}
-                      </span>
+                      <span>{t("chat.projectLabel")}</span>
+                      <span>{t("chat.context.publicOption")}</span>
                     </div>
                   )}
                   {selectedRegionName && (
@@ -759,15 +849,18 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
 
         <section className={`card ${styles.sidebarSection}`}>
           <h3>{tUpper("chat.quickSearch")}</h3>
-          <form onSubmit={searchKb} style={{ display: "flex", gap: "var(--space-2)", marginBottom: "var(--space-3)" }}>
+          <form onSubmit={searchKb} className={styles.searchInputWrap} style={{ marginBottom: "var(--space-3)" }}>
+            <span className={styles.searchInputIcon}>
+              <SearchIcon size={16} />
+            </span>
             <input
               className="input"
               placeholder={t("chat.searchPlaceholder")}
               value={kbQuery}
               onChange={(e) => setKbQuery(e.target.value)}
             />
-            <button type="submit" className="btn btn-secondary">
-              {t("chat.go")}
+            <button type="submit" className={styles.searchSubmitButton} aria-label={t("chat.go")}>
+              <ArrowRightIcon size={15} />
             </button>
           </form>
           {kbResults.map((doc) => (
@@ -788,20 +881,22 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   }
 
   return (
-    <div className={styles.layout}>
-      <div className={`card ${styles.chatPanel}`}>
-        {/* Always visible, not dismissible - matches the current desktop
-            behavior exactly, only the visual treatment changed (icon +
-            single-line row using the existing warning tokens). */}
-        <div className={styles.disclaimerCompact} title={disclaimerText}>
-          <InfoIcon size={13} />
-          <span>{disclaimerText}</span>
-        </div>
+    <div className={styles.pageWrap}>
+      {/* Full-width, above both columns - the design's own "static
+          disclaimer" position (see chat.module.css's own comment). Content
+          is get_disclaimer()'s real output via disclaimerText above; only
+          this container's position/styling changed. */}
+      <div className={styles.disclaimerBar} title={disclaimerText}>
+        <InfoIcon size={16} />
+        <span>{disclaimerText}</span>
+      </div>
 
+      <div className={styles.layout}>
+      <div className={styles.chatPanel}>
         {/* Mobile-only condensed row with its own dismiss, see
             DISCLAIMER_DISMISS_KEY above - hidden entirely (not just
             visually) once dismissed, and hidden by CSS above 640px
-            regardless, so it never doubles up with .disclaimerCompact. */}
+            regardless, where .disclaimerBar covers it instead. */}
         {!disclaimerDismissed && (
           <div className={styles.disclaimerMobile} title={disclaimerText}>
             <InfoIcon size={12} />
@@ -862,7 +957,8 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           />
         )}
 
-        <div className={styles.messages}>
+        <div className={styles.messagesScroll}>
+          <div className={styles.messages}>
           {historyLoading && <p className="text-muted">{t("chat.loadingHistory")}</p>}
           {!historyLoading && messages.length === 0 && (
             <div className={styles.emptyStateWrap}>
@@ -903,104 +999,108 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   <span>{dividerByIndex.get(i)!.label}</span>
                 </div>
               )}
-              <div
-                className={`${styles.message} ${m.role === "user" ? styles.messageUser : styles.messageAssistant}`}
-              >
-              {m.gap && <div className={styles.gapBadge}>{tUpper("chat.gapLabel")}</div>}
-              {m.text}
-              {m.citations && m.citations.length > 0 && (
-                <>
-                  <ul className={styles.citations}>
-                    {m.citations.map((c, j) => (
-                      <li key={c.document_id}>
-                        [{j + 1}]{" "}
-                        {c.source_url ? (
-                          <a href={c.source_url} target="_blank" rel="noreferrer" className={styles.citationLink}>
-                            {c.title ?? t("chat.untitledSource")}
-                          </a>
-                        ) : (
-                          <span className={styles.citationLink}>{c.title ?? t("chat.untitledSource")}</span>
-                        )}
-                        {c.authority && <span className="text-muted"> — {c.authority}</span>}
-                        {(c.contact_phone || c.contact_email) && (
-                          <span className="text-muted">
-                            {" "}
-                            ({[c.contact_phone, c.contact_email].filter(Boolean).join(", ")})
-                          </span>
-                        )}
-                        {isUnverified(c.extraction_status) && (
-                          <span className={styles.pendingBadge}>{t("chat.pendingVerification")}</span>
-                        )}
-                      </li>
-                    ))}
-                  </ul>
-                  {/* ydom (building/planning office) is the authority zone-
-                      coefficient and setback figures actually come from - the
-                      closest reliable signal available on a citation for
-                      "this may need engineer confirmation," short of a
-                      dedicated content_type value that doesn't exist yet. */}
-                  {m.citations.some((c) => c.authority === "ydom") && (
-                    <p className={styles.zoneCaveat}>{t("chat.zoneCaveat")}</p>
-                  )}
-                </>
-              )}
-              {m.role === "assistant" && m.gap === false && m.sessionId != null && (
-                <div className={styles.feedbackRow}>
-                  <button
-                    type="button"
-                    className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonPositive : ""} ${m.feedback === "negative" ? styles.feedbackButtonDimmed : ""}`}
-                    onClick={() => {
-                      if (dislikePromptIndex === i) setDislikePromptIndex(null);
-                      submitFeedback(i, m.sessionId as number, "positive");
-                    }}
-                    aria-label={t("chat.feedbackPositive")}
-                  >
-                    <ThumbUpIcon size={18} />
-                  </button>
-                  <button
-                    type="button"
-                    className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonNegative : ""} ${m.feedback === "positive" ? styles.feedbackButtonDimmed : ""}`}
-                    onClick={() => openDislikePrompt(i)}
-                    aria-label={t("chat.feedbackNegative")}
-                  >
-                    <ThumbDownIcon size={18} />
-                  </button>
-                  {m.feedbackError && <span className={styles.feedbackError}>{t("chat.feedbackError")}</span>}
-                </div>
-              )}
-              {dislikePromptIndex === i && m.sessionId != null && (
-                <div className={styles.dislikePrompt}>
-                  <p className={styles.dislikePromptTitle}>{t("chat.feedbackPromptTitle")}</p>
-                  <textarea
-                    className="input"
-                    rows={2}
-                    autoFocus
-                    value={dislikeText}
-                    placeholder={t("chat.feedbackPromptPlaceholder")}
-                    onChange={(e) => setDislikeText(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === "Escape") skipDislikePrompt(i, m.sessionId as number);
-                    }}
-                  />
-                  <div className={styles.dislikePromptActions}>
-                    <button
-                      type="button"
-                      className="btn btn-secondary"
-                      onClick={() => skipDislikePrompt(i, m.sessionId as number)}
-                    >
-                      {t("chat.feedbackSkip")}
-                    </button>
-                    <button
-                      type="button"
-                      className="btn btn-primary"
-                      onClick={() => submitDislikePrompt(i, m.sessionId as number)}
-                    >
-                      {t("chat.feedbackSubmit")}
-                    </button>
+              {m.role === "user" ? (
+                <div className={`${styles.message} ${styles.messageUser}`}>{m.text}</div>
+              ) : (
+                <div className={`${styles.message} ${styles.messageAssistant}`}>
+                  <div className={styles.assistantHeader}>
+                    <span className={styles.assistantAvatar}>
+                      <SparkleIcon size={15} />
+                    </span>
+                    <span className={styles.assistantName}>theke</span>
+                    {/* Fires only for this specific answer's own gap signal
+                        (the same low-confidence signal the old .gapBadge
+                        used) - never a global/page-level indicator. */}
+                    {m.gap && (
+                      <span className={styles.limitedSourcesTag}>
+                        <WarningIcon size={12} />
+                        <span>{tUpper("chat.gapLabel")}</span>
+                      </span>
+                    )}
                   </div>
+                  <div className={styles.messageBody}>{renderAnswerBody(m.text, m.citations)}</div>
+                  {m.citations && m.citations.length > 0 && (
+                    <div className={styles.sourcesBlock}>
+                      <div className={styles.sourcesLabel}>{t("chat.sources", { count: m.citations.length })}</div>
+                      <div className={styles.sourcesList}>{m.citations.map((c, j) => renderSourceRow(c, j))}</div>
+                      {/* ydom (building/planning office) is the authority
+                          zone-coefficient and setback figures actually come
+                          from - the closest reliable signal available on a
+                          citation for "this may need engineer confirmation,"
+                          short of a dedicated content_type value that
+                          doesn't exist yet. */}
+                      {m.citations.some((c) => c.authority === "ydom") && (
+                        <p className={styles.zoneCaveat}>{t("chat.zoneCaveat")}</p>
+                      )}
+                    </div>
+                  )}
+                  {m.gap === false && m.sessionId != null && (
+                    <div className={styles.feedbackRow}>
+                      <button
+                        type="button"
+                        className={`${styles.feedbackButton} ${m.feedback === "positive" ? styles.feedbackButtonPositive : ""} ${m.feedback === "negative" ? styles.feedbackButtonDimmed : ""}`}
+                        onClick={() => {
+                          if (dislikePromptIndex === i) setDislikePromptIndex(null);
+                          submitFeedback(i, m.sessionId as number, "positive");
+                        }}
+                        aria-label={t("chat.feedbackPositive")}
+                      >
+                        <ThumbUpIcon size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className={`${styles.feedbackButton} ${m.feedback === "negative" ? styles.feedbackButtonNegative : ""} ${m.feedback === "positive" ? styles.feedbackButtonDimmed : ""}`}
+                        onClick={() => openDislikePrompt(i)}
+                        aria-label={t("chat.feedbackNegative")}
+                      >
+                        <ThumbDownIcon size={16} />
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.feedbackButton}
+                        onClick={() => copyAnswer(i, m.text)}
+                        aria-label={copiedIndex === i ? t("chat.copied") : t("chat.copyAnswer")}
+                        title={copiedIndex === i ? t("chat.copied") : t("chat.copyAnswer")}
+                      >
+                        {copiedIndex === i ? <CheckIcon size={16} /> : <CopyIcon size={16} />}
+                      </button>
+                      {m.feedbackError && <span className={styles.feedbackError}>{t("chat.feedbackError")}</span>}
+                    </div>
+                  )}
+                  {dislikePromptIndex === i && m.sessionId != null && (
+                    <div className={styles.dislikePrompt}>
+                      <p className={styles.dislikePromptTitle}>{t("chat.feedbackPromptTitle")}</p>
+                      <textarea
+                        className="input"
+                        rows={2}
+                        autoFocus
+                        value={dislikeText}
+                        placeholder={t("chat.feedbackPromptPlaceholder")}
+                        onChange={(e) => setDislikeText(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Escape") skipDislikePrompt(i, m.sessionId as number);
+                        }}
+                      />
+                      <div className={styles.dislikePromptActions}>
+                        <button
+                          type="button"
+                          className="btn btn-secondary"
+                          onClick={() => skipDislikePrompt(i, m.sessionId as number)}
+                        >
+                          {t("chat.feedbackSkip")}
+                        </button>
+                        <button
+                          type="button"
+                          className="btn btn-primary"
+                          onClick={() => submitDislikePrompt(i, m.sessionId as number)}
+                        >
+                          {t("chat.feedbackSubmit")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
                 </div>
               )}
-              </div>
             </Fragment>
           ))}
           {/* A restart's divider index equals messages.length at the moment
@@ -1023,33 +1123,39 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               the thread's own left edge rather than centered. */}
           {!historyLoading && !loading && messages.length > 0 && (
             <div className={styles.followupChips}>
-              {suggestionKeys.map((key) => (
-                <button key={key} type="button" className={styles.suggestionChip} onClick={() => setInput(t(key))}>
-                  {t(key)}
-                </button>
-              ))}
+              <div className={styles.followupChipsLabel}>{t("chat.suggestedQuestions")}</div>
+              <div className={styles.followupChipsRow}>
+                {suggestionKeys.map((key) => (
+                  <button key={key} type="button" className={styles.suggestionChip} onClick={() => setInput(t(key))}>
+                    {t(key)}
+                  </button>
+                ))}
+              </div>
             </div>
           )}
           <div ref={messagesEndRef} />
+          </div>
         </div>
 
         {poolExhausted && <p className={styles.poolExhaustedNotice}>{t("chat.poolExhausted")}</p>}
 
-        <div className={styles.composer}>
-          <input
-            className="input"
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-            placeholder={t("chat.inputPlaceholder")}
-            disabled={poolExhausted}
-          />
-          <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || poolExhausted}>
-            {t("chat.send")}
-          </button>
-          <button type="button" className={styles.newSessionButton} onClick={startNewSession}>
-            {t("chat.newStart")}
-          </button>
+        <div className={styles.composerBar}>
+          <div className={styles.composer}>
+            <input
+              className="input"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && sendMessage()}
+              placeholder={t("chat.inputPlaceholder")}
+              disabled={poolExhausted}
+            />
+            <button className="btn btn-primary" onClick={() => sendMessage()} disabled={loading || poolExhausted}>
+              {t("chat.send")}
+            </button>
+            <button type="button" className={styles.newSessionButton} onClick={startNewSession}>
+              {t("chat.newStart")}
+            </button>
+          </div>
         </div>
 
         {/* Mobile-only rebuild: circular icon targets (44px min tap size)
@@ -1085,6 +1191,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
       </div>
 
       <aside className={styles.sidebar}>{contextSearchPanel("desktop")}</aside>
+      </div>
 
       {/* Mobile-only bottom sheet - same content as the desktop <aside>
           above (see contextSearchPanel), reached via the context strip

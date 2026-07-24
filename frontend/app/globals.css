@@ -74,6 +74,14 @@
   --color-info-bg: #d9f2ef;
   --color-purple: #8950fc;
   --color-purple-bg: #f3e8ff;
+  /* Chat redesign v2 (design handoff): the assistant-identity chip (sparkle
+     avatar square, source-row numbered badges) uses a soft blue distinct
+     from both --color-primary (too dark/heavy for a small fill) and
+     --color-info (teal, wrong hue family) - no existing pairing matched, so
+     this is a genuinely new token, reported per the redesign's own
+     token-mapping instruction. */
+  --color-accent-soft-bg: #eaf0fb;
+  --color-accent-soft-text: #2f4b86;
 
   /* Chrome */
   /* Slightly stronger than before (was 0 1px 2px / 0.06) - .card lost its
@@ -219,6 +227,8 @@
   --color-info-bg: #0f2e2a;
   --color-purple: #a855f7;
   --color-purple-bg: #2a1a45;
+  --color-accent-soft-bg: #22304c;
+  --color-accent-soft-text: #9db4e8;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);

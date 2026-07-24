@@ -1,51 +1,56 @@
-.layout {
-  display: grid;
-  grid-template-columns: 1fr 320px;
-  gap: var(--space-5);
-  align-items: start;
+/* Chat page v2 redesign (design handoff "Chat Redesign v2") - visual system
+   (colors/spacing/control heights/icon style) applied on top of the
+   existing structure and state logic. Three areas deliberately keep their
+   pre-redesign behavior unchanged, only restyled: the context panel's
+   scope switcher/pin management (see .sidebarSection and friends), the
+   disclaimer's real get_disclaimer() content (see .disclaimerBar/
+   .disclaimerMobile - only the container changed, not the text source),
+   and the gap-signal-driven "limited sources" tag (see .limitedSourcesTag,
+   keyed off Message.gap exactly as .gapBadge was). */
+
+.pageWrap {
+  display: flex;
+  flex-direction: column;
   height: calc(100dvh - 140px);
 }
 
-.chatPanel {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  overflow: hidden;
-}
-
-/* Compact, but wraps to as many lines as the text needs rather than
-   truncating - on a narrow screen a single forced line clipped the
-   disclaimer mid-word. Icon + copy row (chat redesign) using the existing
-   warning tokens rather than the design reference's literal hex values,
-   per the token-reuse instruction. */
-.disclaimerCompact {
-  padding: var(--space-2) var(--space-4);
+/* Full-width, above both columns - the design's own "static disclaimer"
+   sits between the top bar and the two-column body, not confined to the
+   chat column, so a project's context panel is covered by the same notice.
+   Content is get_disclaimer()'s real output (see disclaimerText in
+   page.tsx), never this file's concern. */
+.disclaimerBar {
+  flex-shrink: 0;
+  padding: 9px 24px;
   background: var(--color-warning-bg);
   border-bottom: 1px solid var(--admin-warning-border);
   color: var(--color-text-muted);
-  font-size: 0.72rem;
+  font-size: 12.5px;
+  line-height: 1.4;
   display: flex;
   align-items: center;
-  gap: var(--space-2);
+  gap: 9px;
 }
 
-.disclaimerCompact svg {
+.disclaimerBar svg {
   flex-shrink: 0;
   color: var(--color-warning);
 }
 
+@media (max-width: 640px) {
+  .disclaimerBar {
+    display: none;
+  }
+}
+
 /* Mobile-only condensed disclaimer with its own dismiss - see
-   DISCLAIMER_DISMISS_KEY in page.tsx. Hidden above 640px; .disclaimerCompact
+   DISCLAIMER_DISMISS_KEY in page.tsx. Hidden above 640px; .disclaimerBar
    above covers desktop/tablet and is never dismissible there. */
 .disclaimerMobile {
   display: none;
 }
 
 @media (max-width: 640px) {
-  .disclaimerCompact {
-    display: none;
-  }
-
   .disclaimerMobile {
     display: flex;
     align-items: center;
@@ -132,6 +137,25 @@
   }
 }
 
+/* Two-column body: chat column (flex) + context column (fixed 340px), per
+   the v2 layout spec - was a CSS grid, now a flex row so .chatPanel/
+   .sidebar can each stretch to the row's own height (set by .pageWrap)
+   without a grid track needing an explicit height too. */
+.layout {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.chatPanel {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  overflow: hidden;
+}
+
 /* Always rendered (unlike the old projectContextBar, which only appeared
    with a project selected) - "Νέα Εκκίνηση" needs to be available in both
    project-scoped and no-project chat. */
@@ -168,21 +192,26 @@
   color: var(--color-danger);
 }
 
+/* "Νέα Εκκίνηση" as a secondary composer control - see .composer, matching
+   the primary Send button's 46px height/12px radius per the control-height
+   consistency spec. Was a small inline text link; now a full button since
+   it sits directly alongside Send in the input row. */
 .newSessionButton {
   flex-shrink: 0;
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-sm);
-  padding: 2px 10px;
-  font-size: 0.78rem;
+  height: 46px;
+  padding: 0 var(--space-4);
+  background: var(--color-surface);
+  border: 1px solid #dfe3ea;
+  border-radius: 12px;
+  font-size: 14px;
   font-weight: 600;
-  color: var(--color-link);
+  color: var(--color-text);
   cursor: pointer;
   white-space: nowrap;
 }
 
 .newSessionButton:hover {
-  border-color: var(--color-link);
+  border-color: var(--color-text-muted);
 }
 
 /* Session-timeline separator - both the natural >3h-gap kind and the
@@ -207,38 +236,44 @@
 }
 
 /* Contextual metadata, not a headline - muted, compact, never competing
-   with the message list for attention. */
-/* Column, not a single centered row - the toggle is a header-level
-   control for this group, and needs to stay pinned at the top regardless
-   of how tall the expanded body grows (it used to be align-items:center in
-   a row, which vertically centered the short toggle against the body's
-   full wrapped-text height, leaving it squeezed mid-way down instead of
-   acting as a heading). */
+   with the message list for attention. Column, not a single centered row -
+   the toggle is a header-level control for this group and stays pinned at
+   the top regardless of how tall the expanded body grows. */
 .locationStrip {
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-surface-alt);
-  color: var(--color-text-muted);
-  font-size: 0.78rem;
-  border-bottom: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
+  padding-top: var(--space-3);
+  margin-top: var(--space-3);
+  border-top: 1px solid var(--color-border);
+  font-size: 13px;
 }
 
 .locationStripToggle {
-  display: inline-flex;
+  display: flex;
   align-items: center;
-  gap: 4px;
+  justify-content: flex-start;
+  gap: 6px;
   border: none;
   background: none;
   cursor: pointer;
   color: var(--color-text-muted);
-  font-size: 0.78rem;
+  font-size: 13px;
+  font-weight: 600;
   padding: 0;
+  width: 100%;
+}
+
+.locationStripToggle:hover {
+  color: var(--color-link);
 }
 
 .locationStripBody {
   flex: 1;
+  font-size: 12px;
+  color: var(--color-text-muted);
+  line-height: 1.5;
+  overflow-wrap: anywhere;
 }
 
 .archaeologicalBadge {
@@ -249,39 +284,409 @@
   background: none;
   cursor: pointer;
   color: var(--color-warning);
-  font-weight: 600;
+  font-weight: 700;
   font-size: 0.78rem;
   padding: 0;
 }
 
 .archaeologicalPanel {
+  display: flex;
+  gap: 9px;
   width: 100%;
-  padding: var(--space-3);
+  padding: 10px 12px;
   margin-top: var(--space-1);
   background: var(--color-warning-bg);
-  border-radius: var(--radius-sm);
-  font-size: 0.85rem;
+  border: 1px solid var(--admin-warning-border);
+  border-radius: 10px;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.archaeologicalPanel svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--color-warning);
+}
+
+.archaeologicalPanel > div {
+  min-width: 0;
 }
 
 .archaeologicalPanel p {
   margin: 0 0 var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.archaeologicalPanel p:last-child {
+  margin-bottom: 0;
+}
+
+.archaeologicalPanel strong {
+  color: var(--color-warning);
+}
+
+/* Scrollable message-list viewport - the actual scroll owner, kept
+   separate from .messages (below) so the scrollbar sits at the chat
+   column's own right edge while the content it scrolls stays capped at
+   the 760px reading-column width, per the v2 layout spec. */
+.messagesScroll {
+  flex: 1;
+  overflow-y: auto;
+  overflow-x: hidden;
+  min-height: 0;
+}
+
+.messages {
+  max-width: 760px;
+  margin: 0 auto;
+  padding: 26px 28px 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 26px;
+}
+
+/* Fills whatever height .messagesScroll has available and centers its
+   content - on mobile in particular this removes the dead space below a
+   short welcome message that used to just sit at the top of a tall
+   viewport. */
+.emptyStateWrap {
+  flex: 1;
+  min-height: 480px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+.emptyStateIcon {
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--color-surface-alt);
+  /* Existing purple accent token (same one TypeBadge/StatCard already use),
+     not a new arbitrary color - a plain gray/black stroke read as an error
+     or disabled state next to the rest of the page's accent colors. */
+  color: var(--color-purple);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* The welcome/placeholder text shown before any message is sent. */
+.emptyState {
+  max-width: 440px;
+  font-size: 16px;
+  line-height: 1.6;
+  color: var(--color-text-muted);
+  margin: 0;
+}
+
+.suggestionChips {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+  max-width: 440px;
+}
+
+/* 44px empty-state chips - full-width per the control-height spec, distinct
+   from the smaller 36px follow-up/suggested-question pills below. */
+.suggestionChip {
+  height: 44px;
+  display: flex;
+  align-items: center;
+  border: 1px solid #e2e5ea;
+  background: var(--color-surface);
+  border-radius: 12px;
+  padding: 0 18px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--color-text);
+  text-align: left;
+  cursor: pointer;
+}
+
+.suggestionChip:hover {
+  border-color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+}
+
+/* Uppercase label + wrapping 36px pill row shown below an active thread -
+   both the "suggested questions" heading and the .suggestionChip buttons
+   inside reuse the same chip visual as the empty state's own row (via the
+   :global override below), just at the smaller pill height/radius that
+   applies once a conversation is underway. */
+.followupChips {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: var(--space-2);
+}
+
+.followupChipsLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+}
+
+.followupChipsRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.followupChipsRow .suggestionChip {
+  height: 36px;
+  width: auto;
+  border-radius: 18px;
+  padding: 0 16px;
+  font-size: 13px;
+}
+
+/* Secondary line below the welcome message, empty state only - smaller
+   and dimmer than .emptyState so it reads as a minor aside, not part of
+   the welcome copy itself. */
+.emptyStateHint {
+  font-size: 13px;
+  font-style: italic;
+  color: var(--color-text-muted);
+  margin-top: var(--space-1);
+}
+
+/* Shorter mobile-only variant of .emptyStateHint - a distinct copy string
+   (chat.emptyStateHintMobile), not the desktop string reused at a smaller
+   size, since the desktop phrasing doesn't shrink to fit comfortably on a
+   phone width. Same CSS-toggle pair convention as .disclaimerBar/
+   .disclaimerMobile above. */
+.emptyStateHintMobile {
+  display: none;
+}
+
+@media (max-width: 640px) {
+  .emptyStateHint {
+    display: none;
+  }
+
+  .emptyStateHintMobile {
+    display: block;
+    font-size: 0.72rem;
+    font-style: italic;
+    color: var(--color-text-muted);
+    margin-top: var(--space-1);
+  }
+}
+
+/* Shared bubble/no-bubble message wrapper - only white-space/wrapping is
+   common between the two roles now; .messageUser and .messageAssistant
+   each own their full visual treatment below (a plain bubble box shared
+   by both no longer fits the assistant's "no bubble, avatar + label"
+   design). */
+.message {
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.messageUser {
+  align-self: flex-end;
+  max-width: 78%;
+  background: var(--color-primary);
+  color: var(--color-text-on-primary);
+  border-radius: 16px 16px 4px 16px;
+  padding: 13px 17px;
+  font-size: 14.5px;
+  line-height: 1.55;
+}
+
+.messageAssistant {
+  align-self: stretch;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.assistantHeader {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-wrap: wrap;
+}
+
+.assistantAvatar {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  background: var(--color-accent-soft-bg);
+  color: var(--color-accent-soft-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.assistantName {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  letter-spacing: 0.02em;
+}
+
+/* The "limited sources" tag - fires only when this specific answer's
+   Message.gap signal is true (the same low-confidence signal that already
+   drove the old .gapBadge), never globally. Reuses the existing warning
+   tokens (same pairing as the global .badge-warning primitive) rather than
+   the design's literal, slightly different warning hex triple - no new
+   token needed for a shade this close. */
+.limitedSourcesTag {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  background: var(--color-warning-bg);
+  border: 1px solid var(--admin-warning-border);
+  border-radius: 6px;
+  padding: 3px 9px;
+}
+
+.limitedSourcesTag svg {
+  color: var(--color-warning);
+}
+
+.limitedSourcesTag span {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  color: var(--color-warning);
+}
+
+.messageBody {
+  font-size: 15px;
+  line-height: 1.7;
   color: var(--color-text);
 }
 
-.gapBadge {
-  display: inline-block;
-  margin-bottom: var(--space-2);
-  padding: 2px 8px;
-  border-radius: var(--radius-sm);
-  background: var(--color-warning-bg);
+.inlineCitation {
+  color: var(--color-link);
+  font-weight: 600;
+}
+
+.sourcesBlock {
+  margin-top: var(--space-1);
+}
+
+.sourcesLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
   color: var(--color-text-muted);
-  font-size: 0.75rem;
-  letter-spacing: 0.02em;
+  text-transform: uppercase;
+  margin-bottom: 9px;
+}
+
+.sourcesList {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* Clickable source row (opens the real citation.source_url in a new tab) -
+   flex-basis lets two short titles share a row naturally ("minor sources
+   sit two-up" per the v2 spec) while a long title claims the full row on
+   its own, without hardcoding which citation index gets which treatment. */
+.sourceRow {
+  flex: 1 1 280px;
+  min-width: 240px;
+  display: flex;
+  align-items: center;
+  gap: 11px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-bg);
+  color: inherit;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background-color 120ms ease, border-color 120ms ease;
+}
+
+.sourceRow:hover {
+  background: var(--color-surface-alt);
+  border-color: var(--color-text-muted);
+}
+
+.sourceRowStatic {
+  cursor: default;
+}
+
+.sourceRowStatic:hover {
+  background: var(--color-bg);
+  border-color: var(--color-border);
+}
+
+.sourceBadge {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 6px;
+  background: var(--color-accent-soft-bg);
+  color: var(--color-accent-soft-text);
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.sourceBody {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sourceTitle {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--color-text);
+  line-height: 1.35;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceMeta {
+  font-size: 11px;
+  color: var(--color-text-muted);
+}
+
+.sourceTag {
+  flex-shrink: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  border-radius: 5px;
+  padding: 3px 7px;
+}
+
+.sourceExt {
+  flex-shrink: 0;
+  color: var(--color-text-muted);
+  opacity: 0.4;
+  transition: opacity 120ms ease;
+}
+
+.sourceRow:hover .sourceExt {
+  opacity: 1;
 }
 
 .pendingBadge {
   display: inline-block;
-  margin-left: var(--space-2);
   padding: 1px 6px;
   border-radius: var(--radius-sm);
   background: var(--color-warning-bg);
@@ -299,23 +704,26 @@
 .feedbackRow {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
+  gap: 4px;
 }
 
 .feedbackButton {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
   background: none;
   border: none;
-  padding: 2px;
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   cursor: pointer;
   color: var(--color-text-muted);
-  transition: color 150ms ease, opacity 150ms ease;
+  transition: color 150ms ease, background-color 150ms ease, opacity 150ms ease;
 }
 
 .feedbackButton:hover:not(:disabled) {
-  color: var(--color-link);
+  background: var(--color-surface-alt);
+  color: var(--color-text);
 }
 
 .feedbackButton:disabled {
@@ -344,10 +752,9 @@
 /* Expands directly below the message, not a modal - see chat page's
    dislike-feedback spec. */
 .dislikePrompt {
-  margin-top: var(--space-2);
   padding: var(--space-3);
   border-radius: var(--radius-sm);
-  background: var(--color-surface);
+  background: var(--color-surface-alt);
   border: 1px solid var(--color-border);
   display: flex;
   flex-direction: column;
@@ -371,181 +778,8 @@
   gap: var(--space-2);
 }
 
-.messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: var(--space-5);
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-4);
-}
-
-/* Fills whatever height .messages has available and centers its content -
-   on mobile in particular this removes the dead space below a short
-   welcome message that used to just sit at the top of a tall viewport. */
-.emptyStateWrap {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
-  gap: var(--space-3);
-  padding: var(--space-4) 0;
-}
-
-.emptyStateIcon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
-  background: var(--color-surface-alt);
-  /* Existing purple accent token (same one TypeBadge/StatCard already use),
-     not a new arbitrary color - a plain gray/black stroke read as an error
-     or disabled state next to the rest of the page's accent colors. */
-  color: var(--color-purple);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-/* The welcome/placeholder text shown before any message is sent - smaller
-   and italic so it reads as ambient guidance, not a real response. */
-.emptyState {
-  max-width: 420px;
-  font-size: 0.85rem;
-  font-style: italic;
-  color: var(--color-text-muted);
-  margin: 0;
-}
-
-.suggestionChips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: center;
-  gap: var(--space-2);
-  /* Wide enough that the two shortest of the three chips reliably share a
-     row before wrapping (natural flex-wrap, not a fixed split) - 460px left
-     under 10px of margin for the current copy, tipping into 1-then-1-then-1
-     on minor content/locale changes. */
-  max-width: 480px;
-}
-
-.suggestionChip {
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  border-radius: 20px;
-  padding: 8px 14px;
-  font-size: 12.5px;
-  font-weight: 600;
-  color: var(--color-text);
-  cursor: pointer;
-}
-
-.suggestionChip:hover {
-  border-color: var(--color-link);
-  color: var(--color-link);
-}
-
-/* Same chip visual as .suggestionChips (the .suggestionChip buttons inside
-   are shared), but left-aligned from the thread's own edge and unwrapped
-   from the empty state's centered/width-capped treatment - this row sits
-   below an active conversation, not centered in empty space. */
-.followupChips {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-start;
-  gap: var(--space-2);
-  margin-top: var(--space-2);
-}
-
-/* Secondary line below the welcome message, empty state only - smaller
-   and dimmer than .emptyState so it reads as a minor aside, not part of
-   the welcome copy itself. Reuses --color-text-muted (rather than a new
-   literal hex) so it stays legible in dark mode too. */
-.emptyStateHint {
-  font-size: 0.75rem;
-  font-style: italic;
-  color: var(--color-text-muted);
-  margin-top: var(--space-1);
-}
-
-/* Shorter mobile-only variant of .emptyStateHint - a distinct copy string
-   (chat.emptyStateHintMobile), not the desktop string reused at a smaller
-   size, since the desktop phrasing doesn't shrink to fit comfortably on a
-   phone width. Same CSS-toggle pair convention as .disclaimerCompact/
-   .disclaimerMobile above. */
-.emptyStateHintMobile {
-  display: none;
-}
-
-@media (max-width: 640px) {
-  .emptyStateHint {
-    display: none;
-  }
-
-  .emptyStateHintMobile {
-    display: block;
-    font-size: 0.72rem;
-    font-style: italic;
-    color: var(--color-text-muted);
-    margin-top: var(--space-1);
-  }
-}
-
-.message {
-  max-width: 80%;
-  padding: var(--space-3) var(--space-4);
-  /* Literal px, not var(--radius-md) (16px) - matches the chat redesign's
-     14px bubble-radius spec exactly, same literal-override convention the
-     640px block below already uses for its own (13px) mobile value. */
-  border-radius: 14px;
-  font-size: 14px;
-  line-height: 1.55;
-  white-space: pre-wrap;
-}
-
-.messageUser {
-  align-self: flex-end;
-  background: var(--color-primary);
-  color: var(--color-text-on-primary);
-}
-
-.messageAssistant {
-  align-self: flex-start;
-  background: var(--color-surface);
-  border: 1px solid var(--color-border);
-}
-
-/* Source citations, redesigned as a wrapped row of small pill chips (per
-   the chat redesign spec) instead of a vertical bulleted list - each <li>
-   below becomes its own pill via the child selector, so the citation
-   content itself (link, authority, contact info, pending-verification
-   badge) is unchanged, only the layout/chrome around it. */
-.citations {
-  margin: var(--space-3) 0 0;
-  padding: var(--space-2) 0 0;
-  border-top: 1px solid var(--color-border);
-  list-style: none;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.citations li {
-  background: var(--color-surface-alt);
-  padding: 4px 10px;
-  border-radius: 12px;
-  font-size: 11px;
-  line-height: 1.5;
-}
-
-.citationLink {
-  color: var(--color-text-muted);
-  font-weight: 600;
-}
-
 .poolExhaustedNotice {
-  margin: 0 var(--space-4);
+  margin: 0 28px;
   padding: var(--space-2) var(--space-3);
   background: var(--color-danger-bg);
   color: var(--color-danger);
@@ -554,27 +788,51 @@
   font-weight: 600;
 }
 
-.composer {
-  display: flex;
-  gap: var(--space-2);
-  padding: var(--space-4);
-  border-top: 1px solid var(--color-border);
+/* Pinned input row - full chat-column width, its own content capped and
+   centered at the same 760px reading-column width as .messages above. */
+.composerBar {
+  flex-shrink: 0;
+  border-top: 1px solid #eceef2;
+  padding: 16px 28px;
 }
 
+.composer {
+  max-width: 760px;
+  margin: 0 auto;
+  display: flex;
+  gap: 10px;
+}
+
+/* All three composer controls share one height/radius/font per the
+   control-height consistency spec - explicit, not incidental. */
 .composer input {
   flex: 1;
+  min-width: 0;
+  height: 46px;
+  border: 1px solid #dfe3ea;
+  border-radius: 12px;
+  padding: 0 16px;
+  font-size: 14.5px;
+}
+
+.composer :global(.btn) {
+  height: 46px;
+  border-radius: 12px;
+  padding: 0 24px;
+  font-size: 14px;
+  font-weight: 700;
 }
 
 /* Mobile-only rebuild - circular icon buttons + pill input, all 44px
-   minimum tap targets, replacing .composer's text-label row which got
-   cramped at phone widths. Hidden above 640px; .composer above covers
+   minimum tap targets, replacing .composerBar's text-label row which got
+   cramped at phone widths. Hidden above 640px; .composerBar above covers
    desktop/tablet. */
 .composerMobile {
   display: none;
 }
 
 @media (max-width: 640px) {
-  .composer {
+  .composerBar {
     display: none;
   }
 
@@ -629,11 +887,17 @@
   }
 }
 
+/* Context column - fixed 340px, tinted background, left border, per the
+   v2 layout spec. */
 .sidebar {
+  width: 340px;
+  flex-shrink: 0;
+  border-left: 1px solid var(--color-border);
+  background: var(--color-bg);
   display: flex;
   flex-direction: column;
-  gap: var(--space-4);
-  height: 100%;
+  gap: 16px;
+  padding: 22px 20px;
   overflow-y: auto;
 }
 
@@ -644,29 +908,44 @@
 }
 
 .sidebarSection {
-  /* Visible border + 12px radius (chat redesign's right-panel polish) -
-     the shared .card primitive only carries a shadow, no border, so this
-     is scoped to the chat page rather than changing .card globally. */
-  padding: var(--space-4);
+  padding: 18px;
   border: 1px solid var(--color-border);
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: none;
 }
 
 .sidebarSection h3 {
-  margin: 0 0 var(--space-3);
+  margin: 0 0 13px;
   font-size: 11px;
   font-weight: 700;
-  letter-spacing: 0.06em;
+  letter-spacing: 0.07em;
   color: var(--color-text-muted);
+}
+
+/* Context-panel inputs (the switch-context combobox, quick-doc-search) sit
+   at 42px per the control-height spec - the shared global .input primitive
+   has no fixed height of its own, so this scopes the override to chat's
+   own panel inputs without touching every other page's inputs. */
+.sidebarSection :global(.input) {
+  height: 42px;
+  border-radius: 10px;
 }
 
 .contextRow {
   display: flex;
   justify-content: space-between;
   gap: var(--space-3);
-  padding: var(--space-1) 0;
-  font-size: 0.9rem;
+  padding: 7px 0;
+  font-size: 13px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.contextRow:last-child {
+  border-bottom: none;
+}
+
+.contextRow > span:first-child {
+  color: var(--color-text-muted);
 }
 
 /* The value side (second span) - right-aligned so a wrapped two-line
@@ -674,12 +953,19 @@
    row's right edge instead of ragged-left inside its own box. */
 .contextRow > span:last-child {
   text-align: right;
+  font-weight: 600;
+  color: var(--color-text);
 }
 
 .contextPinBlock {
   padding-bottom: var(--space-3);
   margin-bottom: var(--space-3);
   border-bottom: 1px solid var(--color-border);
+}
+
+.contextPinBlock p {
+  font-size: 13.5px;
+  line-height: 1.55;
 }
 
 .contextPinActions {
@@ -689,10 +975,80 @@
   margin-top: var(--space-2);
 }
 
+/* Pin/switcher action buttons - 42px per the panel-control height spec,
+   styled like the design's own "Ορισμός προεπιλογής" pill rather than the
+   generic .btn-secondary treatment used elsewhere in the app. */
+.contextPinActions .btn,
+.contextPinBlock > .btn {
+  height: 42px;
+  border-radius: 10px;
+  background: var(--color-surface);
+  color: var(--color-link);
+  border: 1px solid var(--color-border);
+  font-size: 13.5px;
+  font-weight: 700;
+}
+
 .contextSwitcher {
   display: flex;
   flex-direction: column;
-  gap: var(--space-1);
+  gap: 6px;
+}
+
+.contextSwitcher > label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+/* The active-project selection, once picked via the switcher - styled as
+   the design's soft-blue "active project" chip instead of a plain
+   .contextRow line, using the same accent-soft pairing as the assistant
+   avatar/source badges. */
+.activeProjectChip {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--color-accent-soft-bg);
+  border: 1px solid var(--color-accent-soft-text);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.activeProjectChipLabel {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--color-accent-soft-text);
+  margin-bottom: 2px;
+  opacity: 0.75;
+}
+
+.activeProjectChipValue {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--color-accent-soft-text);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.activeProjectChipClear {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 6px;
+  border: none;
+  background: var(--color-surface);
+  color: var(--color-accent-soft-text);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
 }
 
 .linkButton {
@@ -709,6 +1065,47 @@
 
 .linkButton:hover {
   color: var(--color-link-hover);
+}
+
+/* Quick-document-search - a single full-width input with a leading search
+   icon and a trailing 32px icon button, replacing the old input + wide
+   "Go" button row that overflowed at 340px. */
+.searchInputWrap {
+  position: relative;
+}
+
+.searchInputWrap :global(.input) {
+  padding-left: 36px;
+  padding-right: 40px;
+}
+
+.searchInputIcon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  pointer-events: none;
+}
+
+.searchSubmitButton {
+  position: absolute;
+  right: 5px;
+  top: 5px;
+  width: 32px;
+  height: 32px;
+  background: var(--color-primary);
+  border: none;
+  border-radius: 7px;
+  color: var(--color-text-on-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.searchSubmitButton:hover {
+  background: var(--color-primary-hover);
 }
 
 .searchResult {
@@ -731,12 +1128,18 @@
 
 @media (max-width: 900px) {
   .layout {
-    grid-template-columns: 1fr;
+    flex-direction: column;
     height: auto;
   }
 
   .chatPanel {
     height: 60dvh;
+  }
+
+  .sidebar {
+    width: auto;
+    border-left: none;
+    border-top: 1px solid var(--color-border);
   }
 }
 
@@ -746,19 +1149,31 @@
      screen instead of the 900px block's 60dvh compromise (which existed
      to leave room for .sidebar stacking below it - .sidebar is hidden
      entirely at this width, see above). */
-  .layout {
+  .pageWrap {
     height: calc(100dvh - 56px);
+  }
+
+  .layout {
+    height: 100%;
   }
 
   .chatPanel {
     height: 100%;
   }
 
-  .message {
+  .messages {
+    padding: var(--space-4) var(--space-4) var(--space-2);
+  }
+
+  .messageUser {
     max-width: 82%;
     padding: 11px 13px;
     border-radius: 13px;
     font-size: 13.5px;
+  }
+
+  .messageBody {
+    font-size: 14px;
   }
 }
 

@@ -1137,6 +1137,10 @@ export const translations = {
     "chat.tapForContextSearch": "tap for context & search",
     "chat.contextSearchTitle": "Context & Search",
     "chat.close": "Close",
+    "chat.sources": "Sources · {{count}}",
+    "chat.suggestedQuestions": "Suggested questions",
+    "chat.copyAnswer": "Copy answer",
+    "chat.copied": "Copied",
 
     // help
     "help.title": "Help",
@@ -2411,6 +2415,10 @@ export const translations = {
     "chat.tapForContextSearch": "πατήστε για πλαίσιο & αναζήτηση",
     "chat.contextSearchTitle": "Πλαίσιο & Αναζήτηση",
     "chat.close": "Κλείσιμο",
+    "chat.sources": "Πηγές · {{count}}",
+    "chat.suggestedQuestions": "Προτεινόμενες ερωτήσεις",
+    "chat.copyAnswer": "Αντιγραφή απάντησης",
+    "chat.copied": "Αντιγράφηκε",
 
     // help
     "help.title": "Βοήθεια",

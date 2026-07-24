@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { Suspense, useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
@@ -71,7 +72,14 @@ function LoginContent() {
       </div>
 
       <div className={styles.intro}>
-        <Logo size={56} />
+        {/* Not styled as a nav element on purpose - a logo that happens to
+            be a link back to the public landing page, not a button/tab.
+            Inline color/textDecoration reset beats globals.css's a/a:hover
+            rules at any specificity, so the wordmark keeps its normal text
+            color instead of turning link-blue. */}
+        <Link href="/" style={{ display: "inline-flex", color: "inherit", textDecoration: "none" }}>
+          <Logo size={56} />
+        </Link>
         <p className={styles.tagline}>{t("login.tagline")}</p>
       </div>
 

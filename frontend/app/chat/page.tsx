@@ -519,6 +519,14 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
     setKbResults(results);
   }
 
+  // Municipalities have no project/customer concept at all (no
+  // project-creation UI exists for them - see MemberDashboard's identical
+  // check). The pin/switcher block below assumes an account has projects or
+  // customers to pin/switch between, which is a structural mismatch for
+  // this account type, not an empty state - so it's replaced with a static
+  // scope statement instead of the pin UI or the "create a project" nudge.
+  const isMunicipality = user?.companyType === "municipality";
+
   const accountTypeKey: TranslationKey =
     user?.companyType === "municipality"
       ? "register.typeMunicipality"
@@ -558,102 +566,117 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         <section className={`card ${styles.sidebarSection}`}>
           <h3>{tUpper("chat.yourContext")}</h3>
 
-          {/* Makes the pin's effect on chat's opening context explicit and
-              self-documenting, rather than something discovered only by
-              noticing which context chat happened to open in. */}
-          <div className={styles.contextPinBlock}>
-            {pinnedProject ? (
-              <>
-                <div className={styles.contextRow}>
-                  <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
-                  <span>{pinnedProject.customer_name || pinnedProject.name}</span>
-                </div>
-                <p className="text-muted" style={{ fontSize: "0.82rem" }}>
-                  {t("chat.context.pinnedHint")}
-                </p>
-                <div className={styles.contextPinActions}>
-                  <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
-                    {t("chat.context.changeDefault")}
-                  </button>
-                  <button type="button" className="btn btn-secondary" onClick={handleUsePublicInstead}>
-                    {t("chat.context.usePublicInstead")}
-                  </button>
-                </div>
-              </>
-            ) : (
-              <>
-                <div className={styles.contextRow}>
-                  <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
-                  <span>{t("chat.context.publicOption")}</span>
-                </div>
-                <p className="text-muted" style={{ fontSize: "0.82rem" }}>
-                  {t("chat.context.unpinnedHint")}
-                </p>
-                {projects.length > 0 ? (
-                  <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
-                    {t("chat.context.setDefault")}
-                  </button>
-                ) : (
-                  <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                    {t("chat.context.noProjectsHint")}
-                  </p>
-                )}
-              </>
-            )}
-          </div>
-
-          {/* Session-only context switcher - deliberately labeled/styled
-              distinct from the pin block above (different heading, no
-              "προεπιλογή" wording) since this changes only the CURRENT
-              conversation's scope, not the next fresh page load's. Reuses
-              the same ChatContextCombobox instance for the "set/change
-              default" actions above, per pickingDefault - never a second
-              picker component. */}
-          {projects.length > 0 && (
-            <div className={styles.contextSwitcher}>
-              <label className="text-muted" style={{ fontSize: "0.85rem" }}>
-                {pickingDefault ? t("chat.context.setDefault") : t("chat.context.switchLabel")}
-              </label>
-              {!pickingDefault && (
-                <p className="text-muted" style={{ fontSize: "0.78rem" }}>
-                  {t("chat.context.switchHint")}
-                </p>
-              )}
-              <ChatContextCombobox
-                projects={projects}
-                regions={regions}
-                placeholder={t("chat.context.switchPlaceholder")}
-                onSelect={pickingDefault ? handlePickDefault : handleSwitchContext}
-              />
-              {pickingDefault ? (
-                <button type="button" className={styles.linkButton} onClick={() => setPickingDefault(false)}>
-                  {t("common.cancel")}
-                </button>
-              ) : (
-                <div className={styles.contextRow}>
-                  <span className="text-muted">{t("chat.projectLabel")}</span>
-                  <span>
-                    {selectedProject ? selectedProject.customer_name || selectedProject.name : t("chat.context.publicOption")}
-                    {selectedProject && (
-                      <button
-                        type="button"
-                        className={styles.linkButton}
-                        onClick={() => setSelectedProjectId(null)}
-                        style={{ marginLeft: "var(--space-2)" }}
-                      >
-                        <CloseIcon size={11} />
-                      </button>
-                    )}
-                  </span>
-                </div>
-              )}
-              {selectedRegionName && (
-                <div className={styles.contextRow}>
-                  <span className="text-muted">{t("chat.regionLabel")}</span>
-                  <span>{selectedRegionName}</span>
-                </div>
-              )}
+          {isMunicipality ? (
+            // Municipalities structurally have no project/customer concept
+            // (no project-creation UI exists for them at all) - the pin and
+            // switcher below don't apply, and neither does the "create a
+            // project" nudge, since creating one isn't a real next action
+            // for this account type.
+            <div className={styles.contextPinBlock}>
+              <p className="text-muted" style={{ fontSize: "0.85rem" }}>
+                {t("chat.context.municipalityScope")}
+              </p>
             </div>
+          ) : (
+            <>
+              {/* Makes the pin's effect on chat's opening context explicit and
+                  self-documenting, rather than something discovered only by
+                  noticing which context chat happened to open in. */}
+              <div className={styles.contextPinBlock}>
+                {pinnedProject ? (
+                  <>
+                    <div className={styles.contextRow}>
+                      <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
+                      <span>{pinnedProject.customer_name || pinnedProject.name}</span>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: "0.82rem" }}>
+                      {t("chat.context.pinnedHint")}
+                    </p>
+                    <div className={styles.contextPinActions}>
+                      <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
+                        {t("chat.context.changeDefault")}
+                      </button>
+                      <button type="button" className="btn btn-secondary" onClick={handleUsePublicInstead}>
+                        {t("chat.context.usePublicInstead")}
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className={styles.contextRow}>
+                      <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
+                      <span>{t("chat.context.publicOption")}</span>
+                    </div>
+                    <p className="text-muted" style={{ fontSize: "0.82rem" }}>
+                      {t("chat.context.unpinnedHint")}
+                    </p>
+                    {projects.length > 0 ? (
+                      <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
+                        {t("chat.context.setDefault")}
+                      </button>
+                    ) : (
+                      <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                        {t("chat.context.noProjectsHint")}
+                      </p>
+                    )}
+                  </>
+                )}
+              </div>
+
+              {/* Session-only context switcher - deliberately labeled/styled
+                  distinct from the pin block above (different heading, no
+                  "προεπιλογή" wording) since this changes only the CURRENT
+                  conversation's scope, not the next fresh page load's. Reuses
+                  the same ChatContextCombobox instance for the "set/change
+                  default" actions above, per pickingDefault - never a second
+                  picker component. */}
+              {projects.length > 0 && (
+                <div className={styles.contextSwitcher}>
+                  <label className="text-muted" style={{ fontSize: "0.85rem" }}>
+                    {pickingDefault ? t("chat.context.setDefault") : t("chat.context.switchLabel")}
+                  </label>
+                  {!pickingDefault && (
+                    <p className="text-muted" style={{ fontSize: "0.78rem" }}>
+                      {t("chat.context.switchHint")}
+                    </p>
+                  )}
+                  <ChatContextCombobox
+                    projects={projects}
+                    regions={regions}
+                    placeholder={t("chat.context.switchPlaceholder")}
+                    onSelect={pickingDefault ? handlePickDefault : handleSwitchContext}
+                  />
+                  {pickingDefault ? (
+                    <button type="button" className={styles.linkButton} onClick={() => setPickingDefault(false)}>
+                      {t("common.cancel")}
+                    </button>
+                  ) : (
+                    <div className={styles.contextRow}>
+                      <span className="text-muted">{t("chat.projectLabel")}</span>
+                      <span>
+                        {selectedProject ? selectedProject.customer_name || selectedProject.name : t("chat.context.publicOption")}
+                        {selectedProject && (
+                          <button
+                            type="button"
+                            className={styles.linkButton}
+                            onClick={() => setSelectedProjectId(null)}
+                            style={{ marginLeft: "var(--space-2)" }}
+                          >
+                            <CloseIcon size={11} />
+                          </button>
+                        )}
+                      </span>
+                    </div>
+                  )}
+                  {selectedRegionName && (
+                    <div className={styles.contextRow}>
+                      <span className="text-muted">{t("chat.regionLabel")}</span>
+                      <span>{selectedRegionName}</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           )}
 
           {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (

@@ -86,6 +86,10 @@
   --radius-lg: 24px;
 
   --font-sans: var(--font-body), system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  /* Headings only (see the `h1..h6` rule below) - the serif half of the
+     Source Sans 3 / Source Serif 4 pairing introduced for the Phase 4
+     landing page, now applied app-wide per explicit follow-up request. */
+  --font-serif: var(--font-heading), Georgia, serif;
 
   /* Admin-redesign palette (Theke Admin design handoff), now used for the
      app's global sidebar/top-bar chrome as well as the super-admin screens
@@ -319,6 +323,20 @@ body {
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   min-height: 100dvh;
+}
+
+/* App-wide per the Phase 4 landing-page font pairing extended to the rest
+   of the app - every heading tag, not just the landing page's own. No
+   component overrides this today (verified before adding), so this alone
+   covers dashboard/admin/chat/etc. headings without touching their own
+   CSS. */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: var(--font-serif);
 }
 
 a {

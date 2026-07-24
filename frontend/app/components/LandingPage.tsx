@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect } from "react";
-import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
 
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
@@ -10,22 +9,6 @@ import { LegalFooter } from "./LegalFooter";
 import { Logo, LogoMark } from "./Logo";
 import { ThemeToggle } from "./ThemeToggle";
 import styles from "./LandingPage.module.css";
-
-// The design handoff specifies Source Serif 4 (headings) + Source Sans 3
-// (body) - the app's own real font stack (Inter, see layout.tsx) has no
-// serif face to substitute for, so these are loaded fresh and scoped to
-// this page only via CSS variables, rather than touching the app-wide
-// --font-body/--font-sans used everywhere else.
-const sourceSerif = Source_Serif_4({
-  subsets: ["latin", "greek"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-landing-serif",
-});
-const sourceSans = Source_Sans_3({
-  subsets: ["latin", "greek"],
-  weight: ["400", "500", "600", "700"],
-  variable: "--font-landing-sans",
-});
 
 // Ports the design handoff's own IntersectionObserver reveal logic
 // (see Theke Landing Page.dc.html's _setupReveal()) as a plain effect
@@ -106,7 +89,7 @@ export function LandingPage() {
   useScrollReveal();
 
   return (
-    <div className={`${sourceSerif.variable} ${sourceSans.variable} ${styles.root}`} id="top">
+    <div className={styles.root} id="top">
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a href="#top" className={styles.wordmark}>

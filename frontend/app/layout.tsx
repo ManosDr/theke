@@ -1,5 +1,5 @@
 import type { Metadata, Viewport } from "next";
-import { Inter } from "next/font/google";
+import { Source_Sans_3, Source_Serif_4 } from "next/font/google";
 import type { ReactNode } from "react";
 
 import { ChunkErrorRecovery } from "./components/ChunkErrorRecovery";
@@ -8,13 +8,21 @@ import { Providers } from "./providers";
 import "./globals.css";
 import "leaflet/dist/leaflet.css";
 
-// Inter, not the reference design's exact face (unrecoverable from a
-// vector-only export - text was already converted to paths), chosen because
-// it covers the Greek subset that most of this app's UI text needs.
-const inter = Inter({
+// Source Sans 3 (body) + Source Serif 4 (headings) - the pairing from the
+// Phase 4 landing-page design handoff, now the app-wide type system per
+// explicit follow-up request rather than staying scoped to that one page.
+// Both cover the Greek subset that most of this app's UI text needs.
+// Replaces the earlier Inter-only stack (see globals.css's --font-sans/
+// --font-serif for where each variable is actually applied).
+const sourceSans = Source_Sans_3({
   subsets: ["latin", "greek"],
-  weight: ["400", "500", "600", "700", "800"],
+  weight: ["400", "500", "600", "700"],
   variable: "--font-body",
+});
+const sourceSerif = Source_Serif_4({
+  subsets: ["latin", "greek"],
+  weight: ["400", "500", "600", "700"],
+  variable: "--font-heading",
 });
 
 export const metadata: Metadata = {
@@ -54,7 +62,7 @@ const THEME_INIT_SCRIPT = `
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="en" className={inter.variable} suppressHydrationWarning>
+    <html lang="en" className={`${sourceSans.variable} ${sourceSerif.variable}`} suppressHydrationWarning>
       <head>
         <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
       </head>

@@ -6,16 +6,16 @@
    the existing --admin-* tokens (see color-tokens.md). No new tokens. */
 
 .root {
-  font-family: var(--font-landing-sans), var(--font-sans);
   background: var(--color-bg);
   color: var(--color-text);
   overflow-x: hidden;
 }
 
+/* font-family comes from globals.css's app-wide h1..h6 rule now - just the
+   margin reset stays local (each heading class below sets its own spacing). */
 .root h1,
 .root h2,
 .root h3 {
-  font-family: var(--font-landing-serif), Georgia, serif;
   margin: 0;
 }
 
@@ -306,7 +306,7 @@
   width: 44px;
   height: 44px;
   border-radius: 11px;
-  font-family: var(--font-landing-serif), serif;
+  font-family: var(--font-serif);
   font-weight: 700;
   font-size: 1.05rem;
   display: flex;
@@ -503,7 +503,7 @@
 }
 
 .honestyTitle {
-  font-family: var(--font-landing-serif), serif;
+  font-family: var(--font-serif);
   font-weight: 600;
   font-size: 1.2rem;
   margin: 0 0 10px;

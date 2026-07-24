@@ -53,6 +53,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
 
   const [tagline, setTagline] = useState(vertical.tagline ?? "");
   const [welcomeMessage, setWelcomeMessage] = useState(vertical.welcome_message ?? "");
+  const [welcomeMessageEn, setWelcomeMessageEn] = useState(vertical.welcome_message_en ?? "");
   const [disclaimerText, setDisclaimerText] = useState(vertical.disclaimer_text ?? "");
   const [disclaimerTextEn, setDisclaimerTextEn] = useState(vertical.disclaimer_text_en ?? "");
   const [offTopicHint, setOffTopicHint] = useState(vertical.off_topic_hint ?? "");
@@ -80,6 +81,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
           // blanked by the next unrelated save).
           tagline: tagline || null,
           welcome_message: welcomeMessage || null,
+          welcome_message_en: welcomeMessageEn || null,
           disclaimer_text: disclaimerText || null,
           disclaimer_text_en: disclaimerTextEn || null,
           off_topic_hint: offTopicHint || null,
@@ -108,6 +110,11 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
       <div className={styles.field}>
         <label>{t("verticalEditor.welcomeMessage")}</label>
         <textarea rows={2} value={welcomeMessage} onChange={(e) => setWelcomeMessage(e.target.value)} />
+      </div>
+
+      <div className={styles.field}>
+        <label>{t("verticalEditor.welcomeMessageEn")}</label>
+        <textarea rows={2} value={welcomeMessageEn} onChange={(e) => setWelcomeMessageEn(e.target.value)} />
       </div>
 
       <div className={styles.field}>

@@ -169,6 +169,7 @@ export interface MyCompanySummary {
   vertical_display_name: string;
   vertical_tagline: string | null;
   vertical_welcome_message: string | null;
+  vertical_welcome_message_en: string | null;
   vertical_disclaimer_text: string | null;
   vertical_disclaimer_text_en: string | null;
   vertical_uses_regional_scoping: boolean;
@@ -692,6 +693,7 @@ export interface VerticalSummary {
   display_name: string;
   tagline: string | null;
   welcome_message: string | null;
+  welcome_message_en: string | null;
   disclaimer_text: string | null;
   disclaimer_text_en: string | null;
   system_prompt_override: string | null;

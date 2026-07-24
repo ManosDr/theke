@@ -429,6 +429,7 @@ CREATE TABLE IF NOT EXISTS verticals (
     display_name VARCHAR NOT NULL,
     tagline TEXT,
     welcome_message TEXT,
+    welcome_message_en TEXT,
     disclaimer_text TEXT,
     disclaimer_text_en TEXT,
     system_prompt_override TEXT,
@@ -441,6 +442,7 @@ CREATE TABLE IF NOT EXISTS verticals (
 -- companies.vertical_id a few lines down for the same idempotent-retrofit
 -- pattern.
 ALTER TABLE verticals ADD COLUMN IF NOT EXISTS disclaimer_text_en TEXT;
+ALTER TABLE verticals ADD COLUMN IF NOT EXISTS welcome_message_en TEXT;
 
 INSERT INTO verticals (
     slug, display_name, tagline, welcome_message, disclaimer_text, uses_regional_scoping
@@ -473,6 +475,14 @@ UPDATE verticals SET disclaimer_text_en =
     WHERE slug = 'construction';
 UPDATE verticals SET disclaimer_text_en =
     'The information above is for informational purposes only. Consult a licensed accountant or tax advisor for your specific matter.'
+    WHERE slug = 'tax_accounting';
+
+-- English welcome-message translations (Phase 3) - same backfill pattern.
+UPDATE verticals SET welcome_message_en =
+    'Ask about building permit requirements, document checks, or YDOM (building authority) procedures for your area.'
+    WHERE slug = 'construction';
+UPDATE verticals SET welcome_message_en =
+    'Ask about tax obligations, AADE circulars, VAT, ENFIA, or any tax topic.'
     WHERE slug = 'tax_accounting';
 
 -- Every company belongs to exactly one vertical (a firm doing both

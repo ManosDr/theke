@@ -2030,6 +2030,7 @@ async def list_verticals(
             display_name=v.display_name,
             tagline=v.tagline,
             welcome_message=v.welcome_message,
+            welcome_message_en=v.welcome_message_en,
             disclaimer_text=v.disclaimer_text,
             disclaimer_text_en=v.disclaimer_text_en,
             system_prompt_override=v.system_prompt_override,
@@ -2061,6 +2062,8 @@ async def update_vertical(
         vertical.tagline = payload.tagline
     if payload.welcome_message is not None:
         vertical.welcome_message = payload.welcome_message
+    if payload.welcome_message_en is not None:
+        vertical.welcome_message_en = payload.welcome_message_en
     if payload.disclaimer_text is not None:
         vertical.disclaimer_text = payload.disclaimer_text
     if payload.disclaimer_text_en is not None:
@@ -2086,6 +2089,7 @@ async def update_vertical(
         display_name=vertical.display_name,
         tagline=vertical.tagline,
         welcome_message=vertical.welcome_message,
+        welcome_message_en=vertical.welcome_message_en,
         disclaimer_text=vertical.disclaimer_text,
         disclaimer_text_en=vertical.disclaimer_text_en,
         system_prompt_override=vertical.system_prompt_override,

@@ -15,6 +15,10 @@ class Vertical(Base):
     display_name: Mapped[str] = mapped_column(Text)
     tagline: Mapped[str | None] = mapped_column(Text)
     welcome_message: Mapped[str | None] = mapped_column(Text)
+    # English translation of welcome_message, same fallback pattern as
+    # disclaimer_text_en below - the chat page's empty-state copy falls
+    # back to Greek when this is null.
+    welcome_message_en: Mapped[str | None] = mapped_column(Text)
     disclaimer_text: Mapped[str | None] = mapped_column(Text)
     # English translation of disclaimer_text, edited separately in the
     # Vertical Content Editor - get_disclaimer() falls back to the Greek

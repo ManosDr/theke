@@ -608,15 +608,22 @@ async def chat_message(
     that point (topic guard, embedding, completion) is one OpenAI-dependent
     block wrapped in a single try/except -> 503 on any OpenAIError.
     """
+    # payload.preferred_locale (the frontend's current in-memory locale)
+    # wins over the DB value when present - see ChatMessageRequest's own
+    # comment for why: closes a race window where a just-toggled language
+    # hasn't reached the DB yet via the fire-and-forget PATCH
+    # /auth/me/locale call.
+    locale = payload.preferred_locale if payload.preferred_locale in ("en", "el") else user.preferred_locale
+
     question = payload.query.strip()
     if not question:
-        return ChatMessageResponse(answer=_gap_response(user.preferred_locale), citations=[], gap=True)
+        return ChatMessageResponse(answer=_gap_response(locale), citations=[], gap=True)
     if len(question) > MAX_QUERY_LENGTH:
-        detail = QUERY_TOO_LONG_MESSAGE_EN if user.preferred_locale == "en" else QUERY_TOO_LONG_MESSAGE
+        detail = QUERY_TOO_LONG_MESSAGE_EN if locale == "en" else QUERY_TOO_LONG_MESSAGE
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=detail)
 
     if not check_chat_rate_limit(user.user_id):
-        detail = CHAT_RATE_LIMIT_MESSAGE_EN if user.preferred_locale == "en" else CHAT_RATE_LIMIT_MESSAGE
+        detail = CHAT_RATE_LIMIT_MESSAGE_EN if locale == "en" else CHAT_RATE_LIMIT_MESSAGE
         raise HTTPException(status_code=status.HTTP_429_TOO_MANY_REQUESTS, detail=detail)
 
     # Company-level billing quota, independent of the per-user hourly rate
@@ -626,7 +633,7 @@ async def chat_message(
     usage: SubscriptionUsage | None = None
     if user.company_id is not None:
         company = db.get(Company, user.company_id)
-        _sub, _plan, usage, block = check_subscription(db, company, user.preferred_locale)
+        _sub, _plan, usage, block = check_subscription(db, company, locale)
         if block:
             return JSONResponse(status_code=status.HTTP_402_PAYMENT_REQUIRED, content=block)
 
@@ -642,7 +649,7 @@ async def chat_message(
         client = OpenAI(api_key=settings.openai_api_key)
 
         if _is_off_topic(client, question, vertical):
-            gap_response = _gap_response(user.preferred_locale)
+            gap_response = _gap_response(locale)
             session_id = _log_session(
                 db, user, payload.project_id, question, gap_response, tool_used="off_topic_guard", gap=True,
                 usage=usage,
@@ -654,7 +661,7 @@ async def chat_message(
         # `question` itself stays English (used for the LLM prompt, logging,
         # and the off-topic guard above, which already handles English
         # directly per Phase 1e).
-        retrieval_query = _translate_query_to_greek(client, question) if user.preferred_locale == "en" else question
+        retrieval_query = _translate_query_to_greek(client, question) if locale == "en" else question
 
         decomposed = len(decompose_query(retrieval_query)) > 1
 
@@ -678,14 +685,14 @@ async def chat_message(
                 and project.archaeological_flag
                 and project.archaeological_notes
             ):
-                is_en = user.preferred_locale == "en"
-                archaeological_contact_lines = _gap_contact_lines(db, region_id, user.preferred_locale)
+                is_en = locale == "en"
+                archaeological_contact_lines = _gap_contact_lines(db, region_id, locale)
                 contact_label = CONTACT_INFO_LABEL_EN if is_en else CONTACT_INFO_LABEL
                 location_lead = NO_KB_DOCS_LOCATION_LEAD_EN if is_en else NO_KB_DOCS_LOCATION_LEAD
                 gap_answer = (
                     f"{location_lead}\n\n{project.archaeological_notes}"
                     + (f"\n\n{contact_label}\n{archaeological_contact_lines}" if archaeological_contact_lines else "")
-                    + f"\n\n{get_disclaimer(vertical, user.preferred_locale)}"
+                    + f"\n\n{get_disclaimer(vertical, locale)}"
                 )
                 session_id = _log_session(
                     db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True,
@@ -693,9 +700,9 @@ async def chat_message(
                 )
                 return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
-            contact_lines = _gap_contact_lines(db, region_id, user.preferred_locale)
-            gap_response = _gap_response(user.preferred_locale)
-            contact_label = CONTACT_INFO_LABEL_EN if user.preferred_locale == "en" else CONTACT_INFO_LABEL
+            contact_lines = _gap_contact_lines(db, region_id, locale)
+            gap_response = _gap_response(locale)
+            contact_label = CONTACT_INFO_LABEL_EN if locale == "en" else CONTACT_INFO_LABEL
             gap_answer = (
                 f"{gap_response}\n\n{contact_label}\n{contact_lines}"
                 if contact_lines
@@ -716,7 +723,7 @@ async def chat_message(
         )
 
         system_prompt = get_system_prompt(vertical)
-        if user.preferred_locale == "en":
+        if locale == "en":
             system_prompt = f"{system_prompt}\n\n{LANGUAGE_RULE_EN}"
         if location_context:
             system_prompt = (
@@ -742,11 +749,11 @@ async def chat_message(
         completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI call failed: %s", exc)
-        detail = SERVICE_UNAVAILABLE_MESSAGE_EN if user.preferred_locale == "en" else SERVICE_UNAVAILABLE_MESSAGE
+        detail = SERVICE_UNAVAILABLE_MESSAGE_EN if locale == "en" else SERVICE_UNAVAILABLE_MESSAGE
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail) from exc
 
     if not raw_answer:
-        gap_response = _gap_response(user.preferred_locale)
+        gap_response = _gap_response(locale)
         _log_session(
             db,
             user,
@@ -762,7 +769,7 @@ async def chat_message(
         )
         return ChatMessageResponse(answer=gap_response, citations=[], gap=True)
 
-    answer = f"{raw_answer}\n\n{get_disclaimer(vertical, user.preferred_locale)}"
+    answer = f"{raw_answer}\n\n{get_disclaimer(vertical, locale)}"
 
     seen_ids: set[int] = set()
     citations: list[ChatMessageCitation] = []

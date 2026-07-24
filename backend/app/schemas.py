@@ -144,6 +144,13 @@ class ChatMessageRequest(BaseModel):
     query: str
     conversation_history: list[ChatHistoryTurn] = []
     project_id: int | None = None
+    # Optional: the frontend's current in-memory locale, sent explicitly so
+    # a language toggle takes effect on the very next message even if the
+    # PATCH /auth/me/locale request it fired (fire-and-forget, not awaited -
+    # see i18n.tsx's setLocale()) hasn't landed in the DB yet. Falls back to
+    # CurrentUser.preferred_locale (the DB value) when omitted, so older
+    # clients or direct API callers are unaffected.
+    preferred_locale: str | None = None
 
 
 class ChatMessageCitation(BaseModel):
@@ -545,6 +552,7 @@ class MyCompanySummary(BaseModel):
     vertical_display_name: str
     vertical_tagline: str | None
     vertical_welcome_message: str | None
+    vertical_welcome_message_en: str | None
     vertical_disclaimer_text: str | None
     vertical_disclaimer_text_en: str | None
     vertical_uses_regional_scoping: bool
@@ -1023,6 +1031,7 @@ class VerticalSummary(BaseModel):
     display_name: str
     tagline: str | None
     welcome_message: str | None
+    welcome_message_en: str | None
     disclaimer_text: str | None
     disclaimer_text_en: str | None
     system_prompt_override: str | None
@@ -1034,6 +1043,10 @@ class VerticalSummary(BaseModel):
 class VerticalUpdateRequest(BaseModel):
     tagline: str | None = None
     welcome_message: str | None = None
+    # English translation - the chat page's empty-state copy falls back to
+    # welcome_message (Greek) when this is null, same pattern as
+    # disclaimer_text_en below.
+    welcome_message_en: str | None = None
     # Matches the frontend textarea's cap (VerticalEditorPanel.tsx) - this is
     # the disclaimer appended to every chat answer, so it needs to stay short
     # regardless of which path (UI or a direct API call) sets it.

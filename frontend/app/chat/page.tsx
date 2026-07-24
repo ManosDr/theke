@@ -394,6 +394,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           query: question,
           conversation_history: history,
           project_id: selectedProjectId ?? undefined,
+          preferred_locale: locale,
         },
         token,
         CHAT_TIMEOUT_MS
@@ -720,7 +721,11 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               <div className={styles.emptyStateIcon}>
                 <ChatIcon size={24} />
               </div>
-              <p className={styles.emptyState}>{company?.vertical_welcome_message || t("chat.placeholder")}</p>
+              <p className={styles.emptyState}>
+                {(locale === "en" ? company?.vertical_welcome_message_en : null) ||
+                  company?.vertical_welcome_message ||
+                  t("chat.placeholder")}
+              </p>
               <div className={styles.suggestionChips}>
                 {suggestionKeys.map((key) => (
                   <button

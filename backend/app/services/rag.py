@@ -171,6 +171,120 @@ def _merge_decomposed_hits(chunk_lists: list[list["RetrievedChunk"]], top_k: int
     return merged
 
 
+def _merge_locale_variants(
+    english_hits: list[RetrievedChunk],
+    greek_hits: list[RetrievedChunk],
+    top_k: int,
+) -> list[RetrievedChunk]:
+    """Fuses two already-hybrid-ranked retrieval passes for the SAME
+    question in two phrasings - the raw English query and its
+    _translate_query_to_greek() translation (see retrieve_bilingual()) -
+    via Reciprocal Rank Fusion over each chunk's rank position in either
+    list. Same RRF math as the vector/keyword fusion in
+    _retrieve_single_pass, just applied one level up: two query variants
+    instead of two ranking methods.
+
+    Exists because the translated-query-only approach (Phase 2's fix for
+    the original English-retrieval gap) still has its own gap: an
+    LLM-generated Greek paraphrase can itself land far enough from a
+    document's embedding to miss it, even though the *original* English
+    query's own cross-lingual embedding similarity (Phase 1d's original,
+    not-fully-reliable-alone bet) would have found it - confirmed
+    reproducible on the "supplementary works on a public contract"
+    question (Part D bilingual sample, 2026-07-24): the Greek translation's
+    retrieval pass missed the bridge document entirely, but is exactly the
+    kind of case a second, independent query variant is positioned to
+    rescue. Rather than picking one phrasing, both get a vote.
+
+    Deliberately keyed by (document_id, chunk_text) - the same dedup key
+    _merge_decomposed_hits uses - so a chunk that both passes agree on
+    doesn't get counted twice or lose the tighter of its two distances.
+    """
+    english_rank = {(c.document_id, c.chunk_text): i + 1 for i, c in enumerate(english_hits)}
+    greek_rank = {(c.document_id, c.chunk_text): i + 1 for i, c in enumerate(greek_hits)}
+
+    best_by_key: dict[tuple[int, str], RetrievedChunk] = {}
+    for chunk in english_hits + greek_hits:
+        key = (chunk.document_id, chunk.chunk_text)
+        existing = best_by_key.get(key)
+        if existing is None or chunk.distance < existing.distance:
+            best_by_key[key] = chunk
+
+    # A key absent from one list never ranked in that pass at all - scored
+    # as just past that pass's own result window, same convention as
+    # _retrieve_single_pass's vector/keyword fallback rank.
+    fallback_rank = top_k + 1
+    scored = [
+        (
+            1.0 / (_RRF_K + english_rank.get(key, fallback_rank))
+            + 1.0 / (_RRF_K + greek_rank.get(key, fallback_rank)),
+            chunk,
+        )
+        for key, chunk in best_by_key.items()
+    ]
+    scored.sort(key=lambda item: item[0], reverse=True)
+
+    # Same per-document diversity cap as _retrieve_single_pass - merging
+    # two independently-diversified top_k lists can otherwise let one
+    # document exceed _MAX_CHUNKS_PER_DOCUMENT again (e.g. 2 of its chunks
+    # survive in each pass).
+    diversified: list[RetrievedChunk] = []
+    per_document_count: dict[int, int] = {}
+    for _fused_score, chunk in scored:
+        if per_document_count.get(chunk.document_id, 0) >= _MAX_CHUNKS_PER_DOCUMENT:
+            continue
+        per_document_count[chunk.document_id] = per_document_count.get(chunk.document_id, 0) + 1
+        diversified.append(chunk)
+        if len(diversified) >= top_k:
+            break
+    return diversified
+
+
+def retrieve_bilingual(
+    db: Session,
+    user: CurrentUser,
+    original_query: str,
+    translated_query: str,
+    top_k: int,
+    vertical_id: int | None,
+    region_id: str | None = None,
+    project_id: int | None = None,
+    customer_id: int | None = None,
+    plot_in_plan: bool | None = None,
+) -> list[RetrievedChunk]:
+    """Entry point for chat_message()'s retrieval when the caller's locale
+    is English: runs TWO independent retrieval passes - one on the raw
+    English query, one on its Greek translation - and fuses them with RRF
+    (see _merge_locale_variants). The original English query's own
+    cross-lingual embedding similarity can surface a genuine match the
+    translation's paraphrase misses, or vice versa; merging means either
+    one succeeding is enough, rather than the whole answer depending on
+    one single-shot LLM translation being embedding-adjacent to the source
+    documents (see _merge_locale_variants's docstring for the specific
+    confirmed miss this fixes).
+
+    Short-circuits to a single _retrieve() call when the two query strings
+    are identical (i.e. the Greek-locale caller, where translated_query is
+    just `question` unchanged) - no behavior or cost change for the
+    majority-Greek traffic this whole bilingual path doesn't apply to.
+    """
+    if original_query == translated_query:
+        return _retrieve(
+            db, user, original_query, top_k, vertical_id,
+            region_id=region_id, project_id=project_id, customer_id=customer_id, plot_in_plan=plot_in_plan,
+        )
+
+    english_hits = _retrieve(
+        db, user, original_query, top_k, vertical_id,
+        region_id=region_id, project_id=project_id, customer_id=customer_id, plot_in_plan=plot_in_plan,
+    )
+    greek_hits = _retrieve(
+        db, user, translated_query, top_k, vertical_id,
+        region_id=region_id, project_id=project_id, customer_id=customer_id, plot_in_plan=plot_in_plan,
+    )
+    return _merge_locale_variants(english_hits, greek_hits, top_k)
+
+
 def _retrieve(
     db: Session,
     user: CurrentUser,

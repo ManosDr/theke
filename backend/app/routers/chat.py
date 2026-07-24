@@ -25,9 +25,9 @@ from app.schemas import (
 )
 from app.services.rag import (
     _passes_hybrid_threshold,
-    _retrieve,
     build_location_context,
     decompose_query,
+    retrieve_bilingual,
     search_regulation,
 )
 from app.services.rate_limit import CHAT_MESSAGE_LIMIT, check_chat_rate_limit, get_chat_rate_limit_status
@@ -714,9 +714,17 @@ async def chat_message(
 
         decomposed = len(decompose_query(retrieval_query)) > 1
 
-        raw_hits = _retrieve(
+        # retrieve_bilingual() runs a second, independent retrieval pass on
+        # the raw English `question` alongside `retrieval_query`'s Greek
+        # translation and RRF-fuses the two when locale == "en" (it's a
+        # no-op single pass otherwise, since retrieval_query == question for
+        # a Greek-locale caller) - see its own docstring for the confirmed
+        # miss (a translated query landing far enough from a document's
+        # embedding to lose it) this exists to rescue.
+        raw_hits = retrieve_bilingual(
             db,
             user,
+            question,
             retrieval_query,
             settings.rag_top_k,
             vertical.id if vertical else None,

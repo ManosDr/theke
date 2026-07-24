@@ -124,6 +124,47 @@ def _is_off_topic(client: OpenAI, question: str, vertical: Vertical) -> bool:
     return verdict.startswith("OFF_TOPIC")
 
 
+_TRANSLATE_TO_GREEK_PROMPT = (
+    "Translate the user's question into Greek. This translation is used ONLY to "
+    "search a document database by semantic similarity - it will never be read "
+    "by a person - so exact, literal terminology matters far more than natural "
+    "fluency or idiomatic phrasing. For every technical, legal, financial, or "
+    "domain-specific term or verb, use the single most standard, most commonly "
+    "used Greek term for that exact concept in Greek legal/technical writing, "
+    "not a fluent-sounding synonym or paraphrase - e.g. prefer the term a Greek "
+    "law or regulation would actually use over a conversational alternative. "
+    "Mirror the original sentence's structure and word order as closely as "
+    "correct Greek grammar allows, rather than restructuring for natural flow. "
+    "Return ONLY the Greek translation, with no preamble, quotation marks, or "
+    "commentary."
+)
+
+
+def _translate_query_to_greek(client: OpenAI, question: str) -> str:
+    """Phase 2 of the bilingual chat work found that GPT-4o's own
+    cross-lingual understanding (the original Phase 1d bet - retrieve
+    directly on the English query, no translation) does NOT reliably match
+    Greek-query retrieval quality: a same-sample comparison run showed
+    embedding distances for several English queries missing the confidence
+    cutoff entirely (0 hits) where the identical question in Greek returned
+    several close matches - including one of the two flagship benchmark
+    questions used on the public landing page. Translating the query to
+    Greek before embedding it (this function's only caller: chat_message(),
+    only for `preferred_locale == "en"`, retrieval only - the original
+    English `question` is still what's sent to the final generation call
+    and logged) closed that gap in verification. See KNOWN_DECISIONS.md."""
+    completion = client.chat.completions.create(
+        model=settings.chat_model,
+        messages=[
+            {"role": "system", "content": _TRANSLATE_TO_GREEK_PROMPT},
+            {"role": "user", "content": question},
+        ],
+        temperature=0,
+    )
+    translated = (completion.choices[0].message.content or "").strip()
+    return translated or question
+
+
 CHAT_MESSAGE_GAP_RESPONSE = (
     "Δεν διαθέτω αρκετά αξιόπιστη πηγή στη βάση γνώσης για να απαντήσω σε αυτή την ερώτηση "
     "με βεβαιότητα. Δοκιμάστε να αναδιατυπώσετε την ερώτηση, ή δείτε την ενότητα Αναζήτηση."
@@ -608,12 +649,19 @@ async def chat_message(
             )
             return ChatMessageResponse(answer=gap_response, citations=[], gap=True, session_id=session_id)
 
-        decomposed = len(decompose_query(question)) > 1
+        # English queries are translated to Greek for retrieval only - see
+        # _translate_query_to_greek's own docstring for why this exists.
+        # `question` itself stays English (used for the LLM prompt, logging,
+        # and the off-topic guard above, which already handles English
+        # directly per Phase 1e).
+        retrieval_query = _translate_query_to_greek(client, question) if user.preferred_locale == "en" else question
+
+        decomposed = len(decompose_query(retrieval_query)) > 1
 
         raw_hits = _retrieve(
             db,
             user,
-            question,
+            retrieval_query,
             settings.rag_top_k,
             vertical.id,
             region_id=region_id,

@@ -2031,6 +2031,7 @@ async def list_verticals(
             tagline=v.tagline,
             welcome_message=v.welcome_message,
             disclaimer_text=v.disclaimer_text,
+            disclaimer_text_en=v.disclaimer_text_en,
             system_prompt_override=v.system_prompt_override,
             off_topic_hint=v.off_topic_hint,
             uses_regional_scoping=v.uses_regional_scoping,
@@ -2062,6 +2063,8 @@ async def update_vertical(
         vertical.welcome_message = payload.welcome_message
     if payload.disclaimer_text is not None:
         vertical.disclaimer_text = payload.disclaimer_text
+    if payload.disclaimer_text_en is not None:
+        vertical.disclaimer_text_en = payload.disclaimer_text_en
     if payload.system_prompt_override is not None:
         vertical.system_prompt_override = payload.system_prompt_override
     if payload.off_topic_hint is not None:
@@ -2084,6 +2087,7 @@ async def update_vertical(
         tagline=vertical.tagline,
         welcome_message=vertical.welcome_message,
         disclaimer_text=vertical.disclaimer_text,
+        disclaimer_text_en=vertical.disclaimer_text_en,
         system_prompt_override=vertical.system_prompt_override,
         off_topic_hint=vertical.off_topic_hint,
         uses_regional_scoping=vertical.uses_regional_scoping,

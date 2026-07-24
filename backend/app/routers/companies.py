@@ -84,6 +84,7 @@ async def get_my_company(
         vertical_tagline=vertical.tagline if vertical else None,
         vertical_welcome_message=vertical.welcome_message if vertical else None,
         vertical_disclaimer_text=vertical.disclaimer_text if vertical else None,
+        vertical_disclaimer_text_en=vertical.disclaimer_text_en if vertical else None,
         vertical_uses_regional_scoping=vertical.uses_regional_scoping if vertical else True,
         legal_name=company.legal_name,
         afm=company.afm,

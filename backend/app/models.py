@@ -16,6 +16,12 @@ class Vertical(Base):
     tagline: Mapped[str | None] = mapped_column(Text)
     welcome_message: Mapped[str | None] = mapped_column(Text)
     disclaimer_text: Mapped[str | None] = mapped_column(Text)
+    # English translation of disclaimer_text, edited separately in the
+    # Vertical Content Editor - get_disclaimer() falls back to the Greek
+    # disclaimer_text when this is null (not yet translated), never a hard
+    # failure. See KNOWN_DECISIONS.md for why this got its own column
+    # instead of a hardcoded translation table.
+    disclaimer_text_en: Mapped[str | None] = mapped_column(Text)
     system_prompt_override: Mapped[str | None] = mapped_column(Text)
     off_topic_hint: Mapped[str | None] = mapped_column(Text)
     uses_regional_scoping: Mapped[bool] = mapped_column(default=True)

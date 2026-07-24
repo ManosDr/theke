@@ -170,6 +170,7 @@ export interface MyCompanySummary {
   vertical_tagline: string | null;
   vertical_welcome_message: string | null;
   vertical_disclaimer_text: string | null;
+  vertical_disclaimer_text_en: string | null;
   vertical_uses_regional_scoping: boolean;
   legal_name: string | null;
   afm: string | null;
@@ -692,6 +693,7 @@ export interface VerticalSummary {
   tagline: string | null;
   welcome_message: string | null;
   disclaimer_text: string | null;
+  disclaimer_text_en: string | null;
   system_prompt_override: string | null;
   off_topic_hint: string | null;
   uses_regional_scoping: boolean;

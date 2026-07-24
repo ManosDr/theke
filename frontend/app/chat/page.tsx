@@ -498,7 +498,10 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const suggestionKeys =
     SUGGESTION_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
 
-  const disclaimerText = company?.vertical_disclaimer_text || t("chat.disclaimer");
+  const disclaimerText =
+    (locale === "en" ? company?.vertical_disclaimer_text_en : null) ||
+    company?.vertical_disclaimer_text ||
+    t("chat.disclaimer");
   const initials = getInitials(user?.firstName, user?.lastName, user?.email);
   const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : t("chat.noProjectContext")} — ${t("chat.tapForContextSearch")}`;
 

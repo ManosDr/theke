@@ -430,12 +430,17 @@ CREATE TABLE IF NOT EXISTS verticals (
     tagline TEXT,
     welcome_message TEXT,
     disclaimer_text TEXT,
+    disclaimer_text_en TEXT,
     system_prompt_override TEXT,
     off_topic_hint TEXT,
     uses_regional_scoping BOOLEAN NOT NULL DEFAULT true,
     status VARCHAR NOT NULL DEFAULT 'active',
     created_at TIMESTAMP NOT NULL DEFAULT now()
 );
+-- Added after the table above already existed on live databases - see
+-- companies.vertical_id a few lines down for the same idempotent-retrofit
+-- pattern.
+ALTER TABLE verticals ADD COLUMN IF NOT EXISTS disclaimer_text_en TEXT;
 
 INSERT INTO verticals (
     slug, display_name, tagline, welcome_message, disclaimer_text, uses_regional_scoping
@@ -458,6 +463,17 @@ INSERT INTO verticals (
     'Οι παραπάνω πληροφορίες είναι για ενημέρωση μόνο. Συμβουλευτείτε αδειούχο λογιστή ή φοροτεχνικό για το συγκεκριμένο ζήτημά σας.',
     false
 ) ON CONFLICT (slug) DO NOTHING;
+
+-- English disclaimer translations (Phase 1f) - a plain UPDATE rather than
+-- part of the INSERTs above, same backfill pattern as the plans.
+-- annual_total_eur corrections further down, since the INSERTs'
+-- ON CONFLICT DO NOTHING never touches a row that already exists.
+UPDATE verticals SET disclaimer_text_en =
+    'The information above is for informational purposes only. Consult a licensed engineer for your specific project.'
+    WHERE slug = 'construction';
+UPDATE verticals SET disclaimer_text_en =
+    'The information above is for informational purposes only. Consult a licensed accountant or tax advisor for your specific matter.'
+    WHERE slug = 'tax_accounting';
 
 -- Every company belongs to exactly one vertical (a firm doing both
 -- construction and tax work would need two companies/tenants, not a

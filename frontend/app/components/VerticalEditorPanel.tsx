@@ -54,6 +54,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
   const [tagline, setTagline] = useState(vertical.tagline ?? "");
   const [welcomeMessage, setWelcomeMessage] = useState(vertical.welcome_message ?? "");
   const [disclaimerText, setDisclaimerText] = useState(vertical.disclaimer_text ?? "");
+  const [disclaimerTextEn, setDisclaimerTextEn] = useState(vertical.disclaimer_text_en ?? "");
   const [offTopicHint, setOffTopicHint] = useState(vertical.off_topic_hint ?? "");
   const [systemPromptOverride, setSystemPromptOverride] = useState(vertical.system_prompt_override ?? "");
   const [showSystemPrompt, setShowSystemPrompt] = useState(false);
@@ -80,6 +81,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
           tagline: tagline || null,
           welcome_message: welcomeMessage || null,
           disclaimer_text: disclaimerText || null,
+          disclaimer_text_en: disclaimerTextEn || null,
           off_topic_hint: offTopicHint || null,
           system_prompt_override: systemPromptOverride || null,
         },
@@ -92,6 +94,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
   }
 
   const disclaimerLen = disclaimerText.length;
+  const disclaimerEnLen = disclaimerTextEn.length;
 
   return (
     <div className={`card ${styles.card} ${accent}`}>
@@ -114,6 +117,19 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
           {t("verticalEditor.disclaimerCharCount", { count: disclaimerLen })}
         </span>
         <div className={styles.disclaimerPreview}>{disclaimerText}</div>
+      </div>
+
+      <div className={styles.field}>
+        <label>{t("verticalEditor.disclaimerTextEn")}</label>
+        <textarea
+          rows={3}
+          value={disclaimerTextEn}
+          onChange={(e) => setDisclaimerTextEn(e.target.value.slice(0, 200))}
+        />
+        <span className={`${styles.charCount} ${disclaimerEnLen > 180 ? styles.charCountWarn : ""}`}>
+          {t("verticalEditor.disclaimerCharCount", { count: disclaimerEnLen })}
+        </span>
+        <div className={styles.disclaimerPreview}>{disclaimerTextEn || t("verticalEditor.disclaimerTextEnEmpty")}</div>
       </div>
 
       <div className={styles.field}>

@@ -22,6 +22,7 @@ class CurrentUser:
     company_id: int | None
     role: str
     company_type: str | None
+    preferred_locale: str | None = None
 
 
 def get_current_user(
@@ -53,6 +54,7 @@ def get_current_user(
         company_id=user.company_id,
         role=user.role,
         company_type=company_type,
+        preferred_locale=user.preferred_locale,
     )
 
 

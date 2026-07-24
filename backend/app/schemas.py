@@ -546,6 +546,7 @@ class MyCompanySummary(BaseModel):
     vertical_tagline: str | None
     vertical_welcome_message: str | None
     vertical_disclaimer_text: str | None
+    vertical_disclaimer_text_en: str | None
     vertical_uses_regional_scoping: bool
     # Legal/billing details (Phase 0.5) - needed for a valid Greek invoice,
     # editable by a company admin via PATCH /companies/me/billing-details.
@@ -1023,6 +1024,7 @@ class VerticalSummary(BaseModel):
     tagline: str | None
     welcome_message: str | None
     disclaimer_text: str | None
+    disclaimer_text_en: str | None
     system_prompt_override: str | None
     off_topic_hint: str | None
     uses_regional_scoping: bool
@@ -1036,6 +1038,9 @@ class VerticalUpdateRequest(BaseModel):
     # the disclaimer appended to every chat answer, so it needs to stay short
     # regardless of which path (UI or a direct API call) sets it.
     disclaimer_text: str | None = Field(default=None, max_length=200)
+    # English translation, same cap - get_disclaimer() falls back to
+    # disclaimer_text when this is null (see models.py's Vertical comment).
+    disclaimer_text_en: str | None = Field(default=None, max_length=200)
     system_prompt_override: str | None = None
     off_topic_hint: str | None = None
 

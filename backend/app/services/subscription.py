@@ -13,7 +13,9 @@ from sqlalchemy.orm import Session
 from app.models import Company, CompanySubscription, Document, Plan, Project, SubscriptionUsage
 
 POOL_EXHAUSTED_MESSAGE = "Εξαντλήσατε τα μηνύματά σας για αυτόν τον μήνα. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
+POOL_EXHAUSTED_MESSAGE_EN = "You've used up your messages for this month. Upgrade your plan to continue."
 SUBSCRIPTION_EXPIRED_MESSAGE = "Η συνδρομή σας έχει λήξει. Ανανεώστε για να συνεχίσετε."
+SUBSCRIPTION_EXPIRED_MESSAGE_EN = "Your subscription has expired. Renew to continue."
 STORAGE_EXHAUSTED_MESSAGE = (
     "Έχετε φτάσει το όριο αποθηκευτικού χώρου του πλάνου σας. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 )
@@ -79,7 +81,7 @@ def get_or_create_usage(db: Session, company_id: int, messages_limit: int) -> Su
 
 
 def check_subscription(
-    db: Session, company: Company
+    db: Session, company: Company, locale: str | None = None
 ) -> tuple[CompanySubscription, Plan, SubscriptionUsage, dict | None]:
     """Returns (subscription, plan, usage, block). block is None if the
     company can send another message, otherwise the exact flat 402 body
@@ -93,6 +95,7 @@ def check_subscription(
     this is the only code path that actually needs the answer right now."""
     sub = get_or_create_subscription(db, company)
     plan = db.get(Plan, sub.plan_id)
+    is_en = locale == "en"
 
     if sub.status == "trial" and sub.trial_ends_at and sub.trial_ends_at < datetime.utcnow():
         sub.status = "expired"
@@ -100,14 +103,16 @@ def check_subscription(
 
     if sub.status in ("expired", "cancelled"):
         usage = get_or_create_usage(db, company.id, plan.message_pool)
-        return sub, plan, usage, {"detail": SUBSCRIPTION_EXPIRED_MESSAGE, "renewal_required": True}
+        detail = SUBSCRIPTION_EXPIRED_MESSAGE_EN if is_en else SUBSCRIPTION_EXPIRED_MESSAGE
+        return sub, plan, usage, {"detail": detail, "renewal_required": True}
 
     usage = get_or_create_usage(db, company.id, plan.message_pool)
 
     # Beta plans bypass the pool entirely - unlimited usage during soft
     # launch regardless of the message_pool number on the row.
     if not plan.is_beta and usage.messages_used >= usage.messages_limit:
-        return sub, plan, usage, {"detail": POOL_EXHAUSTED_MESSAGE, "upgrade_required": True}
+        detail = POOL_EXHAUSTED_MESSAGE_EN if is_en else POOL_EXHAUSTED_MESSAGE
+        return sub, plan, usage, {"detail": detail, "upgrade_required": True}
 
     return sub, plan, usage, None
 

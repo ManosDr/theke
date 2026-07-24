@@ -615,6 +615,11 @@ class ProjectSummary(BaseModel):
     client_notes: str | None = None
     customer_id: int | None = None
     customer_name: str | None = None
+    # Populated from the live Customer record when customer_id is set (see
+    # _to_project_summary()) - not stored on Project itself. Lets the chat
+    # context switcher search/display real customer name+AFM without a
+    # per-project follow-up call.
+    customer_afm: str | None = None
     customer_notes: str | None = None
     plot_address: str | None = None
     plot_municipality: str | None = None

@@ -33,7 +33,14 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 MAX_PROJECT_DOCUMENT_BYTES = 10 * 1024 * 1024  # 10MB
 
 
-def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
+def _to_project_summary(db: Session, p: Project, is_default: bool) -> ProjectSummary:
+    # customer_name/customer_afm prefer the live Customer record over the
+    # freeform snapshot fields when customer_id is set - same preference
+    # order the project detail page already applies client-side
+    # (customerDetail?.name || project.customer_name). Exposed here too so
+    # the chat context switcher can search/display real customer name+AFM
+    # without a per-project follow-up call.
+    customer = db.get(Customer, p.customer_id) if p.customer_id else None
     return ProjectSummary(
         id=p.id,
         name=p.name,
@@ -44,7 +51,8 @@ def _to_project_summary(p: Project, is_default: bool) -> ProjectSummary:
         is_client=p.is_client,
         client_notes=p.client_notes,
         customer_id=p.customer_id,
-        customer_name=p.customer_name,
+        customer_name=customer.name if customer else p.customer_name,
+        customer_afm=customer.afm if customer else None,
         customer_notes=p.customer_notes,
         plot_address=p.plot_address,
         plot_municipality=p.plot_municipality,
@@ -115,7 +123,7 @@ async def create_project(
     db.add(project)
     db.commit()
     db.refresh(project)
-    return _to_project_summary(project, is_default=False)
+    return _to_project_summary(db, project, is_default=False)
 
 
 @router.get("", response_model=list[ProjectSummary])
@@ -130,7 +138,7 @@ async def list_projects(
     default_ids = set(
         db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id)).all()
     )
-    return [_to_project_summary(p, is_default=p.id in default_ids) for p in projects]
+    return [_to_project_summary(db, p, is_default=p.id in default_ids) for p in projects]
 
 
 @router.get("/regions", response_model=list[RegionSummary])
@@ -163,7 +171,7 @@ async def get_project(
     default_ids = set(
         db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
     )
-    return _to_project_summary(project, is_default=project.id in default_ids)
+    return _to_project_summary(db, project, is_default=project.id in default_ids)
 
 
 @router.patch("/{project_id}", response_model=ProjectSummary)
@@ -190,7 +198,7 @@ async def update_project(
     default_ids = set(
         db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
     )
-    return _to_project_summary(project, is_default=project.id in default_ids)
+    return _to_project_summary(db, project, is_default=project.id in default_ids)
 
 
 @router.post("/{project_id}/default", status_code=status.HTTP_204_NO_CONTENT)
@@ -199,13 +207,22 @@ async def mark_default_project(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> None:
+    """Sets THE default project for this user - clears any other pin(s)
+    first, so a user never ends up with more than one at a time. The chat
+    page's initial-load logic (and now the chat context card's own
+    "Αλλαγή/Ορισμός προεπιλογής" actions) both assume exactly one default,
+    so this enforces that invariant here rather than relying on every
+    caller to unmark the old one first."""
     project = db.get(Project, project_id)
     if not project or project.company_id != user.company_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Project not found in your company")
 
+    db.query(UserDefaultProject).filter(
+        UserDefaultProject.user_id == user.user_id, UserDefaultProject.project_id != project_id
+    ).delete()
     if not db.get(UserDefaultProject, (user.user_id, project_id)):
         db.add(UserDefaultProject(user_id=user.user_id, project_id=project_id))
-        db.commit()
+    db.commit()
 
 
 @router.delete("/{project_id}/default", status_code=status.HTTP_204_NO_CONTENT)
@@ -464,7 +481,7 @@ async def update_project_location(
     default_project_ids = set(
         db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
     )
-    return _to_project_summary(project, is_default=project.id in default_project_ids)
+    return _to_project_summary(db, project, is_default=project.id in default_project_ids)
 
 
 @router.patch("/{project_id}/plot-in-plan", response_model=ProjectSummary)
@@ -487,4 +504,4 @@ async def update_plot_in_plan(
     default_project_ids = set(
         db.scalars(select(UserDefaultProject.project_id).where(UserDefaultProject.user_id == user.user_id))
     )
-    return _to_project_summary(project, is_default=project.id in default_project_ids)
+    return _to_project_summary(db, project, is_default=project.id in default_project_ids)

@@ -255,6 +255,7 @@ export interface ProjectSummary {
   client_notes?: string | null;
   customer_id?: number | null;
   customer_name?: string | null;
+  customer_afm?: string | null;
   customer_notes?: string | null;
   plot_address?: string | null;
   plot_municipality?: string | null;

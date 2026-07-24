@@ -31,26 +31,27 @@
   margin-bottom: var(--space-4);
 }
 
+/* This table has no .card/scroll-pane ancestor to contain overflow (unlike
+   the dashboard tables, which get overflow-x:auto for free from the global
+   .card class with no width restriction). Originally gated to
+   max-width:640px on the assumption only phone widths would overflow, but
+   the persistent (non-drawer) sidebar at tablet widths (e.g. 768px) leaves
+   just as little room for this table - confirmed page-level horizontal
+   scroll at 768px with the media-query version. Unconditional now, exactly
+   matching .card's own always-on overflow-x:auto: display:block keeps
+   row/cell layout intact while making the table element itself a
+   scrollable block, and is a no-op at widths where the table already fits
+   (nothing to scroll). Super admin screens like this one are desktop-first
+   by design, so this just removes the page-level scrollbar; it doesn't
+   attempt a stacked-card mobile redesign. */
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
-}
-
-/* This table has no .card/scroll-pane ancestor to contain overflow (unlike
-   the dashboard tables) - at mobile widths its many columns don't fit
-   375px, so scope the scroll to the table itself rather than the whole
-   page. table {display:block} keeps row/cell layout intact while making
-   the table element itself a scrollable block. Super admin screens like
-   this one are desktop-first by design, so this just removes the page-
-   level scrollbar; it doesn't attempt a stacked-card mobile redesign. */
-@media (max-width: 640px) {
-  .table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-  }
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
 }
 
 .table th {

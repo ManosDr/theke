@@ -20,22 +20,26 @@
   min-width: 160px;
 }
 
+/* No .card/scroll-pane ancestor to contain overflow (unlike the dashboard
+   tables, which get overflow-x:auto for free from the global .card class
+   with no width restriction). Originally gated to max-width:640px on the
+   assumption only phone widths would overflow, but the persistent
+   (non-drawer) sidebar at tablet widths (e.g. 768px) leaves just as little
+   room for this table - confirmed page-level horizontal scroll at both
+   768px and 1024px with the media-query version. Unconditional now,
+   exactly matching .card's own always-on overflow-x:auto: display:block
+   keeps row/cell layout intact while making the table element itself a
+   scrollable block, and is a no-op at widths where the table already fits
+   (nothing to scroll). See the identical fix/comment in
+   SubscriptionsPanel.module.css. */
 .table {
   width: 100%;
   border-collapse: collapse;
   font-size: 0.88rem;
-}
-
-/* No .card/scroll-pane ancestor to contain overflow - scope the scroll to
-   the table itself at mobile widths rather than the whole page. See the
-   identical fix/comment in SubscriptionsPanel.module.css. */
-@media (max-width: 640px) {
-  .table {
-    display: block;
-    overflow-x: auto;
-    -webkit-overflow-scrolling: touch;
-    white-space: nowrap;
-  }
+  display: block;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  white-space: nowrap;
 }
 
 .table th {

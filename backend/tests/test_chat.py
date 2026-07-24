@@ -70,6 +70,7 @@ def test_chat_rate_limit(client, db_session, member_headers):
     redis_client = _get_client()
     key = f"chat_msg:{user_id}"
     original = redis_client.get(key)
+    original_ttl = redis_client.ttl(key)
     try:
         redis_client.set(key, 20, ex=3600)
         resp = client.post("/chat/message", json={"query": "test rate limit"}, headers=member_headers)
@@ -79,7 +80,7 @@ def test_chat_rate_limit(client, db_session, member_headers):
         if original is None:
             redis_client.delete(key)
         else:
-            redis_client.set(key, original)
+            redis_client.set(key, original, ex=original_ttl if original_ttl and original_ttl > 0 else 3600)
 
 
 def test_chat_without_project_returns_national_only(client, db_session, member_headers):

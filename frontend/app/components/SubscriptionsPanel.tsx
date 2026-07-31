@@ -73,6 +73,8 @@ function CompaniesTab() {
   const [plans, setPlans] = useState<PlanSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [statusFilter, setStatusFilter] = useState<"" | SubscriptionEntry["status"]>("");
+  const [q, setQ] = useState("");
   const [changePlanTarget, setChangePlanTarget] = useState<SubscriptionEntry | null>(null);
   const [notesTarget, setNotesTarget] = useState<SubscriptionEntry | null>(null);
   const [invoicesTarget, setInvoicesTarget] = useState<SubscriptionEntry | null>(null);
@@ -108,6 +110,18 @@ function CompaniesTab() {
     [items]
   );
 
+  function toggleStatusFilter(status: SubscriptionEntry["status"]) {
+    setStatusFilter((current) => (current === status ? "" : status));
+  }
+
+  const query = q.trim().toLowerCase();
+  const filteredItems = items.filter((i) => {
+    if (statusFilter && i.status !== statusFilter) return false;
+    if (query && !i.company_name.toLowerCase().includes(query)) return false;
+    return true;
+  });
+  const hasFilters = Boolean(statusFilter || q);
+
   async function extendTrial(item: SubscriptionEntry) {
     const daysStr = window.prompt(t("adminSubs.extendTrialPrompt"));
     if (!daysStr) return;
@@ -135,61 +149,112 @@ function CompaniesTab() {
   return (
     <div>
       <div className={dashStyles.grid} style={{ marginBottom: "var(--space-4)" }}>
-        <StatCard
-          tone="primary"
-          icon={<ClockIcon />}
-          value={`${counts.trial}`}
-          label={
-            <>
-              {t("adminSubs.statTrial")}
-              <Tooltip text={t("adminSubs.statTrialTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-        />
-        <StatCard
-          tone="info"
-          icon={<ShieldCheckIcon />}
-          value={`${counts.active}`}
-          label={
-            <>
-              {t("adminSubs.statActive")}
-              <Tooltip text={t("adminSubs.statActiveTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-        />
-        <StatCard
-          tone="danger"
-          icon={<AlertIcon />}
-          value={`${counts.expired}`}
-          label={
-            <>
-              {t("adminSubs.statExpired")}
-              <Tooltip text={t("adminSubs.statExpiredTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-        />
-        <StatCard
-          tone="purple"
-          icon={<UsersIcon />}
-          value={`${counts.cancelled}`}
-          label={
-            <>
-              {t("adminSubs.statCancelled")}
-              <Tooltip text={t("adminSubs.statCancelledTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-        />
+        <button
+          type="button"
+          className={`${styles.statCardButton} ${statusFilter === "trial" ? styles.statCardButtonActive : ""}`}
+          aria-pressed={statusFilter === "trial"}
+          title={t("adminSubs.statFilterHint")}
+          onClick={() => toggleStatusFilter("trial")}
+        >
+          <StatCard
+            tone="primary"
+            icon={<ClockIcon />}
+            value={`${counts.trial}`}
+            label={
+              <>
+                {t("adminSubs.statTrial")}
+                <Tooltip text={t("adminSubs.statTrialTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+          />
+        </button>
+        <button
+          type="button"
+          className={`${styles.statCardButton} ${statusFilter === "active" ? styles.statCardButtonActive : ""}`}
+          aria-pressed={statusFilter === "active"}
+          title={t("adminSubs.statFilterHint")}
+          onClick={() => toggleStatusFilter("active")}
+        >
+          <StatCard
+            tone="info"
+            icon={<ShieldCheckIcon />}
+            value={`${counts.active}`}
+            label={
+              <>
+                {t("adminSubs.statActive")}
+                <Tooltip text={t("adminSubs.statActiveTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+          />
+        </button>
+        <button
+          type="button"
+          className={`${styles.statCardButton} ${statusFilter === "expired" ? styles.statCardButtonActive : ""}`}
+          aria-pressed={statusFilter === "expired"}
+          title={t("adminSubs.statFilterHint")}
+          onClick={() => toggleStatusFilter("expired")}
+        >
+          <StatCard
+            tone="danger"
+            icon={<AlertIcon />}
+            value={`${counts.expired}`}
+            label={
+              <>
+                {t("adminSubs.statExpired")}
+                <Tooltip text={t("adminSubs.statExpiredTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+          />
+        </button>
+        <button
+          type="button"
+          className={`${styles.statCardButton} ${statusFilter === "cancelled" ? styles.statCardButtonActive : ""}`}
+          aria-pressed={statusFilter === "cancelled"}
+          title={t("adminSubs.statFilterHint")}
+          onClick={() => toggleStatusFilter("cancelled")}
+        >
+          <StatCard
+            tone="purple"
+            icon={<UsersIcon />}
+            value={`${counts.cancelled}`}
+            label={
+              <>
+                {t("adminSubs.statCancelled")}
+                <Tooltip text={t("adminSubs.statCancelledTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+          />
+        </button>
       </div>
 
       <div className={styles.headerRow}>
+        <input
+          className={`input ${styles.searchInput}`}
+          type="text"
+          placeholder={t("adminSubs.searchPlaceholder")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+        />
+        {hasFilters && (
+          <button
+            type="button"
+            className={styles.clearFilters}
+            onClick={() => {
+              setStatusFilter("");
+              setQ("");
+            }}
+          >
+            {t("docs.clearFilters")}
+          </button>
+        )}
         <button type="button" className="btn btn-primary" onClick={() => setAssignOpen(true)}>
           {t("adminSubs.assignPlanButton")}
         </button>
@@ -197,6 +262,8 @@ function CompaniesTab() {
 
       {items.length === 0 ? (
         <p className={dashStyles.emptyState}>{t("adminSubs.empty")}</p>
+      ) : filteredItems.length === 0 ? (
+        <p className={dashStyles.emptyState}>{t("common.noMatches")}</p>
       ) : (
         <table className={styles.table}>
           <thead>
@@ -212,7 +279,7 @@ function CompaniesTab() {
             </tr>
           </thead>
           <tbody>
-            {items.map((item) => {
+            {filteredItems.map((item) => {
               const pct = item.messages_limit > 0 ? Math.min(100, (item.messages_used / item.messages_limit) * 100) : 0;
               return (
                 <tr key={item.company_id}>

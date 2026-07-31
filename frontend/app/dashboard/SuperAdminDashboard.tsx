@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
@@ -14,6 +15,7 @@ import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/tran
 import type {
   AdminStatsByVertical,
   AuditLogEntry,
+  AuditLogListResponse,
   CompanySummary,
   InfraHealthResponse,
   StaleDocumentSummary,
@@ -240,14 +242,14 @@ export function SuperAdminDashboard() {
     try {
       const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData] = await Promise.all([
         api.get<CompanySummary[]>("/admin/companies", token),
-        api.get<AuditLogEntry[]>("/admin/audit-log", token),
+        api.get<AuditLogListResponse>("/admin/audit-log", token),
         api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
         api.get<AdminStatsByVertical>("/admin/stats", token),
         api.get<VerticalSummary[]>("/admin/verticals", token),
         api.get<InfraHealthResponse>("/admin/infra-health", token),
       ]);
       setCompanies(companiesData);
-      setAuditLog(auditData);
+      setAuditLog(auditData.items);
       setStaleDocs(staleData);
       setStats(statsData);
       setVerticals(verticalsData);
@@ -583,6 +585,8 @@ export function SuperAdminDashboard() {
               </table>
               <p className="text-muted" style={{ marginTop: "var(--space-3)" }}>
                 {t("dash.super.showingOf", { shown: Math.min(8, scopedAuditLog.length), total: scopedAuditLog.length })}
+                {" · "}
+                <Link href="/admin/audit-log">{t("dash.super.viewAllAuditLog")}</Link>
               </p>
             </>
           ))}

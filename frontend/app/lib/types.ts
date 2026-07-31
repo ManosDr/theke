@@ -103,6 +103,11 @@ export interface AuditLogEntry {
   created_at: string;
 }
 
+export interface AuditLogListResponse {
+  items: AuditLogEntry[];
+  total: number;
+}
+
 export interface CompanySummary {
   id: number;
   name: string;

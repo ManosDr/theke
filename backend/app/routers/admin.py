@@ -43,6 +43,7 @@ from app.schemas import (
     ApplySuggestionRequest,
     AssignPlanRequest,
     AuditLogEntry,
+    AuditLogListResponse,
     BrowseResponse,
     CompanyCreateWithAdminRequest,
     CompanyCreateWithAdminResponse,
@@ -2122,26 +2123,44 @@ async def list_gap_queries(
     ]
 
 
-@router.get("/audit-log", response_model=list[AuditLogEntry])
+@router.get("/audit-log", response_model=AuditLogListResponse)
 async def platform_audit_log(
+    limit: int = Query(default=200, le=200),
+    offset: int = Query(default=0, ge=0),
+    company_id: int | None = None,
+    q: str | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
-) -> list[AuditLogEntry]:
+) -> AuditLogListResponse:
+    """Defaults (limit=200, offset=0) match the dashboard's own preview call
+    exactly, so that call site's behavior is unchanged - the drill-through
+    page (/admin/audit-log) is the only caller that passes a non-default
+    offset/company_id/q to page through the full table."""
     require_super_admin(user)
-    entries = db.scalars(select(AuditLog).order_by(AuditLog.created_at.desc()).limit(200)).all()
-    return [
-        AuditLogEntry(
-            id=e.id,
-            actor_user_id=e.actor_user_id,
-            company_id=e.company_id,
-            action=e.action,
-            resource_type=e.resource_type,
-            resource_id=e.resource_id,
-            metadata=e.log_metadata,
-            created_at=e.created_at,
-        )
-        for e in entries
-    ]
+    stmt = select(AuditLog)
+    if company_id is not None:
+        stmt = stmt.where(AuditLog.company_id == company_id)
+    if q:
+        like = f"%{q}%"
+        stmt = stmt.where(or_(AuditLog.action.ilike(like), AuditLog.resource_type.ilike(like)))
+    total = db.scalar(select(func.count()).select_from(stmt.subquery())) or 0
+    entries = db.scalars(stmt.order_by(AuditLog.created_at.desc()).limit(limit).offset(offset)).all()
+    return AuditLogListResponse(
+        items=[
+            AuditLogEntry(
+                id=e.id,
+                actor_user_id=e.actor_user_id,
+                company_id=e.company_id,
+                action=e.action,
+                resource_type=e.resource_type,
+                resource_id=e.resource_id,
+                metadata=e.log_metadata,
+                created_at=e.created_at,
+            )
+            for e in entries
+        ],
+        total=total,
+    )
 
 
 @router.get("/feedback", response_model=FeedbackListResponse)

@@ -1,0 +1,30 @@
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4) 0;
+  margin-bottom: var(--space-4);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.clearFilters {
+  border: none;
+  background: none;
+  color: var(--color-link);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0;
+  white-space: nowrap;
+}
+
+.pagination {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+}

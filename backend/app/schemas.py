@@ -440,6 +440,11 @@ class AuditLogEntry(BaseModel):
     created_at: datetime
 
 
+class AuditLogListResponse(BaseModel):
+    items: list[AuditLogEntry]
+    total: int
+
+
 class NotificationSummary(BaseModel):
     id: int
     type: str

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Fragment, useEffect, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -21,6 +21,7 @@ import { ChatIcon, DocumentsIcon } from "../components/NavIcons";
 import { DocTypeBadge } from "../components/TypeBadge";
 import { PersonIcon, PlusIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
+import ResetPasswordModal from "../components/ResetPasswordModal";
 import Tooltip from "../components/Tooltip";
 import type {
   ActivityEventEntry,
@@ -345,6 +346,8 @@ function OverviewTab({
   );
 }
 
+type UserStatusFilter = "all" | "active" | "revoked";
+
 function UsersTab({ token }: { token: string | null }) {
   const { t, tUpper } = useLocale();
   const [users, setUsers] = useState<UserSummary[]>([]);
@@ -354,6 +357,13 @@ function UsersTab({ token }: { token: string | null }) {
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [newInviteToken, setNewInviteToken] = useState<string | null>(null);
   const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
+
+  const [q, setQ] = useState("");
+  const [roleFilter, setRoleFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState<UserStatusFilter>("all");
+  const [openMenuId, setOpenMenuId] = useState<number | null>(null);
+  const [resetTarget, setResetTarget] = useState<UserSummary | null>(null);
+  const [usageTarget, setUsageTarget] = useState<UserSummary | null>(null);
 
   async function refresh() {
     if (!token) return;
@@ -371,6 +381,28 @@ function UsersTab({ token }: { token: string | null }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
+  const filteredUsers = useMemo(() => {
+    const query = q.trim().toLowerCase();
+    return users.filter((u) => {
+      if (query) {
+        const name = `${u.first_name ?? ""} ${u.last_name ?? ""}`.toLowerCase();
+        if (!name.includes(query) && !u.email.toLowerCase().includes(query)) return false;
+      }
+      if (roleFilter && u.role !== roleFilter) return false;
+      if (statusFilter === "active" && !u.is_active) return false;
+      if (statusFilter === "revoked" && u.is_active) return false;
+      return true;
+    });
+  }, [users, q, roleFilter, statusFilter]);
+
+  const hasFilters = Boolean(q || roleFilter || statusFilter !== "all");
+
+  function clearFilters() {
+    setQ("");
+    setRoleFilter("");
+    setStatusFilter("all");
+  }
+
   async function changeRole(target: UserSummary, role: "admin" | "member") {
     try {
       await api.patch(`/companies/me/users/${target.id}/role`, { role }, token);
@@ -382,6 +414,7 @@ function UsersTab({ token }: { token: string | null }) {
 
   async function toggleActive(target: UserSummary) {
     const action = target.is_active ? "revoke" : "restore";
+    setOpenMenuId(null);
     try {
       await api.post(`/companies/me/users/${target.id}/${action}`, undefined, token);
       refresh();
@@ -457,7 +490,33 @@ function UsersTab({ token }: { token: string | null }) {
         <div className={styles.sectionHeader}>
           <h2>{t("dash.company.team")}</h2>
         </div>
-        {users.length === 0 ? (
+
+        <div className={tabStyles.filterBar}>
+          <input
+            className={`input ${tabStyles.searchInput}`}
+            type="text"
+            placeholder={t("adminUsers.searchPlaceholder")}
+            value={q}
+            onChange={(e) => setQ(e.target.value)}
+          />
+          <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+            <option value="">{t("adminUsers.filterRole")}</option>
+            <option value="admin">{t("role.admin")}</option>
+            <option value="member">{t("role.member")}</option>
+          </select>
+          <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as UserStatusFilter)}>
+            <option value="all">{t("docs.filterStatus")}</option>
+            <option value="active">{t("dash.company.statusActive")}</option>
+            <option value="revoked">{t("dash.company.statusRevoked")}</option>
+          </select>
+          {hasFilters && (
+            <button type="button" className={tabStyles.clearFilters} onClick={clearFilters}>
+              {t("docs.clearFilters")}
+            </button>
+          )}
+        </div>
+
+        {filteredUsers.length === 0 ? (
           <p className={styles.emptyState}>{t("companies.noUsers")}</p>
         ) : (
           <table className={`${styles.table} ${styles.tableCompact}`}>
@@ -474,7 +533,7 @@ function UsersTab({ token }: { token: string | null }) {
               </tr>
             </thead>
             <tbody>
-              {users.map((u) => (
+              {filteredUsers.map((u) => (
                 <tr key={u.id}>
                   <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                   <td>{u.email}</td>
@@ -491,16 +550,56 @@ function UsersTab({ token }: { token: string | null }) {
                     </select>
                   </td>
                   <td className="text-muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}</td>
-                  <td>{u.messages_30d}</td>
+                  <td>
+                    <button
+                      type="button"
+                      onClick={() => setUsageTarget(u)}
+                      style={{ background: "none", border: "none", padding: 0, color: "var(--color-link)", cursor: "pointer", font: "inherit" }}
+                    >
+                      {u.messages_30d}
+                    </button>
+                  </td>
                   <td>
                     <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>
                       {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
                     </span>
                   </td>
-                  <td>
-                    <button className="btn btn-secondary" onClick={() => toggleActive(u)}>
-                      {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
+                  <td className={tabStyles.rowMenuWrap}>
+                    <button
+                      type="button"
+                      className={tabStyles.rowMenuButton}
+                      aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
+                      aria-haspopup="menu"
+                      aria-expanded={openMenuId === u.id}
+                      onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                    >
+                      ⋯
                     </button>
+                    {openMenuId === u.id && (
+                      <div className={tabStyles.rowMenu} role="menu">
+                        <button
+                          className={tabStyles.rowMenuItem}
+                          onClick={() => {
+                            setResetTarget(u);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          {t("companies.modal.resetPassword")}
+                        </button>
+                        <button
+                          className={tabStyles.rowMenuItem}
+                          onClick={() => {
+                            setUsageTarget(u);
+                            setOpenMenuId(null);
+                          }}
+                        >
+                          {t("adminUsers.menuUsage")}
+                        </button>
+                        <button className={tabStyles.rowMenuItem} onClick={() => toggleActive(u)}>
+                          {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
+                        </button>
+                      </div>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -544,6 +643,67 @@ function UsersTab({ token }: { token: string | null }) {
           </table>
         )}
       </section>
+
+      {resetTarget && (
+        <ResetPasswordModal
+          user={resetTarget}
+          token={token}
+          emailEnabled={false}
+          endpoint={`/companies/me/users/${resetTarget.id}/reset-password`}
+          onClose={() => setResetTarget(null)}
+        />
+      )}
+
+      {usageTarget && <UserUsageModal user={usageTarget} onClose={() => setUsageTarget(null)} />}
+    </div>
+  );
+}
+
+function UserUsageModal({ user, onClose }: { user: UserSummary; onClose: () => void }) {
+  const { t, tUpper } = useLocale();
+
+  useEffect(() => {
+    function handleEscape(e: KeyboardEvent) {
+      if (e.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [onClose]);
+
+  return (
+    <div className={tabStyles.modalScrim} onClick={onClose}>
+      <div className={tabStyles.modal} role="dialog" aria-modal="true" aria-labelledby="user-usage-title" onClick={(e) => e.stopPropagation()}>
+        <div className={tabStyles.modalHeader}>
+          <h2 id="user-usage-title" style={{ margin: 0 }}>
+            {t("dash.company.usageTitle")}
+          </h2>
+          <button className="btn btn-secondary" onClick={onClose}>
+            {t("companies.modal.close")}
+          </button>
+        </div>
+        <div className={tabStyles.modalSection}>
+          <div className={tabStyles.listRow}>
+            <span>{tUpper("dash.company.colName")}</span>
+            <strong>{user.first_name || user.last_name ? `${user.first_name ?? ""} ${user.last_name ?? ""}`.trim() : "—"}</strong>
+          </div>
+          <div className={tabStyles.listRow}>
+            <span>{tUpper("dash.company.colEmail")}</span>
+            <strong>{user.email}</strong>
+          </div>
+          <div className={tabStyles.listRow}>
+            <span>{tUpper("dash.company.colRole")}</span>
+            <strong>{t(`role.${user.role}` as TranslationKey)}</strong>
+          </div>
+          <div className={tabStyles.listRow}>
+            <span>{tUpper("dash.company.colLastLogin")}</span>
+            <strong>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "—"}</strong>
+          </div>
+          <div className={tabStyles.listRow}>
+            <span>{tUpper("dash.company.colMessages30d")}</span>
+            <strong>{user.messages_30d}</strong>
+          </div>
+        </div>
+      </div>
     </div>
   );
 }

@@ -313,6 +313,12 @@ class UserSummary(BaseModel):
 class AdminUserSummary(UserSummary):
     company_id: int | None = None
     company_name: str
+    vertical_slug: str | None = None
+    # Surfaced from the owning Company.is_test_account (Users has no such
+    # field of its own - see KNOWN_DECISIONS.md) so the frontend can split
+    # the Users screen into real-users vs demo-accounts tabs without a
+    # second flag.
+    is_test_account: bool = False
 
 
 # Plain-text, shown once in the confirmation modal, never stored - see

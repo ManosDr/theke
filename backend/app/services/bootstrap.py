@@ -72,7 +72,13 @@ def seed_demo_data() -> None:
                 company = companies_by_name.get(company_name)
                 if not company:
                     vertical_id = tax_vertical_id if company_type == "accounting" else construction_vertical_id
-                    company = Company(name=company_name, type=company_type, vertical_id=vertical_id)
+                    # is_test_account=True so this seeded company is excluded
+                    # from platform stats/growth alerts the same way any
+                    # other internal-testing company would be (see
+                    # Company.is_test_account), and so the super-admin Users
+                    # screen can split real vs. demo accounts by this same
+                    # existing flag rather than a new one.
+                    company = Company(name=company_name, type=company_type, vertical_id=vertical_id, is_test_account=True)
                     db.add(company)
                     db.flush()
                     companies_by_name[company_name] = company

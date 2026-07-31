@@ -1,3 +1,5 @@
+import secrets
+import string
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -6,6 +8,19 @@ from passlib.context import CryptContext
 from app.config import settings
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+# Excludes visually-ambiguous characters (0/O, 1/l/I) - a generated password
+# is shown once and typed in manually by whoever reads it off the
+# confirmation screen, so visual ambiguity there is a real support-ticket
+# risk. Shared by both the super-admin (/admin/users/{id}/reset-password)
+# and company-admin-scoped (/companies/me/users/{id}/reset-password) reset
+# flows so they generate passwords the same way, not two divergent
+# implementations.
+_PASSWORD_ALPHABET = "".join(c for c in string.ascii_uppercase + string.ascii_lowercase + string.digits if c not in "0O1lI")
+
+
+def generate_password(length: int = 12) -> str:
+    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
 
 
 def hash_password(password: str) -> str:

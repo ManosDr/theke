@@ -4,7 +4,7 @@ from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, status
 from fastapi.responses import FileResponse
-from sqlalchemy import func, select
+from sqlalchemy import delete, func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
@@ -18,12 +18,14 @@ from app.models import (
     Document,
     Invite,
     MessageFeedback,
+    PasswordResetToken,
     Project,
     User,
     Vertical,
 )
 from app.schemas import (
     ActivityEventEntry,
+    AdminResetPasswordResponse,
     AuditLogEntry,
     CompanyBillingDetails,
     CompanyDocumentReviewEntry,
@@ -37,6 +39,7 @@ from app.schemas import (
     RoleChangeRequest,
     UserSummary,
 )
+from app.security import generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_company_admin
 from app.services.documents import UPLOAD_DIR
@@ -351,6 +354,39 @@ async def restore_user(
         resource_id=target.id,
     )
     db.commit()
+
+
+@router.post("/users/{user_id}/reset-password", response_model=AdminResetPasswordResponse)
+async def company_admin_reset_user_password(
+    user_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> AdminResetPasswordResponse:
+    """Company-admin-scoped sibling of POST /admin/users/{id}/reset-password -
+    same password-generation logic (see app.security.generate_password), same
+    net effect, just scoped to the caller's own company rather than
+    platform-wide, matching the existing revoke/restore/role-change pattern
+    of a company-scoped endpoint alongside the super-admin one."""
+    require_company_admin(user)
+    target = db.get(User, user_id)
+    if not target or target.company_id != user.company_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found in your company")
+
+    new_password = generate_password()
+    target.password_hash = hash_password(new_password)
+    db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == target.id))
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=user.company_id,
+        action="admin_reset_password",
+        resource_type="user",
+        resource_id=target.id,
+        metadata={"target_email": target.email},
+    )
+    db.commit()
+
+    return AdminResetPasswordResponse(new_password=new_password)
 
 
 @router.patch("/users/{user_id}/role", response_model=UserSummary)

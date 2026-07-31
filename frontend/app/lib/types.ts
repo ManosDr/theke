@@ -19,6 +19,8 @@ export interface AdminUserSummary extends Omit<UserSummary, "role"> {
   role: "super_admin" | "admin" | "member";
   company_id: number | null;
   company_name: string;
+  vertical_slug: string | null;
+  is_test_account: boolean;
 }
 
 export interface ActivityEventEntry {

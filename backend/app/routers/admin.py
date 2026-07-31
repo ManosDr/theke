@@ -1,6 +1,4 @@
 import json
-import secrets
-import string
 from datetime import date, datetime, timedelta
 
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
@@ -93,7 +91,7 @@ from app.schemas import (
     VerticalSummary,
     VerticalUpdateRequest,
 )
-from app.security import create_access_token, hash_password
+from app.security import create_access_token, generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.embeddings import embed_document
@@ -139,16 +137,6 @@ async def list_companies(
         stmt = stmt.where(Company.vertical_id == vertical_id)
     companies = db.scalars(stmt.order_by(Company.created_at.desc())).all()
     return [_to_company_summary(db, c, vertical_slugs) for c in companies]
-
-
-# Ambiguous characters excluded (0/O, l/1/I) - the generated password is
-# shown once and typed in manually by whoever reads it off the confirmation
-# screen, so visual ambiguity there is a real support-ticket risk.
-_PASSWORD_ALPHABET = "".join(c for c in string.ascii_uppercase + string.ascii_lowercase + string.digits if c not in "0O1lI")
-
-
-def _generate_password(length: int = 12) -> str:
-    return "".join(secrets.choice(_PASSWORD_ALPHABET) for _ in range(length))
 
 
 @router.post("/companies/create-with-admin", response_model=CompanyCreateWithAdminResponse, status_code=status.HTTP_201_CREATED)
@@ -197,7 +185,7 @@ async def create_company_with_admin(
         )
     )
 
-    generated_password = _generate_password()
+    generated_password = generate_password()
     admin_user = User(
         company_id=company.id,
         email=payload.admin_email,
@@ -374,7 +362,8 @@ async def list_all_users(
     "Χρήστες" nav entry."""
     require_super_admin(user)
     users = db.scalars(select(User)).all()
-    company_names = dict(db.execute(select(Company.id, Company.name)).all())
+    companies = {c.id: c for c in db.scalars(select(Company))}
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
 
     since_30d = datetime.utcnow() - timedelta(days=30)
     message_counts: dict[int, int] = {}
@@ -399,7 +388,9 @@ async def list_all_users(
             last_login_at=u.last_login_at,
             messages_30d=message_counts.get(u.id, 0),
             company_id=u.company_id,
-            company_name=company_names.get(u.company_id, "—"),
+            company_name=companies[u.company_id].name if u.company_id in companies else "—",
+            vertical_slug=vertical_slugs.get(companies[u.company_id].vertical_id) if u.company_id in companies else None,
+            is_test_account=companies[u.company_id].is_test_account if u.company_id in companies else False,
         )
         for u in users
     ]
@@ -502,7 +493,7 @@ async def admin_reset_user_password(
     if not target:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
 
-    new_password = _generate_password()
+    new_password = generate_password()
     target.password_hash = hash_password(new_password)
     db.execute(delete(PasswordResetToken).where(PasswordResetToken.user_id == target.id))
     log_action(

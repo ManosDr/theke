@@ -8,6 +8,7 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { useCustomerSearch } from "../lib/useCustomerSearch";
 import {
   BuildingIcon,
   ClockIcon,
@@ -1062,6 +1063,12 @@ function CustomersTab({ token }: { token: string | null }) {
   const [newName, setNewName] = useState("");
   const [newAfm, setNewAfm] = useState("");
   const [newNameError, setNewNameError] = useState<string | null>(null);
+  // Reuses the exact same debounced GET /customers?q= call (name/AFM prefix
+  // match) as the project-creation combobox - see useCustomerSearch.ts -
+  // rather than filtering the already-loaded `customers` list client-side.
+  const [q, setQ] = useState("");
+  const searchResults = useCustomerSearch(q, token, true);
+  const visibleCustomers = q.trim() ? searchResults : customers;
 
   async function refresh() {
     if (!token) return;
@@ -1103,7 +1110,15 @@ function CustomersTab({ token }: { token: string | null }) {
 
   return (
     <div className={tabStyles.scrollPane}>
-      <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: "var(--space-3)" }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: "var(--space-3)", marginBottom: "var(--space-3)" }}>
+        <input
+          className={`input ${tabStyles.searchInput}`}
+          type="text"
+          placeholder={t("customer.searchPlaceholder")}
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          style={{ maxWidth: 320 }}
+        />
         <button
           type="button"
           className="btn btn-primary"
@@ -1138,8 +1153,8 @@ function CustomersTab({ token }: { token: string | null }) {
       )}
 
       <section className={`card ${styles.section}`}>
-        {customers.length === 0 ? (
-          <p className={styles.emptyState}>{t("dash.company.noCustomers")}</p>
+        {visibleCustomers.length === 0 ? (
+          <p className={styles.emptyState}>{q.trim() ? t("common.noMatches") : t("dash.company.noCustomers")}</p>
         ) : (
           <table className={styles.table}>
             <thead>
@@ -1154,7 +1169,7 @@ function CustomersTab({ token }: { token: string | null }) {
               </tr>
             </thead>
             <tbody>
-              {customers.map((c) => (
+              {visibleCustomers.map((c) => (
                 <Fragment key={c.id}>
                   <tr onClick={() => toggleExpand(c)} style={{ cursor: "pointer" }}>
                     <td>{c.name}</td>

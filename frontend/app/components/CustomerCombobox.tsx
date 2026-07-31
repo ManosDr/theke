@@ -2,8 +2,8 @@
 
 import { useEffect, useRef, useState } from "react";
 
-import { api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
+import { useCustomerSearch } from "../lib/useCustomerSearch";
 import { MailIcon } from "./StatIcons";
 import { CloseIcon, PhoneIcon, PlusIcon } from "./UiIcons";
 import type { CustomerSummary } from "../lib/types";
@@ -41,10 +41,10 @@ const AFM_PATTERN = /^\d{9}$/;
 export default function CustomerCombobox({ token, onChange, validateSignal }: CustomerComboboxProps) {
   const { t } = useLocale();
   const [query, setQuery] = useState("");
-  const [results, setResults] = useState<CustomerSummary[]>([]);
-  const [open, setOpen] = useState(false);
   const [selected, setSelected] = useState<CustomerSummary | null>(null);
   const [creatingNew, setCreatingNew] = useState(false);
+  const results = useCustomerSearch(query, token, !selected && !creatingNew);
+  const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState<NewCustomerDraft>({ name: "", afm: "", phone: "", email: "" });
   const [afmError, setAfmError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
@@ -54,28 +54,6 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     if (!validateSignal) return;
     if (creatingNew && !draft.name.trim()) setNameError(t("customer.errorName"));
   }, [validateSignal]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  useEffect(() => {
-    if (!token || selected || creatingNew || query.trim().length < 1) {
-      setResults([]);
-      return;
-    }
-    let cancelled = false;
-    const timer = setTimeout(() => {
-      api
-        .get<CustomerSummary[]>(`/customers?q=${encodeURIComponent(query.trim())}`, token)
-        .then((data) => {
-          if (!cancelled) setResults(data);
-        })
-        .catch(() => {
-          if (!cancelled) setResults([]);
-        });
-    }, 300);
-    return () => {
-      cancelled = true;
-      clearTimeout(timer);
-    };
-  }, [query, token, selected, creatingNew]);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -120,7 +98,6 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     setSelected(null);
     setCreatingNew(false);
     setQuery("");
-    setResults([]);
     setAfmError(null);
     setNameError(null);
     onChange({ customerId: null, newCustomer: null });

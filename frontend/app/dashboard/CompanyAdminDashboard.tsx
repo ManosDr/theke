@@ -717,6 +717,8 @@ function DocumentsTab({ token }: { token: string | null }) {
   const [needsReview, setNeedsReview] = useState<CompanyDocumentReviewEntry[]>([]);
   const [firstProjectId, setFirstProjectId] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [q, setQ] = useState("");
+  const [scopeFilter, setScopeFilter] = useState<"" | CompanyDocumentSummary["scope_tier"]>("");
 
   async function refresh() {
     if (!token) return;
@@ -758,6 +760,17 @@ function DocumentsTab({ token }: { token: string | null }) {
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   const pendingRemovals = removalRequests.filter((r) => r.status === "pending");
+
+  const query = q.trim().toLowerCase();
+  const filteredDocs = docs.filter((d) => {
+    if (scopeFilter && d.scope_tier !== scopeFilter) return false;
+    if (query) {
+      const haystack = `${d.title ?? ""} ${d.project_name ?? ""} ${d.customer_name ?? ""}`.toLowerCase();
+      if (!haystack.includes(query)) return false;
+    }
+    return true;
+  });
+  const hasDocFilters = Boolean(q || scopeFilter);
 
   return (
     <div className={tabStyles.scrollPane}>
@@ -846,10 +859,39 @@ function DocumentsTab({ token }: { token: string | null }) {
         {docs.length === 0 ? (
           <p className={styles.emptyState}>{t("dash.company.noDocuments")}</p>
         ) : (
+          <>
+            <div className={tabStyles.filterBar}>
+              <input
+                className={`input ${tabStyles.searchInput}`}
+                type="text"
+                placeholder={t("dash.company.docsSearchPlaceholder")}
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
+              />
+              <select
+                className="input"
+                value={scopeFilter}
+                onChange={(e) => setScopeFilter(e.target.value as typeof scopeFilter)}
+              >
+                <option value="">{t("docs.filterAll")}</option>
+                <option value="company">{t("dash.company.scopeCompany")}</option>
+                <option value="customer">{t("dash.company.scopeCustomer")}</option>
+                <option value="project">{t("dash.company.scopeProject")}</option>
+              </select>
+              {hasDocFilters && (
+                <button type="button" className={tabStyles.clearFilters} onClick={() => { setQ(""); setScopeFilter(""); }}>
+                  {t("docs.clearFilters")}
+                </button>
+              )}
+            </div>
+            {filteredDocs.length === 0 ? (
+              <p className={styles.emptyState}>{t("common.noMatches")}</p>
+            ) : (
           <table className={styles.table}>
             <thead>
               <tr>
                 <th>{tUpper("dash.company.colDocument")}</th>
+                <th>{tUpper("docs.colScope")}</th>
                 <th>{tUpper("dash.company.colProject")}</th>
                 <th>{tUpper("dash.company.colType")}</th>
                 <th>{tUpper("dash.company.colExtraction")}</th>
@@ -858,10 +900,15 @@ function DocumentsTab({ token }: { token: string | null }) {
               </tr>
             </thead>
             <tbody>
-              {docs.map((d) => (
+              {filteredDocs.map((d) => (
                 <tr key={d.id}>
                   <td>{d.title ?? "—"}</td>
-                  <td>{d.project_name ?? "—"}</td>
+                  <td>
+                    <span className={tabStyles.scopeBadge}>
+                      {t(`dash.company.scope${d.scope_tier.charAt(0).toUpperCase()}${d.scope_tier.slice(1)}` as TranslationKey)}
+                    </span>
+                  </td>
+                  <td>{d.project_name ?? d.customer_name ?? "—"}</td>
                   <td>
                     {d.doc_type ? (
                       <DocTypeBadge docType={d.doc_type}>{t(`docType.${d.doc_type}` as TranslationKey)}</DocTypeBadge>
@@ -876,14 +923,20 @@ function DocumentsTab({ token }: { token: string | null }) {
                   </td>
                   <td className="text-muted">{new Date(d.created_at).toLocaleDateString()}</td>
                   <td>
-                    <button className="btn btn-secondary" onClick={() => deleteDoc(d)}>
-                      {t("dash.company.delete")}
-                    </button>
+                    {d.project_id ? (
+                      <button className="btn btn-secondary" onClick={() => deleteDoc(d)}>
+                        {t("dash.company.delete")}
+                      </button>
+                    ) : (
+                      <span className="text-muted">—</span>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
+            )}
+          </>
         )}
       </section>
 

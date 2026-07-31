@@ -951,9 +951,13 @@ export const translations = {
     "dash.company.colAfm": "ΑΦΜ",
     "dash.company.colProjectsCount": "Projects",
     "dash.company.colLastProject": "Last project",
-    "dash.company.noDocuments": "No documents uploaded to projects yet.",
+    "dash.company.noDocuments": "No documents uploaded yet.",
     "dash.company.noCustomers": "No customers yet.",
     "dash.company.noSources": "No knowledge base sources available yet.",
+    "dash.company.scopeCompany": "Company-wide",
+    "dash.company.scopeCustomer": "Customer",
+    "dash.company.scopeProject": "Project",
+    "dash.company.docsSearchPlaceholder": "Search title, project or client…",
     "dash.company.viewProject": "Open",
 
     // dashboard - member
@@ -2236,9 +2240,13 @@ export const translations = {
     "dash.company.colAfm": "ΑΦΜ",
     "dash.company.colProjectsCount": "Έργα",
     "dash.company.colLastProject": "Τελευταίο Έργο",
-    "dash.company.noDocuments": "Δεν έχουν ανέβει έγγραφα σε έργα ακόμη.",
+    "dash.company.noDocuments": "Δεν έχουν ανέβει έγγραφα ακόμη.",
     "dash.company.noCustomers": "Δεν υπάρχουν πελάτες ακόμη.",
     "dash.company.noSources": "Δεν υπάρχουν ακόμη διαθέσιμες πηγές γνωσιακής βάσης.",
+    "dash.company.scopeCompany": "Σε επίπεδο εταιρείας",
+    "dash.company.scopeCustomer": "Πελάτης",
+    "dash.company.scopeProject": "Έργο",
+    "dash.company.docsSearchPlaceholder": "Αναζήτηση τίτλου, έργου ή πελάτη…",
     "dash.company.viewProject": "Άνοιγμα",
 
     // dashboard - member

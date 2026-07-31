@@ -643,9 +643,10 @@ async def company_documents(
 ) -> list[CompanyDocumentSummary]:
     require_company_admin(user)
     rows = db.execute(
-        select(Document, Project.name)
+        select(Document, Project.name, Customer.name)
         .outerjoin(Project, Project.id == Document.project_id)
-        .where(Document.company_id == user.company_id, Document.project_id.isnot(None), Document.status == "active")
+        .outerjoin(Customer, Customer.id == Document.customer_id)
+        .where(Document.company_id == user.company_id, Document.status == "active")
         .order_by(Document.created_at.desc())
     ).all()
     return [
@@ -654,11 +655,14 @@ async def company_documents(
             title=d.title,
             project_id=d.project_id,
             project_name=project_name,
+            customer_id=d.customer_id,
+            customer_name=customer_name,
+            scope_tier="project" if d.project_id is not None else "customer" if d.customer_id is not None else "company",
             doc_type=d.doc_type,
             extraction_status=d.extraction_status,
             created_at=d.created_at,
         )
-        for d, project_name in rows
+        for d, project_name, customer_name in rows
     ]
 
 

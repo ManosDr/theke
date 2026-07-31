@@ -50,6 +50,9 @@ export interface CompanyDocumentSummary {
   title: string | null;
   project_id: number | null;
   project_name: string | null;
+  customer_id: number | null;
+  customer_name: string | null;
+  scope_tier: "company" | "customer" | "project";
   doc_type: string | null;
   extraction_status: string | null;
   created_at: string;

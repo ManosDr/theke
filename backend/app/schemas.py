@@ -363,6 +363,9 @@ class CompanyDocumentSummary(BaseModel):
     title: str | None
     project_id: int | None
     project_name: str | None
+    customer_id: int | None = None
+    customer_name: str | None = None
+    scope_tier: str = "company"  # 'company', 'customer', 'project'
     doc_type: str | None
     extraction_status: str | None
     created_at: datetime

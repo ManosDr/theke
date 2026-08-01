@@ -241,6 +241,26 @@
   background: var(--color-border);
 }
 
+/* Proactive limit notice (hourly rate limit / monthly pool), inserted into
+   the message thread itself rather than a page-level banner - calm and
+   informational by design (see translations.ts's hourlyLimitNotice/
+   monthlyPoolNotice chat.* keys), matching the existing 429 error's tone
+   rather than looking like a system error. */
+.systemNotice {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin: var(--space-2) auto;
+  padding: var(--space-2) var(--space-3);
+  max-width: fit-content;
+  background: var(--color-surface-alt);
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  text-align: center;
+}
+
 /* Contextual metadata, not a headline - muted, compact, never competing
    with the message list for attention. Column, not a single centered row -
    the toggle is a header-level control for this group and stays pinned at

@@ -44,7 +44,10 @@ import type {
 import styles from "./chat.module.css";
 
 interface Message {
-  role: "user" | "assistant";
+  // "system" is a locally-generated proactive limit notice (never sent to
+  // the backend, never included in conversation_history) - see
+  // maybeAppendLimitNotices below.
+  role: "user" | "assistant" | "system";
   text: string;
   citations?: ChatCitation[];
   gap?: boolean | null;
@@ -288,6 +291,44 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   }
   useEffect(refreshRateLimitStatus, [token]);
 
+  // Proactive limit notices (hourly rate limit + monthly pool), each shown
+  // at most once for the lifetime of this page load - keys are
+  // "hourly:2"/"hourly:1"/"monthly" rather than a boolean per notice type,
+  // so a fresh page load (a new "session" in the sense this feature means)
+  // naturally re-arms them. Message counts only, never tokens/€ - see
+  // KNOWN_DECISIONS.md on token/cost visibility being super_admin-only.
+  const [shownLimitNotices, setShownLimitNotices] = useState<Set<string>>(new Set());
+
+  function buildLimitNotices(rl: ChatRateLimitStatus | null, pool: SubscriptionStatusResponse | null): string[] {
+    const notices: string[] = [];
+    const newlyShown: string[] = [];
+    if (rl) {
+      const minutes = Math.ceil(rl.resets_in_seconds / 60);
+      if (rl.remaining === 2 && !shownLimitNotices.has("hourly:2")) {
+        notices.push(t("chat.hourlyLimitNotice2", { minutes }));
+        newlyShown.push("hourly:2");
+      } else if (rl.remaining === 1 && !shownLimitNotices.has("hourly:1")) {
+        notices.push(t("chat.hourlyLimitNotice1", { minutes }));
+        newlyShown.push("hourly:1");
+      }
+    }
+    if (pool && !pool.is_beta) {
+      const remainingPool = pool.messages_limit - pool.messages_used;
+      if (remainingPool > 0 && remainingPool <= 5 && !shownLimitNotices.has("monthly")) {
+        notices.push(
+          remainingPool === 1
+            ? t("chat.monthlyPoolNoticeSingular")
+            : t("chat.monthlyPoolNoticePlural", { count: remainingPool })
+        );
+        newlyShown.push("monthly");
+      }
+    }
+    if (newlyShown.length > 0) {
+      setShownLimitNotices((prev) => new Set([...prev, ...newlyShown]));
+    }
+    return notices;
+  }
+
   // Monthly message-pool usage - distinct from the hourly rate limit above:
   // that one resets every hour and applies per-user, this one resets
   // monthly and is shared across the whole company (see check_subscription
@@ -456,6 +497,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
     // last MAX_HISTORY_MESSAGES for the completion's context window.
     const history = messages
       .slice(sessionStartIndex)
+      .filter((m) => m.role !== "system")
       .slice(-MAX_HISTORY_MESSAGES)
       .map((m) => ({ role: m.role, content: m.text }));
 
@@ -486,6 +528,25 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           createdAt: Date.now(),
         },
       ]);
+
+      // Fetched fresh (not from the rateLimitStatus/poolStatus state, which
+      // would still hold the pre-message values here) so the threshold check
+      // below reflects the message that was just sent, not the previous one.
+      const [freshRateLimit, freshPool] = await Promise.all([
+        token ? api.get<ChatRateLimitStatus>("/chat/rate-limit-status", token).catch(() => null) : Promise.resolve(null),
+        token && user?.companyId
+          ? api.get<SubscriptionStatusResponse>("/subscription/status", token).catch(() => null)
+          : Promise.resolve(null),
+      ]);
+      if (freshRateLimit) setRateLimitStatus(freshRateLimit);
+      if (freshPool) setPoolStatus(freshPool);
+      const notices = buildLimitNotices(freshRateLimit, freshPool);
+      if (notices.length > 0) {
+        setMessages((prev) => [
+          ...prev,
+          ...notices.map((text) => ({ role: "system" as const, text, createdAt: Date.now() })),
+        ]);
+      }
     } catch (err) {
       const isNetworkError = err instanceof ApiError && err.status === NETWORK_ERROR_STATUS;
       // A timeout/connection drop never reached the backend, so nothing
@@ -501,10 +562,16 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           createdAt: Date.now(),
         },
       ]);
-    } finally {
-      setLoading(false);
+      // The success path above already refreshes both statuses with the
+      // fresh post-message values (needed there to compute notices) - on
+      // error (429 included) nothing new was consumed for a successful send,
+      // but the counters may still have changed (e.g. the 429 itself came
+      // from check_chat_rate_limit incrementing before rejecting), so still
+      // worth a refresh here for the header indicator's accuracy.
       refreshRateLimitStatus();
       refreshPoolStatus();
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -999,7 +1066,12 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   <span>{dividerByIndex.get(i)!.label}</span>
                 </div>
               )}
-              {m.role === "user" ? (
+              {m.role === "system" ? (
+                <div className={styles.systemNotice} role="status">
+                  <InfoIcon size={13} />
+                  <span>{m.text}</span>
+                </div>
+              ) : m.role === "user" ? (
                 <div className={`${styles.message} ${styles.messageUser}`}>{m.text}</div>
               ) : (
                 <div className={`${styles.message} ${styles.messageAssistant}`}>

@@ -541,6 +541,36 @@ class InfraHealthCheck(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class SpendAlertThreshold(Base):
+    """Singleton row (id always 1) holding the two super-admin-editable
+    thresholds spend_alert_check.py compares trailing spend against. Edited
+    via PATCH /admin/spend-alerts/thresholds, never inserted a second row."""
+
+    __tablename__ = "spend_alert_thresholds"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    daily_eur: Mapped[float] = mapped_column(Numeric)
+    weekly_eur: Mapped[float] = mapped_column(Numeric)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SpendAlertCheck(Base):
+    """One row per daily platform-wide spend check
+    (crawler/crawler/spend_alert_check.py) - trailing 24h/7d
+    estimated_cost_eur sums across chat_sessions, excluding is_test_account
+    companies. Written every run regardless of breach, so the admin UI can
+    chart spend over time."""
+
+    __tablename__ = "spend_alert_checks"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    spend_24h_eur: Mapped[float] = mapped_column(Numeric)
+    spend_7d_eur: Mapped[float] = mapped_column(Numeric)
+    daily_breached: Mapped[bool] = mapped_column(default=False)
+    weekly_breached: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Plan(Base):
     __tablename__ = "plans"
 

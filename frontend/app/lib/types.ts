@@ -699,6 +699,26 @@ export interface InfraHealthResponse {
   trend: "up" | "down" | "flat" | null;
 }
 
+export interface SpendAlertThresholdEntry {
+  daily_eur: number;
+  weekly_eur: number;
+  updated_at: string;
+}
+
+export interface SpendAlertCheckEntry {
+  spend_24h_eur: number;
+  spend_7d_eur: number;
+  daily_breached: boolean;
+  weekly_breached: boolean;
+  created_at: string;
+}
+
+export interface SpendAlertsResponse {
+  thresholds: SpendAlertThresholdEntry;
+  latest: SpendAlertCheckEntry | null;
+  history: SpendAlertCheckEntry[];
+}
+
 export interface VerticalSummary {
   id: number;
   slug: string;

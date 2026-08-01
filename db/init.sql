@@ -904,6 +904,40 @@ CREATE TABLE IF NOT EXISTS infra_health_checks (
 
 CREATE INDEX IF NOT EXISTS idx_infra_health_checks_created ON infra_health_checks(created_at DESC);
 
+-- Platform-wide AI spend alerting (crawler/crawler/spend_alert_check.py, cron
+-- daily - not Monday-only, since this specifically exists to catch
+-- launch-window spend spikes fast). Single-row table holding the two
+-- super-admin-editable thresholds compared against trailing 24h/7d spend
+-- summed across chat_sessions.estimated_cost_eur, excluding is_test_account
+-- companies (same exclusion idiom as GET /admin/stats). Seeded with
+-- placeholder values - edit via PATCH /admin/spend-alerts/thresholds.
+CREATE TABLE IF NOT EXISTS spend_alert_thresholds (
+  id          integer PRIMARY KEY DEFAULT 1,
+  daily_eur   numeric NOT NULL DEFAULT 5.00,
+  weekly_eur  numeric NOT NULL DEFAULT 25.00,
+  updated_at  timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT spend_alert_thresholds_singleton CHECK (id = 1)
+);
+
+INSERT INTO spend_alert_thresholds (id, daily_eur, weekly_eur)
+VALUES (1, 5.00, 25.00)
+ON CONFLICT (id) DO NOTHING;
+
+-- Trend log written by every spend_alert_check.py run (modeled on
+-- infra_health_checks) - one row per day regardless of whether a threshold
+-- was crossed, so the admin UI can chart spend over time, not just the
+-- latest reading.
+CREATE TABLE IF NOT EXISTS spend_alert_checks (
+  id                serial PRIMARY KEY,
+  spend_24h_eur     numeric NOT NULL,
+  spend_7d_eur      numeric NOT NULL,
+  daily_breached    boolean NOT NULL DEFAULT false,
+  weekly_breached   boolean NOT NULL DEFAULT false,
+  created_at        timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_spend_alert_checks_created ON spend_alert_checks(created_at DESC);
+
 -- Data retention/deletion compliance (legal-blocking - closes the gap
 -- between what the Privacy Policy/DPA claim and what the product actually
 -- did before this). deletion_requested_at drives the 30-day hard-delete

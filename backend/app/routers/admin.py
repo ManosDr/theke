@@ -26,6 +26,8 @@ from app.models import (
     Plan,
     Project,
     Region,
+    SpendAlertCheck,
+    SpendAlertThreshold,
     SubscriptionUsage,
     User,
     UserFeedback,
@@ -80,6 +82,10 @@ from app.schemas import (
     RevalidateAllResponse,
     RevalidationStatusResponse,
     RoleChangeRequest,
+    SpendAlertCheckEntry,
+    SpendAlertsResponse,
+    SpendAlertThresholdEntry,
+    SpendAlertThresholdUpdateRequest,
     StaleDocumentSummary,
     SubscriptionEntry,
     SubscriptionListResponse,
@@ -1669,6 +1675,72 @@ async def infra_health(
             trend = "flat"
 
     return InfraHealthResponse(latest=latest, history=history, trend=trend)
+
+
+def _get_or_create_spend_alert_thresholds(db: Session) -> SpendAlertThreshold:
+    row = db.get(SpendAlertThreshold, 1)
+    if row is None:
+        row = SpendAlertThreshold(id=1, daily_eur=5.00, weekly_eur=25.00)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+@router.get("/spend-alerts", response_model=SpendAlertsResponse)
+async def spend_alerts(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SpendAlertsResponse:
+    """Read-only view of the daily platform-wide spend snapshots written by
+    crawler/crawler/spend_alert_check.py - this endpoint never writes a
+    trend row itself, only the current editable thresholds (via PATCH
+    below). history is oldest-first (chart-ready), mirrors
+    GET /admin/infra-health's shape."""
+    require_super_admin(user)
+    thresholds = _get_or_create_spend_alert_thresholds(db)
+    rows = list(db.scalars(select(SpendAlertCheck).order_by(SpendAlertCheck.created_at.desc()).limit(30)))
+    history = [
+        SpendAlertCheckEntry(
+            spend_24h_eur=float(r.spend_24h_eur),
+            spend_7d_eur=float(r.spend_7d_eur),
+            daily_breached=r.daily_breached,
+            weekly_breached=r.weekly_breached,
+            created_at=r.created_at,
+        )
+        for r in reversed(rows)
+    ]
+    latest = history[-1] if history else None
+    return SpendAlertsResponse(
+        thresholds=SpendAlertThresholdEntry(
+            daily_eur=float(thresholds.daily_eur),
+            weekly_eur=float(thresholds.weekly_eur),
+            updated_at=thresholds.updated_at,
+        ),
+        latest=latest,
+        history=history,
+    )
+
+
+@router.patch("/spend-alerts/thresholds", response_model=SpendAlertThresholdEntry)
+async def update_spend_alert_thresholds(
+    payload: SpendAlertThresholdUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SpendAlertThresholdEntry:
+    """Edits the daily/weekly EUR thresholds spend_alert_check.py compares
+    trailing spend against on its next run - takes effect on the next
+    scheduled run, not retroactively."""
+    require_super_admin(user)
+    if payload.daily_eur <= 0 or payload.weekly_eur <= 0:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Thresholds must be positive")
+    row = _get_or_create_spend_alert_thresholds(db)
+    row.daily_eur = payload.daily_eur
+    row.weekly_eur = payload.weekly_eur
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return SpendAlertThresholdEntry(daily_eur=float(row.daily_eur), weekly_eur=float(row.weekly_eur), updated_at=row.updated_at)
 
 
 def _to_data_source_summary(ds: DataSource) -> DataSourceSummary:

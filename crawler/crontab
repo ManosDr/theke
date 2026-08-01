@@ -40,3 +40,17 @@
 # profile data too. Never touches the invoices table. Monday 07:00 UTC,
 # after the infra-health check. See crawler/crawler/retention_cleanup.py.
 0 7 * * 1 python -m crawler.retention_cleanup
+
+# Weekly usage digest email to every active super admin - total messages/
+# spend (7d), active companies, gap rate, open feedback, needs_review queue.
+# Monday 07:30 UTC, after the retention sweep, closing out the Monday
+# morning window. See crawler/crawler/weekly_digest.py.
+30 7 * * 1 python -m crawler.weekly_digest
+
+# Daily (not Monday-only) platform-wide AI spend check - sums
+# chat_sessions.estimated_cost_eur over trailing 24h/7d, excluding
+# is_test_account companies, against the super-admin-editable thresholds in
+# spend_alert_thresholds. Runs daily specifically to catch launch-window
+# spend spikes fast, not just once a week. 08:00 UTC. See
+# crawler/crawler/spend_alert_check.py.
+0 8 * * * python -m crawler.spend_alert_check

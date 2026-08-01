@@ -979,6 +979,32 @@ class InfraHealthResponse(BaseModel):
     trend: Literal["up", "down", "flat"] | None
 
 
+class SpendAlertThresholdEntry(BaseModel):
+    daily_eur: float
+    weekly_eur: float
+    updated_at: datetime
+
+
+class SpendAlertThresholdUpdateRequest(BaseModel):
+    daily_eur: float
+    weekly_eur: float
+
+
+class SpendAlertCheckEntry(BaseModel):
+    spend_24h_eur: float
+    spend_7d_eur: float
+    daily_breached: bool
+    weekly_breached: bool
+    created_at: datetime
+
+
+class SpendAlertsResponse(BaseModel):
+    thresholds: SpendAlertThresholdEntry
+    latest: SpendAlertCheckEntry | None
+    # Most recent readings, oldest first - chart-ready, mirrors InfraHealthResponse.
+    history: list[SpendAlertCheckEntry]
+
+
 class DataSourceSummary(BaseModel):
     id: int
     name: str

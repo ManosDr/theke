@@ -18,6 +18,7 @@ import type {
   AuditLogListResponse,
   CompanySummary,
   InfraHealthResponse,
+  SpendAlertsResponse,
   StaleDocumentSummary,
   VerticalSummary,
 } from "../lib/types";
@@ -235,25 +236,29 @@ export function SuperAdminDashboard() {
   const [staleDocs, setStaleDocs] = useState<StaleDocumentSummary[]>([]);
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [infraHealth, setInfraHealth] = useState<InfraHealthResponse | null>(null);
+  const [spendAlerts, setSpendAlerts] = useState<SpendAlertsResponse | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
 
   async function refresh() {
     try {
-      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData] = await Promise.all([
-        api.get<CompanySummary[]>("/admin/companies", token),
-        api.get<AuditLogListResponse>("/admin/audit-log", token),
-        api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
-        api.get<AdminStatsByVertical>("/admin/stats", token),
-        api.get<VerticalSummary[]>("/admin/verticals", token),
-        api.get<InfraHealthResponse>("/admin/infra-health", token),
-      ]);
+      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData, spendAlertsData] =
+        await Promise.all([
+          api.get<CompanySummary[]>("/admin/companies", token),
+          api.get<AuditLogListResponse>("/admin/audit-log", token),
+          api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
+          api.get<AdminStatsByVertical>("/admin/stats", token),
+          api.get<VerticalSummary[]>("/admin/verticals", token),
+          api.get<InfraHealthResponse>("/admin/infra-health", token),
+          api.get<SpendAlertsResponse>("/admin/spend-alerts", token),
+        ]);
       setCompanies(companiesData);
       setAuditLog(auditData.items);
       setStaleDocs(staleData);
       setStats(statsData);
       setVerticals(verticalsData);
       setInfraHealth(infraHealthData);
+      setSpendAlerts(spendAlertsData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -417,6 +422,23 @@ export function SuperAdminDashboard() {
             }
             cta={t("dash.super.viewTrend")}
             onCtaClick={() => router.push("/admin/infra-health")}
+          />
+        )}
+        {spendAlerts?.latest && selectedVertical === "all" && (
+          <AttentionCard
+            tone={spendAlerts.latest.daily_breached || spendAlerts.latest.weekly_breached ? "danger" : "success"}
+            icon={<CoinIcon size={14} />}
+            value={`€${spendAlerts.latest.spend_24h_eur.toFixed(2)}`}
+            label={
+              <>
+                {tUpper("admin.spendAlerts.title")}
+                <Tooltip text={t("admin.spendAlerts.description")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+            cta={t("dash.super.viewTrend")}
+            onCtaClick={() => router.push("/admin/spend-alerts")}
           />
         )}
         <AttentionCard

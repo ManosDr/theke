@@ -129,6 +129,17 @@ const SUGGESTION_KEYS: Record<"construction" | "accounting" | "generic", Transla
   generic: ["chat.suggestionGeneric1", "chat.suggestionGeneric2", "chat.suggestionGeneric3"],
 };
 
+// Shown instead of SUGGESTION_KEYS in the mid-conversation quick-start row
+// when the most recent answer was a gap - deliberately different questions
+// from the default starters (not AI-generated per-conversation follow-ups,
+// same reasoning as SUGGESTION_KEYS' own comment) so a user who just hit a
+// gap isn't handed back the exact same 3 prompts that led nowhere.
+const GAP_FOLLOWUP_KEYS: Record<"construction" | "accounting" | "generic", TranslationKey[]> = {
+  construction: ["chat.gapFollowupConstruction1", "chat.gapFollowupConstruction2"],
+  accounting: ["chat.gapFollowupAccounting1", "chat.gapFollowupAccounting2"],
+  generic: ["chat.gapFollowupConstruction1", "chat.gapFollowupConstruction2"],
+};
+
 interface Divider {
   index: number; // renders immediately before messages[index]
   label: string;
@@ -707,8 +718,8 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   // generic vertical-aware chips below without a separate tax-specific
   // branch - there's currently nothing customer-level distinctive enough to
   // build a chip from (see the fix's own spec).
-  const emptyStateChips: string[] = (() => {
-    if (!selectedProject) return suggestionKeys.map((key) => t(key));
+  const contextCandidates: string[] = (() => {
+    if (!selectedProject) return [];
     const candidates: string[] = [];
     if (selectedProject.archaeological_flag) candidates.push(t("chat.suggestionContextArchaeological"));
     if (selectedProject.plot_in_plan === true) candidates.push(t("chat.suggestionContextPlotInsidePlan"));
@@ -718,8 +729,27 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
       const regionName = region ? (locale === "en" ? region.region_name_en : region.region_name_el) : null;
       if (regionName) candidates.push(t("chat.suggestionContextRegion", { region: regionName }));
     }
-    return candidates.length > 0 ? candidates.slice(0, 3) : suggestionKeys.map((key) => t(key));
+    return candidates.slice(0, 3);
   })();
+
+  const emptyStateChips: string[] =
+    contextCandidates.length > 0 ? contextCandidates : suggestionKeys.map((key) => t(key));
+
+  // The mid-conversation "quick-start row" normally repeats the same
+  // default starters as the empty state (see its own render-site comment),
+  // but not right after a gap - see GAP_FOLLOWUP_KEYS above. Falls back to
+  // the same project-derived context candidates as the empty state when
+  // available (genuinely related to what's being discussed), otherwise the
+  // fixed gap-followup pair.
+  const lastMessage = messages[messages.length - 1];
+  const lastMessageGapped = lastMessage?.role === "assistant" && lastMessage.gap === true;
+  const gapFollowupKeys =
+    GAP_FOLLOWUP_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
+  const followupTexts: string[] = lastMessageGapped
+    ? contextCandidates.length > 0
+      ? contextCandidates
+      : gapFollowupKeys.map((key) => t(key))
+    : suggestionKeys.map((key) => t(key));
 
   const disclaimerText =
     (locale === "en" ? company?.vertical_disclaimer_text_en : null) ||
@@ -1087,8 +1117,13 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                     <span className={styles.assistantName}>theke</span>
                     {/* Fires only for this specific answer's own gap signal
                         (the same low-confidence signal the old .gapBadge
-                        used) - never a global/page-level indicator. */}
-                    {m.gap && (
+                        used) - never a global/page-level indicator. Also
+                        requires at least one citation: a genuine zero-
+                        citation gap response (no reliable source at all)
+                        isn't "limited sources", it's no sources - showing
+                        this tag there would misleadingly imply supporting
+                        material exists. */}
+                    {m.gap && m.citations && m.citations.length > 0 && (
                       <span className={styles.limitedSourcesTag}>
                         <WarningIcon size={12} />
                         <span>{tUpper("chat.gapLabel")}</span>
@@ -1197,14 +1232,16 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               chips (not per-conversation AI-generated follow-ups - see
               SUGGESTION_KEYS' own comment on why), repeated once below the
               active thread as an ongoing quick-start row, left-aligned to
-              the thread's own left edge rather than centered. */}
+              the thread's own left edge rather than centered. Swaps to
+              followupTexts' gap-aware set when the last answer was a gap -
+              see its own comment above. */}
           {!historyLoading && !loading && messages.length > 0 && (
             <div className={styles.followupChips}>
               <div className={styles.followupChipsLabel}>{t("chat.suggestedQuestions")}</div>
               <div className={styles.followupChipsRow}>
-                {suggestionKeys.map((key) => (
-                  <button key={key} type="button" className={styles.suggestionChip} onClick={() => setInput(t(key))}>
-                    {t(key)}
+                {followupTexts.map((text) => (
+                  <button key={text} type="button" className={styles.suggestionChip} onClick={() => setInput(text)}>
+                    {text}
                   </button>
                 ))}
               </div>

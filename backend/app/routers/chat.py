@@ -221,6 +221,36 @@ def _translate_query_to_greek(client: OpenAI, question: str) -> str:
     return translated or question
 
 
+def _generate_rephrasings(client: OpenAI, question: str, locale: str | None) -> list[str]:
+    """Generates up to 2 alternate phrasings of the same question - same
+    intent and language, different wording - for the silent rephrase-retry
+    in chat_message() when the user's original phrasing fails to retrieve
+    anything. Never shown to the user, only used to re-run retrieval, so
+    unlike _translate_query_to_greek's literal/technical bias this
+    deliberately asks for DIFFERENT wording (synonyms, restructured
+    sentence, different terminology) to maximize the chance of landing
+    closer to how the source documents actually phrase the same concept."""
+    language = "English" if locale == "en" else "Greek"
+    prompt = (
+        f"Generate exactly 2 alternative phrasings of the following {language} question, "
+        "each on its own line, with no numbering, quotation marks, or other text. Keep the "
+        "same intent and language, but use different wording, sentence structure, or "
+        "terminology than the original - the goal is to maximize the chance of matching how "
+        "the answer might actually be phrased elsewhere, not to preserve the original wording."
+    )
+    completion = client.chat.completions.create(
+        model=settings.chat_model,
+        messages=[
+            {"role": "system", "content": prompt},
+            {"role": "user", "content": question},
+        ],
+        temperature=0.7,
+    )
+    raw = (completion.choices[0].message.content or "").strip()
+    lines = [line.strip() for line in raw.split("\n") if line.strip()]
+    return lines[:2]
+
+
 CHAT_MESSAGE_GAP_RESPONSE = (
     "Δεν διαθέτω αρκετά αξιόπιστη πηγή στη βάση γνώσης για να απαντήσω σε αυτή την ερώτηση "
     "με βεβαιότητα. Δοκιμάστε να αναδιατυπώσετε την ερώτηση, ή δείτε την ενότητα Αναζήτηση."
@@ -746,6 +776,45 @@ async def chat_message(
             plot_in_plan=project.plot_in_plan if project else None,
         )
         hits = [h for h in raw_hits if _passes_hybrid_threshold(h)]
+
+        # Silent rephrase-retry: the user's exact phrasing sometimes misses
+        # a real answer that a slightly different wording of the same
+        # question would have found (a confirmed real-world failure mode,
+        # not hypothetical - see the ΥΔΟΜ contact-lookup investigation this
+        # was added alongside). Only fires on a genuine zero-hits outcome,
+        # never on the has-hits-but-low-confidence path just below, which
+        # already produces a real (if weaker) answer rather than the canned
+        # gap text. Capped at 2 attempts so a genuinely unanswerable
+        # question still fails fast. The user never sees the retries -
+        # `question` (not the rephrasing) is still what's logged and shown.
+        if not hits:
+            rephrase_succeeded = False
+            for rephrasing in _generate_rephrasings(client, question, locale):
+                retry_retrieval_query = (
+                    _translate_query_to_greek(client, rephrasing) if locale == "en" else rephrasing
+                )
+                retry_raw_hits = retrieve_bilingual(
+                    db,
+                    user,
+                    rephrasing,
+                    retry_retrieval_query,
+                    settings.rag_top_k,
+                    vertical.id if vertical else None,
+                    region_id=region_id,
+                    project_id=payload.project_id,
+                    customer_id=project.customer_id if project else None,
+                    plot_in_plan=project.plot_in_plan if project else None,
+                )
+                retry_hits = [h for h in retry_raw_hits if _passes_hybrid_threshold(h)]
+                if retry_hits:
+                    hits = retry_hits
+                    rephrase_succeeded = True
+                    break
+            logger.info(
+                "chat rephrase-retry: question=%r succeeded=%s",
+                question,
+                rephrase_succeeded,
+            )
 
         if not hits:
             if (

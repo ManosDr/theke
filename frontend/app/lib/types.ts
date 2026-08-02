@@ -9,6 +9,11 @@ export interface UserSummary {
   created_at: string;
   last_login_at: string | null;
   messages_30d: number;
+  // Calendar-day count (resets at midnight), not a rolling 24h window -
+  // feeds the company admin usage table's pool-relative framing and the
+  // 20+/day anomaly indicator. Admin-only signal, never shown to the user
+  // it describes.
+  messages_today: number;
 }
 
 // Platform-wide (super admin) equivalent of UserSummary/InviteSummary - see
@@ -501,6 +506,9 @@ export interface ChatRateLimitStatus {
   limit: number;
   remaining: number;
   resets_in_seconds: number;
+  // Calendar-day count (resets at midnight, not a rolling 24h window) -
+  // purely informational, no threshold attached to it.
+  messages_today: number;
 }
 
 export interface UserUsageSummary {
@@ -522,6 +530,10 @@ export interface SubscriptionStatusResponse {
   users_count: number;
   user_limit: number;
   is_test_account: boolean;
+  // Pace-based projection - True only when the company's recent messaging
+  // pace would exhaust the shared pool with more than a few days still
+  // left in the billing period. Always False for is_beta plans.
+  pool_at_risk: boolean;
 }
 
 export interface PlanSummary {

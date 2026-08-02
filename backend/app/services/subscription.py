@@ -10,7 +10,20 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import Company, CompanySubscription, Document, Plan, Project, SubscriptionUsage
+from app.models import ChatSession, Company, CompanySubscription, Document, Plan, Project, SubscriptionUsage
+
+# Pace-based monthly-pool risk projection (replaces the old fixed
+# remaining-count threshold per UX/Finance guidance - a fixed "5 left"
+# trigger can't distinguish "5 left with 25 days left in the period" from
+# "5 left with 2 days left", so this projects forward from actual recent
+# usage instead. Company-wide pace, not per-user: the pool is a shared
+# company resource consumed by every user on the account, so a single
+# user's activity spike or lull is the wrong signal - only the team's
+# combined burn rate says anything about when the shared pool runs out.
+POOL_RISK_LOOKBACK_DAYS = 10
+POOL_RISK_MIN_ACTIVE_DAYS = 3
+POOL_RISK_PACE_WINDOW_DAYS = 5
+POOL_RISK_BUFFER_DAYS = 3
 
 POOL_EXHAUSTED_MESSAGE = "Εξαντλήσατε τα μηνύματά σας για αυτόν τον μήνα. Αναβαθμίστε το πλάνο σας για να συνεχίσετε."
 POOL_EXHAUSTED_MESSAGE_EN = "You've used up your messages for this month. Upgrade your plan to continue."
@@ -78,6 +91,47 @@ def get_or_create_usage(db: Session, company_id: int, messages_limit: int) -> Su
     db.commit()
     db.refresh(usage)
     return usage
+
+
+def compute_pool_at_risk(db: Session, company_id: int, usage: SubscriptionUsage) -> bool:
+    """True if, at the company's recent messaging pace, the monthly pool
+    would run dry with more than POOL_RISK_BUFFER_DAYS still left in the
+    billing period - the genuinely-urgent case UX/Finance want flagged,
+    as opposed to "5 left but the period just started" which isn't
+    actually a problem. Never true for a plan whose pool isn't
+    meaningfully limited (caller already skips is_beta before this).
+
+    Pace = average messages/day over the most recent
+    POOL_RISK_PACE_WINDOW_DAYS days that had any activity at all, looking
+    back up to POOL_RISK_LOOKBACK_DAYS calendar days - skips inactive days
+    (weekends, holidays) rather than diluting the pace with zeros, and
+    requires at least POOL_RISK_MIN_ACTIVE_DAYS of signal before
+    projecting anything, so a single busy day early in the period can't
+    trigger a false projection.
+    """
+    today = date.today()
+    days_remaining = (usage.period_end - today).days
+    if days_remaining <= 0:
+        return False
+
+    since = datetime.combine(today - timedelta(days=POOL_RISK_LOOKBACK_DAYS), datetime.min.time())
+    rows = db.execute(
+        select(func.date(ChatSession.created_at), func.count())
+        .where(ChatSession.company_id == company_id, ChatSession.created_at >= since)
+        .group_by(func.date(ChatSession.created_at))
+        .order_by(func.date(ChatSession.created_at).desc())
+    ).all()
+    active_days = [count for _day, count in rows[:POOL_RISK_PACE_WINDOW_DAYS]]
+    if len(active_days) < POOL_RISK_MIN_ACTIVE_DAYS:
+        return False
+
+    pace = sum(active_days) / len(active_days)
+    if pace <= 0:
+        return False
+
+    remaining_pool = usage.messages_limit - usage.messages_used
+    days_until_exhaustion = remaining_pool / pace
+    return days_until_exhaustion < (days_remaining - POOL_RISK_BUFFER_DAYS)
 
 
 def check_subscription(

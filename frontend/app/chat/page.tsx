@@ -312,16 +312,16 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         newlyShown.push("hourly:1");
       }
     }
-    if (pool && !pool.is_beta) {
-      const remainingPool = pool.messages_limit - pool.messages_used;
-      if (remainingPool > 0 && remainingPool <= 5 && !shownLimitNotices.has("monthly")) {
-        notices.push(
-          remainingPool === 1
-            ? t("chat.monthlyPoolNoticeSingular")
-            : t("chat.monthlyPoolNoticePlural", { count: remainingPool })
-        );
-        newlyShown.push("monthly");
-      }
+    // Pace-based projection (pool_at_risk, computed server-side - see
+    // compute_pool_at_risk in app/services/subscription.py) replaces the old
+    // fixed remaining-count threshold per UX/Finance guidance: a fixed "5
+    // left" trigger can't tell "5 left with 25 days left in the period"
+    // (not urgent) from "5 left with 2 days left" (genuinely urgent).
+    // is_beta already comes back false from the backend for unlimited
+    // plans, but the check stays here too as defense in depth.
+    if (pool && !pool.is_beta && pool.pool_at_risk && !shownLimitNotices.has("monthly")) {
+      notices.push(t("chat.monthlyPoolAtRiskNotice"));
+      newlyShown.push("monthly");
     }
     if (newlyShown.length > 0) {
       setShownLimitNotices((prev) => new Set([...prev, ...newlyShown]));
@@ -987,10 +987,15 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           <ChevronIcon size={14} />
         </button>
 
-        {((poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8) ||
-          (rateLimitStatus && rateLimitStatus.used >= 15)) && (
+        {rateLimitStatus && (
           <div className={styles.chatHeaderBar}>
             <div className={styles.headerControls}>
+              {/* Always visible, no threshold, no color coding - a plain
+                  fact (see chat.dailyMessageCount), distinct from the
+                  color-coded warnings below which only appear near a limit. */}
+              <span className={styles.dailyCountLabel}>
+                {t("chat.dailyMessageCount", { count: rateLimitStatus.messages_today })}
+              </span>
               {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
                 <span
                   className={styles.rateLimitIndicator}

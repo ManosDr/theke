@@ -303,6 +303,12 @@ class UserSummary(BaseModel):
     created_at: datetime
     last_login_at: datetime | None = None
     messages_30d: int = 0
+    # Calendar-day count (resets at midnight) - feeds the company admin
+    # usage table's pool-relative framing and the 20+/day anomaly
+    # indicator (Finance's number, admin-only, never shown to the user
+    # it describes). Message counts only, no token/cost fields on this
+    # schema - see KNOWN_DECISIONS.md.
+    messages_today: int = 0
 
 
 # Platform-wide (super admin) equivalent of UserSummary/InviteSummary - adds
@@ -1166,6 +1172,11 @@ class ChatRateLimitStatus(BaseModel):
     limit: int
     remaining: int
     resets_in_seconds: int
+    # Calendar-day count (resets at midnight UTC, not a rolling 24h window
+    # like `used` above) - purely informational, no threshold or color
+    # coding attached to it. See KNOWN_DECISIONS.md: message counts only,
+    # never tokens/€, for any role other than super_admin.
+    messages_today: int
 
 
 class UserUsageSummary(BaseModel):
@@ -1233,6 +1244,12 @@ class SubscriptionStatusResponse(BaseModel):
     # Lets the frontend suppress TrialNudgeBanner's conversion nudge for
     # is_test_account companies (see Phase 5) without a second request.
     is_test_account: bool
+    # Pace-based projection (see compute_pool_at_risk) - True only when the
+    # company's recent messaging pace would exhaust the pool with more than
+    # a few days still left in the billing period. Always False for is_beta
+    # plans (no meaningful pool to run out of). Replaces the old fixed
+    # remaining-count threshold per UX/Finance guidance.
+    pool_at_risk: bool
 
 
 class PlanSummary(BaseModel):

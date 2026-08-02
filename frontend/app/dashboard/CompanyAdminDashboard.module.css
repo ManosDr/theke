@@ -307,3 +307,18 @@
 .listRow:last-child {
   border-bottom: none;
 }
+
+/* Quiet 20+/day usage-anomaly indicator on the per-user usage table -
+   deliberately a plain neutral dot, not a warning/danger color, since this
+   is informational-only for the admin (Finance's threshold), never an
+   alert and never shown to the user it describes. */
+.anomalyDot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: var(--space-2);
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  vertical-align: middle;
+  cursor: default;
+}

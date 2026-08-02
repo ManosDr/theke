@@ -198,6 +198,15 @@
   color: var(--color-danger);
 }
 
+/* Plain daily message count (see chat.dailyMessageCount) - deliberately
+   never gets a data-level variant like .rateLimitIndicator above: it's an
+   always-visible fact, not a warning, so no color coding at any count. */
+.dailyCountLabel {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
 /* "Νέα Εκκίνηση" as a secondary composer control - see .composer, matching
    the primary Send button's 46px height/12px radius per the control-height
    consistency spec. Was a small inline text link; now a full button since

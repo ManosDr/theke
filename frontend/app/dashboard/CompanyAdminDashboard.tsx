@@ -1093,13 +1093,38 @@ function SubscriptionTab({ token }: { token: string | null }) {
             </tr>
           </thead>
           <tbody>
-            {users.map((u) => (
-              <tr key={u.id}>
-                <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
-                <td>{u.email}</td>
-                <td>{u.messages_30d}</td>
-              </tr>
-            ))}
+            {users.map((u) => {
+              // Pool-relative framing per UX/Finance guidance - this user's
+              // own 30d count against the company's shared monthly pool
+              // limit, not a percentage of some individual quota (there
+              // isn't one). Beta/unlimited plans have no meaningful pool to
+              // frame against, so just the raw count there, same as before.
+              const pct = !status.is_beta ? Math.round((u.messages_30d / Math.max(status.messages_limit, 1)) * 100) : null;
+              // 20+/day anomaly flag (Finance's number) - admin-only, quiet,
+              // never color-coded as an alert, never surfaced to the user
+              // it describes anywhere else in the product. Reflects today's
+              // count only - naturally clears itself tomorrow, no persisted
+              // flag to reset.
+              const isAnomaly = u.messages_today > 20;
+              return (
+                <tr key={u.id}>
+                  <td>
+                    {u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}
+                    {isAnomaly && (
+                      <Tooltip text={t("dash.company.sub.anomalyTooltip", { count: u.messages_today })}>
+                        <span className={tabStyles.anomalyDot} aria-label={t("dash.company.sub.anomalyTooltip", { count: u.messages_today })} />
+                      </Tooltip>
+                    )}
+                  </td>
+                  <td>{u.email}</td>
+                  <td>
+                    {pct == null
+                      ? u.messages_30d
+                      : t("dash.company.sub.pctOfTeamPool", { used: u.messages_30d, limit: status.messages_limit, pct })}
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </section>

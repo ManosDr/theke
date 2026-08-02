@@ -282,14 +282,23 @@ async def list_company_users(
     users = db.scalars(select(User).where(User.company_id == user.company_id)).all()
 
     since_30d = datetime.utcnow() - timedelta(days=30)
+    today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
     message_counts: dict[int, int] = {}
+    today_counts: dict[int, int] = {}
     if users:
+        user_ids = [u.id for u in users]
         rows = db.execute(
             select(ChatSession.user_id, func.count())
-            .where(ChatSession.user_id.in_([u.id for u in users]), ChatSession.created_at >= since_30d)
+            .where(ChatSession.user_id.in_(user_ids), ChatSession.created_at >= since_30d)
             .group_by(ChatSession.user_id)
         ).all()
         message_counts = dict(rows)
+        today_rows = db.execute(
+            select(ChatSession.user_id, func.count())
+            .where(ChatSession.user_id.in_(user_ids), ChatSession.created_at >= today_start)
+            .group_by(ChatSession.user_id)
+        ).all()
+        today_counts = dict(today_rows)
 
     return [
         UserSummary(
@@ -303,6 +312,7 @@ async def list_company_users(
             created_at=u.created_at,
             last_login_at=u.last_login_at,
             messages_30d=message_counts.get(u.id, 0),
+            messages_today=today_counts.get(u.id, 0),
         )
         for u in users
     ]

@@ -4,7 +4,7 @@ from datetime import datetime
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from openai import OpenAI, OpenAIError
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -964,15 +964,30 @@ async def submit_feedback(
 
 
 @router.get("/rate-limit-status", response_model=ChatRateLimitStatus)
-async def rate_limit_status(user: CurrentUser = Depends(get_current_user)) -> ChatRateLimitStatus:
+async def rate_limit_status(
+    db: Session = Depends(get_db), user: CurrentUser = Depends(get_current_user)
+) -> ChatRateLimitStatus:
     """Read-only view of the same counter POST /chat/message enforces - lets
-    the chat page warn a user before they hit the 429 wall, not just after."""
+    the chat page warn a user before they hit the 429 wall, not just after.
+    messages_today is a separate, purely informational calendar-day count
+    (resets at midnight, not the rolling 1h window `used` tracks) - no
+    threshold or enforcement attached to it, see chat.dailyMessageCount."""
     used, resets_in = get_chat_rate_limit_status(user.user_id)
+    today_start = datetime.combine(datetime.utcnow().date(), datetime.min.time())
+    messages_today = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= today_start)
+        )
+        or 0
+    )
     return ChatRateLimitStatus(
         used=used,
         limit=CHAT_MESSAGE_LIMIT,
         remaining=max(CHAT_MESSAGE_LIMIT - used, 0),
         resets_in_seconds=resets_in,
+        messages_today=messages_today,
     )
 
 

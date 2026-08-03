@@ -24,6 +24,13 @@ export interface CustomerComboboxState {
   // time, atomically with the project, rather than this component creating
   // it eagerly on every keystroke.
   newCustomer: NewCustomerDraft | null;
+  // True while the search box has typed text that was never committed via
+  // either selecting an existing result or clicking "Νέος πελάτης" - the
+  // exact silent-loss window this flag exists to close. The parent's own
+  // validate() blocks submission on this rather than the combobox silently
+  // discarding the typed text, since only the user knows whether they meant
+  // to search for an existing customer or create a new one.
+  hasUnresolvedQuery: boolean;
 }
 
 interface CustomerComboboxProps {
@@ -37,6 +44,7 @@ interface CustomerComboboxProps {
 }
 
 const AFM_PATTERN = /^\d{9}$/;
+const PHONE_MAX_LENGTH = 20; // matches customers.phone varchar(20) column
 
 export default function CustomerCombobox({ token, onChange, validateSignal }: CustomerComboboxProps) {
   const { t } = useLocale();
@@ -48,11 +56,14 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
   const [draft, setDraft] = useState<NewCustomerDraft>({ name: "", afm: "", phone: "", email: "" });
   const [afmError, setAfmError] = useState<string | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  const [phoneError, setPhoneError] = useState<string | null>(null);
+  const [queryError, setQueryError] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!validateSignal) return;
     if (creatingNew && !draft.name.trim()) setNameError(t("customer.errorName"));
+    if (!selected && !creatingNew && query.trim()) setQueryError(t("customer.errorUnresolvedQuery"));
   }, [validateSignal]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
@@ -70,7 +81,8 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     setCreatingNew(false);
     setOpen(false);
     setQuery(customer.name);
-    onChange({ customerId: customer.id, newCustomer: null });
+    setQueryError(null);
+    onChange({ customerId: customer.id, newCustomer: null, hasUnresolvedQuery: false });
   }
 
   function startNewCustomer() {
@@ -79,7 +91,9 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     setCreatingNew(true);
     setOpen(false);
     setAfmError(null);
-    onChange({ customerId: null, newCustomer: prefilled });
+    setPhoneError(null);
+    setQueryError(null);
+    onChange({ customerId: null, newCustomer: prefilled, hasUnresolvedQuery: false });
   }
 
   function updateDraft(field: keyof NewCustomerDraft, value: string) {
@@ -88,10 +102,13 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     if (field === "afm") {
       setAfmError(value && !AFM_PATTERN.test(value) ? t("customer.afmInvalid") : null);
     }
+    if (field === "phone") {
+      setPhoneError(value.length > PHONE_MAX_LENGTH ? t("customer.phoneTooLong") : null);
+    }
     if (field === "name" && value.trim()) {
       setNameError(null);
     }
-    onChange({ customerId: null, newCustomer: next });
+    onChange({ customerId: null, newCustomer: next, hasUnresolvedQuery: false });
   }
 
   function clearSelection() {
@@ -100,7 +117,9 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
     setQuery("");
     setAfmError(null);
     setNameError(null);
-    onChange({ customerId: null, newCustomer: null });
+    setPhoneError(null);
+    setQueryError(null);
+    onChange({ customerId: null, newCustomer: null, hasUnresolvedQuery: false });
   }
 
   return (
@@ -112,13 +131,18 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
             type="text"
             value={query}
             onChange={(e) => {
-              setQuery(e.target.value);
+              const value = e.target.value;
+              setQuery(value);
               setOpen(true);
+              if (queryError) setQueryError(null);
+              onChange({ customerId: null, newCustomer: null, hasUnresolvedQuery: value.trim().length > 0 });
             }}
             onFocus={() => setOpen(true)}
             placeholder={t("customer.searchPlaceholder")}
             autoComplete="off"
+            aria-invalid={!!queryError}
           />
+          {queryError && <FieldError message={queryError} />}
           {open && (
             <div className={styles.dropdown}>
               {results.map((c) => (
@@ -209,7 +233,15 @@ export default function CustomerCombobox({ token, onChange, validateSignal }: Cu
             </label>
             <label className={styles.newField}>
               {t("customer.phone")}
-              <input className="input" type="text" value={draft.phone} onChange={(e) => updateDraft("phone", e.target.value)} />
+              <input
+                className="input"
+                type="text"
+                value={draft.phone}
+                onChange={(e) => updateDraft("phone", e.target.value)}
+                maxLength={PHONE_MAX_LENGTH}
+                aria-invalid={!!phoneError}
+              />
+              {phoneError && <FieldError message={phoneError} />}
             </label>
           </div>
           <label className={styles.newField}>

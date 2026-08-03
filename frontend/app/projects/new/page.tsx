@@ -78,7 +78,11 @@ function NewProjectContent() {
 
   const [company, setCompany] = useState<MyCompanySummary | null>(null);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
-  const [customerState, setCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
+  const [customerState, setCustomerState] = useState<CustomerComboboxState>({
+    customerId: null,
+    newCustomer: null,
+    hasUnresolvedQuery: false,
+  });
   const [name, setName] = useState("");
   const [clientNotes, setClientNotes] = useState("");
   const [regionId, setRegionId] = useState("");
@@ -146,7 +150,11 @@ function NewProjectContent() {
     if (usesRegionalScoping && !regionId) errors.region = t("project.new.errorRegion");
     setFieldErrors(errors);
     setValidateSignal((n) => n + 1);
-    return Object.keys(errors).length === 0;
+    // Typed-but-uncommitted customer search text (never selected from the
+    // list nor turned into "new customer") blocks submission here rather
+    // than silently saving with no customer link - CustomerCombobox itself
+    // renders the matching inline error off the same validateSignal bump.
+    return Object.keys(errors).length === 0 && !customerState.hasUnresolvedQuery;
   }
 
   async function handleSave(e: React.FormEvent) {

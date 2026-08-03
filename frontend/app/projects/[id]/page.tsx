@@ -38,9 +38,17 @@ function ProjectDetailContent() {
   const [editName, setEditName] = useState("");
   const [editCustomerNotes, setEditCustomerNotes] = useState("");
   const [editClientNotes, setEditClientNotes] = useState("");
-  const [editCustomerState, setEditCustomerState] = useState<CustomerComboboxState>({ customerId: null, newCustomer: null });
+  const [editCustomerState, setEditCustomerState] = useState<CustomerComboboxState>({
+    customerId: null,
+    newCustomer: null,
+    hasUnresolvedQuery: false,
+  });
   const [customerDetail, setCustomerDetail] = useState<CustomerDetailResponse | null>(null);
   const [nameError, setNameError] = useState<string | null>(null);
+  // Bumped on a failed submit so CustomerCombobox surfaces its own inline
+  // errors (including the unresolved-search-text one) - same mechanism as
+  // projects/new's form, see CustomerCombobox's validateSignal prop.
+  const [validateSignal, setValidateSignal] = useState(0);
 
   const [editingLocation, setEditingLocation] = useState(false);
   const [pin, setPin] = useState<{ lat: number; lon: number } | null>(null);
@@ -68,7 +76,7 @@ function ProjectDetailContent() {
         setEditName(p.name ?? "");
         setEditCustomerNotes(p.customer_notes ?? "");
         setEditClientNotes(p.client_notes ?? "");
-        setEditCustomerState({ customerId: p.customer_id ?? null, newCustomer: null });
+        setEditCustomerState({ customerId: p.customer_id ?? null, newCustomer: null, hasUnresolvedQuery: false });
       })
       .catch((err) => setError(err instanceof ApiError ? err.message : t("project.detail.notFound")));
   }
@@ -98,6 +106,11 @@ function ProjectDetailContent() {
       return;
     }
     setNameError(null);
+
+    if (editCustomerState.hasUnresolvedQuery) {
+      setValidateSignal((n) => n + 1);
+      return;
+    }
 
     let customerId = editCustomerState.customerId;
     if (editCustomerState.newCustomer) {
@@ -220,7 +233,7 @@ function ProjectDetailContent() {
               <form onSubmit={saveMetadata} noValidate>
                 <label className={styles.field}>
                   {t("project.new.clientName")}
-                  <CustomerCombobox token={token} onChange={setEditCustomerState} />
+                  <CustomerCombobox token={token} onChange={setEditCustomerState} validateSignal={validateSignal} />
                 </label>
                 <label className={styles.field}>
                   {t("dash.member.colClientNotes")}
@@ -318,7 +331,7 @@ function ProjectDetailContent() {
                 </label>
                 <label className={styles.field}>
                   {t("project.new.customerName")}
-                  <CustomerCombobox token={token} onChange={setEditCustomerState} />
+                  <CustomerCombobox token={token} onChange={setEditCustomerState} validateSignal={validateSignal} />
                 </label>
                 <label className={styles.field}>
                   {t("project.new.customerNotes")}

@@ -16,6 +16,15 @@ from app.schemas import (
 router = APIRouter(prefix="/customers", tags=["customers"])
 
 _SEARCH_LIMIT = 10
+_PHONE_MAX_LENGTH = 20  # matches customers.phone varchar(20) column
+
+
+def _validate_phone_length(phone: str | None) -> None:
+    if phone and len(phone) > _PHONE_MAX_LENGTH:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Το τηλέφωνο δεν μπορεί να υπερβαίνει τους 20 χαρακτήρες.",
+        )
 
 
 def _require_customer_membership(db: Session, user: CurrentUser, customer_id: int) -> Customer:
@@ -84,6 +93,8 @@ async def create_customer(
 ) -> CustomerSummary:
     if not user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has no company")
+
+    _validate_phone_length(payload.phone)
 
     afm = payload.afm.strip() if payload.afm and payload.afm.strip() else None
     if afm and db.scalar(
@@ -162,6 +173,8 @@ async def update_customer(
     user: CurrentUser = Depends(get_current_user),
 ) -> CustomerSummary:
     customer = _require_customer_membership(db, user, customer_id)
+
+    _validate_phone_length(payload.phone)
 
     if payload.afm is not None:
         afm = payload.afm.strip() or None

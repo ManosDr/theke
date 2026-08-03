@@ -1139,6 +1139,14 @@ class AdminDocumentCreateRequest(BaseModel):
     extraction_status: str = "manual_entry"
 
 
+class DocumentExtractionStatusUpdateRequest(BaseModel):
+    # One of 'full_text','reference_only','manual_entry_pending','manual_entry'
+    # - see Document.extraction_status's comment in models.py for what each
+    # means. Not validated against that list here since the set is a
+    # documented convention, not a DB enum/constraint.
+    extraction_status: str = Field(min_length=1)
+
+
 class MarkReviewedRequest(BaseModel):
     # Required and must be true - clearing needs_review has no way to check
     # the underlying content was actually fixed, so the reviewer's explicit

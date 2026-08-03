@@ -59,6 +59,7 @@ from app.schemas import (
     DataSourceSyncStatus,
     DataSourceUpdateRequest,
     DataSourcesByVertical,
+    DocumentExtractionStatusUpdateRequest,
     DocumentReplacementRef,
     DocumentSummary,
     DocumentValidationResult,
@@ -731,6 +732,48 @@ async def create_admin_document(
     log_action(
         db, actor_user_id=user.user_id, company_id=None,
         action="document_created", resource_type="document", resource_id=doc.id,
+    )
+    db.commit()
+    db.refresh(doc)
+    vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    return _to_admin_summary(db, doc, vertical_slugs)
+
+
+@router.patch("/documents/{document_id}/extraction-status", response_model=DocumentSummary)
+async def update_document_extraction_status(
+    document_id: int,
+    payload: DocumentExtractionStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DocumentSummary:
+    """Repair tool for a document stuck with a wrong/missing
+    extraction_status - e.g. the bug where POST /documents/upload never set
+    it at all, permanently disqualifying otherwise-real documents from
+    embed_pending_documents()'s eligibility filter regardless of restarts
+    (see KNOWN_DECISIONS.md). Before this endpoint existed, fixing an
+    already-broken row required either a raw DB write or impersonating the
+    owning company's user to re-upload through the ordinary flow - neither
+    of which a super admin should need for a one-field repair. Setting
+    extraction_status="full_text" also embeds the document immediately
+    (embed_document is idempotent-skip if it's already embedded), so a fix
+    doesn't have to wait for the next backend restart."""
+    require_super_admin(user)
+    doc = db.get(Document, document_id)
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Document not found")
+
+    doc.extraction_status = payload.extraction_status
+    db.flush()
+    if payload.extraction_status == "full_text":
+        embed_document(db, doc)
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=doc.company_id,
+        action="document_extraction_status_fixed",
+        resource_type="document",
+        resource_id=doc.id,
+        metadata={"new_extraction_status": payload.extraction_status},
     )
     db.commit()
     db.refresh(doc)

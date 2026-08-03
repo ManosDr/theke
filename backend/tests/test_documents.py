@@ -19,7 +19,9 @@ Three corrections to the test plan, made after reading the real code:
 
 import uuid
 
-from app.models import Document, Project
+from sqlalchemy import func, select, text
+
+from app.models import Document, Embedding, Project
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -233,3 +235,123 @@ def test_document_upload_wrong_company_project(client, db_session, construction_
     finally:
         cleanup_company(db_session, company_a, user_a, project_a)
         cleanup_company(db_session, company_b, user_b, project_b)
+
+
+# Minimal single-page PDF with a real text run, in the format PyMuPDF (fitz)
+# happily parses despite the missing/incomplete xref table - extract_text()
+# only needs a well-formed content stream, not a spec-perfect file.
+def _minimal_pdf(marker: str) -> bytes:
+    return f"""%PDF-1.4
+1 0 obj<</Type/Catalog/Pages 2 0 R>>endobj
+2 0 obj<</Type/Pages/Kids[3 0 R]/Count 1>>endobj
+3 0 obj<</Type/Page/Parent 2 0 R/Resources<</Font<</F1 4 0 R>>>>/MediaBox[0 0 612 792]/Contents 5 0 R>>endobj
+4 0 obj<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>endobj
+5 0 obj<</Length 90>>
+stream
+BT /F1 18 Tf 50 700 Td ({marker}) Tj ET
+endstream
+endobj
+xref
+0 6
+trailer<</Size 6/Root 1 0 R>>
+%%EOF""".encode()
+
+
+def _embed_and_count_chunks(db_session, doc: Document) -> int:
+    """Embeds a single document directly (rather than running the full
+    embed_pending_documents() sweep, which would also embed whatever other
+    pending documents happen to exist in the shared test database) and
+    returns the resulting chunk count."""
+    from app.services.embeddings import embed_document
+
+    embed_document(db_session, doc)
+    return db_session.scalar(select(func.count(Embedding.id)).where(Embedding.document_id == doc.id))
+
+
+def test_general_document_upload_sets_extraction_status_and_embeds(client, db_session, construction_vertical_id):
+    """Regression test for the bug this session found: POST /documents/upload
+    never set Document.extraction_status at all (stayed NULL), which
+    permanently disqualified every document uploaded through this endpoint
+    from embed_pending_documents()'s eligibility filter (extraction_status ==
+    'full_text'), regardless of restarts - real customer documents (a public
+    ΦΕΚ law and a municipality's own upload) sat silently unsearchable for
+    weeks before this was caught. Covers the actual buggy path; see
+    test_document_upload_to_project above for the project-scoped endpoint,
+    which already set this correctly and was the reference pattern used to
+    fix this one."""
+    # role="admin": can_upload_documents (app/services/authorization.py)
+    # restricts POST /documents/upload to admins for construction-type
+    # companies (member+admin for municipality).
+    company, user, _, token = make_company_and_user(db_session, vertical_id=construction_vertical_id, role="admin")
+    try:
+        marker = f"RegressionMarker{uuid.uuid4().hex[:8]}"
+        resp = client.post(
+            "/documents/upload",
+            files={"file": ("regression-test.pdf", _minimal_pdf(marker), "application/pdf")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 201
+        doc_id = resp.json()["document_id"]
+
+        doc = db_session.get(Document, doc_id)
+        assert doc.extraction_status == "full_text"
+        assert marker in doc.content
+
+        # This endpoint deliberately doesn't embed synchronously (see
+        # projects.py's upload_document docstring on why the two upload
+        # endpoints differ here) - a document becomes embeddable only via
+        # embed_pending_documents()'s eligibility filter, run at backend
+        # startup/restart. That filter (active, extraction_status ==
+        # "full_text", not needs_review, has content) is exactly what the
+        # original bug silently defeated: a NULL extraction_status (what this
+        # endpoint used to leave behind) meant the filter's own query would
+        # never match the row, restart after restart. Checking the same
+        # filter directly here, rather than calling the real sweep function,
+        # avoids also embedding whatever other pending documents happen to
+        # exist in the shared test database.
+        assert doc.status == "active"
+        assert doc.needs_review is False
+
+        chunk_count = _embed_and_count_chunks(db_session, doc)
+        assert chunk_count > 0
+    finally:
+        db_session.execute(text("DELETE FROM embeddings WHERE document_id IN (SELECT id FROM documents WHERE company_id = :c)"), {"c": company.id})
+        db_session.execute(text("DELETE FROM documents WHERE company_id = :c"), {"c": company.id})
+        db_session.commit()
+        cleanup_company(db_session, company, user, None)
+
+
+def test_admin_extraction_status_repair_endpoint(client, db_session, superadmin_headers, construction_vertical_id):
+    """Regression coverage for the repair tool built to fix the bug above on
+    documents that were already broken before the fix landed (no existing
+    endpoint could correct extraction_status on an existing row, or embed it,
+    without either a raw DB write or admin impersonation - neither of which
+    should be needed for a one-field repair)."""
+    doc = Document(
+        title=f"Stuck doc {uuid.uuid4().hex[:8]}",
+        content="Πραγματικό περιεχόμενο που έμεινε χωρίς extraction_status.",
+        vertical_id=construction_vertical_id,
+        doc_type="upload",
+        status="active",
+        extraction_status=None,
+    )
+    db_session.add(doc)
+    db_session.commit()
+    try:
+        resp = client.patch(
+            f"/admin/documents/{doc.id}/extraction-status",
+            json={"extraction_status": "full_text"},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["extraction_status"] == "full_text"
+
+        db_session.refresh(doc)
+        assert doc.extraction_status == "full_text"
+
+        chunk_count = db_session.scalar(select(func.count(Embedding.id)).where(Embedding.document_id == doc.id))
+        assert chunk_count > 0
+    finally:
+        db_session.execute(text("DELETE FROM embeddings WHERE document_id = :d"), {"d": doc.id})
+        db_session.delete(doc)
+        db_session.commit()

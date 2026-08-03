@@ -462,12 +462,22 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   // is shown - each project's history is its own thread, not one shared feed.
   useEffect(() => {
     if (!token) return;
+    // The initial mount fires with selectedProjectId still null (before the
+    // /projects effect above has resolved the real default/URL-param
+    // project), then re-fires once it's known - two in-flight requests with
+    // no guarantee the first (no-context) one resolves first. This closure
+    // flag is set on cleanup, which React runs the instant the dependency
+    // array changes (i.e. the moment the real project_id is known) - so a
+    // slow no-context response arriving after that point is a no-op instead
+    // of silently overwriting the correctly-scoped history with an empty one.
+    let cancelled = false;
     setHistoryLoading(true);
     const params = new URLSearchParams();
     if (selectedProjectId != null) params.set("project_id", String(selectedProjectId));
     api
       .get<ChatHistoryResponse>(`/chat/history?${params.toString()}`, token)
       .then((data) => {
+        if (cancelled) return;
         const restored: Message[] = [];
         for (const item of data.items) {
           const createdAt = new Date(item.created_at).getTime();
@@ -488,8 +498,15 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         setRestarts([]);
         setSessionStartIndex(0);
       })
-      .catch(() => setMessages([]))
-      .finally(() => setHistoryLoading(false));
+      .catch(() => {
+        if (!cancelled) setMessages([]);
+      })
+      .finally(() => {
+        if (!cancelled) setHistoryLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
   }, [token, selectedProjectId]);
 
   const dividers = useMemo(() => computeDividers(messages, restarts, locale, t), [messages, restarts, locale, t]);

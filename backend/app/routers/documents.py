@@ -254,6 +254,7 @@ async def upload_document(
         replaces_document_id=replaces_document_id,
         vertical_id=company.vertical_id,
         file_size_bytes=len(pdf_bytes),
+        extraction_status="full_text" if text_content.strip() else "manual_entry_pending",
     )
     db.add(doc)
     db.flush()

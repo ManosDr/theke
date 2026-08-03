@@ -18,6 +18,7 @@ import {
   UsersIcon,
 } from "../components/StatIcons";
 import MessagePackUpsell from "../components/MessagePackUpsell";
+import MunicipalityDocumentUpload from "../components/MunicipalityDocumentUpload";
 import { ChatIcon, DocumentsIcon } from "../components/NavIcons";
 import { DocTypeBadge } from "../components/TypeBadge";
 import { PersonIcon, PlusIcon } from "../components/UiIcons";
@@ -152,7 +153,7 @@ export function CompanyAdminDashboard() {
           <OverviewTab token={token} onNavigateToDocuments={() => setTab("documents")} />
         )}
         {tab === "users" && <UsersTab token={token} />}
-        {tab === "documents" && <DocumentsTab token={token} />}
+        {tab === "documents" && <DocumentsTab token={token} companyType={company?.type} />}
         {tab === "customers" && <CustomersTab token={token} />}
         {tab === "subscription" && <SubscriptionTab token={token} />}
       </div>
@@ -709,8 +710,9 @@ function UserUsageModal({ user, onClose }: { user: UserSummary; onClose: () => v
   );
 }
 
-function DocumentsTab({ token }: { token: string | null }) {
+function DocumentsTab({ token, companyType }: { token: string | null; companyType?: MyCompanySummary["type"] }) {
   const { t, tUpper } = useLocale();
+  const isMunicipality = companyType === "municipality";
   const [docs, setDocs] = useState<CompanyDocumentSummary[]>([]);
   const [sources, setSources] = useState<KbSourceStatusEntry[]>([]);
   const [removalRequests, setRemovalRequests] = useState<RemovalRequestSummary[]>([]);
@@ -847,15 +849,19 @@ function DocumentsTab({ token }: { token: string | null }) {
         <div className={styles.sectionHeader}>
           <h2>{t("dash.company.privateDocs")}</h2>
         </div>
-        <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
-          {t("project.company.documentsHint")}
-          {firstProjectId != null && (
-            <>
-              {" "}
-              <Link href={`/projects/${firstProjectId}`}>{t("project.company.documentsHintLink")}</Link>
-            </>
-          )}
-        </p>
+        {isMunicipality ? (
+          <MunicipalityDocumentUpload token={token} onUploaded={refresh} />
+        ) : (
+          <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+            {t("project.company.documentsHint")}
+            {firstProjectId != null && (
+              <>
+                {" "}
+                <Link href={`/projects/${firstProjectId}`}>{t("project.company.documentsHintLink")}</Link>
+              </>
+            )}
+          </p>
+        )}
         {docs.length === 0 ? (
           <p className={styles.emptyState}>{t("dash.company.noDocuments")}</p>
         ) : (

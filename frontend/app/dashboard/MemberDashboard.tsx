@@ -9,6 +9,7 @@ import { useLocale } from "../lib/i18n";
 import { BuildingIcon, FlagIcon } from "../components/StatIcons";
 import { PinIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
+import MunicipalityDocumentUpload from "../components/MunicipalityDocumentUpload";
 import type { CustomerSummary, MyCompanySummary, ProjectSummary, RegionSummary } from "../lib/types";
 import { StatCard } from "./StatCard";
 import { WelcomeCard } from "./WelcomeCard";
@@ -155,6 +156,13 @@ export function MemberDashboard() {
             ? t("dash.member.signedInAsConstruction")
             : t("dash.member.signedInAsAccounting")}
       </p>
+
+      {isMunicipality && (
+        <>
+          <h2>{t("municipality.documents.sectionTitle")}</h2>
+          <MunicipalityDocumentUpload token={token} />
+        </>
+      )}
 
       {showProjectSection && (
         <>

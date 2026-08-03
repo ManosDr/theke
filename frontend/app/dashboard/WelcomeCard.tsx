@@ -21,12 +21,19 @@ export function WelcomeCard({
   userEmail,
   verticalSlug,
   verticalDisplayName,
+  isMunicipality = false,
   show,
 }: {
   companyId: number;
   userEmail: string;
   verticalSlug: string;
   verticalDisplayName: string;
+  // Municipality companies share verticalSlug="construction" with real
+  // construction firms (see auth.tsx's companyTypeToVerticalSlug), but have
+  // no project-creation feature at all - callers that know the company's
+  // actual type should pass this explicitly rather than relying on
+  // verticalSlug to distinguish them.
+  isMunicipality?: boolean;
   show: boolean;
 }) {
   const { t, locale } = useLocale();
@@ -70,9 +77,13 @@ export function WelcomeCard({
         <Link href="/chat" className="btn btn-primary">
           {t("dash.welcome.startChat")}
         </Link>
-        <Link href="/projects/new" className="btn btn-secondary">
-          {secondaryLabel}
-        </Link>
+        {/* /projects/new has no municipality handling at all - there's no
+            project/client concept for this account type to create. */}
+        {!isMunicipality && (
+          <Link href="/projects/new" className="btn btn-secondary">
+            {secondaryLabel}
+          </Link>
+        )}
       </div>
       <Link href="/help" className={welcomeStyles.helpLink}>
         {t("dash.welcome.helpLink")}

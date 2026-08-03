@@ -358,7 +358,7 @@ class CompanyOverviewResponse(BaseModel):
 
 
 class ActivityEventEntry(BaseModel):
-    type: str  # 'chat_message', 'document_uploaded', 'project_created', 'customer_added', 'user_joined'
+    type: str  # 'chat_message', 'document_uploaded', 'project_created', 'case_added', 'customer_added', 'user_joined'
     created_at: datetime
     description: str
     actor_name: str | None = None

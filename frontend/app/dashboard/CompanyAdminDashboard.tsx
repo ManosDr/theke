@@ -65,6 +65,7 @@ const EVENT_ICON: Record<ActivityEventEntry["type"], typeof BuildingIcon> = {
   chat_message: ChatIcon,
   document_uploaded: DocumentsIcon,
   project_created: BuildingIcon,
+  case_added: PersonIcon,
   customer_added: PersonIcon,
   user_joined: MailIcon,
 };
@@ -106,18 +107,27 @@ export function CompanyAdminDashboard() {
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={styles.emptyState}>{error}</p>;
 
+  // Municipality companies structurally have no project/customer concept at
+  // all (see MemberDashboard's identical check) - projects_total/
+  // customers_total are always 0 for them, so without this exclusion
+  // isFirstRun would be permanently true and keep showing the construction-
+  // flavored welcome card + "create a project" CTA on every login.
+  const isMunicipality = company?.type === "municipality";
   const isFirstRun =
+    !isMunicipality &&
     company !== null &&
     overview !== null &&
     overview.projects_total === 0 &&
     overview.customers_total === 0 &&
     !company.current_user_has_messages;
 
+  const visibleTabs = isMunicipality ? TABS.filter((tKey) => tKey !== "customers") : TABS;
+
   return (
     <div className={tabStyles.wrapper}>
       <div className={tabStyles.header}>
         <h1>
-          {company?.type === "municipality"
+          {isMunicipality
             ? t("dash.company.titleMunicipality", { name: company.name })
             : t("dash.company.title")}
         </h1>
@@ -129,12 +139,13 @@ export function CompanyAdminDashboard() {
           userEmail={user?.email ?? ""}
           verticalSlug={company.vertical_slug}
           verticalDisplayName={company.vertical_display_name}
+          isMunicipality={isMunicipality}
           show={isFirstRun}
         />
       )}
 
       <div className={tabStyles.tabBar} role="tablist">
-        {TABS.map((tKey) => (
+        {visibleTabs.map((tKey) => (
           <button
             key={tKey}
             type="button"
@@ -150,11 +161,14 @@ export function CompanyAdminDashboard() {
 
       <div className={tabStyles.tabContent}>
         {tab === "overview" && (
-          <OverviewTab token={token} onNavigateToDocuments={() => setTab("documents")} />
+          <OverviewTab token={token} isMunicipality={isMunicipality} onNavigateToDocuments={() => setTab("documents")} />
         )}
         {tab === "users" && <UsersTab token={token} />}
         {tab === "documents" && <DocumentsTab token={token} companyType={company?.type} />}
-        {tab === "customers" && <CustomersTab token={token} />}
+        {/* isMunicipality re-checked here (not just via visibleTabs hiding the
+            button) since the deep-link effect above can still set tab to
+            "customers" from a stale/shared URL before company has loaded. */}
+        {tab === "customers" && !isMunicipality && <CustomersTab token={token} />}
         {tab === "subscription" && <SubscriptionTab token={token} />}
       </div>
     </div>
@@ -163,9 +177,11 @@ export function CompanyAdminDashboard() {
 
 function OverviewTab({
   token,
+  isMunicipality,
   onNavigateToDocuments,
 }: {
   token: string | null;
+  isMunicipality: boolean;
   onNavigateToDocuments: () => void;
 }) {
   const { t, tUpper, locale } = useLocale();
@@ -218,12 +234,18 @@ function OverviewTab({
             </>
           }
         />
-        <StatCard
-          tone="accent"
-          icon={<ClockIcon />}
-          value={`${data.customers_total}/${data.projects_total}`}
-          label={t("dash.company.statCustomersProjectsSub", { customers: data.customers_total, projects: data.projects_total })}
-        />
+        {/* Municipalities have no customer/project concept at all (see
+            MemberDashboard's showProjectSection check) - both counts are
+            structurally always 0, so this tile would just be permanently
+            meaningless clutter for them. */}
+        {!isMunicipality && (
+          <StatCard
+            tone="accent"
+            icon={<ClockIcon />}
+            value={`${data.customers_total}/${data.projects_total}`}
+            label={t("dash.company.statCustomersProjectsSub", { customers: data.customers_total, projects: data.projects_total })}
+          />
+        )}
         <StatCard
           tone="purple"
           icon={<DocumentsIcon />}

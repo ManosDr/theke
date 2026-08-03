@@ -224,7 +224,12 @@ function ProjectDetailContent() {
         </div>
 
         {tab === "documents" && (
-          <ProjectDocumentsPanel projectId={Number(params.id)} token={token} hasCustomer={project.customer_id != null} />
+          <ProjectDocumentsPanel
+            projectId={Number(params.id)}
+            token={token}
+            hasCustomer={project.customer_id != null}
+            usesRegionalScoping={usesRegionalScoping}
+          />
         )}
 
         {tab === "info" && (

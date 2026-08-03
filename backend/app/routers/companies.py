@@ -569,7 +569,16 @@ async def company_overview(
         select(Project).where(Project.company_id == company_id).order_by(Project.created_at.desc()).limit(10)
     ).all()
     for p in recent_projects:
-        events.append(ActivityEventEntry(type="project_created", created_at=p.created_at, description=p.name or "Έργο"))
+        # is_client=True rows are a tax-vertical client's case/engagement, not
+        # a construction "project" - both share the Project table (see
+        # models.py), but the activity feed should say what it actually is.
+        events.append(
+            ActivityEventEntry(
+                type="case_added" if p.is_client else "project_created",
+                created_at=p.created_at,
+                description=p.name or ("Υπόθεση" if p.is_client else "Έργο"),
+            )
+        )
 
     recent_customers = db.scalars(
         select(Customer).where(Customer.company_id == company_id).order_by(Customer.created_at.desc()).limit(10)

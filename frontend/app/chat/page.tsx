@@ -723,8 +723,19 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   // as any other construction-vertical company. Only super_admin (no
   // company at all) falls through to the vertical-blind "generic" set.
   const verticalSlug = company?.vertical_slug;
-  const suggestionKeys =
+  const isTaxAccounting = verticalSlug === "tax_accounting";
+  const baseSuggestionKeys =
     SUGGESTION_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
+  // Swaps out only the 2nd construction chip ("what paperwork does my
+  // project require?") for municipalities - it's framed as the user having
+  // a project to ask about, which is never true for this account type (see
+  // the isMunicipality comment above). The other two construction chips
+  // (permit requirements, ΥΔΟΜ procedures) are genuinely relevant to a
+  // permitting authority, so they stay as-is per the deliberate design
+  // documented above.
+  const suggestionKeys: TranslationKey[] = isMunicipality
+    ? ["chat.suggestionConstruction1", "chat.suggestionMunicipality2", "chat.suggestionConstruction3"]
+    : baseSuggestionKeys;
 
   // Context-aware empty-state chips - only when a specific project/customer
   // context is active (selectedProject), only for the true empty state (see
@@ -773,7 +784,9 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
     company?.vertical_disclaimer_text ||
     t("chat.disclaimer");
   const initials = getInitials(user?.firstName, user?.lastName, user?.email);
-  const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : t("chat.noProjectContext")} — ${t("chat.tapForContextSearch")}`;
+  const noContextLabel = isTaxAccounting ? t("chat.noClientContext") : t("chat.noProjectContext");
+  const activeContextLabel = t(isTaxAccounting ? "chat.clientLabel" : "chat.projectLabel");
+  const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : noContextLabel} — ${t("chat.tapForContextSearch")}`;
 
   // "YOUR CONTEXT" + "QUICK DOCUMENT SEARCH" - identical content, rendered
   // in two different places (desktop's always-visible right panel, and
@@ -838,7 +851,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                       </button>
                     ) : (
                       <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                        {t("chat.context.noProjectsHint")}
+                        {t(isTaxAccounting ? "chat.context.noClientsHint" : "chat.context.noProjectsHint")}
                       </p>
                     )}
                   </>
@@ -875,7 +888,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   ) : selectedProject ? (
                     <div className={styles.activeProjectChip}>
                       <div style={{ minWidth: 0 }}>
-                        <div className={styles.activeProjectChipLabel}>{t("chat.projectLabel")}</div>
+                        <div className={styles.activeProjectChipLabel}>{activeContextLabel}</div>
                         <div className={styles.activeProjectChipValue}>
                           {selectedProject.customer_name || selectedProject.name}
                         </div>
@@ -891,7 +904,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                     </div>
                   ) : (
                     <div className={styles.contextRow}>
-                      <span>{t("chat.projectLabel")}</span>
+                      <span>{activeContextLabel}</span>
                       <span>{t("chat.context.publicOption")}</span>
                     </div>
                   )}

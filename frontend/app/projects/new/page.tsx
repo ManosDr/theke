@@ -146,7 +146,7 @@ function NewProjectContent() {
 
   function validate(): boolean {
     const errors: typeof fieldErrors = {};
-    if (!name.trim()) errors.name = t("project.new.errorTitle");
+    if (!name.trim()) errors.name = usesRegionalScoping ? t("project.new.errorTitle") : t("project.new.errorCaseTitle");
     if (usesRegionalScoping && !regionId) errors.region = t("project.new.errorRegion");
     setFieldErrors(errors);
     setValidateSignal((n) => n + 1);
@@ -261,7 +261,7 @@ function NewProjectContent() {
               />
             </label>
             <label className={styles.field}>
-              {t("project.new.projectName")}
+              {t("project.new.caseTitle")}
               <input
                 className="input"
                 type="text"

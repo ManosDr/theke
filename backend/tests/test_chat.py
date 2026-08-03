@@ -70,6 +70,14 @@ def test_chat_rate_limit(client, db_session, member_headers):
     redis_client = _get_client()
     key = f"chat_msg:{user_id}"
     original = redis_client.get(key)
+    # A bare SET clears any existing TTL (Redis default behavior) - capturing
+    # it here and passing ex= explicitly on restore is what actually matters:
+    # without it, this test used to leave demo-member@construction.theke.gr's
+    # real hourly counter permanently un-expiring (TTL -1) every time it ran
+    # after that account had already sent a real message earlier in the same
+    # session, silently rate-limiting the shared demo account for the rest of
+    # the day instead of just for this test.
+    original_ttl = redis_client.ttl(key)
     try:
         redis_client.set(key, 20, ex=3600)
         resp = client.post("/chat/message", json={"query": "test rate limit"}, headers=member_headers)
@@ -78,6 +86,8 @@ def test_chat_rate_limit(client, db_session, member_headers):
     finally:
         if original is None:
             redis_client.delete(key)
+        elif original_ttl and original_ttl > 0:
+            redis_client.set(key, original, ex=original_ttl)
         else:
             redis_client.set(key, original)
 

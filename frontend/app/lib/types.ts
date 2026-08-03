@@ -29,7 +29,7 @@ export interface AdminUserSummary extends Omit<UserSummary, "role"> {
 }
 
 export interface ActivityEventEntry {
-  type: "chat_message" | "document_uploaded" | "project_created" | "customer_added" | "user_joined";
+  type: "chat_message" | "document_uploaded" | "project_created" | "case_added" | "customer_added" | "user_joined";
   created_at: string;
   description: string;
   actor_name: string | null;

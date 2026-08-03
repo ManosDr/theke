@@ -26,10 +26,16 @@ export default function ProjectDocumentsPanel({
   projectId,
   token,
   hasCustomer,
+  usesRegionalScoping = true,
 }: {
   projectId: number;
   token: string | null;
   hasCustomer: boolean;
+  // Construction's Project record maps to a tax-vertical client's own case/
+  // engagement (see projects/new/page.tsx's client-branch form) - the
+  // "this project only" scope option needs to read as "this client only"
+  // there instead, matching the Help page's own description of the feature.
+  usesRegionalScoping?: boolean;
 }) {
   const { t, tUpper } = useLocale();
   const [docs, setDocs] = useState<ProjectDocumentSummary[]>([]);
@@ -169,8 +175,10 @@ export default function ProjectDocumentsPanel({
               onChange={() => setUploadScope("project")}
             />
             <span>
-              <strong>{t("project.documents.scopeProject")}</strong>
-              <span className={styles.scopeHint}>{t("project.documents.scopeProjectHint")}</span>
+              <strong>{t(usesRegionalScoping ? "project.documents.scopeProject" : "project.documents.scopeClient")}</strong>
+              <span className={styles.scopeHint}>
+                {t(usesRegionalScoping ? "project.documents.scopeProjectHint" : "project.documents.scopeClientHint")}
+              </span>
             </span>
           </label>
           {hasCustomer && (

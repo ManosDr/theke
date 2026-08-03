@@ -19,7 +19,13 @@ function HelpContent() {
   const { company } = useCompany();
   const { t } = useLocale();
 
-  const isConstruction = company ? company.vertical_slug === "construction" : true;
+  // Municipality companies share vertical_slug="construction" with real
+  // construction firms (see auth.tsx's companyTypeToVerticalSlug), but have
+  // no project-creation feature at all - checked separately so the
+  // "how to create a project" section/note below doesn't describe a
+  // workflow this account type can't actually use.
+  const isMunicipality = company?.type === "municipality";
+  const isConstruction = !isMunicipality && (company ? company.vertical_slug === "construction" : true);
   const isAdmin = user?.role === "admin";
   const isSuperAdmin = user?.role === "super_admin";
 
@@ -32,7 +38,7 @@ function HelpContent() {
     },
   ];
 
-  if (!isSuperAdmin) {
+  if (!isSuperAdmin && !isMunicipality) {
     sections.push({
       key: "project",
       titleKey: isConstruction ? "help.projectTitleConstruction" : "help.projectTitleTax",

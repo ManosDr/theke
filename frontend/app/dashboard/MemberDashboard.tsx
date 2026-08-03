@@ -138,6 +138,7 @@ export function MemberDashboard() {
           userEmail={user.email}
           verticalSlug={company.vertical_slug}
           verticalDisplayName={company.vertical_display_name}
+          isMunicipality={isMunicipality}
           show={isFirstRun}
         />
       )}

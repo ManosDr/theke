@@ -513,25 +513,58 @@ def _authority_contact(db: Session, region: Region | None, authority: str | None
     return (provider.contact_phone, provider.contact_email) if provider else (None, None)
 
 
-def _gap_contact_lines(db: Session, region_id: str | None, locale: str | None = None) -> str:
-    """Formatted contact lines for every authority with curated info in this
-    region, or "" when none are populated yet - appended to the gap response
-    rather than replacing it, so an uncurated region's gap message stays
-    exactly as before. _AUTHORITY_LABELS' own values (ΥΔΟΜ/ΔΕΥΑ/ΔΕΔΔΗΕ) are
-    official Greek institution abbreviations, not translated regardless of
-    locale - same rule as legal citations in LANGUAGE_RULE_EN."""
+def _detect_authority_from_question(question: str) -> str | None:
+    """Simple keyword match - one of _AUTHORITY_LABELS' own official Greek
+    abbreviations appearing literally in the question - deliberately not
+    sophisticated (see this fix's own spec: it doesn't need to be). Returns
+    None on zero or more-than-one matches so the caller falls through to a
+    genuine gap response rather than guessing which authority an
+    authority-less or multi-authority question meant - a confident wrong
+    answer here is worse than an honest "I don't have this"."""
+    upper_question = question.upper()
+    matched = [key for key, label in _AUTHORITY_LABELS.items() if label in upper_question]
+    return matched[0] if len(matched) == 1 else None
+
+
+def _gap_contact_lines(
+    db: Session, region_id: str | None, locale: str | None = None, question: str | None = None
+) -> str:
+    """Formatted contact lines for this region's curated authorities, or ""
+    when none are populated yet - appended to the gap response rather than
+    replacing it, so an uncurated region's gap message stays exactly as
+    before. _AUTHORITY_LABELS' own values (ΥΔΟΜ/ΔΕΥΑ/ΔΕΔΔΗΕ) are official
+    Greek institution abbreviations, not translated regardless of locale -
+    same rule as legal citations in LANGUAGE_RULE_EN.
+
+    When `question` is given, scoped to the single authority the question
+    actually names (see _detect_authority_from_question) - used by the
+    generic no-hits contact-lookup path, where returning every curated
+    authority regardless of what was asked produced a confident but wrong
+    answer (e.g. a ΔΕΔΔΗΕ question getting ΥΔΟΜ's phone number back).
+    Returns "" rather than guessing when the question doesn't clearly name
+    exactly one known authority. When `question` is omitted (the
+    archaeological-notes gap path below, which isn't "answering" a specific
+    authority question so much as pointing to who to talk to about the
+    plot generally), the original any-curated-authority behavior is kept."""
     if not region_id:
         return ""
     region = db.get(Region, region_id)
     if not region:
         return ""
     tel_prefix = "tel." if locale == "en" else "τηλ."
+
+    if question is not None:
+        detected = _detect_authority_from_question(question)
+        authorities = [detected] if detected else []
+    else:
+        authorities = list(_AUTHORITY_LABELS)
+
     lines = []
-    for authority, label in _AUTHORITY_LABELS.items():
+    for authority in authorities:
         phone, email = _authority_contact(db, region, authority)
         if not phone and not email:
             continue
-        parts = [label]
+        parts = [_AUTHORITY_LABELS[authority]]
         if phone:
             parts.append(f"{tel_prefix} {phone}")
         if email:
@@ -846,7 +879,7 @@ async def chat_message(
                 )
                 return ChatMessageResponse(answer=gap_answer, citations=[], gap=True, session_id=session_id)
 
-            contact_lines = _gap_contact_lines(db, region_id, locale)
+            contact_lines = _gap_contact_lines(db, region_id, locale, question=question)
             gap_response = _gap_response(locale)
             contact_label = CONTACT_INFO_LABEL_EN if locale == "en" else CONTACT_INFO_LABEL
             gap_answer = (

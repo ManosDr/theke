@@ -65,10 +65,6 @@ interface TokenResponse {
   preferred_theme: string | null;
 }
 
-interface ImpersonateResponse extends TokenResponse {
-  email: string;
-}
-
 interface AuthContextValue {
   user: AuthUser | null;
   loading: boolean;
@@ -78,26 +74,15 @@ interface AuthContextValue {
   updatePreferredTheme: (theme: string) => Promise<void>;
   showSessionExpiryWarning: boolean;
   dismissSessionExpiryWarning: () => void;
-  // Lets a super admin view the app as another user without their
-  // password (see backend POST /admin/users/{id}/impersonate) - the
-  // soft-launch replacement for the old public demo-account picker, now
-  // gated behind an already-authenticated super admin instead of open to
-  // any visitor. `impersonating` reflects whether the original super
-  // admin session is currently stashed, so the UI can offer a way back.
-  impersonating: boolean;
-  impersonateAsUser: (userId: number) => Promise<void>;
-  stopImpersonating: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
 const STORAGE_KEY = "theke-auth";
-const ORIGINAL_STORAGE_KEY = "theke-auth-original";
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSessionExpiryWarning, setShowSessionExpiryWarning] = useState(false);
-  const [impersonating, setImpersonating] = useState(false);
   const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   function scheduleExpiryWarning(token: string) {
@@ -117,7 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         const stored = JSON.parse(raw) as AuthUser;
         setUser(stored);
         scheduleExpiryWarning(stored.token);
-        setImpersonating(localStorage.getItem(ORIGINAL_STORAGE_KEY) !== null);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
@@ -142,8 +126,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       preferredLocale: data.preferred_locale,
       preferredTheme: data.preferred_theme,
     };
-    localStorage.removeItem(ORIGINAL_STORAGE_KEY);
-    setImpersonating(false);
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
     scheduleExpiryWarning(authUser.token);
@@ -153,51 +135,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
     setShowSessionExpiryWarning(false);
     localStorage.removeItem(STORAGE_KEY);
-    localStorage.removeItem(ORIGINAL_STORAGE_KEY);
-    setImpersonating(false);
     setUser(null);
-  }
-
-  async function impersonateAsUser(userId: number) {
-    if (!user) return;
-    const data = await api.post<ImpersonateResponse>(`/admin/users/${userId}/impersonate`, undefined, user.token);
-    // Only stash once - impersonating a second user while already
-    // impersonating should still be able to return to the *original*
-    // super admin, not to the first impersonated user.
-    if (!localStorage.getItem(ORIGINAL_STORAGE_KEY)) {
-      localStorage.setItem(ORIGINAL_STORAGE_KEY, JSON.stringify(user));
-    }
-    const authUser: AuthUser = {
-      token: data.token,
-      companyId: data.company_id,
-      companyType: data.company_type,
-      role: data.role,
-      email: data.email,
-      firstName: data.first_name,
-      lastName: data.last_name,
-      preferredLocale: data.preferred_locale,
-      preferredTheme: data.preferred_theme,
-    };
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
-    setUser(authUser);
-    setImpersonating(true);
-    scheduleExpiryWarning(authUser.token);
-  }
-
-  function stopImpersonating() {
-    const raw = localStorage.getItem(ORIGINAL_STORAGE_KEY);
-    if (!raw) return;
-    try {
-      const original = JSON.parse(raw) as AuthUser;
-      localStorage.removeItem(ORIGINAL_STORAGE_KEY);
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(original));
-      setUser(original);
-      setImpersonating(false);
-      scheduleExpiryWarning(original.token);
-    } catch {
-      localStorage.removeItem(ORIGINAL_STORAGE_KEY);
-      setImpersonating(false);
-    }
   }
 
   function dismissSessionExpiryWarning() {
@@ -231,9 +169,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatePreferredTheme,
         showSessionExpiryWarning,
         dismissSessionExpiryWarning,
-        impersonating,
-        impersonateAsUser,
-        stopImpersonating,
       }}
     >
       {children}

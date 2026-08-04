@@ -69,7 +69,6 @@ from app.schemas import (
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
-    ImpersonateResponse,
     InfraHealthCheckEntry,
     InfraHealthResponse,
     MarkReviewedRequest,
@@ -99,7 +98,7 @@ from app.schemas import (
     VerticalSummary,
     VerticalUpdateRequest,
 )
-from app.security import create_access_token, generate_password, hash_password
+from app.security import generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
 from app.services.embeddings import embed_document
@@ -440,47 +439,6 @@ async def admin_restore_user(
         db, actor_user_id=user.user_id, company_id=target.company_id, action="access_restored", resource_type="user", resource_id=target.id
     )
     db.commit()
-
-
-@router.post("/users/{user_id}/impersonate", response_model=ImpersonateResponse)
-async def impersonate_user(
-    user_id: int,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-) -> ImpersonateResponse:
-    """Soft-launch replacement for the old public demo-account login: once
-    real invites go out, letting any visitor pick any account from the
-    public login page is no longer acceptable, but a super admin still
-    needs to spot-check what a given role/company actually sees. Issues a
-    real token for the target user directly - no password involved, since
-    the caller is already verified as super_admin."""
-    require_super_admin(user)
-    target = db.get(User, user_id)
-    if not target:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="User not found")
-    if target.role == "super_admin":
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Cannot impersonate another super admin")
-    if not target.is_active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="This account has been deactivated")
-
-    company = db.get(Company, target.company_id) if target.company_id else None
-    log_action(
-        db, actor_user_id=user.user_id, company_id=target.company_id, action="impersonate", resource_type="user", resource_id=target.id
-    )
-    db.commit()
-
-    token = create_access_token(user_id=target.id, company_id=target.company_id, role=target.role)
-    return ImpersonateResponse(
-        token=token,
-        company_id=target.company_id,
-        company_type=company.type if company else None,
-        role=target.role,
-        first_name=target.first_name,
-        last_name=target.last_name,
-        preferred_locale=target.preferred_locale,
-        preferred_theme=target.preferred_theme,
-        email=target.email,
-    )
 
 
 @router.post("/users/{user_id}/reset-password", response_model=AdminResetPasswordResponse)

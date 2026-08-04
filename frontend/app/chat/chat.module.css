@@ -11,8 +11,8 @@
 /* AppShell's `edgeToEdge` prop (see chat/page.tsx) makes .main a flex
    column with no padding, so this just needs to claim the rest of that
    column - no magic-number height calc needed, and unlike the old fixed
-   subtraction this stays correct regardless of whether a trial/impersonation
-   banner is also taking up space above it. */
+   subtraction this stays correct regardless of whether a trial banner
+   is also taking up space above it. */
 .pageWrap {
   display: flex;
   flex-direction: column;

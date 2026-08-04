@@ -85,10 +85,6 @@ class TokenResponse(BaseModel):
     preferred_theme: str | None = None
 
 
-class ImpersonateResponse(TokenResponse):
-    email: str
-
-
 class UpdateLocaleRequest(BaseModel):
     locale: str = Field(min_length=2, max_length=10)
 

@@ -22,12 +22,9 @@ type StatusFilter = "all" | "active" | "revoked";
 // company-admin's own Χρήστες tab, just without the company scoping.
 //
 // Split into a real-users tab and a demo-accounts tab (AdminUserSummary's
-// is_test_account, surfaced from the owning Company - see KNOWN_DECISIONS.md)
-// so that "View as" impersonation - a meaningful trust boundary - is only
-// ever offered next to accounts that were seeded for internal testing, not
-// as a casual one-click action against a real user's account.
+// is_test_account, surfaced from the owning Company - see KNOWN_DECISIONS.md).
 export function AdminUsersPanel() {
-  const { user, impersonateAsUser } = useAuth();
+  const { user } = useAuth();
   const { t, tUpper } = useLocale();
   const router = useRouter();
   const token = user?.token ?? null;
@@ -121,16 +118,6 @@ export function AdminUsersPanel() {
       refresh();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : `Failed to ${action} access`);
-    }
-  }
-
-  async function viewAs(target: AdminUserSummary) {
-    setOpenMenuId(null);
-    try {
-      await impersonateAsUser(target.id);
-      router.push("/dashboard");
-    } catch (err) {
-      alert(err instanceof ApiError ? err.message : "Failed to switch account");
     }
   }
 
@@ -273,11 +260,6 @@ export function AdminUsersPanel() {
                         </button>
                         {openMenuId === u.id && (
                           <div className={styles.rowMenu} role="menu">
-                            {tab === "demo" && u.is_active && (
-                              <button className={styles.rowMenuItem} onClick={() => viewAs(u)}>
-                                {t("dash.company.viewAs")}
-                              </button>
-                            )}
                             <button
                               className={styles.rowMenuItem}
                               onClick={() => {

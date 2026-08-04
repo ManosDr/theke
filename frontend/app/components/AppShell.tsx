@@ -3,7 +3,6 @@
 import type { ReactNode } from "react";
 
 import { FeedbackWidget } from "./FeedbackWidget";
-import { ImpersonationBanner } from "./ImpersonationBanner";
 import { Sidebar } from "./Sidebar";
 import styles from "./AppShell.module.css";
 import { TopHeader, TrialBadgeBar } from "./TopHeader";
@@ -45,7 +44,6 @@ export function AppShell({
           <TopHeader />
         )}
         <TrialBadgeBar />
-        <ImpersonationBanner />
         <TrialBanner />
         <TrialNudgeBanner />
         <main

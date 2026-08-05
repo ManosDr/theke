@@ -1087,6 +1087,20 @@ function SubscriptionTab({ token }: { token: string | null }) {
         <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-1)" }}>
           {t("dash.company.sub.messagesThisMonth")}
         </p>
+        {!status.is_beta && status.pool_days_until_exhaustion != null && (
+          <p
+            style={{
+              fontSize: "0.85rem",
+              marginTop: "var(--space-1)",
+              color: status.pool_at_risk ? "var(--color-danger)" : "var(--color-success)",
+              fontWeight: 600,
+            }}
+          >
+            {status.pool_at_risk
+              ? t("dash.company.sub.poolAtRisk", { days: status.pool_days_until_exhaustion })
+              : t("dash.company.sub.poolOnTrack")}
+          </p>
+        )}
 
         <MessagePackUpsell
           messagesUsed={status.messages_used}

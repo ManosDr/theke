@@ -1280,12 +1280,18 @@ class SubscriptionStatusResponse(BaseModel):
     # Lets the frontend suppress TrialNudgeBanner's conversion nudge for
     # is_test_account companies (see Phase 5) without a second request.
     is_test_account: bool
-    # Pace-based projection (see compute_pool_at_risk) - True only when the
-    # company's recent messaging pace would exhaust the pool with more than
-    # a few days still left in the billing period. Always False for is_beta
-    # plans (no meaningful pool to run out of). Replaces the old fixed
-    # remaining-count threshold per UX/Finance guidance.
+    # Pace-based projection (see compute_pool_risk_projection) - True only
+    # when the company's recent messaging pace would exhaust the pool with
+    # more than a few days still left in the billing period. Always False
+    # for is_beta plans (no meaningful pool to run out of). Replaces the
+    # old fixed remaining-count threshold per UX/Finance guidance.
     pool_at_risk: bool
+    # The same projection's day count, whenever there's enough recent
+    # activity to compute a pace at all - populated even when pool_at_risk
+    # is False, so the company admin dashboard (Section 6b) can show a
+    # concrete "on track" figure, not just a boolean. None when there's
+    # too little recent signal to project anything, or for is_beta plans.
+    pool_days_until_exhaustion: int | None
 
 
 class PlanSummary(BaseModel):

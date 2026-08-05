@@ -9,7 +9,7 @@ from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Plan, User
 from app.schemas import SubscriptionStatusResponse
 from app.services.notifications import notify_super_admins
-from app.services.subscription import compute_pool_at_risk, get_or_create_subscription, get_or_create_usage
+from app.services.subscription import compute_pool_risk_projection, get_or_create_subscription, get_or_create_usage
 
 router = APIRouter(prefix="/subscription", tags=["subscription"])
 
@@ -42,6 +42,7 @@ async def subscription_status(
         sub.status = "expired"
         db.commit()
 
+    pool_at_risk, pool_days_until_exhaustion = (False, None) if plan.is_beta else compute_pool_risk_projection(db, company.id, usage)
     return SubscriptionStatusResponse(
         plan_name=plan.name,
         plan_slug=plan.slug,
@@ -55,7 +56,8 @@ async def subscription_status(
         users_count=users_count,
         user_limit=plan.user_limit,
         is_test_account=company.is_test_account,
-        pool_at_risk=False if plan.is_beta else compute_pool_at_risk(db, company.id, usage),
+        pool_at_risk=pool_at_risk,
+        pool_days_until_exhaustion=pool_days_until_exhaustion,
     )
 
 

@@ -93,13 +93,18 @@ def get_or_create_usage(db: Session, company_id: int, messages_limit: int) -> Su
     return usage
 
 
-def compute_pool_at_risk(db: Session, company_id: int, usage: SubscriptionUsage) -> bool:
-    """True if, at the company's recent messaging pace, the monthly pool
-    would run dry with more than POOL_RISK_BUFFER_DAYS still left in the
-    billing period - the genuinely-urgent case UX/Finance want flagged,
-    as opposed to "5 left but the period just started" which isn't
-    actually a problem. Never true for a plan whose pool isn't
-    meaningfully limited (caller already skips is_beta before this).
+def compute_pool_risk_projection(db: Session, company_id: int, usage: SubscriptionUsage) -> tuple[bool, int | None]:
+    """Returns (at_risk, days_until_exhaustion). at_risk is True if, at the
+    company's recent messaging pace, the monthly pool would run dry with
+    more than POOL_RISK_BUFFER_DAYS still left in the billing period - the
+    genuinely-urgent case UX/Finance want flagged, as opposed to "5 left
+    but the period just started" which isn't actually a problem. Never at
+    risk for a plan whose pool isn't meaningfully limited (caller already
+    skips is_beta before this). days_until_exhaustion is the projected
+    figure whenever a pace can be computed at all (Section 6b - the
+    company admin dashboard shows this even when not yet "at risk", to
+    answer "on track" vs a specific day count), None when there isn't
+    enough signal yet to project anything.
 
     Pace = average messages/day over the most recent
     POOL_RISK_PACE_WINDOW_DAYS days that had any activity at all, looking
@@ -112,7 +117,7 @@ def compute_pool_at_risk(db: Session, company_id: int, usage: SubscriptionUsage)
     today = date.today()
     days_remaining = (usage.period_end - today).days
     if days_remaining <= 0:
-        return False
+        return False, None
 
     since = datetime.combine(today - timedelta(days=POOL_RISK_LOOKBACK_DAYS), datetime.min.time())
     rows = db.execute(
@@ -123,15 +128,16 @@ def compute_pool_at_risk(db: Session, company_id: int, usage: SubscriptionUsage)
     ).all()
     active_days = [count for _day, count in rows[:POOL_RISK_PACE_WINDOW_DAYS]]
     if len(active_days) < POOL_RISK_MIN_ACTIVE_DAYS:
-        return False
+        return False, None
 
     pace = sum(active_days) / len(active_days)
     if pace <= 0:
-        return False
+        return False, None
 
     remaining_pool = usage.messages_limit - usage.messages_used
     days_until_exhaustion = remaining_pool / pace
-    return days_until_exhaustion < (days_remaining - POOL_RISK_BUFFER_DAYS)
+    at_risk = days_until_exhaustion < (days_remaining - POOL_RISK_BUFFER_DAYS)
+    return at_risk, max(0, round(days_until_exhaustion))
 
 
 def check_subscription(

@@ -542,6 +542,11 @@ export interface SubscriptionStatusResponse {
   // pace would exhaust the shared pool with more than a few days still
   // left in the billing period. Always False for is_beta plans.
   pool_at_risk: boolean;
+  // The same projection's day count (Section 6b), populated whenever there's
+  // enough recent activity to compute a pace - even when pool_at_risk is
+  // false, so the dashboard can show a concrete "on track" figure. null
+  // when there's too little recent signal, or for is_beta plans.
+  pool_days_until_exhaustion: number | null;
 }
 
 export interface PlanSummary {

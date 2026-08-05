@@ -32,7 +32,7 @@ from app.database import SessionLocal
 from app.main import app
 from app.models import Company, Project, User, Vertical
 from app.security import create_access_token, hash_password
-from app.services.rate_limit import reset_login_failures
+from app.services.rate_limit import _get_client, reset_login_failures
 
 DEMO_PASSWORD = "demo1234"
 
@@ -66,6 +66,21 @@ def db_session():
 @pytest.fixture
 def client():
     return TestClient(app)
+
+
+@pytest.fixture(scope="session", autouse=True)
+def _flush_chat_rate_limits():
+    """Manual browser QA against demo accounts (chiefly
+    demo-member@construction.theke.gr) hits the same Redis instance this
+    suite runs against and leaves chat_msg:<user_id> counters sitting there
+    with real accumulated usage - if that count is already at or past
+    CHAT_MESSAGE_LIMIT when the suite runs, unrelated chat-rate-limit tests
+    429 for reasons that have nothing to do with the code under test. Flush
+    once per suite run, before anything else, so leftover manual-testing
+    usage never poisons a pytest run."""
+    client = _get_client()
+    for key in client.scan_iter(match="chat_msg:*"):
+        client.delete(key)
 
 
 @pytest.fixture(autouse=True)

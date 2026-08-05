@@ -85,6 +85,7 @@ async def get_my_company(
         vertical_slug=vertical.slug if vertical else "construction",
         vertical_display_name=vertical.display_name if vertical else "",
         vertical_tagline=vertical.tagline if vertical else None,
+        vertical_tagline_en=vertical.tagline_en if vertical else None,
         vertical_welcome_message=vertical.welcome_message if vertical else None,
         vertical_welcome_message_en=vertical.welcome_message_en if vertical else None,
         vertical_disclaimer_text=vertical.disclaimer_text if vertical else None,

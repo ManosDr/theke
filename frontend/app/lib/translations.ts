@@ -573,6 +573,7 @@ export const translations = {
 
     "verticalEditor.title": "Verticals & Content",
     "verticalEditor.tagline": "Tagline",
+    "verticalEditor.taglineEn": "Tagline (English)",
     "verticalEditor.welcomeMessage": "Welcome message",
     "verticalEditor.welcomeMessageEn": "Welcome message (English)",
     "verticalEditor.disclaimerText": "Disclaimer text",
@@ -1940,6 +1941,7 @@ export const translations = {
 
     "verticalEditor.title": "Verticals & Περιεχόμενο",
     "verticalEditor.tagline": "Σύνθημα (tagline)",
+    "verticalEditor.taglineEn": "Σύνθημα (Αγγλικά)",
     "verticalEditor.welcomeMessage": "Μήνυμα καλωσορίσματος",
     "verticalEditor.welcomeMessageEn": "Μήνυμα καλωσορίσματος (Αγγλικά)",
     "verticalEditor.disclaimerText": "Κείμενο αποποίησης ευθύνης",

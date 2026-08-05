@@ -189,6 +189,7 @@ export interface MyCompanySummary {
   vertical_slug: string;
   vertical_display_name: string;
   vertical_tagline: string | null;
+  vertical_tagline_en: string | null;
   vertical_welcome_message: string | null;
   vertical_welcome_message_en: string | null;
   vertical_disclaimer_text: string | null;
@@ -772,6 +773,7 @@ export interface VerticalSummary {
   slug: string;
   display_name: string;
   tagline: string | null;
+  tagline_en: string | null;
   welcome_message: string | null;
   welcome_message_en: string | null;
   disclaimer_text: string | null;

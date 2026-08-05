@@ -428,6 +428,7 @@ CREATE TABLE IF NOT EXISTS verticals (
     slug VARCHAR NOT NULL UNIQUE,
     display_name VARCHAR NOT NULL,
     tagline TEXT,
+    tagline_en TEXT,
     welcome_message TEXT,
     welcome_message_en TEXT,
     disclaimer_text TEXT,
@@ -443,6 +444,7 @@ CREATE TABLE IF NOT EXISTS verticals (
 -- pattern.
 ALTER TABLE verticals ADD COLUMN IF NOT EXISTS disclaimer_text_en TEXT;
 ALTER TABLE verticals ADD COLUMN IF NOT EXISTS welcome_message_en TEXT;
+ALTER TABLE verticals ADD COLUMN IF NOT EXISTS tagline_en TEXT;
 
 INSERT INTO verticals (
     slug, display_name, tagline, welcome_message, disclaimer_text, uses_regional_scoping
@@ -483,6 +485,14 @@ UPDATE verticals SET welcome_message_en =
     WHERE slug = 'construction';
 UPDATE verticals SET welcome_message_en =
     'Ask about tax obligations, AADE circulars, VAT, ENFIA, or any tax topic.'
+    WHERE slug = 'tax_accounting';
+
+-- English tagline translations (Section 8) - same backfill pattern.
+UPDATE verticals SET tagline_en =
+    'The knowledge base for building permits and construction regulations'
+    WHERE slug = 'construction';
+UPDATE verticals SET tagline_en =
+    'The knowledge base for tax legislation and accounting procedures'
     WHERE slug = 'tax_accounting';
 
 -- Every company belongs to exactly one vertical (a firm doing both

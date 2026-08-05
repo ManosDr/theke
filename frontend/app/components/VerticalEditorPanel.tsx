@@ -52,6 +52,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
   const accent = ACCENT_CLASS[vertical.slug] ?? "";
 
   const [tagline, setTagline] = useState(vertical.tagline ?? "");
+  const [taglineEn, setTaglineEn] = useState(vertical.tagline_en ?? "");
   const [welcomeMessage, setWelcomeMessage] = useState(vertical.welcome_message ?? "");
   const [welcomeMessageEn, setWelcomeMessageEn] = useState(vertical.welcome_message_en ?? "");
   const [disclaimerText, setDisclaimerText] = useState(vertical.disclaimer_text ?? "");
@@ -80,6 +81,7 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
           // currently NULL for tax_accounting and would have been silently
           // blanked by the next unrelated save).
           tagline: tagline || null,
+          tagline_en: taglineEn || null,
           welcome_message: welcomeMessage || null,
           welcome_message_en: welcomeMessageEn || null,
           disclaimer_text: disclaimerText || null,
@@ -105,6 +107,11 @@ function VerticalCard({ vertical, token }: { vertical: VerticalSummary; token: s
       <div className={styles.field}>
         <label>{t("verticalEditor.tagline")}</label>
         <input value={tagline} onChange={(e) => setTagline(e.target.value)} />
+      </div>
+
+      <div className={styles.field}>
+        <label>{t("verticalEditor.taglineEn")}</label>
+        <input value={taglineEn} onChange={(e) => setTaglineEn(e.target.value)} />
       </div>
 
       <div className={styles.field}>

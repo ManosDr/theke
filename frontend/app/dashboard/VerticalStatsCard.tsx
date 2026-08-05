@@ -21,17 +21,18 @@ export function VerticalStatsCard({
   full: boolean;
   onViewDetails: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   const accentClass = ACCENT_CLASS[vertical.slug] ?? "";
   const gapRate = stats?.gap_rate ?? 0;
   const gapClass = gapRate >= 50 ? styles.gapDanger : gapRate >= 20 ? styles.gapWarning : styles.gapSuccess;
+  const tagline = (locale === "en" ? vertical.tagline_en : null) || vertical.tagline;
 
   return (
     <div className={`card ${styles.verticalCard} ${accentClass} ${full ? styles.verticalCardFull : ""}`}>
       <div className={styles.verticalCardHeader}>
         <div>
           <h3 className={styles.verticalCardName}>{vertical.display_name}</h3>
-          {vertical.tagline && <p className={styles.verticalCardTagline}>{vertical.tagline}</p>}
+          {tagline && <p className={styles.verticalCardTagline}>{tagline}</p>}
         </div>
         <span className={`${styles.verticalPill} ${accentClass}`}>{t(`vertical.${vertical.slug}` as TranslationKey)}</span>
       </div>

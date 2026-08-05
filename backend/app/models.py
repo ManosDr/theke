@@ -14,6 +14,9 @@ class Vertical(Base):
     slug: Mapped[str] = mapped_column(Text, unique=True)
     display_name: Mapped[str] = mapped_column(Text)
     tagline: Mapped[str | None] = mapped_column(Text)
+    # English translation of tagline, same Greek-fallback pattern as
+    # welcome_message_en/disclaimer_text_en below.
+    tagline_en: Mapped[str | None] = mapped_column(Text)
     welcome_message: Mapped[str | None] = mapped_column(Text)
     # English translation of welcome_message, same fallback pattern as
     # disclaimer_text_en below - the chat page's empty-state copy falls

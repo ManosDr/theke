@@ -2141,6 +2141,7 @@ async def list_verticals(
             slug=v.slug,
             display_name=v.display_name,
             tagline=v.tagline,
+            tagline_en=v.tagline_en,
             welcome_message=v.welcome_message,
             welcome_message_en=v.welcome_message_en,
             disclaimer_text=v.disclaimer_text,
@@ -2172,6 +2173,8 @@ async def update_vertical(
 
     if payload.tagline is not None:
         vertical.tagline = payload.tagline
+    if payload.tagline_en is not None:
+        vertical.tagline_en = payload.tagline_en
     if payload.welcome_message is not None:
         vertical.welcome_message = payload.welcome_message
     if payload.welcome_message_en is not None:
@@ -2200,6 +2203,7 @@ async def update_vertical(
         slug=vertical.slug,
         display_name=vertical.display_name,
         tagline=vertical.tagline,
+        tagline_en=vertical.tagline_en,
         welcome_message=vertical.welcome_message,
         welcome_message_en=vertical.welcome_message_en,
         disclaimer_text=vertical.disclaimer_text,

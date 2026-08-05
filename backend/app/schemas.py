@@ -573,6 +573,7 @@ class MyCompanySummary(BaseModel):
     vertical_slug: str
     vertical_display_name: str
     vertical_tagline: str | None
+    vertical_tagline_en: str | None
     vertical_welcome_message: str | None
     vertical_welcome_message_en: str | None
     vertical_disclaimer_text: str | None
@@ -1114,6 +1115,7 @@ class VerticalSummary(BaseModel):
     slug: str
     display_name: str
     tagline: str | None
+    tagline_en: str | None
     welcome_message: str | None
     welcome_message_en: str | None
     disclaimer_text: str | None
@@ -1126,6 +1128,9 @@ class VerticalSummary(BaseModel):
 
 class VerticalUpdateRequest(BaseModel):
     tagline: str | None = None
+    # English translation - same Greek-fallback pattern as
+    # welcome_message_en/disclaimer_text_en below.
+    tagline_en: str | None = None
     welcome_message: str | None = None
     # English translation - the chat page's empty-state copy falls back to
     # welcome_message (Greek) when this is null, same pattern as

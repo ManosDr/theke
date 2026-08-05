@@ -1118,7 +1118,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               <p className={styles.emptyStateHintMobile}>{t("chat.emptyStateHintMobile")}</p>
               {company && !company.company_has_messages && (
                 <p className={styles.emptyStateHint}>
-                  {t("chat.firstSessionHintPrefix")}{" "}
+                  {t(isMunicipality ? "chat.firstSessionHintPrefixMunicipality" : "chat.firstSessionHintPrefix")}{" "}
                   <Link href="/help">{t("chat.firstSessionHintLink")}</Link>.
                 </p>
               )}

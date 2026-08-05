@@ -1050,12 +1050,6 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         {rateLimitStatus && (
           <div className={styles.chatHeaderBar}>
             <div className={styles.headerControls}>
-              {/* Always visible, no threshold, no color coding - a plain
-                  fact (see chat.dailyMessageCount), distinct from the
-                  color-coded warnings below which only appear near a limit. */}
-              <span className={styles.dailyCountLabel}>
-                {t("chat.dailyMessageCount", { count: rateLimitStatus.messages_today })}
-              </span>
               {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
                 <span
                   className={styles.rateLimitIndicator}
@@ -1284,6 +1278,17 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         {poolExhausted && <p className={styles.poolExhaustedNotice}>{t("chat.poolExhausted")}</p>}
 
         <div className={styles.composerBar}>
+          {/* Purely informational running tally, not a warning (see
+              .rateLimitIndicator above for the color-coded ones) - hidden at
+              0 since "you've sent 0 messages today" has no informative value
+              before any activity; shown from the first real message on. */}
+          {rateLimitStatus && rateLimitStatus.messages_today > 0 && (
+            <div className={styles.dailyCountCard}>
+              {rateLimitStatus.messages_today === 1
+                ? t("chat.dailyMessageCountSingular")
+                : t("chat.dailyMessageCount", { count: rateLimitStatus.messages_today })}
+            </div>
+          )}
           <div className={styles.composer}>
             <input
               className="input"

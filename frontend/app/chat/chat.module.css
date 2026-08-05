@@ -198,14 +198,6 @@
   color: var(--color-danger);
 }
 
-/* Plain daily message count (see chat.dailyMessageCount) - deliberately
-   never gets a data-level variant like .rateLimitIndicator above: it's an
-   always-visible fact, not a warning, so no color coding at any count. */
-.dailyCountLabel {
-  font-size: 0.75rem;
-  color: var(--color-text-muted);
-  white-space: nowrap;
-}
 
 /* "Νέα Εκκίνηση" as a secondary composer control - see .composer, matching
    the primary Send button's 46px height/12px radius per the control-height
@@ -829,6 +821,21 @@
   flex-shrink: 0;
   border-top: 1px solid #eceef2;
   padding: 16px 28px;
+}
+
+/* Purely informational daily tally (see chat.dailyMessageCount) - a quiet
+   aside above the input, not a warning, so it gets the app's standard card
+   look toned down (muted surface/text, italic) rather than the color-coded
+   .rateLimitIndicator treatment. */
+.dailyCountCard {
+  max-width: 760px;
+  margin: 0 auto 10px;
+  padding: 6px 14px;
+  border-radius: var(--radius-md);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+  font-style: italic;
 }
 
 .composer {

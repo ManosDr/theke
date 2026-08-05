@@ -61,6 +61,12 @@ function timeAgo(iso: string, locale: string): string {
   return `${diffDay}${isGreek ? "η" : "d"}`;
 }
 
+function formatBytes(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+  if (bytes < 1024 * 1024 * 1024) return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  return `${(bytes / (1024 * 1024 * 1024)).toFixed(1)} GB`;
+}
+
 const EVENT_ICON: Record<ActivityEventEntry["type"], typeof BuildingIcon> = {
   chat_message: ChatIcon,
   document_uploaded: DocumentsIcon,
@@ -1037,6 +1043,10 @@ function SubscriptionTab({ token }: { token: string | null }) {
   if (!status) return <p className={styles.emptyState}>—</p>;
 
   const pct = Math.min(100, Math.round((status.messages_used / Math.max(status.messages_limit, 1)) * 100));
+  const storagePct =
+    status.storage_limit_bytes != null
+      ? Math.min(100, Math.round((status.storage_used_bytes / Math.max(status.storage_limit_bytes, 1)) * 100))
+      : 0;
   const expiresAt = status.status === "trial" ? status.trial_ends_at : status.current_period_end;
   const daysLeft = status.status === "trial" && status.trial_ends_at ? Math.ceil((new Date(status.trial_ends_at).getTime() - Date.now()) / 86_400_000) : null;
   const statusBadgeClass = status.status === "active" ? "badge-success" : status.status === "trial" ? "badge-warning" : "badge-danger";
@@ -1101,6 +1111,27 @@ function SubscriptionTab({ token }: { token: string | null }) {
               : t("dash.company.sub.poolOnTrack")}
           </p>
         )}
+
+        <div className={tabStyles.progressBar} style={{ marginTop: "var(--space-4)" }}>
+          <div className={tabStyles.progressTrack}>
+            {status.storage_limit_bytes != null && (
+              <div
+                className={`${tabStyles.progressFill} ${
+                  storagePct >= 100 ? tabStyles.progressFillDanger : storagePct >= 80 ? tabStyles.progressFillWarning : ""
+                }`}
+                style={{ width: `${storagePct}%` }}
+              />
+            )}
+          </div>
+          <span className={tabStyles.progressLabel}>
+            {status.storage_limit_bytes != null
+              ? `${formatBytes(status.storage_used_bytes)}/${formatBytes(status.storage_limit_bytes)}`
+              : formatBytes(status.storage_used_bytes)}
+          </span>
+        </div>
+        <p className="text-muted" style={{ fontSize: "0.8rem", marginTop: "var(--space-1)" }}>
+          {t("dash.company.sub.storageUsed")}
+        </p>
 
         <MessagePackUpsell
           messagesUsed={status.messages_used}

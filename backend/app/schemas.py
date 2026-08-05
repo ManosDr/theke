@@ -1292,6 +1292,12 @@ class SubscriptionStatusResponse(BaseModel):
     # concrete "on track" figure, not just a boolean. None when there's
     # too little recent signal to project anything, or for is_beta plans.
     pool_days_until_exhaustion: int | None
+    # Storage usage vs. plan ceiling (Section 6c), matching the message-pool
+    # display pattern above. storage_limit_bytes is None on Starter/beta
+    # plans (see check_storage_limit) - no ceiling enforced there, so the
+    # frontend shows the raw usage with no bar, same as an unlimited pool.
+    storage_used_bytes: int
+    storage_limit_bytes: int | None
 
 
 class PlanSummary(BaseModel):

@@ -547,6 +547,11 @@ export interface SubscriptionStatusResponse {
   // false, so the dashboard can show a concrete "on track" figure. null
   // when there's too little recent signal, or for is_beta plans.
   pool_days_until_exhaustion: number | null;
+  // Storage usage vs. plan ceiling (Section 6c), matching the message-pool
+  // display pattern above. storage_limit_bytes is null on Starter/beta
+  // plans - no ceiling enforced there.
+  storage_used_bytes: number;
+  storage_limit_bytes: number | null;
 }
 
 export interface PlanSummary {

@@ -9,7 +9,12 @@ from app.dependencies import CurrentUser, get_current_user
 from app.models import Company, Plan, User
 from app.schemas import SubscriptionStatusResponse
 from app.services.notifications import notify_super_admins
-from app.services.subscription import compute_pool_risk_projection, get_or_create_subscription, get_or_create_usage
+from app.services.subscription import (
+    compute_pool_risk_projection,
+    get_company_storage_bytes,
+    get_or_create_subscription,
+    get_or_create_usage,
+)
 
 router = APIRouter(prefix="/subscription", tags=["subscription"])
 
@@ -58,6 +63,8 @@ async def subscription_status(
         is_test_account=company.is_test_account,
         pool_at_risk=pool_at_risk,
         pool_days_until_exhaustion=pool_days_until_exhaustion,
+        storage_used_bytes=get_company_storage_bytes(db, company.id),
+        storage_limit_bytes=plan.storage_limit_bytes,
     )
 
 

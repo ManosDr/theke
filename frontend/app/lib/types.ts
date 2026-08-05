@@ -87,6 +87,12 @@ export interface ProjectDocumentUploadResult {
   extraction_status: string;
   chunk_count: number;
   error: string | null;
+  // Stable identifier for the two known, user-fixable rejection reasons -
+  // the frontend renders localized copy from this, not from `error`
+  // (English prose that would otherwise leak into the Greek UI verbatim).
+  // null/absent for the extraction-exception path, which still uses the
+  // generic fallback message.
+  error_code?: "unsupported_file_type" | "file_too_large" | null;
 }
 
 export interface KbSourceStatusEntry {

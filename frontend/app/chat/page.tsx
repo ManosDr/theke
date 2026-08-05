@@ -1176,7 +1176,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                       )}
                     </div>
                   )}
-                  {m.gap === false && m.sessionId != null && (
+                  {m.citations && m.citations.length > 0 && m.sessionId != null && (
                     <div className={styles.feedbackRow}>
                       <button
                         type="button"

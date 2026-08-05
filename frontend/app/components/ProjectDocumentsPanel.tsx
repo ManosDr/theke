@@ -85,8 +85,15 @@ export default function ProjectDocumentsPanel({
         UPLOAD_TIMEOUT_MS
       );
       const result = results[0];
-      if (!result || result.error) {
-        setUploadError(result?.error ?? t("project.documents.uploadFailed"));
+      if (!result || result.error_code || result.error) {
+        const ext = file.name.includes(".") ? `.${file.name.split(".").pop()}` : "";
+        const message =
+          result?.error_code === "unsupported_file_type"
+            ? t("project.documents.errorUnsupportedType", { ext })
+            : result?.error_code === "file_too_large"
+              ? t("project.documents.errorFileTooLarge")
+              : t("project.documents.uploadFailed");
+        setUploadError(message);
         return;
       }
       // Company-wide uploads don't show up in this project's own list (see

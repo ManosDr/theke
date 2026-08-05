@@ -222,6 +222,42 @@ def test_document_upload_to_project(client, db_session, construction_vertical_id
         cleanup_company(db_session, company, user, project)
 
 
+def test_project_upload_unsupported_type_returns_error_code(client, db_session, construction_vertical_id):
+    """Section 4b regression: the frontend used to render this rejection's
+    raw English `error` string verbatim in the Greek UI. error_code is the
+    stable identifier it should key its localized copy off instead."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id, region_id="kavala")
+    try:
+        resp = client.post(
+            f"/projects/{project.id}/documents/upload",
+            files={"files": ("malware.exe", b"not a real document", "application/octet-stream")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        result = resp.json()[0]
+        assert result["document_id"] is None
+        assert result["error_code"] == "unsupported_file_type"
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_project_upload_oversized_file_returns_error_code(client, db_session, construction_vertical_id):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id, region_id="kavala")
+    try:
+        oversized = b"x" * (10 * 1024 * 1024 + 1)
+        resp = client.post(
+            f"/projects/{project.id}/documents/upload",
+            files={"files": ("big.txt", oversized, "text/plain")},
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert resp.status_code == 200
+        result = resp.json()[0]
+        assert result["document_id"] is None
+        assert result["error_code"] == "file_too_large"
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
 def test_document_upload_wrong_company_project(client, db_session, construction_vertical_id):
     company_a, user_a, project_a, token_a = make_company_and_user(db_session, vertical_id=construction_vertical_id, region_id="kavala")
     company_b, user_b, project_b, token_b = make_company_and_user(db_session, vertical_id=construction_vertical_id, region_id="xanthi")

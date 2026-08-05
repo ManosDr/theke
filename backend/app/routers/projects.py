@@ -311,6 +311,7 @@ async def upload_project_documents(
                     extraction_status="manual_entry_pending",
                     chunk_count=0,
                     error=f"Unsupported file type '.{ext}' - use PDF, DOCX, or TXT",
+                    error_code="unsupported_file_type",
                 )
             )
             continue
@@ -324,6 +325,7 @@ async def upload_project_documents(
                     extraction_status="manual_entry_pending",
                     chunk_count=0,
                     error="File exceeds the 10MB limit",
+                    error_code="file_too_large",
                 )
             )
             continue

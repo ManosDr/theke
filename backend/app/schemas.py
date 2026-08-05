@@ -830,6 +830,12 @@ class ProjectDocumentUploadResult(BaseModel):
     extraction_status: str
     chunk_count: int
     error: str | None = None
+    # Stable identifier for the two rejection reasons the frontend renders
+    # localized copy for, instead of matching on `error`'s raw English text
+    # (which would leak untranslated into the Greek UI and break silently
+    # if the English wording ever changed). None for the extraction-
+    # exception path, which still surfaces a generic fallback message.
+    error_code: Literal["unsupported_file_type", "file_too_large"] | None = None
 
 
 class RegionSummary(BaseModel):

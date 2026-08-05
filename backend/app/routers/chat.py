@@ -282,6 +282,26 @@ CHAT_MESSAGE_GAP_RESPONSE_EN = (
 def _gap_response(locale: str | None) -> str:
     return CHAT_MESSAGE_GAP_RESPONSE_EN if locale == "en" else CHAT_MESSAGE_GAP_RESPONSE
 
+
+def _extract_followups(raw_answer: str, locale: str | None) -> tuple[str, list[str]]:
+    """Splits FOLLOWUP_INSTRUCTION's marker block (if the model included one)
+    off the end of raw_answer, returning (answer_without_block, questions).
+    Tolerant of the model omitting the block entirely (empty list, answer
+    unchanged) - that's the expected/encouraged case, not a parsing failure.
+    Caps at 3 even if the model produced more, since the instruction asks
+    for 1-3 but nothing enforces that server-side beyond this cap."""
+    marker = FOLLOWUP_MARKER_EN if locale == "en" else FOLLOWUP_MARKER
+    if marker not in raw_answer:
+        return raw_answer, []
+    answer_part, _, block = raw_answer.partition(marker)
+    questions = [
+        line.strip().lstrip("-•").strip()
+        for line in block.splitlines()
+        if line.strip().lstrip("-•").strip()
+    ]
+    return answer_part.strip(), questions[:3]
+
+
 # Per-vertical system prompt: uses vertical.system_prompt_override when a
 # super_admin has customized it (see Phase 5's PATCH /admin/verticals/{id}),
 # otherwise a built-in default keyed on vertical.slug. The closing
@@ -466,6 +486,45 @@ their original Greek form exactly as they appear in the source
 or paraphrase these identifiers. You may add a brief English gloss
 after a citation if helpful, but the original Greek reference must
 always be present and unaltered."""
+
+# Section 5b: instructs the model to end its answer with a small, clearly
+# delimited follow-up block instead of a second LLM call. FOLLOWUP_MARKER
+# must stay in sync with _extract_followups()'s parsing below - it looks
+# for these exact strings at the start of a line.
+FOLLOWUP_MARKER = "ΕΠΟΜΕΝΕΣ_ΕΡΩΤΗΣΕΙΣ:"
+FOLLOWUP_MARKER_EN = "FOLLOWUP_QUESTIONS:"
+
+FOLLOWUP_INSTRUCTION = f"""ΤΕΛΕΥΤΑΙΟ ΒΗΜΑ - ΥΠΟΧΡΕΩΤΙΚΟ: ΕΠΟΜΕΝΕΣ ΕΡΩΤΗΣΕΙΣ
+Μόλις ολοκληρώσεις την κυρίως απάντησή σου, εκτέλεσε πάντα αυτό το
+δεύτερο, ξεχωριστό βήμα: κοίταξε ξανά το ΠΕΡΙΕΧΟΜΕΝΟ που μόλις έγραψες
+(όχι την αρχική ερώτηση) και εντόπισε 1-3 σημεία που αναφέρθηκαν εν
+συντομία ή πλαγίως αλλά θα άξιζαν δική τους ερώτηση - π.χ. αν ανέφερες
+ένα κόστος, ένα χρονικό διάστημα, έναν φορέα/υπηρεσία, μια εξαίρεση ή
+προϋπόθεση, ή μια διάκριση μεταξύ δύο εννοιών, χωρίς να μπεις σε
+λεπτομέρειες γι' αυτό. Διατύπωσε αυτά τα σημεία ως ερωτήσεις που ο
+χρήστης θα έκανε φυσικά ως συνέχεια. Αυτό το βήμα είναι ξεχωριστό από
+τους κανόνες πηγοδότησης παραπάνω και δεν παραλείπεται - μόνο σε σπάνια
+περίπτωση όπου η απάντησή σου κάλυψε το θέμα πλήρως και δεν άφησε
+κανένα σημείο ανοιχτό, παράλειψέ το. Πρόσθεσε μία τελευταία γραμμή με
+τη μορφή:
+{FOLLOWUP_MARKER}
+- [ερώτηση 1]
+- [ερώτηση 2]"""
+
+FOLLOWUP_INSTRUCTION_EN = f"""FINAL STEP - MANDATORY: FOLLOWUP QUESTIONS
+Once you finish your main answer, always perform this second, separate
+step: look back over the CONTENT you just wrote (not the original
+question) and identify 1-3 points you mentioned briefly or in passing
+that would deserve their own question - e.g. a cost, a time period, an
+authority/service, an exception or condition, or a distinction between
+two concepts, that you did not fully elaborate on. Phrase these as
+questions the user would naturally ask next. This step is separate from
+the sourcing rules above and is not optional - skip it only in the rare
+case where your answer fully covered the topic and left nothing open.
+Add one final line in this exact format:
+{FOLLOWUP_MARKER_EN}
+- [question 1]
+- [question 2]"""
 
 
 _DEFAULT_DISCLAIMER = (
@@ -922,6 +981,14 @@ async def chat_message(
         system_prompt = get_system_prompt(vertical)
         if locale == "en":
             system_prompt = f"{system_prompt}\n\n{LANGUAGE_RULE_EN}"
+        # Section 5b: genuine per-answer follow-ups, generated in the same
+        # completion as the answer itself (one LLM call, not two) rather than
+        # a fixed per-vertical set - parsed back out below via FOLLOWUP_MARKER
+        # before the answer is shown to the user. Deliberately instructed to
+        # omit the block entirely when nothing genuinely follows from this
+        # specific answer, rather than padding to 2-3 with weaker ideas -
+        # the frontend shows no chips at all in that case (see chat/page.tsx).
+        system_prompt = f"{system_prompt}\n\n{FOLLOWUP_INSTRUCTION_EN if locale == 'en' else FOLLOWUP_INSTRUCTION}"
         if location_context:
             system_prompt = (
                 f"{system_prompt}\n\n"
@@ -966,6 +1033,12 @@ async def chat_message(
         )
         return ChatMessageResponse(answer=gap_response, citations=[], gap=True)
 
+    raw_answer, parsed_followups = _extract_followups(raw_answer, locale)
+    # Spec is explicit: follow-ups only ever accompany a genuinely confident
+    # answer, not a low-confidence one (is_low_confidence, this function's
+    # own "gap" flag) - discard anything the model produced in that case
+    # rather than let it slip through.
+    followups = parsed_followups if not is_low_confidence else []
     answer = f"{raw_answer}\n\n{get_disclaimer(vertical, locale)}"
 
     seen_ids: set[int] = set()
@@ -1001,8 +1074,11 @@ async def chat_message(
         prompt_tokens=prompt_tokens,
         completion_tokens=completion_tokens,
         usage=usage,
+        followups=followups,
     )
-    return ChatMessageResponse(answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id)
+    return ChatMessageResponse(
+        answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id, followups=followups
+    )
 
 
 @router.get("/history", response_model=ChatHistoryResponse)
@@ -1033,6 +1109,7 @@ async def chat_history(
             response=row.response or "",
             citations=[ChatMessageCitation(**c) for c in (row.citations or [])],
             gap=row.gap,
+            followups=row.followups or [],
             created_at=row.created_at,
         )
         for row in reversed(rows)
@@ -1124,6 +1201,7 @@ def _log_session(
     prompt_tokens: int | None = None,
     completion_tokens: int | None = None,
     usage: SubscriptionUsage | None = None,
+    followups: list[str] | None = None,
 ) -> int:
     total_tokens = None
     estimated_cost_eur = None
@@ -1148,6 +1226,7 @@ def _log_session(
         completion_tokens=completion_tokens,
         total_tokens=total_tokens,
         estimated_cost_eur=estimated_cost_eur,
+        followups=followups,
     )
     db.add(session)
     # Every response path in POST /chat/message that reaches this point

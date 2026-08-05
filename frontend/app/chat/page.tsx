@@ -55,6 +55,10 @@ interface Message {
   // got logged (not the empty-question early return) carry one; feedback
   // controls need it to call POST /chat/feedback.
   sessionId?: number | null;
+  // Genuine per-answer follow-ups (Section 5b) - only ever non-empty on a
+  // confident, cited assistant answer. See followupTexts' own comment for
+  // how this replaces the old fully-static per-vertical chip set.
+  followups?: string[];
   feedback?: FeedbackRating | null;
   feedbackError?: boolean;
   // Epoch ms - from ChatHistoryItem.created_at when restored, or Date.now()
@@ -127,17 +131,6 @@ const SUGGESTION_KEYS: Record<"construction" | "accounting" | "generic", Transla
   construction: ["chat.suggestionConstruction1", "chat.suggestionConstruction2", "chat.suggestionConstruction3"],
   accounting: ["chat.suggestionAccounting1", "chat.suggestionAccounting2", "chat.suggestionAccounting3"],
   generic: ["chat.suggestionGeneric1", "chat.suggestionGeneric2", "chat.suggestionGeneric3"],
-};
-
-// Shown instead of SUGGESTION_KEYS in the mid-conversation quick-start row
-// when the most recent answer was a gap - deliberately different questions
-// from the default starters (not AI-generated per-conversation follow-ups,
-// same reasoning as SUGGESTION_KEYS' own comment) so a user who just hit a
-// gap isn't handed back the exact same 3 prompts that led nowhere.
-const GAP_FOLLOWUP_KEYS: Record<"construction" | "accounting" | "generic", TranslationKey[]> = {
-  construction: ["chat.gapFollowupConstruction1", "chat.gapFollowupConstruction2"],
-  accounting: ["chat.gapFollowupAccounting1", "chat.gapFollowupAccounting2"],
-  generic: ["chat.gapFollowupConstruction1", "chat.gapFollowupConstruction2"],
 };
 
 interface Divider {
@@ -488,6 +481,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
             citations: item.citations,
             gap: item.gap,
             sessionId: item.id,
+            followups: item.followups,
             createdAt,
           });
         }
@@ -553,6 +547,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           citations: data.citations,
           gap: data.gap,
           sessionId: data.session_id,
+          followups: data.followups,
           createdAt: Date.now(),
         },
       ]);
@@ -763,21 +758,47 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const emptyStateChips: string[] =
     contextCandidates.length > 0 ? contextCandidates : suggestionKeys.map((key) => t(key));
 
-  // The mid-conversation "quick-start row" normally repeats the same
-  // default starters as the empty state (see its own render-site comment),
-  // but not right after a gap - see GAP_FOLLOWUP_KEYS above. Falls back to
-  // the same project-derived context candidates as the empty state when
-  // available (genuinely related to what's being discussed), otherwise the
-  // fixed gap-followup pair.
+  // The mid-conversation "quick-start row" (Section 5b) no longer repeats
+  // the static per-vertical starters at all - those stay exclusive to the
+  // true empty state above (emptyStateChips). Here it shows only the
+  // backend's own AI-derived, per-answer follow-ups on a confident, cited
+  // answer (see FOLLOWUP_INSTRUCTION in chat.py). No project-metadata
+  // fallback here even though contextCandidates exists - per spec, "no
+  // confident, relevant follow-up" means no chips at all, not a fallback to
+  // context facts (those are for the true empty state only, via
+  // emptyStateChips above). A gap answer or a "nothing to say" case
+  // likewise shows nothing.
   const lastMessage = messages[messages.length - 1];
   const lastMessageGapped = lastMessage?.role === "assistant" && lastMessage.gap === true;
-  const gapFollowupKeys =
-    GAP_FOLLOWUP_KEYS[verticalSlug === "tax_accounting" ? "accounting" : verticalSlug === "construction" ? "construction" : "generic"];
-  const followupTexts: string[] = lastMessageGapped
-    ? contextCandidates.length > 0
-      ? contextCandidates
-      : gapFollowupKeys.map((key) => t(key))
-    : suggestionKeys.map((key) => t(key));
+  const lastUserMessage = lastMessage?.role === "assistant" ? messages[messages.length - 2] : undefined;
+  const genuineFollowups: string[] =
+    lastMessage?.role === "assistant" && !lastMessageGapped && lastMessage.followups && lastMessage.followups.length > 0
+      ? lastMessage.followups
+      : [];
+
+  // "Μετάβαση στο [όνομα];" - offered only when the user's own last question
+  // referenced "my project"/"my client" while no context is currently
+  // active, and exactly one unambiguous match exists for this account (the
+  // pinned default, or - failing that - the single project/client they
+  // have). Two-or-more candidates with no pin is genuinely ambiguous, so it
+  // intentionally shows nothing rather than guessing which one was meant.
+  const MY_CONTEXT_PATTERN = /(το\s+έργο\s+μου|τον\s+πελάτη\s+μου|\bmy\s+project\b|\bmy\s+client\b)/i;
+  const contextSwitchTarget: ProjectSummary | null =
+    !selectedProject && lastUserMessage?.role === "user" && MY_CONTEXT_PATTERN.test(lastUserMessage.text)
+      ? ((pinnedProject ?? (projects.length === 1 ? projects[0] : null))?.name ? (pinnedProject ?? projects[0]) : null)
+      : null;
+
+  const followupChips: { label: string; onClick: () => void }[] = [
+    ...genuineFollowups.map((text) => ({ label: text, onClick: () => setInput(text) })),
+    ...(contextSwitchTarget
+      ? [
+          {
+            label: t("chat.contextSwitchChip", { name: contextSwitchTarget.name as string }),
+            onClick: () => handleSwitchContext(contextSwitchTarget),
+          },
+        ]
+      : []),
+  ];
 
   const disclaimerText =
     (locale === "en" ? company?.vertical_disclaimer_text_en : null) ||
@@ -1252,20 +1273,16 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               </div>
             ))}
           {loading && <p className="text-muted">{t("chat.thinking")}</p>}
-          {/* Same static per-vertical prompts as the empty state's own
-              chips (not per-conversation AI-generated follow-ups - see
-              SUGGESTION_KEYS' own comment on why), repeated once below the
-              active thread as an ongoing quick-start row, left-aligned to
-              the thread's own left edge rather than centered. Swaps to
-              followupTexts' gap-aware set when the last answer was a gap -
-              see its own comment above. */}
-          {!historyLoading && !loading && messages.length > 0 && (
+          {/* Genuine per-answer follow-ups (Section 5b) - see followupChips'
+              own comment above for what feeds this row. No static defaults
+              here anymore; an empty list means no row at all. */}
+          {!historyLoading && !loading && messages.length > 0 && followupChips.length > 0 && (
             <div className={styles.followupChips}>
               <div className={styles.followupChipsLabel}>{t("chat.suggestedQuestions")}</div>
               <div className={styles.followupChipsRow}>
-                {followupTexts.map((text) => (
-                  <button key={text} type="button" className={styles.suggestionChip} onClick={() => setInput(text)}>
-                    {text}
+                {followupChips.map((chip) => (
+                  <button key={chip.label} type="button" className={styles.suggestionChip} onClick={chip.onClick}>
+                    {chip.label}
                   </button>
                 ))}
               </div>

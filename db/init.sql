@@ -1080,3 +1080,11 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_url text;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_content_hash text;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS reference_checked_at timestamp;
 ALTER TABLE documents ADD COLUMN IF NOT EXISTS manual_review_note text;
+
+-- Genuine per-answer follow-up questions (Section 5b), parsed out of the
+-- same completion that produced the answer itself - a JSON string array,
+-- empty/NULL when the model had no confident follow-up to offer, or on any
+-- row where the successful-answer path never ran (gap responses, off-topic
+-- guard, older rows predating this column).
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS followups jsonb;
+

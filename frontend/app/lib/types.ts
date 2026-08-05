@@ -490,6 +490,7 @@ export interface ChatMessageResponse {
   citations: ChatCitation[];
   gap: boolean;
   session_id: number | null;
+  followups: string[];
 }
 
 export interface ChatHistoryItem {
@@ -498,6 +499,7 @@ export interface ChatHistoryItem {
   response: string;
   citations: ChatCitation[];
   gap: boolean | null;
+  followups: string[];
   created_at: string;
 }
 

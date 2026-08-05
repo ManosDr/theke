@@ -432,6 +432,11 @@ class ChatSession(Base):
     # NULL for any row where retrieval never ran (empty question, off-topic
     # guard rejection) - only meaningful once a retrieval attempt happened.
     decomposed: Mapped[bool | None] = mapped_column(default=None)
+    # Genuine per-answer follow-up questions (Section 5b) - a JSON string
+    # array, parsed out of the same completion that produced the answer.
+    # Empty/NULL when the model had no confident follow-up, or on any row
+    # where the successful-answer path never ran (gap, off-topic guard).
+    followups: Mapped[list | None] = mapped_column(JSON)
     # NULL on every row where no GPT completion call was made at all (the
     # off-topic-guard classifier call doesn't count - see _log_session's
     # call sites in app/routers/chat.py) - distinguishes "no LLM call" from

@@ -179,6 +179,11 @@ class ChatMessageResponse(BaseModel):
     # error paths that return before _log_session ever runs, since there's
     # nothing to attach a POST /chat/feedback rating to in that case.
     session_id: int | None = None
+    # Genuine per-answer follow-up questions (Section 5b) - always [] except
+    # on a confident (gap=False), cited answer where the model's completion
+    # included FOLLOWUP_MARKER's block. The frontend shows no chips at all
+    # when this is empty, rather than falling back to generic defaults.
+    followups: list[str] = []
 
 
 class ChatHistoryItem(BaseModel):
@@ -187,6 +192,7 @@ class ChatHistoryItem(BaseModel):
     response: str
     citations: list[ChatMessageCitation] = []
     gap: bool | None = None  # NULL for rows written by the older POST /chat
+    followups: list[str] = []
     created_at: datetime
 
 

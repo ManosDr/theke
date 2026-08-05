@@ -1088,3 +1088,25 @@ ALTER TABLE documents ADD COLUMN IF NOT EXISTS manual_review_note text;
 -- guard, older rows predating this column).
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS followups jsonb;
 
+-- History log for the Monday weekly digest email (Section 6a) - one row per
+-- send, whether crawler/crawler/weekly_digest.py's scheduled run or a super
+-- admin's manual "resend now" (POST /admin/digests/resend). Written every
+-- time regardless of whether Resend actually delivered anything
+-- (recipients_sent may be 0), so GET /admin/digests never silently drops a
+-- run from its history.
+CREATE TABLE IF NOT EXISTS weekly_digests (
+  id                 serial PRIMARY KEY,
+  total_messages     integer NOT NULL,
+  gap_rate           numeric NOT NULL,
+  spend_7d_eur       numeric NOT NULL,
+  active_companies   integer NOT NULL,
+  open_feedback      integer NOT NULL,
+  needs_review       integer NOT NULL,
+  recipients_sent    integer NOT NULL,
+  recipients_total   integer NOT NULL,
+  triggered_manually boolean NOT NULL DEFAULT false,
+  created_at         timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_weekly_digests_created ON weekly_digests(created_at DESC);
+

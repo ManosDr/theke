@@ -1019,6 +1019,26 @@ class SpendAlertsResponse(BaseModel):
     history: list[SpendAlertCheckEntry]
 
 
+class WeeklyDigestEntry(BaseModel):
+    total_messages: int
+    gap_rate: float
+    spend_7d_eur: float
+    active_companies: int
+    open_feedback: int
+    needs_review: int
+    recipients_sent: int
+    recipients_total: int
+    triggered_manually: bool
+    created_at: datetime
+
+
+class WeeklyDigestsResponse(BaseModel):
+    latest: WeeklyDigestEntry | None
+    # Most-recent-first, unlike SpendAlertsResponse/InfraHealthResponse's
+    # history (no chart here, just a readable list).
+    history: list[WeeklyDigestEntry]
+
+
 class DataSourceSummary(BaseModel):
     id: int
     name: str

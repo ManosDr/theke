@@ -118,6 +118,30 @@ def _send_digest(to_email: str, stats: dict) -> bool:
         return False
 
 
+def _record_history(conn: psycopg.Connection, stats: dict, sent: int, total: int) -> None:
+    """Mirrors every scheduled run into weekly_digests (Section 6a) - the
+    same table POST /admin/digests/resend writes to for a manual trigger -
+    so GET /admin/digests' history shows both, not just manual ones."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "INSERT INTO weekly_digests "
+            "(total_messages, gap_rate, spend_7d_eur, active_companies, open_feedback, "
+            "needs_review, recipients_sent, recipients_total, triggered_manually) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, false)",
+            (
+                stats["total_messages"],
+                stats["gap_rate"],
+                stats["spend_7d"],
+                stats["active_companies"],
+                stats["open_feedback"],
+                stats["needs_review"],
+                sent,
+                total,
+            ),
+        )
+    conn.commit()
+
+
 def run() -> None:
     conninfo = DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
 
@@ -125,10 +149,12 @@ def run() -> None:
         stats = _fetch_stats(conn)
         emails = _super_admin_emails(conn)
 
-    sent = 0
-    for email in emails:
-        if _send_digest(email, stats):
-            sent += 1
+        sent = 0
+        for email in emails:
+            if _send_digest(email, stats):
+                sent += 1
+
+        _record_history(conn, stats, sent, len(emails))
 
     print(f"Weekly digest complete: {stats}, sent to {sent}/{len(emails)} super admin(s)")
 

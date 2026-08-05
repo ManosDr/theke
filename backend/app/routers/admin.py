@@ -33,6 +33,7 @@ from app.models import (
     UserFeedback,
     UtilityProvider,
     Vertical,
+    WeeklyDigest,
 )
 from app.schemas import (
     AddSubscriptionNoteRequest,
@@ -97,6 +98,8 @@ from app.schemas import (
     VerticalStatsEntry,
     VerticalSummary,
     VerticalUpdateRequest,
+    WeeklyDigestEntry,
+    WeeklyDigestsResponse,
 )
 from app.security import generate_password, hash_password
 from app.services.audit import log_action
@@ -107,6 +110,7 @@ from app.services.source_fetch import content_hash, fetch_url_content
 from app.services.sources import group_label
 from app.services.subscription import get_or_create_subscription, get_or_create_usage
 from app.services.usage import company_token_usage
+from app.services.weekly_digest import run_weekly_digest
 
 _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 
@@ -1742,6 +1746,49 @@ async def update_spend_alert_thresholds(
     db.commit()
     db.refresh(row)
     return SpendAlertThresholdEntry(daily_eur=float(row.daily_eur), weekly_eur=float(row.weekly_eur), updated_at=row.updated_at)
+
+
+def _to_weekly_digest_entry(row: WeeklyDigest) -> WeeklyDigestEntry:
+    return WeeklyDigestEntry(
+        total_messages=row.total_messages,
+        gap_rate=float(row.gap_rate),
+        spend_7d_eur=float(row.spend_7d_eur),
+        active_companies=row.active_companies,
+        open_feedback=row.open_feedback,
+        needs_review=row.needs_review,
+        recipients_sent=row.recipients_sent,
+        recipients_total=row.recipients_total,
+        triggered_manually=row.triggered_manually,
+        created_at=row.created_at,
+    )
+
+
+@router.get("/digests", response_model=WeeklyDigestsResponse)
+async def weekly_digests(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> WeeklyDigestsResponse:
+    """Read-only history of every weekly digest send (Section 6a) - both
+    crawler/crawler/weekly_digest.py's scheduled Monday run and any manual
+    "resend now" trigger below. Most-recent-first."""
+    require_super_admin(user)
+    rows = list(db.scalars(select(WeeklyDigest).order_by(WeeklyDigest.created_at.desc()).limit(20)))
+    history = [_to_weekly_digest_entry(r) for r in rows]
+    return WeeklyDigestsResponse(latest=history[0] if history else None, history=history)
+
+
+@router.post("/digests/resend", response_model=WeeklyDigestEntry)
+async def resend_weekly_digest(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> WeeklyDigestEntry:
+    """Triggers the same digest computation+send as the Monday cron job, on
+    demand and independent of that schedule - always computes fresh stats
+    at call time rather than replaying a stored one, so "resend" reflects
+    the platform's current state."""
+    require_super_admin(user)
+    row = run_weekly_digest(db, triggered_manually=True)
+    return _to_weekly_digest_entry(row)
 
 
 def _to_data_source_summary(ds: DataSource) -> DataSourceSummary:

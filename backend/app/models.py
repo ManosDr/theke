@@ -576,6 +576,28 @@ class SpendAlertCheck(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class WeeklyDigest(Base):
+    """One row per weekly digest send - either crawler/crawler/weekly_digest.py's
+    scheduled Monday run, or a super admin's manual "resend now" via
+    POST /admin/digests/resend (Section 6a). Written every time regardless of
+    whether Resend actually delivered (recipients_sent may be 0), so the
+    admin UI's history is never silently missing a run."""
+
+    __tablename__ = "weekly_digests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    total_messages: Mapped[int] = mapped_column(Integer)
+    gap_rate: Mapped[float] = mapped_column(Numeric)
+    spend_7d_eur: Mapped[float] = mapped_column(Numeric)
+    active_companies: Mapped[int] = mapped_column(Integer)
+    open_feedback: Mapped[int] = mapped_column(Integer)
+    needs_review: Mapped[int] = mapped_column(Integer)
+    recipients_sent: Mapped[int] = mapped_column(Integer)
+    recipients_total: Mapped[int] = mapped_column(Integer)
+    triggered_manually: Mapped[bool] = mapped_column(default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class Plan(Base):
     __tablename__ = "plans"
 

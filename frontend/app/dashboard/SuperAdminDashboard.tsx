@@ -8,7 +8,7 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, BuildingIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon } from "../components/StatIcons";
+import { AlertIcon, BuildingIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon, MailIcon } from "../components/StatIcons";
 import FieldError from "../components/FieldError";
 import Tooltip from "../components/Tooltip";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
@@ -21,6 +21,7 @@ import type {
   SpendAlertsResponse,
   StaleDocumentSummary,
   VerticalSummary,
+  WeeklyDigestsResponse,
 } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { AttentionCard } from "./AttentionCard";
@@ -237,12 +238,13 @@ export function SuperAdminDashboard() {
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [infraHealth, setInfraHealth] = useState<InfraHealthResponse | null>(null);
   const [spendAlerts, setSpendAlerts] = useState<SpendAlertsResponse | null>(null);
+  const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigestsResponse | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
 
   async function refresh() {
     try {
-      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData, spendAlertsData] =
+      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData, spendAlertsData, weeklyDigestData] =
         await Promise.all([
           api.get<CompanySummary[]>("/admin/companies", token),
           api.get<AuditLogListResponse>("/admin/audit-log", token),
@@ -251,6 +253,7 @@ export function SuperAdminDashboard() {
           api.get<VerticalSummary[]>("/admin/verticals", token),
           api.get<InfraHealthResponse>("/admin/infra-health", token),
           api.get<SpendAlertsResponse>("/admin/spend-alerts", token),
+          api.get<WeeklyDigestsResponse>("/admin/digests", token),
         ]);
       setCompanies(companiesData);
       setAuditLog(auditData.items);
@@ -259,6 +262,7 @@ export function SuperAdminDashboard() {
       setVerticals(verticalsData);
       setInfraHealth(infraHealthData);
       setSpendAlerts(spendAlertsData);
+      setWeeklyDigest(weeklyDigestData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -439,6 +443,23 @@ export function SuperAdminDashboard() {
             }
             cta={t("dash.super.viewTrend")}
             onCtaClick={() => router.push("/admin/spend-alerts")}
+          />
+        )}
+        {weeklyDigest?.latest && selectedVertical === "all" && (
+          <AttentionCard
+            tone="info"
+            icon={<MailIcon size={14} />}
+            value={weeklyDigest.latest.total_messages.toLocaleString()}
+            label={
+              <>
+                {tUpper("admin.digest.title")}
+                <Tooltip text={t("admin.digest.description")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+            cta={t("dash.super.viewTrend")}
+            onCtaClick={() => router.push("/admin/digest")}
           />
         )}
         <AttentionCard

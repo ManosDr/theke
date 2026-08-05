@@ -739,6 +739,24 @@ export interface SpendAlertsResponse {
   history: SpendAlertCheckEntry[];
 }
 
+export interface WeeklyDigestEntry {
+  total_messages: number;
+  gap_rate: number;
+  spend_7d_eur: number;
+  active_companies: number;
+  open_feedback: number;
+  needs_review: number;
+  recipients_sent: number;
+  recipients_total: number;
+  triggered_manually: boolean;
+  created_at: string;
+}
+
+export interface WeeklyDigestsResponse {
+  latest: WeeklyDigestEntry | null;
+  history: WeeklyDigestEntry[];
+}
+
 export interface VerticalSummary {
   id: number;
   slug: string;

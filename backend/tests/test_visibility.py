@@ -15,7 +15,6 @@ Two corrections to the test plan, made after reading the real code:
 
 import uuid
 
-import pytest
 from sqlalchemy import select, text
 
 from app.models import Document
@@ -281,26 +280,48 @@ def test_regional_isolation(client, db_session, construction_vertical_id):
         cleanup_company(db_session, xanthi_company, xanthi_user, xanthi_project)
 
 
-@pytest.mark.skip(reason="LLM off-topic-guard non-determinism — see docstring. Run explicitly when testing guard behavior.")
 def test_project_scoped_doc_isolated(client, db_session, construction_vertical_id):
+    """The automated regression check for cross-project document leakage -
+    the single highest-consequence risk category in this product (one
+    company's client seeing another client's private data).
+
+    Previously permanently skipped: it asserted on /chat/message's citations,
+    which route every query through _is_off_topic (app/routers/chat.py), a
+    temperature=0 LLM classification call that is not perfectly
+    deterministic in practice - this exact query was observed to both pass
+    and fail that guard across otherwise-identical runs, which looked like a
+    project-scoping failure (empty citations) but wasn't: confirmed with a
+    direct _retrieve() call bypassing the HTTP/LLM layers entirely, where the
+    document was the #1 hit by a wide margin (distance 0.256 vs the
+    next-best 0.507). The retrieval/visibility logic itself was never the
+    problem - only the unrelated LLM call downstream of it inside the same
+    assertion.
+
+    Fixed by testing the actual isolation guarantee at the layer it lives in
+    - search_regulation() (app/services/rag.py), pure embedding + hybrid
+    retrieval, no LLM call anywhere in that path - rather than through
+    /chat/message's full generation pipeline. Same fix already applied to
+    the customer-tier equivalent, test_customer_scoped_doc_isolated, right
+    below this test; see that test's own docstring for the identical
+    reasoning. This removes the non-determinism at its root instead of
+    retrying around it, so the test now runs unskipped, every time.
+    """
+    from app.dependencies import CurrentUser
+    from app.models import Project
+    from app.services.rag import search_regulation
+
     # region_id is otherwise irrelevant here - passed only so
     # make_company_and_user actually creates the first Project row.
     company, user, project_a, token = make_company_and_user(db_session, vertical_id=construction_vertical_id, region_id="kavala")
-    from app.models import Project
-
+    current_user = CurrentUser(user_id=user.id, company_id=company.id, role=user.role, company_type=company.type)
     project_b = Project(company_id=company.id, name="Second test project")
     db_session.add(project_b)
     db_session.commit()
 
-    # A short numeric file-number reads as a normal Greek administrative
-    # reference ("φάκελος υπ' αριθμόν 483920") - a 32-char hex UUID embedded
-    # mid-sentence was making the construction vertical's off-topic guard
-    # (_is_off_topic in app/routers/chat.py, an LLM classification call)
-    # reject the whole query, which looked like a project-scoping failure
-    # (empty citations) but wasn't: confirmed with a direct _retrieve() call
-    # bypassing the HTTP/LLM layers entirely, where the document was the #1
-    # hit by a wide margin (distance 0.256 vs the next-best 0.507) - the
-    # retrieval/visibility logic itself was never the problem.
+    # Same marker/content/query strings as the original, non-skipped design
+    # already proved these produce an unambiguous #1-hit match via a direct
+    # retrieval call (see docstring) - reusing them keeps that same margin
+    # of confidence rather than introducing new, unverified query text.
     marker = str(uuid.uuid4().int)[:6]
     question_topic = f"Άδεια δόμησης πελάτη - φάκελος υπ' αριθμόν {marker}."
     query = f"Τι κατάσταση έχει η άδεια δόμησης του φακέλου υπ' αριθμόν {marker};"
@@ -316,49 +337,23 @@ def test_project_scoped_doc_isolated(client, db_session, construction_vertical_i
         assert results[0]["document_id"] is not None
         doc_id = results[0]["document_id"]
 
-        # The off-topic guard (_is_off_topic, app/routers/chat.py) is a
-        # temperature=0 LLM classification call, which is not perfectly
-        # deterministic in practice - this exact query has been observed to
-        # both pass and fail the guard across otherwise-identical runs.
-        # Retrying once isolates that known LLM non-determinism from what
-        # this test actually checks (project-scoped visibility) - a
-        # genuine scoping bug would fail both attempts identically, since
-        # nothing about retrieval/visibility itself is probabilistic.
-        for attempt in range(2):
-            scoped = client.post(
-                "/chat/message",
-                json={"query": query, "project_id": project_a.id},
-                headers=headers,
-            )
-            assert scoped.status_code == 200
-            cited_ids = [c["document_id"] for c in scoped.json()["citations"]]
-            if doc_id in cited_ids or attempt == 1:
-                break
-        assert doc_id in cited_ids
-
-        unscoped = client.post(
-            "/chat/message",
-            json={"query": query},
-            headers=headers,
+        # Visible when scoped to the project it was uploaded to.
+        hits_scoped = search_regulation(
+            db_session, current_user, query, construction_vertical_id, project_id=project_a.id
         )
-        assert unscoped.status_code == 200
-        assert doc_id not in [c["document_id"] for c in unscoped.json()["citations"]]
+        assert doc_id in [h.document_id for h in hits_scoped]
 
-        wrong_project = client.post(
-            "/chat/message",
-            json={"query": query, "project_id": project_b.id},
-            headers=headers,
+        # NOT visible with no project context at all.
+        hits_unscoped = search_regulation(db_session, current_user, query, construction_vertical_id)
+        assert doc_id not in [h.document_id for h in hits_unscoped]
+
+        # NOT visible from a different project in the same company - the
+        # actual cross-project leakage this test exists to catch.
+        hits_wrong_project = search_regulation(
+            db_session, current_user, query, construction_vertical_id, project_id=project_b.id
         )
-        assert wrong_project.status_code == 200
-        assert doc_id not in [c["document_id"] for c in wrong_project.json()["citations"]]
+        assert doc_id not in [h.document_id for h in hits_wrong_project]
     finally:
-        # chat_sessions.project_id also references both projects (this test
-        # makes 3 real /chat/message calls) - clear those before deleting
-        # either project, not just before deleting the company/user
-        # (cleanup_company's own chat_sessions delete runs too late for
-        # project_b, which this test deletes directly, not through
-        # cleanup_company).
-        db_session.execute(text("DELETE FROM chat_sessions WHERE user_id = :id"), {"id": user.id})
         db_session.execute(text("DELETE FROM embeddings WHERE document_id IN (SELECT id FROM documents WHERE project_id IN (:a, :b))"), {"a": project_a.id, "b": project_b.id})
         db_session.execute(text("DELETE FROM documents WHERE project_id IN (:a, :b)"), {"a": project_a.id, "b": project_b.id})
         db_session.commit()

@@ -353,6 +353,15 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   }
   useEffect(refreshPoolStatus, [token, user?.companyId]);
   const poolExhausted = !!poolStatus && !poolStatus.is_beta && poolStatus.messages_used >= poolStatus.messages_limit;
+  // Whether chatHeaderBar actually has anything to show - it used to be
+  // gated on rateLimitStatus alone, which is truthy almost as soon as the
+  // page loads (fetched on mount), long before either indicator inside it
+  // has a real reason to appear. That rendered an empty, still-styled
+  // (bordered/background) bar for every normal session - a visible stray
+  // box under the disclaimer with nothing in it.
+  const showPoolWarning =
+    !!poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8;
+  const showRateLimitWarning = !!rateLimitStatus && rateLimitStatus.used >= 15;
 
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [regions, setRegions] = useState<RegionSummary[]>([]);
@@ -1100,10 +1109,10 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           <ChevronIcon size={14} />
         </button>
 
-        {rateLimitStatus && (
+        {(showPoolWarning || showRateLimitWarning) && (
           <div className={styles.chatHeaderBar}>
             <div className={styles.headerControls}>
-              {poolStatus && !poolStatus.is_beta && poolStatus.messages_used / Math.max(poolStatus.messages_limit, 1) >= 0.8 && (
+              {showPoolWarning && poolStatus && (
                 <span
                   className={styles.rateLimitIndicator}
                   data-level={poolExhausted ? "danger" : "warning"}
@@ -1111,7 +1120,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   {t("chat.poolWarningLabel", { used: poolStatus.messages_used, limit: poolStatus.messages_limit })}
                 </span>
               )}
-              {rateLimitStatus && rateLimitStatus.used >= 15 && (
+              {showRateLimitWarning && rateLimitStatus && (
                 <span
                   className={styles.rateLimitIndicator}
                   data-level={

@@ -23,12 +23,15 @@
   display: flex;
 }
 
+/* Position (fixed/top-or-bottom/left/width) is set inline in the component -
+   it's portaled to document.body so it floats over whatever sits below it
+   in the host card's own layout rather than expanding that card's
+   scrollable content area (the previous absolute-relative-to-.container
+   approach was still a DOM descendant of that scrollable ancestor, which
+   counted its full height/position toward the ancestor's scrollHeight even
+   though it visually overlaid the content). */
 .dropdown {
-  position: absolute;
-  top: calc(100% + 4px);
-  left: 0;
-  right: 0;
-  z-index: 20;
+  z-index: 1000;
   background: var(--color-surface);
   border: 1px solid var(--color-border);
   border-radius: var(--radius-md, 8px);

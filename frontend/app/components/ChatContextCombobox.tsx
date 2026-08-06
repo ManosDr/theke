@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 
 import { useLocale } from "../lib/i18n";
 import type { ProjectSummary, RegionSummary } from "../lib/types";
@@ -44,14 +45,50 @@ export default function ChatContextCombobox({ projects, regions, placeholder, on
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
+  // The dropdown is portaled to document.body (see render below) so its
+  // results list is never a DOM descendant of whichever scrollable card
+  // hosts this combobox - previously, being an absolutely-positioned
+  // descendant still counted toward that ancestor's scrollable content
+  // height, pushing a scrollbar onto the whole card instead of the
+  // dropdown floating over the content below it. Both refs are checked for
+  // outside-click since the portaled dropdown is no longer inside
+  // containerRef's own subtree.
+  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number; openUp: boolean } | null>(null);
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
-      if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+      const target = e.target as Node;
+      if (containerRef.current?.contains(target)) return;
+      if (dropdownRef.current?.contains(target)) return;
+      setOpen(false);
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
+
+  useLayoutEffect(() => {
+    if (!open) return;
+    function reposition() {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      const DROPDOWN_MAX_HEIGHT = 280;
+      const spaceBelow = window.innerHeight - rect.bottom;
+      const openUp = spaceBelow < DROPDOWN_MAX_HEIGHT && rect.top > spaceBelow;
+      setPosition({ top: openUp ? rect.top : rect.bottom, left: rect.left, width: rect.width, openUp });
+    }
+    reposition();
+    // capture:true so scrolling inside ANY ancestor (the panel card, the
+    // sheet, etc.) is caught here too - plain 'scroll' events don't bubble,
+    // but a capture-phase listener on window still sees them fire on their
+    // way down to the actual scrolled element.
+    window.addEventListener("scroll", reposition, true);
+    window.addEventListener("resize", reposition);
+    return () => {
+      window.removeEventListener("scroll", reposition, true);
+      window.removeEventListener("resize", reposition);
+    };
+  }, [open]);
 
   const q = query.trim();
   const publicLabel = t("chat.context.publicOption");
@@ -84,26 +121,42 @@ export default function ChatContextCombobox({ projects, regions, placeholder, on
           autoComplete="off"
         />
       </div>
-      {open && (
-        <div className={styles.dropdown}>
-          {showPublicOption && (
-            <button type="button" className={styles.option} onClick={() => pick(null)}>
-              <span className={styles.optionName}>{publicLabel}</span>
-            </button>
-          )}
-          {results.map((p) => (
-            <button type="button" key={p.id} className={styles.option} onClick={() => pick(p)}>
-              <span className={styles.optionName}>{p.customer_name || p.name}</span>
-              <span className={styles.optionMeta}>
-                {p.customer_afm
-                  ? `${t("customer.afmShort")} ${p.customer_afm}`
-                  : regionName(regions, p.region_id, locale) || p.municipality || ""}
-              </span>
-            </button>
-          ))}
-          {results.length === 0 && !showPublicOption && <div className={styles.emptyOption}>{t("chat.context.noResults")}</div>}
-        </div>
-      )}
+      {open &&
+        position &&
+        createPortal(
+          <div
+            ref={dropdownRef}
+            className={styles.dropdown}
+            style={{
+              position: "fixed",
+              left: position.left,
+              width: position.width,
+              ...(position.openUp
+                ? { bottom: window.innerHeight - position.top + 4, top: "auto" }
+                : { top: position.top + 4, bottom: "auto" }),
+            }}
+          >
+            {showPublicOption && (
+              <button type="button" className={styles.option} onClick={() => pick(null)}>
+                <span className={styles.optionName}>{publicLabel}</span>
+              </button>
+            )}
+            {results.map((p) => (
+              <button type="button" key={p.id} className={styles.option} onClick={() => pick(p)}>
+                <span className={styles.optionName}>{p.customer_name || p.name}</span>
+                <span className={styles.optionMeta}>
+                  {p.customer_afm
+                    ? `${t("customer.afmShort")} ${p.customer_afm}`
+                    : regionName(regions, p.region_id, locale) || p.municipality || ""}
+                </span>
+              </button>
+            ))}
+            {results.length === 0 && !showPublicOption && (
+              <div className={styles.emptyOption}>{t("chat.context.noResults")}</div>
+            )}
+          </div>,
+          document.body
+        )}
     </div>
   );
 }

@@ -17,7 +17,7 @@ the real route is POST (app/routers/admin.py), used below.
 import uuid
 from datetime import datetime, timedelta
 
-from app.models import Invite
+from app.models import ChatSession, Invite
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -94,10 +94,11 @@ def test_data_sources_sync_updates_timestamp(client, superadmin_headers):
         assert (datetime.now(synced_at.tzinfo) - synced_at) < timedelta(minutes=5)
 
 
-def test_vertical_content_edit(client, superadmin_headers, tax_member_headers, tax_vertical_id):
+def test_vertical_content_edit(client, db_session, superadmin_headers, tax_member_headers, tax_vertical_id):
     original = client.get("/admin/verticals", headers=superadmin_headers).json()
     original_entry = next(v for v in original if v["id"] == tax_vertical_id)
     marker = f"TEST DISCLAIMER {uuid.uuid4().hex[:8]}"
+    session_id = None
     try:
         resp = client.patch(
             f"/admin/verticals/{tax_vertical_id}", json={"disclaimer_text": marker}, headers=superadmin_headers
@@ -112,12 +113,24 @@ def test_vertical_content_edit(client, superadmin_headers, tax_member_headers, t
         )
         assert chat_resp.status_code == 200
         assert marker in chat_resp.json()["answer"]
+        session_id = chat_resp.json()["session_id"]
     finally:
         client.patch(
             f"/admin/verticals/{tax_vertical_id}",
             json={"disclaimer_text": original_entry["disclaimer_text"]},
             headers=superadmin_headers,
         )
+        # POST /chat/message logs every call it makes (test or not), so the
+        # marker-laden answer above is now a permanent chat_sessions row -
+        # unlike the vertical's disclaimer_text (restored above), there's no
+        # API to undo this one. Left uncleaned for a long time, this
+        # accumulates real garbage in whichever demo tax account
+        # tax_member_headers logs in as (confirmed live: ~200 stray rows
+        # from repeated CI-style runs, discovered when a "TEST DISCLAIMER"
+        # marker turned up in that demo account's real chat history).
+        if session_id is not None:
+            db_session.query(ChatSession).filter(ChatSession.id == session_id).delete()
+            db_session.commit()
 
 
 def test_companies_suspend(client, db_session, superadmin_headers, construction_vertical_id):

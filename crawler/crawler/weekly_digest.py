@@ -31,17 +31,29 @@ import psycopg
 
 
 def _fetch_stats(conn: psycopg.Connection) -> dict:
+    # NOT (u.role = 'super_admin' AND u.company_id IS NULL), joined in below,
+    # excludes a company-less super_admin's own chat activity - it has
+    # cs.company_id IS NULL too, which used to satisfy the is_test_account
+    # exclusion's "c.id IS NULL" branch and count as real usage. Query-level
+    # filter only, see backend's _solo_super_admin_user_ids() docstring and
+    # GET /admin/internal-activity for where this activity is still visible.
     with conn.cursor() as cur:
         cur.execute(
-            "SELECT COUNT(*) FROM chat_sessions cs LEFT JOIN companies c ON c.id = cs.company_id "
-            "WHERE cs.created_at >= now() - interval '7 days' AND (c.id IS NULL OR c.is_test_account IS FALSE)"
+            "SELECT COUNT(*) FROM chat_sessions cs "
+            "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
+            "WHERE cs.created_at >= now() - interval '7 days' AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)"
         )
         total_messages = cur.fetchone()[0]
 
         cur.execute(
-            "SELECT COUNT(*) FROM chat_sessions cs LEFT JOIN companies c ON c.id = cs.company_id "
+            "SELECT COUNT(*) FROM chat_sessions cs "
+            "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
             "WHERE cs.gap IS TRUE AND cs.created_at >= now() - interval '7 days' "
-            "AND (c.id IS NULL OR c.is_test_account IS FALSE)"
+            "AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)"
         )
         gap_count = cur.fetchone()[0]
         gap_rate = round(gap_count / total_messages * 100, 1) if total_messages else 0.0
@@ -49,14 +61,28 @@ def _fetch_stats(conn: psycopg.Connection) -> dict:
         cur.execute(
             "SELECT COALESCE(SUM(cs.estimated_cost_eur), 0) FROM chat_sessions cs "
             "LEFT JOIN companies c ON c.id = cs.company_id "
-            "WHERE cs.created_at >= now() - interval '7 days' AND (c.id IS NULL OR c.is_test_account IS FALSE)"
+            "LEFT JOIN users u ON u.id = cs.user_id "
+            "WHERE cs.created_at >= now() - interval '7 days' AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)"
         )
         spend_7d = float(cur.fetchone()[0])
 
         cur.execute("SELECT COUNT(*) FROM companies WHERE is_suspended IS FALSE AND is_test_account IS FALSE")
         active_companies = cur.fetchone()[0]
 
-        cur.execute("SELECT COUNT(*) FROM message_feedback WHERE rating = 'negative' AND status = 'pending'")
+        # MessageFeedback has no user_id/company_id of its own - reach the
+        # actor and company through chat_sessions the same way the queries
+        # above do, including the is_test_account exclusion (previously
+        # absent here too).
+        cur.execute(
+            "SELECT COUNT(*) FROM message_feedback mf "
+            "JOIN chat_sessions cs ON cs.id = mf.session_id "
+            "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
+            "WHERE mf.rating = 'negative' AND mf.status = 'pending' "
+            "AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)"
+        )
         open_feedback = cur.fetchone()[0]
 
         cur.execute(

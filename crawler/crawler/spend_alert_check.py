@@ -17,11 +17,19 @@ from crawler.config import DATABASE_URL
 
 def _fetch_spend(conn: psycopg.Connection, hours: int) -> float:
     with conn.cursor() as cur:
+        # NOT (u.role = 'super_admin' AND u.company_id IS NULL) excludes a
+        # company-less super_admin's own chat activity - it has
+        # cs.company_id IS NULL too, which used to satisfy the is_test_account
+        # exclusion's "c.id IS NULL" branch and count as real spend. Query-
+        # level filter only, see backend's _solo_super_admin_user_ids()
+        # docstring and GET /admin/internal-activity.
         cur.execute(
             "SELECT COALESCE(SUM(cs.estimated_cost_eur), 0) FROM chat_sessions cs "
             "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
             "WHERE cs.created_at >= now() - (%s || ' hours')::interval "
-            "AND (c.id IS NULL OR c.is_test_account IS FALSE)",
+            "AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)",
             (hours,),
         )
         return float(cur.fetchone()[0])

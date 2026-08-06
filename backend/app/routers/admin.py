@@ -72,6 +72,9 @@ from app.schemas import (
     GapQueryEntry,
     InfraHealthCheckEntry,
     InfraHealthResponse,
+    InternalActivityResponse,
+    InternalAuditActivityEntry,
+    InternalChatActivityEntry,
     MarkReviewedRequest,
     MarkSupersededRequest,
     PlanCreateRequest,
@@ -104,6 +107,17 @@ from app.schemas import (
 from app.security import generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
+
+
+def _solo_super_admin_user_ids():
+    """Company-less super_admin accounts (role='super_admin', company_id IS
+    NULL) - their own manual chat probing/admin actions are real activity in
+    the database but not real customer activity, so every platform-wide
+    aggregate below excludes it the same way is_test_account company data is
+    excluded. This is a query-level filter only: nothing referencing these
+    users is ever deleted. GET /admin/internal-activity is where this
+    excluded activity is still visible to a super_admin."""
+    return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.source_fetch import content_hash, fetch_url_content
@@ -1456,18 +1470,29 @@ async def platform_stats(
     # "Δοκιμαστικός χρήστης" toggle) are excluded from every platform-wide
     # number below via an OUTER join + explicit is_test_account/NULL check -
     # not a plain NOT IN (subquery), which would silently drop every row
-    # with a NULL company_id (e.g. no ChatSession here is ever
-    # company-less in practice, but Document.company_id IS NULL for the
-    # entire shared knowledge base, and NOT IN treats a NULL comparison as
-    # UNKNOWN, dropping those rows too). MessageFeedback counts are NOT
-    # filtered - see KNOWN_DECISIONS.md.
+    # with a NULL company_id (Document.company_id IS NULL for the entire
+    # shared knowledge base, and NOT IN treats a NULL comparison as UNKNOWN,
+    # dropping those rows too).
+    #
+    # A company-less super_admin's OWN chat activity has ChatSession.company_id
+    # IS NULL too, which used to satisfy not_test_company's Company.id.is_(None)
+    # branch and get counted as if it were real customer usage - that's the
+    # structural gap this section closes. not_solo_super_admin excludes it by
+    # actor (role='super_admin' AND company_id IS NULL), a query-level filter
+    # only - nothing is deleted, see GET /admin/internal-activity for where
+    # this activity is still visible. not_solo_super_admin is applied to
+    # every ChatSession/MessageFeedback aggregate below; not_test_company is
+    # now ALSO applied to MessageFeedback (previously deliberately absent -
+    # see KNOWN_DECISIONS.md - now closed so feedback matches every other
+    # platform-wide metric).
     not_test_company = (Company.id.is_(None)) | (Company.is_test_account.is_(False))
+    not_solo_super_admin = ChatSession.user_id.not_in(_solo_super_admin_user_ids())
     total_messages = (
         db.scalar(
             select(func.count())
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(not_test_company)
+            .where(not_test_company, not_solo_super_admin)
         )
         or 0
     )
@@ -1476,7 +1501,7 @@ async def platform_stats(
             select(func.count())
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(ChatSession.gap.is_(True), not_test_company)
+            .where(ChatSession.gap.is_(True), not_test_company, not_solo_super_admin)
         )
         or 0
     )
@@ -1490,11 +1515,31 @@ async def platform_stats(
         )
         or 0
     )
+    # MessageFeedback is now filtered by is_test_account too (previously
+    # deliberately not - see KNOWN_DECISIONS.md - but that left it the only
+    # platform stat inconsistent with every other metric above; closing the
+    # gap rather than special-casing feedback further). MessageFeedback has
+    # no user_id/company_id of its own, so both exclusions require a join
+    # through ChatSession to reach the actor/company.
     positive_feedback = (
-        db.scalar(select(func.count()).select_from(MessageFeedback).where(MessageFeedback.rating == "positive")) or 0
+        db.scalar(
+            select(func.count())
+            .select_from(MessageFeedback)
+            .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(MessageFeedback.rating == "positive", not_test_company, not_solo_super_admin)
+        )
+        or 0
     )
     negative_feedback = (
-        db.scalar(select(func.count()).select_from(MessageFeedback).where(MessageFeedback.rating == "negative")) or 0
+        db.scalar(
+            select(func.count())
+            .select_from(MessageFeedback)
+            .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(MessageFeedback.rating == "negative", not_test_company, not_solo_super_admin)
+        )
+        or 0
     )
     since_30d = datetime.utcnow() - timedelta(days=30)
     platform_tokens_30d = (
@@ -1502,7 +1547,7 @@ async def platform_stats(
             select(func.coalesce(func.sum(ChatSession.total_tokens), 0))
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(ChatSession.created_at >= since_30d, not_test_company)
+            .where(ChatSession.created_at >= since_30d, not_test_company, not_solo_super_admin)
         )
         or 0
     )
@@ -1511,7 +1556,7 @@ async def platform_stats(
             select(func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0))
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(ChatSession.created_at >= since_30d, not_test_company)
+            .where(ChatSession.created_at >= since_30d, not_test_company, not_solo_super_admin)
         )
         or 0
     )
@@ -1531,6 +1576,10 @@ async def platform_stats(
         real_active_companies=real_active_company_count(db),
     )
 
+    # Not_solo_super_admin is deliberately NOT applied anywhere in this loop:
+    # every query here INNER joins ChatSession -> Company (not an outer join),
+    # and a company-less super_admin's ChatSession.company_id is always NULL,
+    # so the inner join already drops those rows on its own.
     by_vertical = []
     for v in db.scalars(select(Vertical).order_by(Vertical.id)):
         v_messages = (
@@ -1598,16 +1647,15 @@ async def platform_stats(
             )
             or 0
         )
-        # Not filtered by is_test_account, matching the total-level
-        # positive_feedback/negative_feedback above (see this function's own
-        # comment on why - KNOWN_DECISIONS.md).
+        # Filtered by is_test_account, matching the total-level
+        # positive_feedback/negative_feedback above.
         v_positive = (
             db.scalar(
                 select(func.count())
                 .select_from(MessageFeedback)
                 .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id, MessageFeedback.rating == "positive")
+                .where(Company.vertical_id == v.id, MessageFeedback.rating == "positive", Company.is_test_account.is_(False))
             )
             or 0
         )
@@ -1617,7 +1665,7 @@ async def platform_stats(
                 .select_from(MessageFeedback)
                 .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id, MessageFeedback.rating == "negative")
+                .where(Company.vertical_id == v.id, MessageFeedback.rating == "negative", Company.is_test_account.is_(False))
             )
             or 0
         )
@@ -2245,6 +2293,53 @@ async def list_gap_queries(
         )
         for r in rows
     ]
+
+
+@router.get("/internal-activity", response_model=InternalActivityResponse)
+async def internal_activity(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> InternalActivityResponse:
+    """Where the activity GET /admin/stats now structurally excludes (see
+    _solo_super_admin_user_ids' docstring) is still visible - company-less
+    super_admin accounts' own chat probing, and their admin actions taken
+    outside any customer-company context (AuditLog.company_id IS NULL).
+    Nothing here was ever deleted, just kept out of the platform-wide/
+    customer-facing aggregates. Deliberately NOT part of GET /admin/stats or
+    the main dashboard's stat cards - this is a separate internal-only view."""
+    require_super_admin(user)
+    solo_ids = _solo_super_admin_user_ids()
+    chat_rows = db.execute(
+        select(ChatSession, User.email)
+        .join(User, User.id == ChatSession.user_id)
+        .where(ChatSession.user_id.in_(solo_ids))
+        .order_by(ChatSession.created_at.desc())
+        .limit(100)
+    ).all()
+    audit_rows = db.execute(
+        select(AuditLog, User.email)
+        .join(User, User.id == AuditLog.actor_user_id)
+        .where(AuditLog.actor_user_id.in_(solo_ids), AuditLog.company_id.is_(None))
+        .order_by(AuditLog.created_at.desc())
+        .limit(100)
+    ).all()
+    return InternalActivityResponse(
+        chat_activity=[
+            InternalChatActivityEntry(id=cs.id, actor_email=email, message=cs.message, gap=cs.gap, created_at=cs.created_at)
+            for cs, email in chat_rows
+        ],
+        audit_activity=[
+            InternalAuditActivityEntry(
+                id=a.id,
+                actor_email=email,
+                action=a.action,
+                resource_type=a.resource_type,
+                resource_id=a.resource_id,
+                created_at=a.created_at,
+            )
+            for a, email in audit_rows
+        ],
+    )
 
 
 @router.get("/audit-log", response_model=AuditLogListResponse)

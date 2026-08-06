@@ -715,6 +715,28 @@ export interface GapQueryEntry {
   created_at: string;
 }
 
+export interface InternalChatActivityEntry {
+  id: number;
+  actor_email: string;
+  message: string | null;
+  gap: boolean | null;
+  created_at: string;
+}
+
+export interface InternalAuditActivityEntry {
+  id: number;
+  actor_email: string;
+  action: string;
+  resource_type: string | null;
+  resource_id: number | null;
+  created_at: string;
+}
+
+export interface InternalActivityResponse {
+  chat_activity: InternalChatActivityEntry[];
+  audit_activity: InternalAuditActivityEntry[];
+}
+
 export type InfraHealthLevel = "watch" | "warning" | "critical";
 
 export interface InfraHealthCheckEntry {

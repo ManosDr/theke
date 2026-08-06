@@ -83,6 +83,22 @@ const ADMIN_SECTIONS = [
       { href: "/admin/regions", labelKey: "nav.regionsProviders", match: (p: string) => p === "/admin/regions" },
     ],
   },
+  {
+    // Not a real customer-facing admin section - a single link to
+    // GET /admin/internal-activity, the internal-only view of activity now
+    // structurally excluded from the platform stat cards/digest/spend alerts
+    // (a company-less super_admin's own chat/admin activity). Deliberately
+    // its own small section rather than folded into "settings" above, since
+    // it's not a settings screen and not something a real customer-facing
+    // admin task would ever route through.
+    key: "internal",
+    labelKey: "nav.internalActivity",
+    Icon: SettingsIcon,
+    match: (p: string) => p === "/admin/internal-activity",
+    children: [
+      { href: "/admin/internal-activity", labelKey: "nav.internalActivity", match: (p: string) => p === "/admin/internal-activity" },
+    ],
+  },
 ] as const;
 
 const VERTICAL_OPTIONS: { value: SelectedVertical; labelKey: "vertical.construction" | "vertical.tax_accounting" | "vertical.all" }[] = [

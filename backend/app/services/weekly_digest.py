@@ -17,6 +17,14 @@ from app.models import ChatSession, Company, Document, MessageFeedback, User, We
 
 
 def _compute_stats(db: Session) -> dict:
+    # See backend/app/routers/admin.py's _solo_super_admin_user_ids() docstring
+    # for why this exists: a company-less super_admin's own chat activity has
+    # ChatSession.company_id IS NULL, which used to satisfy the is_test_account
+    # exclusion's Company.id.is_(None) branch and get counted as real usage.
+    # Query-level filter only - nothing is deleted, see GET /admin/internal-activity.
+    not_solo_super_admin = ChatSession.user_id.not_in(
+        select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
+    )
     total_messages = db.scalar(
         select(func.count())
         .select_from(ChatSession)
@@ -24,6 +32,7 @@ def _compute_stats(db: Session) -> dict:
         .where(
             ChatSession.created_at >= text("now() - interval '7 days'"),
             (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+            not_solo_super_admin,
         )
     ) or 0
 
@@ -35,6 +44,7 @@ def _compute_stats(db: Session) -> dict:
             ChatSession.gap.is_(True),
             ChatSession.created_at >= text("now() - interval '7 days'"),
             (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+            not_solo_super_admin,
         )
     ) or 0
     gap_rate = round(gap_count / total_messages * 100, 1) if total_messages else 0.0
@@ -46,6 +56,7 @@ def _compute_stats(db: Session) -> dict:
             .where(
                 ChatSession.created_at >= text("now() - interval '7 days'"),
                 (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+                not_solo_super_admin,
             )
         )
         or 0
@@ -57,10 +68,20 @@ def _compute_stats(db: Session) -> dict:
         .where(Company.is_suspended.is_(False), Company.is_test_account.is_(False))
     ) or 0
 
+    # MessageFeedback has no user_id/company_id of its own - reach the actor
+    # and company through ChatSession the same way GET /admin/stats now does,
+    # including the is_test_account exclusion (previously absent here too).
     open_feedback = db.scalar(
         select(func.count())
         .select_from(MessageFeedback)
-        .where(MessageFeedback.rating == "negative", MessageFeedback.status == "pending")
+        .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .where(
+            MessageFeedback.rating == "negative",
+            MessageFeedback.status == "pending",
+            (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+            not_solo_super_admin,
+        )
     ) or 0
 
     needs_review = db.scalar(

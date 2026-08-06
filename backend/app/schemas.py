@@ -1154,6 +1154,32 @@ class GapQueryEntry(BaseModel):
     created_at: datetime
 
 
+class InternalChatActivityEntry(BaseModel):
+    """One ChatSession row belonging to a company-less super_admin account -
+    see GET /admin/internal-activity's own docstring for why this exists
+    separately from the platform stat cards."""
+
+    id: int
+    actor_email: str
+    message: str | None
+    gap: bool | None
+    created_at: datetime
+
+
+class InternalAuditActivityEntry(BaseModel):
+    id: int
+    actor_email: str
+    action: str
+    resource_type: str | None
+    resource_id: int | None
+    created_at: datetime
+
+
+class InternalActivityResponse(BaseModel):
+    chat_activity: list[InternalChatActivityEntry]
+    audit_activity: list[InternalAuditActivityEntry]
+
+
 class AdminDocumentCreateRequest(BaseModel):
     """Backs the admin "Νέο Έγγραφο" form - authoring a manual_entry public
     KB document directly, as opposed to the crawler's automated ingestion.

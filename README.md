@@ -61,15 +61,21 @@ startup (password `demo1234` for all), one per role/vertical combination:
 | `demo-admin@accounting.theke.gr` | Company admin | Tax & Accounting |
 | `demo-member@accounting.theke.gr` | Company member | Tax & Accounting |
 
-Log in with the password above, or - once logged in as the super admin -
-use "View as" on the Χρήστες admin screen to switch into any user's view
-without their password (see KNOWN_DECISIONS.md). The public login page no
-longer has a demo-account picker; that was fine pre-launch when every
-account was a demo account, but not once real customer invites go out.
+Log in with the password above. The public login page no longer has a
+demo-account picker; that was fine pre-launch when every account was a
+demo account, but not once real customer invites go out. A super-admin
+"view as any user" impersonation feature existed briefly during
+development and was removed outright once real customer invites became
+imminent (see KNOWN_DECISIONS.md) - there is no current way to spot-check
+another account's view without its credentials; use one of the demo
+accounts above for that.
 
 The crawler doesn't need to be started manually - `docker compose up` also
-starts a `scheduler` service that runs it monthly via supercronic. To
-trigger an ingestion run on demand:
+starts a `scheduler` service that runs it, and six other scheduled jobs
+(weekly staleness/company-document-staleness sweeps, the canary chat
+benchmark, infra-health snapshot, data-retention cleanup, and usage digest
+email, plus a daily AI-spend check), via supercronic on the schedule in
+`crawler/crontab`. To trigger an ingestion run on demand:
 
 ```bash
 docker compose --profile crawler run --rm crawler
@@ -81,8 +87,7 @@ docker compose --profile crawler run --rm crawler
 docker exec theke-backend-1 python -m pytest tests/ -v
 ```
 
-One test is marked `skip` (documented LLM non-determinism in the off-topic
-guard classifier, not a flaky assertion) - every other test should pass.
+All tests should pass (93 passed, 0 skipped as of this writing).
 
 ## Production deployment
 

@@ -93,7 +93,7 @@ export function LandingPage() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a href="#top" className={styles.wordmark}>
-            <LogoMark size={28} />
+            <LogoMark size={34} />
             <span className={styles.wordmarkText}>theke</span>
           </a>
           <div className={styles.headerControls}>

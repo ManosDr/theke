@@ -202,16 +202,42 @@ def test_protected_endpoint_expired_token(client):
     assert resp.status_code == 401
 
 
-def test_forgot_password_known_email(client):
-    resp = client.post("/auth/forgot-password", json={"email": DEMO_EMAILS["construction_admin"]})
-    assert resp.status_code == 200
+def _cleanup_reset_tokens_for(db_session, email: str) -> None:
+    # POST /auth/forgot-password always creates a real PasswordResetToken
+    # row for a known, active email (see app/routers/auth.py) - calling it
+    # against the real demo admin, as both tests below need to (there's no
+    # throwaway equivalent for "an email forgot_password recognizes as
+    # real"), leaves that row behind with no other caller ever cleaning it
+    # up. Low-visibility compared to a chat/notification row (nothing in
+    # the UI lists a user's own past reset tokens, and it self-expires),
+    # but it's still an uncleaned real write against a real demo account -
+    # same class of issue as KNOWN_DECISIONS.md's "Second occurrence of
+    # test-write pollution" entry, so it gets cleaned up here rather than
+    # left to expire on its own.
+    user_id = db_session.scalar(select(User.id).where(User.email == email))
+    if user_id is None:
+        return
+    for row in db_session.scalars(select(PasswordResetToken).where(PasswordResetToken.user_id == user_id)):
+        db_session.delete(row)
+    db_session.commit()
 
 
-def test_forgot_password_unknown_email_identical_response(client):
-    known = client.post("/auth/forgot-password", json={"email": DEMO_EMAILS["construction_admin"]})
-    unknown = client.post("/auth/forgot-password", json={"email": "definitely-not-real@nowhere.example"})
-    assert known.status_code == unknown.status_code == 200
-    assert known.json() == unknown.json()
+def test_forgot_password_known_email(client, db_session):
+    try:
+        resp = client.post("/auth/forgot-password", json={"email": DEMO_EMAILS["construction_admin"]})
+        assert resp.status_code == 200
+    finally:
+        _cleanup_reset_tokens_for(db_session, DEMO_EMAILS["construction_admin"])
+
+
+def test_forgot_password_unknown_email_identical_response(client, db_session):
+    try:
+        known = client.post("/auth/forgot-password", json={"email": DEMO_EMAILS["construction_admin"]})
+        unknown = client.post("/auth/forgot-password", json={"email": "definitely-not-real@nowhere.example"})
+        assert known.status_code == unknown.status_code == 200
+        assert known.json() == unknown.json()
+    finally:
+        _cleanup_reset_tokens_for(db_session, DEMO_EMAILS["construction_admin"])
 
 
 def test_reset_password_valid_token(client, db_session, construction_vertical_id):

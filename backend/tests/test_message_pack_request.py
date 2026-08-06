@@ -34,9 +34,20 @@ def test_message_pack_request_notifies_super_admins(client: TestClient, db_sessi
         assert notifications, "expected a message_pack_request notification for a super_admin"
         matching = [n for n in notifications if company.name in n.body]
         assert matching, f"expected a notification body mentioning {company.name}"
-
-        for n in matching:
+    finally:
+        # Deliberately in finally, not the try body above: this endpoint
+        # fires real Notification rows against whichever real super_admin
+        # accounts exist, and an assertion failing above used to skip this
+        # cleanup entirely, leaving those notifications permanently in a
+        # real admin's inbox - see KNOWN_DECISIONS.md's "Second occurrence
+        # of test-write pollution" entry. Re-queries by company.name rather
+        # than reusing the try block's `matching` list, since a failure
+        # could occur before that list was ever computed.
+        for n in db_session.scalars(
+            select(Notification).where(
+                Notification.type == "message_pack_request", Notification.body.like(f"%{company.name}%")
+            )
+        ):
             db_session.delete(n)
         db_session.commit()
-    finally:
         cleanup_company(db_session, company, user)

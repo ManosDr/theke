@@ -14,7 +14,7 @@ import { useTheme } from "../lib/theme";
 import { getInitials } from "../lib/userDisplay";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
 import { LanguageToggle } from "./LanguageToggle";
-import { LogoMark } from "./Logo";
+import { Logo, LogoMark } from "./Logo";
 import {
   BillingIcon,
   ChatIcon,
@@ -251,13 +251,7 @@ export function Sidebar() {
         className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""} ${mobileOpen ? styles.sidebarMobileOpen : ""}`}
       >
         <div className={styles.wordmarkRow}>
-          {collapsed ? (
-            <LogoMark size={24} />
-          ) : (
-            <div>
-              <div className={styles.wordmarkText}>theke</div>
-            </div>
-          )}
+          {collapsed ? <LogoMark size={24} /> : <Logo size={34} />}
           <button
             type="button"
             className={styles.mobileCloseButton}

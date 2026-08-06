@@ -41,14 +41,6 @@
   padding: 12px 8px;
 }
 
-.wordmarkText {
-  font-size: 21px;
-  font-weight: 800;
-  color: var(--admin-navy);
-  letter-spacing: -0.5px;
-  line-height: 1;
-}
-
 .collapseToggle {
   width: 24px;
   height: 24px;

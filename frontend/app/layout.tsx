@@ -30,7 +30,10 @@ export const metadata: Metadata = {
   description: "AI copilot for Greek construction permits and compliance",
   manifest: "/manifest.json",
   icons: {
-    icon: "/icons/icon.svg",
+    icon: [
+      { url: "/icons/icon.svg", media: "(prefers-color-scheme: light)" },
+      { url: "/icons/icon-dark-theme.svg", media: "(prefers-color-scheme: dark)" },
+    ],
     apple: "/icons/icon.svg",
   },
   appleWebApp: {

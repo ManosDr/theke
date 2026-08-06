@@ -1835,3 +1835,36 @@ See commit "fix: make test_project_scoped_doc_isolated reliable, remove permanen
 **Fix:** a session-scoped `autouse` fixture in `backend/tests/conftest.py` (`_flush_chat_rate_limits`) flushes every `chat_msg:*` Redis key before the suite runs, so accumulated manual-QA usage can never leak into automated test results.
 
 **Verification:** commit `fd3dbd7` - deliberately poisoned `chat_msg:10` above the limit before two consecutive full suite runs; both passed clean (92 passed/1 skipped) with the fixture in place.
+
+## Pricing page hidden from trial companies until the last 7 days - no self-serve checkout exists to act on early
+
+**What was chosen:** `/pricing` and the sidebar's "Τιμολόγηση" nav entry are now hidden from trial companies until `trial_ends_at` is within 7 days - before that point, visiting `/pricing` can only end in "not yet, we'll be in touch" (no Stripe, no self-serve checkout), which is worse than not showing the page. A direct/bookmarked URL hit before that window redirects to `/dashboard` rather than rendering a page whose only real action is "come back later." Real (non-trial) companies and logged-out visitors are unaffected - the gate only ever applies to `status === "trial"`.
+
+**Threshold reuses `TrialBanner.tsx`'s existing `AMBER_THRESHOLD_DAYS = 7`** (already the "late in trial" window post the 60→30 day trial-length change - see that entry above) rather than inventing a second number - pricing becomes reachable at exactly the point the urgent countdown banner itself already appears, so the two "it's time to think about this" signals land together.
+
+**Implementation:** a small shared hook, `frontend/app/lib/pricingAccess.ts`'s `usePricingAccess()` - fails open (returns `true`) while loading or on a fetch error, so a transient network blip never locks out a real user. `Sidebar.tsx` uses it to filter the nav item (alongside the pre-existing, unrelated super_admin exclusion); `pricing/page.tsx`'s `PricingContent` uses it to redirect trial companies outside the window and render nothing while the redirect is in flight.
+
+**Verified live, all three cases:** `demo-admin@construction.theke.gr` (real trial, `trial_ends_at` ~34 days out) - no "Τιμολόγηση" link in the sidebar, and navigating directly to `/pricing` redirects to `/dashboard`. Temporarily set the same company's `trial_ends_at` to 5 days out - the nav link appeared, and `/pricing` rendered normally ("Βρίσκεστε σε δοκιμή, απομένουν 5 ημέρες"). Restored the original `trial_ends_at` afterward. The third case (a real, non-trial paid company always seeing pricing) shares the identical `status !== "trial"` branch `TrialBanner`/`TrialBadge` already use and rely on - confirmed by code inspection, not re-verified with a live paid company in this pass.
+
+**Revisit when:** self-serve checkout (Stripe or otherwise) actually exists - at that point there's something for an early-trial visitor to legitimately do on `/pricing`, and this gate should be removed rather than adjusted.
+
+## Trial-expiration behavior audited before building a manual renewal flow - both existing mechanisms confirmed reasonable, one real inconsistency found
+
+**What was found, auditing current behavior before changing anything (per explicit instruction not to build ad hoc the first time a real trial expires):**
+
+- **There already is a proper, full-app "trial has ended" experience - not a cold, silent lockout.** `TrialBanner.tsx` renders a full-screen blocking `alertdialog` overlay the moment `GET /subscription/status` next observes `trial_ends_at` has passed (that endpoint eagerly flips `trial`→`expired` itself, the same way `check_subscription()` does, rather than waiting for a chat call - see its own comment). The overlay states plainly that the trial has ended, gives a `mailto:sales@theke.ai` CTA, and a sign-out button. This is genuinely reasonable messaging, not a gap.
+- **The gap: no grace period, and chat's own inline 402 shows a worse, inconsistent experience than the overlay.** `check_subscription()` (called only from `POST /chat/message`) independently flips the same status and returns a flat 402 the instant a chat call is attempted post-expiry - there is zero grace window anywhere. If the client hasn't yet re-polled `/subscription/status` (e.g. the user is mid-session on an already-open chat tab), that 402's raw `detail` string renders as a plain, unstyled assistant-bubble message via `chat/page.tsx`'s generic error catch - no CTA, no link, nothing actionable - a materially worse experience than the overlay the very next page load would show. The same event (trial expiring) can present two different faces depending on whether the tab was reloaded since expiry.
+- **Not changed in this pass** - a real grace period (e.g. 3-5 days of continued read/chat access post-expiry) is a product decision with real implementation surface across `subscription.py` (a new status value or `grace_ends_at` column), `chat.py`, and `TrialBanner.tsx`/`chat/page.tsx` - flagged for a decision, not built speculatively alongside an audit task.
+
+**The full manual renewal sequence is already fully supported by existing admin actions - confirmed by walking through it, not assumed.** Every step is reachable from the same Subscriptions-screen row's "⋯" menu:
+1. A `plan_requests` notification (already built) surfaces the request to super admins.
+2. Contact the customer outside the app (email/call) - inherently manual, no app involvement possible or needed.
+3. **Τιμολόγια** row action → generates a real invoice PDF (already built, Phase 0.5).
+4. Receive payment confirmation outside the app (bank transfer) - inherently manual.
+5. **Αλλαγή Πλάνου** (Change Plan modal) → `POST /admin/subscriptions/{company_id}` - select the real plan + billing cycle, save. This one call sets `status="active"` and `current_period_start`/`current_period_end` correctly, closing the loop from `expired` (or `trial`) to `active` on the correct plan.
+
+No missing backend capability was found. This is a documentation/runbook gap, not a feature gap - the sequence above is the runbook; nothing new was built for it.
+
+**2c - existing copy already correctly framed as "we'll be in touch," not instant checkout - confirmed, no change needed.** `pricing.ctaUpgrade`/`ctaDowngrade` read "Request upgrade"/"Request plan change" (not "Subscribe" or "Buy now"), and the post-click confirmation reads "We'll be in touch about upgrading to the {tier} plan." `trialBanner.expiredBody`/`cancelledBody` both read "Contact us to choose a plan..." Nothing in the existing copy implies a checkout completes a purchase anywhere in the app.
+
+**Revisit when:** a grace period is actually decided on (see above) - at that point, extend this same walkthrough to confirm the new grace-window messaging doesn't reintroduce the two-different-faces inconsistency found here.

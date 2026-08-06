@@ -9,6 +9,7 @@ import { useAuth } from "../lib/auth";
 import { useCompany } from "../lib/company";
 import { useFontScale } from "../lib/fontScale";
 import { useLocale } from "../lib/i18n";
+import { usePricingAccess } from "../lib/pricingAccess";
 import { useTheme } from "../lib/theme";
 import { getInitials } from "../lib/userDisplay";
 import { useVertical, type SelectedVertical } from "../lib/vertical";
@@ -209,6 +210,7 @@ export function Sidebar() {
   }
 
   const isSuperAdmin = user?.role === "super_admin";
+  const pricingAccess = usePricingAccess();
 
   function handleSectionClick(section: (typeof ADMIN_SECTIONS)[number]) {
     if (collapsed) {
@@ -280,7 +282,9 @@ export function Sidebar() {
       {isSuperAdmin && <VerticalSwitcher collapsed={collapsed} />}
 
       <nav className={styles.nav}>
-        {NAV_ITEMS.filter((item) => !(isSuperAdmin && item.href === "/pricing")).map(({ href, labelKey, Icon, match }) => {
+        {NAV_ITEMS.filter(
+          (item) => !(isSuperAdmin && item.href === "/pricing") && !(item.href === "/pricing" && !pricingAccess)
+        ).map(({ href, labelKey, Icon, match }) => {
           const active = match(pathname);
           return (
             <Link

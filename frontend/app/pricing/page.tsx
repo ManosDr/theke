@@ -10,6 +10,7 @@ import { ThemeToggle } from "../components/ThemeToggle";
 import { ApiError, api } from "../lib/api";
 import { companyTypeToVerticalSlug, useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { usePricingAccess } from "../lib/pricingAccess";
 import type { PlanPublicEntry, PlanRequestResponse, PlansPublicResponse } from "../lib/types";
 import styles from "./pricing.module.css";
 
@@ -57,6 +58,17 @@ function PricingContent() {
   const isSuperAdmin = user?.role === "super_admin";
   const lockedTab: VerticalTab | null = isCompanyUser ? companyTypeToVerticalSlug(user.companyType) : null;
   const [tab, setTab] = useState<VerticalTab>(lockedTab ?? "construction");
+  const pricingAccess = usePricingAccess();
+
+  // Direct-URL guard for trial companies more than LATE_TRIAL_THRESHOLD_DAYS
+  // out - the sidebar nav entry is already hidden for them (see Sidebar.tsx),
+  // but a bookmarked/typed URL would otherwise still reach this page. No
+  // self-serve checkout exists yet (no Stripe), so there's nothing this page
+  // could actually let them do this early - redirect rather than show a page
+  // whose only real action is "come back later".
+  useEffect(() => {
+    if (isCompanyUser && !pricingAccess) router.push("/dashboard");
+  }, [isCompanyUser, pricingAccess, router]);
   const [data, setData] = useState<PlansPublicResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [requesting, setRequesting] = useState<number | null>(null);
@@ -96,6 +108,8 @@ function PricingContent() {
     if (!currentTier) return t("pricing.ctaUpgrade");
     return tier.price_eur < currentTier.price_eur ? t("pricing.ctaDowngrade") : t("pricing.ctaUpgrade");
   }
+
+  if (isCompanyUser && !pricingAccess) return null;
 
   return (
     <div className={styles.wrap}>

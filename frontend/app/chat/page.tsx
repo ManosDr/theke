@@ -104,11 +104,17 @@ function isUnverified(status: string | null): boolean {
 // real link to that citation's source_url, per the v2 redesign's inline-
 // citation spec; a marker with no matching citation (out-of-range index,
 // or no citations at all) is left as plain text rather than guessing.
+// The model also uses plain "**bold**" markdown for emphasis (never full
+// markdown otherwise - no lists/headers come back this way, those already
+// render fine as plain text) - split on both patterns together so a bold
+// span and a citation marker sitting next to each other (e.g. "**ΣΔ** [3]")
+// each render correctly instead of one pass clobbering the other.
 function renderAnswerBody(text: string, citations: ChatCitation[] | undefined): ReactNode {
-  if (!citations || citations.length === 0) return text;
-  return text.split(/(\[\d+\])/g).map((part, i) => {
-    const match = part.match(/^\[(\d+)\]$/);
-    const citation = match ? citations[Number(match[1]) - 1] : undefined;
+  return text.split(/(\*\*[^*]+\*\*|\[\d+\])/g).map((part, i) => {
+    const boldMatch = part.match(/^\*\*([^*]+)\*\*$/);
+    if (boldMatch) return <strong key={i}>{boldMatch[1]}</strong>;
+    const citeMatch = part.match(/^\[(\d+)\]$/);
+    const citation = citeMatch && citations ? citations[Number(citeMatch[1]) - 1] : undefined;
     if (!citation) return <Fragment key={i}>{part}</Fragment>;
     return citation.source_url ? (
       <a key={i} href={citation.source_url} target="_blank" rel="noreferrer" className={styles.inlineCitation}>
@@ -367,7 +373,11 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   // knows their location data doesn't want it taking space every visit,
   // but a fresh session defaults back to showing it once.
   const [locationExpanded, setLocationExpanded] = useState(true);
-  const [archaeologicalExpanded, setArchaeologicalExpanded] = useState(false);
+  // Expanded by default (was collapsed) - this is a compliance-critical
+  // warning (unlicensed excavation risk), not a cosmetic detail a user
+  // should have to opt into seeing. Deliberate per the v2 redesign spec,
+  // independent of whatever state the design mockup happens to show.
+  const [archaeologicalExpanded, setArchaeologicalExpanded] = useState(true);
   useEffect(() => {
     const stored = sessionStorage.getItem("theke-location-strip-expanded");
     if (stored !== null) setLocationExpanded(stored === "true");
@@ -819,6 +829,15 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   function contextSearchPanel(idSuffix: string) {
     return (
       <>
+        {/* Card 1 - the persistent, cross-session default ("pin"). Kept as
+            its own card, deliberately separate from Card 2 below even
+            though the v2 design mockup shows one segmented-control card for
+            what this app treats as two distinct scope concepts: a pin
+            (POST/DELETE /projects/{id}/default, survives page reloads) vs.
+            a per-conversation override (selectedProjectId, session-only).
+            Collapsing them into one control would silently misrepresent
+            which one a given action affects - confirmed with product
+            rather than guessed. */}
         <section className={`card ${styles.sidebarSection}`}>
           <h3>{tUpper("chat.yourContext")}</h3>
 
@@ -829,171 +848,184 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
             // project" nudge, since creating one isn't a real next action
             // for this account type.
             <div className={styles.contextPinBlock}>
-              <p className="text-muted" style={{ fontSize: "0.85rem" }}>
-                {t("chat.context.municipalityScope")}
+              <p className="text-muted">{t("chat.context.municipalityScope")}</p>
+            </div>
+          ) : pinnedProject ? (
+            <div className={styles.contextPinBlock}>
+              <div className={styles.contextRow}>
+                <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
+                <span>{pinnedProject.customer_name || pinnedProject.name}</span>
+              </div>
+              <p className="text-muted" style={{ fontSize: "0.82rem" }}>
+                {t("chat.context.pinnedHint")}
               </p>
+              <div className={styles.contextPinActions}>
+                <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
+                  {t("chat.context.changeDefault")}
+                </button>
+                <button type="button" className="btn btn-secondary" onClick={handleUsePublicInstead}>
+                  {t("chat.context.usePublicInstead")}
+                </button>
+              </div>
             </div>
           ) : (
-            <>
-              {/* Makes the pin's effect on chat's opening context explicit and
-                  self-documenting, rather than something discovered only by
-                  noticing which context chat happened to open in. */}
-              <div className={styles.contextPinBlock}>
-                {pinnedProject ? (
-                  <>
-                    <div className={styles.contextRow}>
-                      <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
-                      <span>{pinnedProject.customer_name || pinnedProject.name}</span>
-                    </div>
-                    <p className="text-muted" style={{ fontSize: "0.82rem" }}>
-                      {t("chat.context.pinnedHint")}
-                    </p>
-                    <div className={styles.contextPinActions}>
-                      <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
-                        {t("chat.context.changeDefault")}
-                      </button>
-                      <button type="button" className="btn btn-secondary" onClick={handleUsePublicInstead}>
-                        {t("chat.context.usePublicInstead")}
-                      </button>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <div className={styles.contextRow}>
-                      <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
-                      <span>{t("chat.context.publicOption")}</span>
-                    </div>
-                    <p className="text-muted" style={{ fontSize: "0.82rem" }}>
-                      {t("chat.context.unpinnedHint")}
-                    </p>
-                    {projects.length > 0 ? (
-                      <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
-                        {t("chat.context.setDefault")}
-                      </button>
-                    ) : (
-                      <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                        {t(isTaxAccounting ? "chat.context.noClientsHint" : "chat.context.noProjectsHint")}
-                      </p>
-                    )}
-                  </>
-                )}
+            <div className={styles.contextPinBlock}>
+              <div className={styles.contextRow}>
+                <span className="text-muted">{t("chat.context.pinnedPrefix")}</span>
+                <span>{t("chat.context.publicOption")}</span>
               </div>
-
-              {/* Session-only context switcher - deliberately labeled/styled
-                  distinct from the pin block above (different heading, no
-                  "προεπιλογή" wording) since this changes only the CURRENT
-                  conversation's scope, not the next fresh page load's. Reuses
-                  the same ChatContextCombobox instance for the "set/change
-                  default" actions above, per pickingDefault - never a second
-                  picker component. */}
-              {projects.length > 0 && (
-                <div className={styles.contextSwitcher}>
-                  <label className="text-muted" style={{ fontSize: "0.85rem" }}>
-                    {pickingDefault ? t("chat.context.setDefault") : t("chat.context.switchLabel")}
-                  </label>
-                  {!pickingDefault && (
-                    <p className="text-muted" style={{ fontSize: "0.78rem" }}>
-                      {t("chat.context.switchHint")}
-                    </p>
-                  )}
-                  <ChatContextCombobox
-                    projects={projects}
-                    regions={regions}
-                    placeholder={t("chat.context.switchPlaceholder")}
-                    onSelect={pickingDefault ? handlePickDefault : handleSwitchContext}
-                  />
-                  {pickingDefault ? (
-                    <button type="button" className={styles.linkButton} onClick={() => setPickingDefault(false)}>
-                      {t("common.cancel")}
-                    </button>
-                  ) : selectedProject ? (
-                    <div className={styles.activeProjectChip}>
-                      <div style={{ minWidth: 0 }}>
-                        <div className={styles.activeProjectChipLabel}>{activeContextLabel}</div>
-                        <div className={styles.activeProjectChipValue}>
-                          {selectedProject.customer_name || selectedProject.name}
-                        </div>
-                      </div>
-                      <button
-                        type="button"
-                        className={styles.activeProjectChipClear}
-                        onClick={() => setSelectedProjectId(null)}
-                        aria-label={t("common.cancel")}
-                      >
-                        <CloseIcon size={12} />
-                      </button>
-                    </div>
-                  ) : (
-                    <div className={styles.contextRow}>
-                      <span>{activeContextLabel}</span>
-                      <span>{t("chat.context.publicOption")}</span>
-                    </div>
-                  )}
-                  {selectedRegionName && (
-                    <div className={styles.contextRow}>
-                      <span className="text-muted">{t("chat.regionLabel")}</span>
-                      <span>{selectedRegionName}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </>
-          )}
-
-          {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
-            <div className={styles.locationStrip}>
-              <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
-                <PinIcon size={13} />
-                {locationExpanded ? t("chat.locationStrip.collapse") : t("chat.locationStrip.expand")}
-              </button>
-              {locationExpanded && (
-                <span className={styles.locationStripBody}>
-                  {selectedProject.plot_address ?? "—"}
-                  {" · "}
-                  {t("map.kaek")}: {selectedProject.kaek ?? "—"}
-                  {selectedProject.plot_area_sqm != null && ` · ${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`}
-                  {selectedProject.archaeological_flag && (
-                    <>
-                      {" · "}
-                      <button
-                        type="button"
-                        className={styles.archaeologicalBadge}
-                        onClick={() => setArchaeologicalExpanded((v) => !v)}
-                      >
-                        <WarningIcon size={12} /> {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
-                      </button>
-                    </>
-                  )}
-                </span>
-              )}
-              {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
-                <div className={styles.archaeologicalPanel}>
-                  {(() => {
-                    const notes =
-                      (locale === "en" ? selectedProject.archaeological_notes_en : null) ||
-                      selectedProject.archaeological_notes;
-                    return notes && <p>{notes}</p>;
-                  })()}
-                  <p className="text-muted" style={{ fontSize: "0.8rem" }}>
-                    {t("map.archaeologicalDisclaimer")}
-                  </p>
-                  <button
-                    type="button"
-                    className="btn btn-secondary"
-                    onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
-                  >
-                    {t("chat.locationStrip.askAboutZone")}
-                  </button>
-                </div>
-              )}
-              {locationExpanded && !selectedProject.archaeological_flag && (
-                <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
-                  {t("map.noArchaeologicalDataNote")}
+              <p className="text-muted" style={{ fontSize: "0.82rem" }}>
+                {t("chat.context.unpinnedHint")}
+              </p>
+              {projects.length > 0 ? (
+                <button type="button" className="btn btn-secondary" onClick={() => setPickingDefault(true)}>
+                  {t("chat.context.setDefault")}
+                </button>
+              ) : (
+                <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                  {t(isTaxAccounting ? "chat.context.noClientsHint" : "chat.context.noProjectsHint")}
                 </p>
               )}
             </div>
           )}
         </section>
+
+        {/* Card 2 - the per-conversation override. Explicitly conversation-
+            only (never touches the pin above) - its own heading makes clear
+            which mode is active: "Αλλαγή πλαισίου συνομιλίας" for a normal
+            session switch, or "Ορισμός προεπιλογής" while pickingDefault is
+            true (the pin-picker reuses this same combobox instance rather
+            than a second one, per the original spec - only the heading/copy
+            adapts to say which action is in effect). */}
+        {!isMunicipality && projects.length > 0 && (
+          <section className={`card ${styles.sidebarSection}`}>
+            <h3>{tUpper(pickingDefault ? "chat.context.setDefault" : "chat.context.switchLabel")}</h3>
+            {!pickingDefault && (
+              <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: 0, marginBottom: "var(--space-2)" }}>
+                {t("chat.context.switchHint")}
+              </p>
+            )}
+            <div className={styles.contextSwitcher}>
+              <ChatContextCombobox
+                projects={projects}
+                regions={regions}
+                placeholder={t("chat.context.switchPlaceholder")}
+                onSelect={pickingDefault ? handlePickDefault : handleSwitchContext}
+              />
+              {pickingDefault ? (
+                <button type="button" className={styles.linkButton} onClick={() => setPickingDefault(false)}>
+                  {t("common.cancel")}
+                </button>
+              ) : selectedProject ? (
+                <div className={styles.activeProjectChip}>
+                  <div style={{ minWidth: 0 }}>
+                    <div className={styles.activeProjectChipLabel}>{activeContextLabel}</div>
+                    <div className={styles.activeProjectChipValue}>
+                      {selectedProject.customer_name || selectedProject.name}
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    className={styles.activeProjectChipClear}
+                    onClick={() => setSelectedProjectId(null)}
+                    aria-label={t("common.cancel")}
+                  >
+                    <CloseIcon size={12} />
+                  </button>
+                </div>
+              ) : (
+                <div className={styles.contextRow}>
+                  <span>{activeContextLabel}</span>
+                  <span>{t("chat.context.publicOption")}</span>
+                </div>
+              )}
+              {selectedRegionName && (
+                <div className={styles.contextRow}>
+                  <span className="text-muted">{t("chat.regionLabel")}</span>
+                  <span>{selectedRegionName}</span>
+                </div>
+              )}
+            </div>
+
+            {selectedProject && selectedProject.lat != null && selectedProject.lon != null && (
+              <div className={styles.locationStrip}>
+                <button type="button" className={styles.locationStripToggle} onClick={toggleLocationStrip}>
+                  <PinIcon size={13} />
+                  {locationExpanded ? t("chat.locationStrip.collapse") : t("chat.locationStrip.expand")}
+                </button>
+                {locationExpanded && (() => {
+                  // Guaranteed segments (address/KAEK, "—" fallback when
+                  // missing) plus the genuinely optional area segment,
+                  // joined with a single " · " - the actual reported bug
+                  // (a stray extra space before the archaeological badge)
+                  // turned out to be the badge button's own markup, fixed
+                  // separately below; this join is just the clean way to
+                  // build the guaranteed+optional text segments themselves.
+                  const segments = [
+                    selectedProject.plot_address ?? "—",
+                    `${t("map.kaek")}: ${selectedProject.kaek ?? "—"}`,
+                  ];
+                  if (selectedProject.plot_area_sqm != null) {
+                    segments.push(`${selectedProject.plot_area_sqm} ${t("map.areaUnit")}`);
+                  }
+                  return (
+                    <span className={styles.locationStripBody}>
+                      {segments.join(" · ")}
+                      {selectedProject.archaeological_flag && (
+                        <>
+                          {" · "}
+                          {/* Icon/label/arrow each on their own line so JSX
+                              doesn't insert a literal same-line whitespace
+                              text node before the label - .archaeologicalBadge
+                              already provides the icon-to-label gap via flex
+                              `gap`, so a manual space here just doubled up
+                              with the " · " separator above, reading as a
+                              stray extra space/dangling separator (the actual
+                              root cause of the reported bug - not the
+                              segment-joining above, which was already
+                              correct). */}
+                          <button
+                            type="button"
+                            className={styles.archaeologicalBadge}
+                            onClick={() => setArchaeologicalExpanded((v) => !v)}
+                          >
+                            <WarningIcon size={12} />
+                            {t("map.archaeologicalWarning")} {archaeologicalExpanded ? "▴" : "▾"}
+                          </button>
+                        </>
+                      )}
+                    </span>
+                  );
+                })()}
+                {locationExpanded && selectedProject.archaeological_flag && archaeologicalExpanded && (
+                  <div className={styles.archaeologicalPanel}>
+                    {(() => {
+                      const notes =
+                        (locale === "en" ? selectedProject.archaeological_notes_en : null) ||
+                        selectedProject.archaeological_notes;
+                      return notes && <p>{notes}</p>;
+                    })()}
+                    <p className="text-muted" style={{ fontSize: "0.8rem" }}>
+                      {t("map.archaeologicalDisclaimer")}
+                    </p>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      onClick={() => sendMessage(t("chat.locationStrip.askAboutZone"))}
+                    >
+                      {t("chat.locationStrip.askAboutZone")}
+                    </button>
+                  </div>
+                )}
+                {locationExpanded && !selectedProject.archaeological_flag && (
+                  <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-1)" }}>
+                    {t("map.noArchaeologicalDataNote")}
+                  </p>
+                )}
+              </div>
+            )}
+          </section>
+        )}
 
         <section className={`card ${styles.sidebarSection}`}>
           <h3>{tUpper("chat.quickSearch")}</h3>

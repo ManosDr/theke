@@ -28,9 +28,9 @@
 .disclaimerBar {
   flex-shrink: 0;
   padding: 9px 24px;
-  background: var(--color-warning-bg);
-  border-bottom: 1px solid var(--admin-warning-border);
-  color: var(--color-text-muted);
+  background: var(--chat-disclaimer-bg);
+  border-bottom: 1px solid var(--chat-disclaimer-border);
+  color: var(--chat-disclaimer-text);
   font-size: 12.5px;
   line-height: 1.4;
   display: flex;
@@ -40,7 +40,7 @@
 
 .disclaimerBar svg {
   flex-shrink: 0;
-  color: var(--color-warning);
+  color: var(--chat-disclaimer-text);
 }
 
 @media (max-width: 640px) {
@@ -316,8 +316,16 @@
   padding: 0;
 }
 
+/* flex-direction: column - the actual content here (a notes paragraph, a
+   caption, a button) is a vertical stack, not a row. The default row
+   direction plus no wrapping <div> around the text (there's no icon child
+   either, despite the two rules below still guarding for one) squeezed all
+   three children side by side into overflowing columns - real bug, newly
+   visible now that item 6 expands this panel by default instead of on
+   click. */
 .archaeologicalPanel {
   display: flex;
+  flex-direction: column;
   gap: 9px;
   width: 100%;
   padding: 10px 12px;
@@ -641,7 +649,7 @@
 }
 
 .sourceRow:hover {
-  background: var(--color-surface-alt);
+  background: var(--chat-citation-tag-bg-hover);
   border-color: var(--color-text-muted);
 }
 
@@ -696,7 +704,7 @@
   font-size: 10.5px;
   font-weight: 700;
   color: var(--color-text-muted);
-  background: var(--color-surface-alt);
+  background: var(--chat-citation-tag-bg);
   border-radius: 5px;
   padding: 3px 7px;
 }
@@ -999,12 +1007,6 @@
   color: var(--color-text);
 }
 
-.contextPinBlock {
-  padding-bottom: var(--space-3);
-  margin-bottom: var(--space-3);
-  border-bottom: 1px solid var(--color-border);
-}
-
 .contextPinBlock p {
   font-size: 13.5px;
   line-height: 1.55;
@@ -1019,30 +1021,36 @@
 
 /* Pin/switcher action buttons - 42px per the panel-control height spec,
    styled like the design's own "Ορισμός προεπιλογής" pill rather than the
-   generic .btn-secondary treatment used elsewhere in the app. */
-.contextPinActions .btn,
-.contextPinBlock > .btn {
-  height: 42px;
+   generic .btn-secondary treatment used elsewhere in the app. :global()
+   is required here - a bare ".btn" in a CSS module file scopes to a
+   LOCAL module class that nothing in the markup carries (the real class
+   comes from the global .btn/.btn-secondary in globals.css), so without
+   :global() this whole rule silently never matched anything and both
+   buttons fell back to globals.css's padding-based auto height instead
+   of the intended fixed 42px - confirmed live (36.8px / 56px rendered,
+   the second one two-line-wrapping its longer label). Same pattern
+   already used correctly by .composer :global(.btn) above. */
+.contextPinActions :global(.btn),
+.contextPinBlock > :global(.btn) {
+  min-height: 42px;
+  height: auto;
+  padding-top: 0;
+  padding-bottom: 0;
   border-radius: 10px;
   background: var(--color-surface);
   color: var(--color-link);
   border: 1px solid var(--color-border);
   font-size: 13.5px;
   font-weight: 700;
+  line-height: 1.3;
+  text-align: center;
+  white-space: normal;
 }
 
 .contextSwitcher {
   display: flex;
   flex-direction: column;
   gap: 6px;
-}
-
-.contextSwitcher > label {
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: var(--color-text-muted);
 }
 
 /* The active-project selection, once picked via the switcher - styled as

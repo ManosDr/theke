@@ -82,6 +82,22 @@
      token-mapping instruction. */
   --color-accent-soft-bg: #eaf0fb;
   --color-accent-soft-text: #2f4b86;
+  /* Chat-specific, genuinely distinct from --color-surface-alt (which the
+     source-tag pill/row-hover previously reused): the v2 design calls for
+     two DIFFERENT values here (#eef0f3 tag bg vs #f3f5f9 hover), not one
+     token doing double duty. Scoped to chat only - not a replacement for
+     --color-surface-alt's many other call sites. */
+  --chat-citation-tag-bg: #eef0f3;
+  --chat-citation-tag-bg-hover: #f3f5f9;
+  /* Chat disclaimer bar - deliberately its own tokens rather than reusing
+     --color-warning-bg/--admin-warning-border: the v2 design's exact values
+     (#fbf6e9/#efe4c4/#7a6425) don't match those shared warning tokens, and
+     changing the shared tokens to match would have repainted every other
+     warning banner/badge across the app as a side effect of a chat-only
+     redesign. */
+  --chat-disclaimer-bg: #fbf6e9;
+  --chat-disclaimer-border: #efe4c4;
+  --chat-disclaimer-text: #7a6425;
 
   /* Chrome */
   /* Slightly stronger than before (was 0 1px 2px / 0.06) - .card lost its
@@ -229,6 +245,11 @@
   --color-purple-bg: #2a1a45;
   --color-accent-soft-bg: #22304c;
   --color-accent-soft-text: #9db4e8;
+  --chat-citation-tag-bg: #1e2a44;
+  --chat-citation-tag-bg-hover: #24334f;
+  --chat-disclaimer-bg: #3a2f0a;
+  --chat-disclaimer-border: #5a4a1a;
+  --chat-disclaimer-text: #d9c48f;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4), 0 1px 2px rgba(0, 0, 0, 0.3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);

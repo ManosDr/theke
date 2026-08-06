@@ -16,7 +16,9 @@
       "Net token count: 59 -> 56 (-3 dead, -1 danger merge, -1 info merge, +1 surface_hover, +1 text_on_dark).",
       "Follow-up pass: swept the whole frontend for remaining raw hex in CSS/inline-style contexts (every one was a 'text/icon sitting on a colored fill' case, same role as core.text.on_primary) and repointed them at that existing token instead of adding anything new: Sidebar.tsx's vertical-switcher active-segment text+dot, Sidebar.module.css's .navChildItemActive text and .avatar border, TopHeader.module.css/StatCard.module.css/AttentionCard.module.css's avatar/icon-badge text, SessionExpiryToast.module.css and SubscriptionsPanel.module.css's status-pill text, and two inline danger-button labels in CompaniesPanel.tsx/DocumentsPanel.tsx. Also replaced a hand-picked dark-theme background (Sidebar.module.css's .navItemActive, was a hardcoded #25344f) with the same color-mix(...) pattern the light-theme rule right above it already uses, just mixed against the dark surface instead of white - ties it back to --admin-accent-navy instead of an unrelated hex. Removed two now-redundant var(..., #fallback) hex fallbacks in pricing.module.css (the token they fell back from is always declared).",
       "Correction to the follow-up pass above: 2 of the call sites it repointed at core.text.on_primary were actually background/border properties, not text - Sidebar.tsx's .switcherDotInline active fill and Sidebar.module.css's .avatar ring border. A background/border color and a text color are different design-system concerns even when the current hex happens to match (#ffffff in both cases here), so a rebrand could need to change one without the other. Split those 2 call sites out into a new token, core.background.on_primary, rather than continuing to borrow the text token. Grouped both into ONE new token (not two) since they share identical value and semantic role; core.text.on_primary's remaining ~11 call sites were re-verified as genuine `color:`/icon-foreground usages and were left as-is.",
-      "Net token count: 56 -> 57 (+1 core.background.on_primary; no removals)."
+      "Net token count: 56 -> 57 (+1 core.background.on_primary; no removals).",
+      "Chat v2 redesign follow-up pass: added chat.citation_tag_bg/citation_tag_bg_hover as two genuinely new tokens (#eef0f3/#f3f5f9 light) - the source-tag pill bg and source-row hover bg were both previously aliasing core.background.surface_alt, which read close to but not exactly the design spec's two distinct values. Also converted chat.disclaimer_bg/disclaimer_border/disclaimer_text from aliases of the shared core.status.warning_bg/admin.status.warning_border/core.text.muted into dedicated chat-only tokens matching the v2 design's exact values (#fbf6e9/#efe4c4/#7a6425) - repointing the shared warning tokens themselves would have repainted every other warning banner/badge app-wide as an unintended side effect of a chat-only visual pass. The separate chat.disclaimer_icon token was folded into chat.disclaimer_text (one warm-brown tone now covers both, per the v2 spec, replacing the previous amber icon/muted-text split). Scoped to the desktop .disclaimerBar only - the mobile .disclaimerMobile variant is out of scope for this pass and still uses the shared warning tokens.",
+      "Net token count: 57 -> 61 (+2 citation_tag_bg/citation_tag_bg_hover, -1 disclaimer_icon folded into disclaimer_text, values changed but not removed on disclaimer_bg/border/text - net token count reflects additions only, not value edits)."
     ],
     "excluded_non_variable_colors": [
       {
@@ -270,29 +272,29 @@
         "light": { "value": "#e4e9f2", "usage": "1px border around the assistant's chat message bubble - reuses core.border.default", "used_in": ["chat/chat.module.css (.messageAssistant)"] },
         "dark": { "value": "#2a3752", "usage": "1px border around the assistant's chat message bubble", "used_in": ["chat/chat.module.css (.messageAssistant)"] }
       },
-      "citation_chip_bg": {
-        "light": { "value": "#eef1f6", "usage": "Background of each source-citation pill under an assistant message - reuses core.background.surface_alt", "used_in": ["chat/chat.module.css (.citations li)"] },
-        "dark": { "value": "#1e2a44", "usage": "Background of each source-citation pill", "used_in": ["chat/chat.module.css (.citations li)"] }
+      "citation_tag_bg": {
+        "light": { "value": "#eef0f3", "usage": "Background of the source-tag pill (e.g. 'ypen', 'tee') and each source row's hover state's sibling token below - a genuinely NEW pair of tokens, not an alias: the v2 design calls for two distinct values here where the app previously reused core.background.surface_alt for both, which happened to look close but wasn't the design's actual intent.", "used_in": ["chat/chat.module.css (.sourceTag)"] },
+        "dark": { "value": "#1e2a44", "usage": "Background of the source-tag pill", "used_in": ["chat/chat.module.css (.sourceTag)"] }
       },
-      "citation_chip_text": {
-        "light": { "value": "#737791", "usage": "Text color of the citation-chip link/label - reuses core.text.muted", "used_in": ["chat/chat.module.css (.citationLink)"] },
-        "dark": { "value": "#7b91b0", "usage": "Text color of the citation-chip link/label", "used_in": ["chat/chat.module.css (.citationLink)"] }
+      "citation_tag_bg_hover": {
+        "light": { "value": "#f3f5f9", "usage": "Background of a source row on hover - deliberately distinct from citation_tag_bg above per the v2 design, not the same surface_alt token doing double duty", "used_in": ["chat/chat.module.css (.sourceRow:hover)"] },
+        "dark": { "value": "#24334f", "usage": "Background of a source row on hover", "used_in": ["chat/chat.module.css (.sourceRow:hover)"] },
+        "note": "NEW, along with citation_tag_bg above - added for the v2 chat redesign's source-tag/row-hover pass rather than continuing to alias core.background.surface_alt."
       },
       "disclaimer_bg": {
-        "light": { "value": "#fff4de", "usage": "Background of the 'AI can make mistakes' disclaimer strip - reuses core.status.warning_bg", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
-        "dark": { "value": "#3a2f0a", "usage": "Background of the disclaimer strip", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
+        "light": { "value": "#fbf6e9", "usage": "Background of the chat page's persistent top disclaimer bar. Deliberately its OWN token, not an alias of core.status.warning_bg: the v2 design's exact value doesn't match that shared warning token, and repointing the shared token to match would have repainted every other warning banner/badge app-wide as a side effect of a chat-only redesign.", "used_in": ["chat/chat.module.css (.disclaimerBar)"] },
+        "dark": { "value": "#3a2f0a", "usage": "Background of the disclaimer bar", "used_in": ["chat/chat.module.css (.disclaimerBar)"] },
+        "note": "Value changed from the previous core.status.warning_bg alias (#fff4de) to a dedicated chat-only token matching the v2 design spec exactly. .disclaimerMobile (out of scope for this desktop-only pass) still uses the shared warning tokens."
       },
       "disclaimer_border": {
-        "light": { "value": "#f5d999", "usage": "Bottom border of the disclaimer strip - reuses admin.status.warning_border", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
-        "dark": { "value": "#5a4a1a", "usage": "Bottom border of the disclaimer strip", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
+        "light": { "value": "#efe4c4", "usage": "Bottom border of the disclaimer bar - dedicated token, see disclaimer_bg's note", "used_in": ["chat/chat.module.css (.disclaimerBar)"] },
+        "dark": { "value": "#5a4a1a", "usage": "Bottom border of the disclaimer bar", "used_in": ["chat/chat.module.css (.disclaimerBar)"] },
+        "note": "Value changed from the previous admin.status.warning_border alias (#f5d999) - see disclaimer_bg's note."
       },
       "disclaimer_text": {
-        "light": { "value": "#737791", "usage": "Disclaimer copy text color - reuses core.text.muted", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] },
-        "dark": { "value": "#7b91b0", "usage": "Disclaimer copy text color", "used_in": ["chat/chat.module.css (.disclaimerCompact, .disclaimerMobile)"] }
-      },
-      "disclaimer_icon": {
-        "light": { "value": "#ffa800", "usage": "Disclaimer icon color - reuses core.status.warning", "used_in": ["chat/chat.module.css (.disclaimerCompact svg, .disclaimerMobile svg)"] },
-        "dark": { "value": "#ffcf00", "usage": "Disclaimer icon color", "used_in": ["chat/chat.module.css (.disclaimerCompact svg, .disclaimerMobile svg)"] }
+        "light": { "value": "#7a6425", "usage": "Disclaimer bar copy + icon color - dedicated warm-brown token, see disclaimer_bg's note", "used_in": ["chat/chat.module.css (.disclaimerBar, .disclaimerBar svg)"] },
+        "dark": { "value": "#d9c48f", "usage": "Disclaimer bar copy + icon color", "used_in": ["chat/chat.module.css (.disclaimerBar, .disclaimerBar svg)"] },
+        "note": "Value changed from the previous core.text.muted alias - see disclaimer_bg's note. Also now covers the icon color (previously a separate disclaimer_icon token pointing at core.status.warning/amber); the v2 design specifies one warm-brown tone for both text and icon in this bar, not two different hues."
       }
     }
   }

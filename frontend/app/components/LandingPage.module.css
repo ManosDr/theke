@@ -49,12 +49,6 @@
   color: var(--color-text);
 }
 
-.wordmarkText {
-  font-weight: 700;
-  font-size: 1.3rem;
-  letter-spacing: -0.01em;
-}
-
 .headerControls {
   display: flex;
   align-items: center;

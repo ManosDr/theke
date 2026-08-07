@@ -94,7 +94,7 @@ export function LandingPage() {
         <div className={styles.headerInner}>
           <a href="#top" className={styles.wordmark}>
             <LogoMark size={34} />
-            <span className={styles.wordmarkText}>theke</span>
+            <Logo size={48} />
           </a>
           <div className={styles.headerControls}>
             <LanguageToggle />

@@ -78,7 +78,7 @@ function LoginContent() {
             rules at any specificity, so the wordmark keeps its normal text
             color instead of turning link-blue. */}
         <Link href="/" style={{ display: "inline-flex", color: "inherit", textDecoration: "none" }}>
-          <Logo size={76} />
+          <Logo height="2.5rem" />
         </Link>
         <p className={styles.tagline}>{t("login.tagline")}</p>
       </div>

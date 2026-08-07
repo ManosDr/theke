@@ -30,7 +30,7 @@ export function LegalPageShell({ slug }: { slug: LegalDocSlug }) {
   return (
     <main className={styles.publicPage}>
       <div className={styles.publicHeader}>
-        <Logo size={36} />
+        <Logo height="1.193rem" />
         <div style={{ display: "flex", gap: "var(--space-2)" }}>
           <LanguageToggle />
           <ThemeToggle />

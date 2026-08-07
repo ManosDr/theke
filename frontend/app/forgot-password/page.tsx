@@ -47,7 +47,7 @@ export default function ForgotPasswordPage() {
       </div>
 
       <div className={styles.intro}>
-        <Logo size={56} />
+        <Logo height="1.856rem" />
       </div>
 
       <form className={`card ${styles.card}`} onSubmit={handleSubmit} noValidate>

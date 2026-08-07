@@ -9,7 +9,7 @@ export function LanguageToggle() {
   return (
     <div className={styles.wrap}>
       <select
-        className={styles.select}
+        className={`${styles.select} ${styles.selectFull}`}
         value={locale}
         onChange={(e) => setLocale(e.target.value)}
         aria-label={t("topbar.language")}
@@ -17,6 +17,25 @@ export function LanguageToggle() {
         {locales.map((l) => (
           <option key={l.code} value={l.code}>
             {l.name}
+          </option>
+        ))}
+      </select>
+      {/* Same control, short codes instead of full locale names - swapped in
+          under a breakpoint by CSS alone (see .selectFull/.selectCompact),
+          not a media-query hook in JS. Exists so a narrow header (landing
+          page nav) can fit this alongside the theme toggle, login link, and
+          CTA on one row instead of wrapping - "Ελληνικά" alone is wider than
+          the whole row has room for at phone widths. Same padding as the
+          full select, so the tap target doesn't shrink, only the text does. */}
+      <select
+        className={`${styles.select} ${styles.selectCompact}`}
+        value={locale}
+        onChange={(e) => setLocale(e.target.value)}
+        aria-label={t("topbar.language")}
+      >
+        {locales.map((l) => (
+          <option key={l.code} value={l.code}>
+            {l.code.toUpperCase()}
           </option>
         ))}
       </select>

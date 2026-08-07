@@ -93,8 +93,8 @@ export function LandingPage() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a href="#top" className={styles.wordmark}>
-            <LogoMark size={34} />
-            <Logo size={48} />
+            <LogoMark height="var(--logo-nav-height)" />
+            <Logo height="var(--logo-nav-height)" />
           </a>
           <div className={styles.headerControls}>
             <LanguageToggle />
@@ -132,12 +132,12 @@ export function LandingPage() {
           <div className={styles.heroRight} data-reveal data-reveal-delay="140">
             <div className={styles.mockCard}>
               <div className={styles.mockCardHeader}>
-                <LogoMark size={9} />
+                <LogoMark height="var(--logo-chat-preview-height)" />
                 <span className={styles.mockCardLabel}>{t("landing.heroCardLabel")}</span>
               </div>
               <div className={styles.userBubble}>{t("landing.qConstruction")}</div>
               <div className={styles.assistantRow}>
-                <LogoMark size={8} />
+                <LogoMark height="0.565rem" />
                 <span className={styles.assistantName}>theke</span>
               </div>
               <p className={styles.assistantAnswer}>{t("landing.heroAnswer")}</p>
@@ -232,12 +232,12 @@ export function LandingPage() {
           <div className={styles.trustRight} data-reveal data-reveal-delay="140">
             <div className={styles.mockCard}>
               <div className={styles.mockCardHeader}>
-                <LogoMark size={9} />
+                <LogoMark height="var(--logo-chat-preview-height)" />
                 <span className={styles.mockCardLabel}>{t("landing.trustCardLabel")}</span>
               </div>
               <div className={styles.userBubble}>{t("landing.qTax")}</div>
               <div className={styles.assistantRow}>
-                <LogoMark size={8} />
+                <LogoMark height="0.565rem" />
                 <span className={styles.assistantName}>theke</span>
               </div>
               <p className={styles.assistantAnswer}>{t("landing.trustAnswer")}</p>
@@ -288,7 +288,7 @@ export function LandingPage() {
 
       {/* FOOTER */}
       <footer className={styles.footer}>
-        <Logo size={30} />
+        <Logo height="0.995rem" />
         <LegalFooter />
       </footer>
     </div>

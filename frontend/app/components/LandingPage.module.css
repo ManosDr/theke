@@ -9,6 +9,13 @@
   background: var(--color-bg);
   color: var(--color-text);
   overflow-x: hidden;
+  /* Logo/icon heights only - width is never set directly anywhere in this
+     file; Logo.tsx derives it from the SVG's own viewBox ratio so nothing
+     here can distort the brand assets. Fluid via the same 4vw/2.5vw
+     multipliers .headerInner/.container already use elsewhere on this page,
+     rather than a fixed px value that only reads right at one width. */
+  --logo-nav-height: clamp(1.5rem, 4vw, 2.5rem);
+  --logo-chat-preview-height: clamp(1rem, 2.5vw, 1.625rem);
 }
 
 /* font-family comes from globals.css's app-wide h1..h6 rule now - just the
@@ -63,6 +70,29 @@
   color: var(--color-text);
   padding: var(--space-2) 6px;
   white-space: nowrap;
+}
+
+/* Keeps language/theme/login/CTA on one row at phone widths instead of
+   wrapping to a second line under the wordmark. Shrinks text/padding
+   rather than hiding anything - a logged-out visitor still needs all four
+   controls reachable, unlike the authenticated shell's TopHeader (which can
+   hide these behind the sidebar drawer as a fallback; the public landing
+   page has no equivalent drawer to fall back to). Same control height as
+   .navLink/.select keep everywhere else, so no tap-target regression. */
+@media (max-width: 480px) {
+  .headerControls {
+    gap: 4px;
+  }
+
+  .navLink {
+    padding: var(--space-2) 4px;
+    font-size: 0.85rem;
+  }
+
+  .headerControls .btn.btn-primary {
+    padding: var(--space-2) var(--space-3);
+    font-size: 0.82rem;
+  }
 }
 
 /* ---------- Shared section/container ---------- */

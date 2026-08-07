@@ -251,7 +251,7 @@ export function Sidebar() {
         className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""} ${mobileOpen ? styles.sidebarMobileOpen : ""}`}
       >
         <div className={styles.wordmarkRow}>
-          {collapsed ? <LogoMark size={30} /> : <Logo size={42} />}
+          {collapsed ? <LogoMark height="2.117rem" /> : <Logo height="1.393rem" />}
           <button
             type="button"
             className={styles.mobileCloseButton}

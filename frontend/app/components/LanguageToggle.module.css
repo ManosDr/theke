@@ -25,3 +25,22 @@
   pointer-events: none;
   color: var(--admin-stone);
 }
+
+/* Full-name select is the default everywhere; the short-code select below
+   swaps in under 480px so a narrow row (landing page nav) has room for it
+   alongside the theme toggle, login link, and CTA without wrapping. Same
+   .select padding on both, so the tap target height never shrinks - only
+   the text does. */
+.selectCompact {
+  display: none;
+}
+
+@media (max-width: 480px) {
+  .selectFull {
+    display: none;
+  }
+
+  .selectCompact {
+    display: inline-block;
+  }
+}

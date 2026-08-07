@@ -13,11 +13,19 @@ function useLogoFill(): string {
   return theme === "dark" ? "#fff" : "#1b2a4a";
 }
 
-export function LogoMark({ size = 40 }: { size?: number }) {
+// height is a CSS length (rem/px/clamp(...)) - width is intentionally never
+// passed in. The <svg> has no width/height attributes, so per SVG's own
+// replaced-element sizing rules the browser derives width from the
+// viewBox's real ratio once height is set and width is "auto" - the one
+// aspect-ratio-preserving pattern every logo/icon placement should use,
+// instead of each call site hand-computing a matching width (the old
+// `size` prop did exactly that, and the two brand assets aren't the same
+// ratio as each other or square, so a shared numeric "size" was a
+// distortion risk waiting to happen).
+export function LogoMark({ height = "2.5rem" }: { height?: string }) {
   const fill = useLogoFill();
-  const height = size * (230.4 / 204.03);
   return (
-    <svg width={size} height={height} viewBox="0 0 204.03 230.4" aria-hidden="true">
+    <svg style={{ height, width: "auto" }} viewBox="0 0 204.03 230.4" aria-hidden="true">
       <rect fill={fill} x="64.73" y="54.63" width="11.47" height="121.15" />
       <rect
         fill={fill}
@@ -41,11 +49,10 @@ export function LogoMark({ size = 40 }: { size?: number }) {
   );
 }
 
-export function Logo({ size = 40 }: { size?: number; withWordmark?: boolean }) {
+export function Logo({ height = "2.5rem" }: { height?: string }) {
   const fill = useLogoFill();
-  const height = size * (230.4 / 434.43);
   return (
-    <svg width={size * 1.88} height={height} viewBox="0 0 434.43 230.4" aria-hidden="true">
+    <svg style={{ height, width: "auto" }} viewBox="0 0 434.43 230.4" aria-hidden="true">
       <path
         fill={fill}
         d="M92.65,160.03c-3.18,4.95-8.13,9.09-16.03,9.09-14.41,0-16.7-12.05-16.7-22.32v-43.89h-10.79v-3.84h10.79v-12.12c4.43-1.48,10.12-6.06,12.71-10.12v22.24h18.62v3.84h-18.62v50.1c0,8.57,3.25,11.38,7.39,11.38,4.43,0,7.98-3.7,9.61-6.5l3.03,2.14Z"

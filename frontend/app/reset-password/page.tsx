@@ -98,7 +98,7 @@ export default function ResetPasswordPage() {
       </div>
 
       <div className={styles.intro}>
-        <Logo size={56} />
+        <Logo height="1.856rem" />
       </div>
 
       <Suspense fallback={<p className="text-muted">Loading…</p>}>

@@ -11,11 +11,13 @@
   overflow-x: hidden;
   /* Logo/icon heights only - width is never set directly anywhere in this
      file; Logo.tsx derives it from the SVG's own viewBox ratio so nothing
-     here can distort the brand assets. Fluid via the same 4vw/2.5vw
-     multipliers .headerInner/.container already use elsewhere on this page,
-     rather than a fixed px value that only reads right at one width. */
-  --logo-nav-height: clamp(1.5rem, 4vw, 2.5rem);
-  --logo-chat-preview-height: clamp(1rem, 2.5vw, 1.625rem);
+     here can distort the brand assets. Fluid via vw multipliers rather
+     than a fixed px value that only reads right at one width, echoing
+     .headerInner/.container's own clamp() approach elsewhere on this page.
+     Nav now shows the wordmark alone (no separate icon glyph beside it -
+     removed per explicit request), so --logo-nav-height only sizes .Logo. */
+  --logo-nav-height: clamp(1.725rem, 6vw, 2.875rem);
+  --logo-chat-preview-height: clamp(1.5rem, 3.4vw, 2.5rem);
 }
 
 /* font-family comes from globals.css's app-wide h1..h6 rule now - just the

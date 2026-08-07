@@ -251,7 +251,12 @@ export function Sidebar() {
         className={`${styles.sidebar} ${collapsed ? styles.sidebarCollapsed : ""} ${mobileOpen ? styles.sidebarMobileOpen : ""}`}
       >
         <div className={styles.wordmarkRow}>
-          {collapsed ? <LogoMark height="2.117rem" /> : <Logo height="1.393rem" />}
+          {/* Requested 3.393rem (matching the landing nav) doesn't fit here -
+              .wordmarkRow is a fixed 64px row with 16px vertical padding
+              (32px content budget) shared with every other sidebar row's
+              height, so 3.393rem/54px would overflow it. 1.75rem is the
+              largest value that still fits with a little breathing room. */}
+          {collapsed ? <LogoMark height="2.117rem" /> : <Logo height="1.75rem" />}
           <button
             type="button"
             className={styles.mobileCloseButton}

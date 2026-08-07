@@ -93,7 +93,6 @@ export function LandingPage() {
       <header className={styles.header}>
         <div className={styles.headerInner}>
           <a href="#top" className={styles.wordmark}>
-            <LogoMark height="var(--logo-nav-height)" />
             <Logo height="var(--logo-nav-height)" />
           </a>
           <div className={styles.headerControls}>

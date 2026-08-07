@@ -35,12 +35,15 @@
   /* Brand - matches --admin-accent-navy exactly (the sidebar's own navy)
      so every primary action/link/chart line reads as the same identity as
      the sidebar/avatar, instead of the old unrelated green. Hover lifts to
-     a brighter blue (#2a6fdb) intentionally shared with --admin-danger's
-     sibling admin-status blue role (DataSourcesPanel's syncing indicator,
-     source-tier badges, formerly --admin-info) - one interactive-blue
-     identity across both roles, not a coincidence. */
+     the brand's own periwinkle-navy (#3e5a9e, the official brand-primary
+     hover value) - still reused by DataSourcesPanel's syncing indicator and
+     source-tier badges (formerly --admin-info, unified into this token
+     during an earlier cleanup pass), so those follow this same update.
+     Light-only: dark theme keeps its own #5c7dc4 hover, since #3e5a9e is
+     already dark theme's --color-primary resting fill (see below) - using
+     it as dark's hover too would make hover indistinguishable from rest. */
   --color-primary: #1b2a4a;
-  --color-primary-hover: #2a6fdb;
+  --color-primary-hover: #3e5a9e;
   --color-accent: #ffa800;
   --color-accent-hover: #e69500;
   /* For TEXT/border/outline foreground use (links, active tabs, focus

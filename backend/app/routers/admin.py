@@ -1993,8 +1993,8 @@ async def sync_data_source(
     if hash_changed:
         source.content_changed_at = now
         reason = (
-            f"Το περιεχόμενο της πηγής άλλαξε στις {now.strftime('%d/%m/%Y')} — "
-            "επαληθεύστε ότι το έγγραφο παραμένει ακριβές"
+            f"Το περιεχόμενο της πηγής άλλαξε στις {now.strftime('%d/%m/%Y')}. "
+            "Επαληθεύστε ότι το έγγραφο παραμένει ακριβές."
         )
         linked_docs = db.scalars(
             select(Document).where(Document.source.startswith(source.base_url))

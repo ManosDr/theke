@@ -219,7 +219,7 @@ function SourceCard({
           {health === "never_synced"
             ? t("adminSources.health.never_synced")
             : health === "failed" && source.last_crawl_error
-              ? `${t("adminSources.health.failed")} — ${source.last_crawl_error}`
+              ? `${t("adminSources.health.failed")}: ${source.last_crawl_error}`
               : health === "healthy" && source.last_crawl_document_count != null
                 ? t("adminSources.documentCount", { count: source.last_crawl_document_count })
                 : t(`adminSources.health.${health}` as TranslationKey)}

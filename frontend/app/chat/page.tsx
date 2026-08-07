@@ -826,7 +826,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const initials = getInitials(user?.firstName, user?.lastName, user?.email);
   const noContextLabel = isTaxAccounting ? t("chat.noClientContext") : t("chat.noProjectContext");
   const activeContextLabel = t(isTaxAccounting ? "chat.clientLabel" : "chat.projectLabel");
-  const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : noContextLabel} — ${t("chat.tapForContextSearch")}`;
+  const contextStripLabel = `${t(accountTypeKey)} · ${selectedProject ? selectedProject.name : noContextLabel}: ${t("chat.tapForContextSearch")}`;
 
   // "YOUR CONTEXT" + "QUICK DOCUMENT SEARCH" - identical content, rendered
   // in two different places (desktop's always-visible right panel, and

@@ -119,7 +119,7 @@ def _send_digest(to_email: str, stats: dict) -> bool:
             {
                 "from": EMAIL_FROM,
                 "to": to_email,
-                "subject": "Εβδομαδιαία σύνοψη πλατφόρμας — Theke",
+                "subject": "Theke: Εβδομαδιαία σύνοψη πλατφόρμας",
                 "html": f"""
             <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 32px;">
               <h2 style="color: #1B2A4A; margin-bottom: 8px;">Εβδομαδιαία σύνοψη πλατφόρμας</h2>
@@ -133,7 +133,7 @@ def _send_digest(to_email: str, stats: dict) -> bool:
                 <tr><td style="padding: 6px 0;">Ουρά επανελέγχου εγγράφων</td><td style="text-align: right; font-weight: 600;">{stats["needs_review"]}</td></tr>
               </table>
               <p style="color: #888; font-size: 13px; line-height: 1.5; margin-top: 24px;">
-                — Η ομάδα Theke
+                Η ομάδα Theke
               </p>
             </div>
             """,

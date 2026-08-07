@@ -22,7 +22,7 @@ def send_password_reset_email(to_email: str, reset_url: str, user_name: str) -> 
             {
                 "from": settings.email_from,
                 "to": to_email,
-                "subject": "Επαναφορά κωδικού πρόσβασης — Theke",
+                "subject": "Theke: Επαναφορά κωδικού πρόσβασης",
                 "html": f"""
             <div style="font-family: Georgia, serif; max-width: 480px; margin: 0 auto; padding: 32px;">
               <h2 style="color: #1B2A4A; margin-bottom: 8px;">Επαναφορά κωδικού πρόσβασης</h2>
@@ -40,7 +40,7 @@ def send_password_reset_email(to_email: str, reset_url: str, user_name: str) -> 
               <p style="color: #888; font-size: 13px; line-height: 1.5;">
                 Ο σύνδεσμος ισχύει για 24 ώρες. Αν δεν ζητήσατε επαναφορά
                 κωδικού, αγνοήστε αυτό το μήνυμα.<br><br>
-                — Η ομάδα Theke
+                Η ομάδα Theke
               </p>
             </div>
             """,

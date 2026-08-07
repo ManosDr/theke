@@ -211,7 +211,7 @@ function RegisterContent() {
 
   return (
     <main className={styles.page}>
-      <h1 className="sr-only">theke — {t("register.createAccount")}</h1>
+      <h1 className="sr-only">theke: {t("register.createAccount")}</h1>
       <div className={styles.themeToggle} style={{ display: "flex", gap: "var(--space-2)" }}>
         <LanguageToggle />
         <ThemeToggle />

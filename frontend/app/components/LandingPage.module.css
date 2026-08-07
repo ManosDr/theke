@@ -16,8 +16,8 @@
      .headerInner/.container's own clamp() approach elsewhere on this page.
      Nav now shows the wordmark alone (no separate icon glyph beside it -
      removed per explicit request), so --logo-nav-height only sizes .Logo. */
-  --logo-nav-height: clamp(1.725rem, 6vw, 2.875rem);
-  --logo-chat-preview-height: clamp(1.5rem, 3.4vw, 2.5rem);
+  --logo-nav-height: clamp(1.25rem, 4vw, 2rem);
+  --logo-chat-preview-height: clamp(1rem, 2vw, 1.5rem);
 }
 
 /* font-family comes from globals.css's app-wide h1..h6 rule now - just the

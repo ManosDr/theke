@@ -8,14 +8,13 @@ module once that's built.
 
 from urllib.parse import urljoin
 
-import requests
 from bs4 import BeautifulSoup
 
-USER_AGENT = "thekebot/0.1 (construction compliance assistant; contact: manos.drams@gmail.com)"
+from crawler.politeness import DEFAULT_FETCHER
 
 
 def discover_pdf_links(page_url: str) -> list[dict]:
-    resp = requests.get(page_url, timeout=30, headers={"User-Agent": USER_AGENT})
+    resp = DEFAULT_FETCHER.get(page_url)
     resp.raise_for_status()
     soup = BeautifulSoup(resp.text, "html.parser")
 

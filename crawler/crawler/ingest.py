@@ -15,10 +15,9 @@ from datetime import date as date_cls
 
 import fitz  # PyMuPDF
 import psycopg
-import requests
 from bs4 import BeautifulSoup
 
-USER_AGENT = "thekebot/0.1 (construction compliance assistant; contact: manos.drams@gmail.com)"
+from crawler.politeness import DEFAULT_FETCHER
 
 # Rich anchor text, as used by ΤΕΕ's e-adeies listing, e.g.
 # "ΥΑ (ΦΕΚ B' 6548/31.12.2021) - ..." or "Ν 4964 (ΦΕΚ A' 150/30.07.2022) - ...".
@@ -38,7 +37,7 @@ _LAW_NUMBER_YEAR_RE = re.compile(r"/(\d{1,5})_(\d{4})_[0-9a-f]{6,}\.pdf", re.IGN
 
 
 def download(url: str) -> bytes:
-    resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
+    resp = DEFAULT_FETCHER.get(url)
     resp.raise_for_status()
     return resp.content
 
@@ -305,7 +304,7 @@ def ingest_html_page(
     than a listing of linked PDFs, e.g. e-ΕΦΚΑ's ΑΠΔ guidance pages. Re-crawling
     monthly and comparing content_hash surfaces silent edits to the guidance.
     """
-    resp = requests.get(url, timeout=30, headers={"User-Agent": USER_AGENT})
+    resp = DEFAULT_FETCHER.get(url)
     resp.raise_for_status()
     extracted = extract_article_text(resp.text)
     if not extracted.text:

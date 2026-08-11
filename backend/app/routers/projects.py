@@ -350,7 +350,11 @@ async def upload_project_documents(
         doc = Document(
             title=filename,
             doc_type="upload",
-            source=file_path,
+            # NOT file_path: an upload has no external source, and a container
+            # filesystem path stored here gets passed straight through as a
+            # citation source_url (see chat.py), rendering a clickable link
+            # that 404s in the browser - see KNOWN_DECISIONS.md, doc 2032.
+            source=None,
             content=text_content,
             content_hash=hash_value,
             company_id=user.company_id,

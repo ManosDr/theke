@@ -10,11 +10,10 @@ no session tokens like the old pdfViewerForm links.
 import json
 from datetime import date as date_cls, timedelta
 
-import requests
+from crawler.politeness import DEFAULT_FETCHER, CrawlBlocked
 
 SEARCH_API_URL = "https://searchetv99.azurewebsites.net/api/searchbydate"
 BLOB_BASE_URL = "https://ia37rg02wpsa01.blob.core.windows.net/fek"
-USER_AGENT = "thekebot/0.1 (construction compliance assistant; contact: manos.drams@gmail.com)"
 
 # Series codes (et.gr's own search_IssueGroupID values, discovered empirically):
 # 1=Α (laws), 2=Β (ministerial decisions), 3=Γ (civil service appointments),
@@ -34,12 +33,10 @@ RELEVANT_SERIES_CODES = {1, 4, 15}
 
 
 def search_by_date(day: date_cls) -> list[dict]:
-    resp = requests.post(
-        SEARCH_API_URL,
-        json={"datePublished": day.isoformat()},
-        headers={"User-Agent": USER_AGENT},
-        timeout=30,
-    )
+    # Called up to 35 times in a row (see discover_recent's days_back) against
+    # this one host - DEFAULT_FETCHER is what keeps that from being 35
+    # unthrottled requests.
+    resp = DEFAULT_FETCHER.post(SEARCH_API_URL, json={"datePublished": day.isoformat()})
     resp.raise_for_status()
     body = resp.json()
     return json.loads(body["data"])
@@ -64,6 +61,13 @@ def discover_recent(days_back: int = 35, series_codes: set[int] = RELEVANT_SERIE
         day = today - timedelta(days=offset)
         try:
             records = search_by_date(day)
+        except CrawlBlocked:
+            # Re-raise rather than swallow-and-continue: retrying the
+            # remaining days against a host that just blocked us would only
+            # hit the same block up to 34 more times, and a caller needs to
+            # see this distinctly (not as 35 quietly-swallowed failures) to
+            # report it as what it is.
+            raise
         except Exception as exc:
             print(f"  ΦΕΚ search failed for {day.isoformat()}: {exc}")
             continue

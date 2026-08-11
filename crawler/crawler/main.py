@@ -10,6 +10,7 @@ from crawler.ingest import (
     ingest_reference_only,
     ingest_seed_document,
 )
+from crawler.politeness import CrawlBlocked
 from crawler.sources import SEED_DOCUMENTS, SOURCES
 
 # Modes whose source URL is a listing page to discover PDF links from, plus
@@ -52,8 +53,46 @@ def notify_users_of_new_documents(conn: psycopg.Connection, new_count: int) -> N
     print(f"Notified {len(user_ids)} user(s) of {new_count} new document(s)")
 
 
+def notify_super_admins_of_blocks(conn: psycopg.Connection, blocked: list[dict]) -> None:
+    """A block/ban is fundamentally different from an ordinary fetch failure:
+    it doesn't self-heal next run (the host keeps rejecting us), and it took
+    an unrelated manual audit to notice the e-nomothesia.gr ban that prompted
+    this whole module - the "12 sources failed" summary alone did not surface
+    it. Every active super admin gets one notification per crawl run listing
+    every distinct blocked host, so this can never again go unnoticed inside
+    a routine failure count."""
+    if not blocked:
+        return
+
+    hosts = sorted({b["host"] for b in blocked})
+    title = f"Ο crawler αποκλείστηκε από {len(hosts)} πηγή{'ές' if len(hosts) != 1 else ''} (403/429/ban)"
+    lines = [f"{b['host']} - {b['reason']} (πηγή: {b['source_name']})" for b in blocked]
+    body = (
+        "Ο μηνιαίος crawler έλαβε ένδειξη αποκλεισμού (όχι απλή αποτυχία σύνδεσης) από τους παρακάτω "
+        "ιστότοπους. Αυτό συνήθως σημαίνει μόνιμο μπλοκάρισμα IP, όχι προσωρινό πρόβλημα - δεν αναμένεται "
+        "να διορθωθεί μόνο του στην επόμενη εκτέλεση.\n\n" + "\n".join(lines)
+    )
+
+    with conn.cursor() as cur:
+        cur.execute("SELECT id FROM users WHERE role = 'super_admin' AND is_active = true")
+        user_ids = [row[0] for row in cur.fetchall()]
+        if not user_ids:
+            return
+        cur.executemany(
+            "INSERT INTO notifications (user_id, type, title, body, link) VALUES (%s, %s, %s, %s, %s)",
+            [(user_id, "crawler_blocked", title, body, "/sources") for user_id in user_ids],
+        )
+    conn.commit()
+    print(f"Notified {len(user_ids)} super admin(s) of {len(hosts)} blocked host(s)")
+
+
 def run() -> None:
     new_document_count = 0
+    # Separate from ordinary per-candidate/per-source failures (timeouts,
+    # 404s, parse errors) - those are routine and stay in the printed log
+    # only. A block is not routine: it gets its own summary section and its
+    # own notification (see notify_super_admins_of_blocks).
+    blocked: list[dict] = []
 
     with psycopg.connect(DATABASE_URL) as conn:
         for seed in SEED_DOCUMENTS:
@@ -61,6 +100,9 @@ def run() -> None:
             try:
                 if ingest_seed_document(conn, seed) is not None:
                     new_document_count += 1
+            except CrawlBlocked as exc:
+                blocked.append({"host": exc.host, "reason": exc.reason, "source_name": seed["source_name"]})
+                print(f"  BLOCKED: {exc}")
             except Exception as exc:
                 print(f"  failed: {exc}")
 
@@ -81,6 +123,9 @@ def run() -> None:
                         is not None
                     ):
                         new_document_count += 1
+                except CrawlBlocked as exc:
+                    blocked.append({"host": exc.host, "reason": exc.reason, "source_name": source["name"]})
+                    print(f"  BLOCKED: {exc}")
                 except Exception as exc:
                     print(f"  failed: {exc}")
                 continue
@@ -88,6 +133,10 @@ def run() -> None:
             print(f"Discovering documents at {source['name']} ({source['url']})...")
             try:
                 candidates = DISCOVERY_FUNCTIONS[mode](source)
+            except CrawlBlocked as exc:
+                blocked.append({"host": exc.host, "reason": exc.reason, "source_name": source["name"]})
+                print(f"  BLOCKED during discovery: {exc}")
+                continue
             except Exception as exc:
                 print(f"  discovery failed: {exc}")
                 continue
@@ -98,10 +147,24 @@ def run() -> None:
                 try:
                     if handler(conn, source_name=source["name"], **candidate) is not None:
                         new_document_count += 1
+                except CrawlBlocked as exc:
+                    blocked.append({"host": exc.host, "reason": exc.reason, "source_name": source["name"]})
+                    print(f"  BLOCKED on {candidate['url']}: {exc}")
+                    # Every remaining candidate here is very likely on the
+                    # same host (they came from one source's discovery
+                    # page) - move on to the next source instead of hitting
+                    # an already-blocking host again for each candidate.
+                    break
                 except Exception as exc:
                     print(f"  failed on {candidate['url']}: {exc}")
 
         notify_users_of_new_documents(conn, new_document_count)
+        notify_super_admins_of_blocks(conn, blocked)
+
+    if blocked:
+        print("\n=== BLOCKED (distinct from ordinary failures) ===")
+        for b in blocked:
+            print(f"  {b['host']} [{b['source_name']}]: {b['reason']}")
 
 
 if __name__ == "__main__":

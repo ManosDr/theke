@@ -1924,3 +1924,17 @@ No missing backend capability was found. This is a documentation/runbook gap, no
 **The other 9 failures are our own fault, and this is the operationally important finding.** All 9 are e-nomothesia.gr. Evidence they were alive earlier the same day: the audit recorded HEAD 200 for all 9, and a spot-check GET pulled a real 311KB page from one of them. The crawl then issued 9 sequential GETs to that host, after which every request - HEAD and GET, any user agent - returns 403 with an explicit body: *"Security alert … Request dropped! You have been banned! … Reference code: SEC-DEFB-0001 … Powered by Elxis CMS"*. Still banned 15 minutes later, so this is a persistent IP ban from the site's CMS security module, not a rate limit that ages out.
 
 **Consequences to act on before launch:** (a) the scheduled monthly `crawler.main` run hits this same host in a tight loop and will ban the production IP the same way, taking out the 9 e-nomothesia-backed sources; the crawl loop needs a politeness delay and `robots.txt`/`Crawl-delay` handling before it runs unattended. (b) The dev container's IP is banned until e-nomothesia lifts it (the block page names a contact route). (c) Any future link audit must throttle per-host, and should not rely on HEAD alone - HEAD-200 does not prove GET serves content, which is exactly the gap that let the audit report these 9 as clean.
+
+---
+
+## Document 2032: filesystem path in `Document.source` rendered as a clickable, 404-ing citation - nulled
+
+**Reproduced before fixing.** A real chat query as a company-7 member («Μπορώ να τοποθετήσω φωτοβολταϊκά σε στέγη διατηρητέου κτιρίου εντός παραδοσιακού οικισμού;») retrieved doc 2032 as **citation #1**, with `source_url` = `/app/uploads/7/projects/3/…_esoteriki_simeiosi_fotovoltaika.txt`. A non-empty string is truthy, so `renderSourceRow` emitted an `<a href>` pointing at a container filesystem path - resolved against the frontend origin in a browser, that is a guaranteed 404 presented as a working source link.
+
+**Fix: `source` set to NULL.** Verified by re-running the identical query: doc 2032 is still retrieved at position 1 and now renders as non-clickable plain text, matching the doc-253 pattern. The three sibling citations in the same response were unaffected and still carry their real `http…` URLs.
+
+**Safe because nothing reads it.** `Document.source` is never used to locate or serve an upload's file. Its only consumers are the citation `source_url` passthrough (`chat.py`, `rag.py`), the revalidation copilot (`fetch_url_content(doc.source)`, which already guards `if not doc.source` and would fail on a local path regardless), and plain API response fields. For an `upload`, the stored path was write-only data whose sole observable effect was this broken link.
+
+**Root cause is systemic and NOT fixed by this row update.** Both upload paths - `backend/app/routers/documents.py:248` and `backend/app/routers/projects.py:353` - write `source=file_path` on every new upload. Every future upload will reintroduce exactly this defect. The reason only 2 rows were affected is simply that this DB has only 2 `doc_type='upload'` documents. The durable fix is to stop persisting the filesystem path in `source` (uploads have no external source by definition); that is a code change, deliberately left out of this scoped data fix and flagged for a decision.
+
+**Doc 204 left alone:** the other upload carrying a path, but `status='removed'` with 0 embeddings, so it is unreachable by retrieval and cannot render a citation.

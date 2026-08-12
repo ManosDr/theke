@@ -346,6 +346,20 @@ class RegionContactCandidate(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class RegionDiscoverySettings(Base):
+    """Singleton row (id always 1), same pattern as SpendAlertThreshold -
+    the admin-UI batch runner's cadence preference for region contact
+    discovery. 'manual' means nothing auto-runs a batch; see
+    KNOWN_DECISIONS.md for why this stays manual-only for now."""
+
+    __tablename__ = "region_discovery_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    cadence_type: Mapped[str] = mapped_column(Text, default="manual")  # 'manual', 'weekly', 'monthly'
+    default_batch_size: Mapped[int] = mapped_column(Integer, default=15)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ArchaeologicalSite(Base):
     """Known protected archaeological sites, checked by coordinate proximity
     (Haversine distance) in services/gis.py's check_archaeological_flag() -

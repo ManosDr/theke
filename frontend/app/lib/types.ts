@@ -897,6 +897,19 @@ export interface RegionContactCandidateSummary {
   status: string;
 }
 
+export interface RegionDiscoverySettingsSummary {
+  cadence_type: "manual" | "weekly" | "monthly";
+  default_batch_size: number;
+  updated_at: string;
+}
+
+export interface RegionDiscoveryBatchResult {
+  region_ids_attempted: string[];
+  candidates_found: number;
+  not_found_region_ids: string[];
+  skipped: { region_id: string; reason: string }[];
+}
+
 export interface UtilityProviderAdminSummary {
   provider_id: string;
   provider_name: string;

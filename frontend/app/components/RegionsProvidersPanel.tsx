@@ -9,10 +9,14 @@ import { ProviderTypeBadge } from "./TypeBadge";
 import type {
   RegionAdminSummary,
   RegionContactCandidateSummary,
+  RegionDiscoveryBatchResult,
+  RegionDiscoverySettingsSummary,
   RegionRequestSummary,
   UtilityProviderAdminSummary,
 } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
+
+const CADENCES: RegionDiscoverySettingsSummary["cadence_type"][] = ["manual", "weekly", "monthly"];
 
 export function RegionsProvidersPanel() {
   const { user } = useAuth();
@@ -23,6 +27,7 @@ export function RegionsProvidersPanel() {
   const [providers, setProviders] = useState<UtilityProviderAdminSummary[]>([]);
   const [requests, setRequests] = useState<RegionRequestSummary[]>([]);
   const [candidates, setCandidates] = useState<RegionContactCandidateSummary[]>([]);
+  const [discoverySettings, setDiscoverySettings] = useState<RegionDiscoverySettingsSummary | null>(null);
   const [regionsById, setRegionsById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editingRegion, setEditingRegion] = useState<string | null>(null);
@@ -33,16 +38,18 @@ export function RegionsProvidersPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const [regionsData, providersData, requestsData, candidatesData] = await Promise.all([
+      const [regionsData, providersData, requestsData, candidatesData, settingsData] = await Promise.all([
         api.get<RegionAdminSummary[]>("/admin/regions", token),
         api.get<UtilityProviderAdminSummary[]>("/admin/utility-providers", token),
         api.get<RegionRequestSummary[]>("/admin/region-requests", token),
         api.get<RegionContactCandidateSummary[]>("/admin/region-contact-candidates?status=pending_review", token),
+        api.get<RegionDiscoverySettingsSummary>("/admin/region-discovery-settings", token),
       ]);
       setRegions(regionsData);
       setProviders(providersData);
       setRequests(requestsData);
       setCandidates(candidatesData);
+      setDiscoverySettings(settingsData);
       setRegionsById(Object.fromEntries(regionsData.map((r) => [r.region_id, r.region_name_el])));
     } finally {
       setLoading(false);
@@ -62,6 +69,22 @@ export function RegionsProvidersPanel() {
   return (
     <div>
       <h1>{t("adminRegions.title")}</h1>
+
+      {discoverySettings && (
+        <DiscoveryBatchRunner
+          token={token}
+          settings={discoverySettings}
+          onSettingsSaved={setDiscoverySettings}
+          onBatchComplete={async () => {
+            if (!token) return;
+            const candidatesData = await api.get<RegionContactCandidateSummary[]>(
+              "/admin/region-contact-candidates?status=pending_review",
+              token
+            );
+            setCandidates(candidatesData);
+          }}
+        />
+      )}
 
       <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <h2>{t("adminRegions.candidatesHeading")}</h2>
@@ -297,6 +320,117 @@ function RegionEditRow({
         </div>
       </td>
     </tr>
+  );
+}
+
+function DiscoveryBatchRunner({
+  token,
+  settings,
+  onSettingsSaved,
+  onBatchComplete,
+}: {
+  token: string | null;
+  settings: RegionDiscoverySettingsSummary;
+  onSettingsSaved: (settings: RegionDiscoverySettingsSummary) => void;
+  onBatchComplete: () => void;
+}) {
+  const { t } = useLocale();
+  const [batchSize, setBatchSize] = useState(settings.default_batch_size);
+  const [running, setRunning] = useState(false);
+  const [savingCadence, setSavingCadence] = useState(false);
+  const [result, setResult] = useState<RegionDiscoveryBatchResult | null>(null);
+
+  async function runBatch() {
+    if (!token) return;
+    setRunning(true);
+    setResult(null);
+    try {
+      const batchResult = await api.post<RegionDiscoveryBatchResult>(
+        "/admin/region-contact-discovery/run",
+        { batch_size: batchSize },
+        token
+      );
+      setResult(batchResult);
+      if (batchResult.candidates_found > 0) onBatchComplete();
+    } finally {
+      setRunning(false);
+    }
+  }
+
+  async function setCadence(cadence_type: RegionDiscoverySettingsSummary["cadence_type"]) {
+    if (!token || cadence_type === settings.cadence_type) return;
+    setSavingCadence(true);
+    try {
+      const saved = await api.patch<RegionDiscoverySettingsSummary>(
+        "/admin/region-discovery-settings",
+        { cadence_type },
+        token
+      );
+      onSettingsSaved(saved);
+    } finally {
+      setSavingCadence(false);
+    }
+  }
+
+  return (
+    <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+      <h2>{t("adminRegions.batchHeading")}</h2>
+      <p className="text-muted" style={{ fontSize: "0.85rem" }}>{t("adminRegions.batchNote")}</p>
+
+      <div style={{ display: "flex", gap: "var(--space-4)", alignItems: "flex-end", flexWrap: "wrap", marginTop: "var(--space-3)" }}>
+        <label style={{ display: "flex", flexDirection: "column", fontSize: "0.8rem", gap: 4 }}>
+          {t("adminRegions.batchSizeLabel")}
+          <input
+            className="input"
+            type="number"
+            min={1}
+            max={50}
+            value={batchSize}
+            onChange={(e) => setBatchSize(Number(e.target.value))}
+            style={{ width: 90 }}
+            disabled={running}
+          />
+        </label>
+
+        <button className="btn btn-primary" onClick={runBatch} disabled={running || !batchSize}>
+          {running ? t("adminRegions.runningBatch") : t("adminRegions.runBatch")}
+        </button>
+
+        <div style={{ display: "flex", flexDirection: "column", fontSize: "0.8rem", gap: 4 }}>
+          {t("adminRegions.cadenceLabel")}
+          <div style={{ display: "flex", gap: 4 }}>
+            {CADENCES.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`btn ${settings.cadence_type === c ? "btn-primary" : "btn-secondary"}`}
+                disabled={savingCadence}
+                onClick={() => setCadence(c)}
+              >
+                {t(`adminRegions.cadence.${c}` as const)}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      <p className="text-muted" style={{ fontSize: "0.78rem", marginTop: "var(--space-2)" }}>{t("adminRegions.cadenceNote")}</p>
+
+      {result && (
+        <div className={dashStyles.emptyState} style={{ marginTop: "var(--space-3)", textAlign: "left" }}>
+          <strong>{t("adminRegions.batchResultHeading")}</strong>
+          {result.region_ids_attempted.length === 0 ? (
+            <p>{t("adminRegions.noPendingRegions")}</p>
+          ) : (
+            <ul style={{ margin: "var(--space-2) 0 0", paddingLeft: "1.2em" }}>
+              <li>{t("adminRegions.batchResultAttempted", { count: result.region_ids_attempted.length })}</li>
+              <li>{t("adminRegions.batchResultFound", { count: result.candidates_found })}</li>
+              <li>{t("adminRegions.batchResultNotFound", { count: result.not_found_region_ids.length })}</li>
+            </ul>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

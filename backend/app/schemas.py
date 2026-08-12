@@ -889,6 +889,33 @@ class RegionContactCandidateRejectRequest(BaseModel):
     review_note: str | None = None
 
 
+class RegionDiscoveryBatchRunRequest(BaseModel):
+    # Omitted -> falls back to RegionDiscoverySettings.default_batch_size.
+    batch_size: int | None = Field(default=None, ge=1, le=50)
+
+
+class RegionDiscoveryBatchResult(BaseModel):
+    """Same-shape summary as the pilot batch's own report - N candidates
+    found, N regions with nothing found - surfaced in the admin UI right
+    after a batch completes, before any review happens."""
+
+    region_ids_attempted: list[str]
+    candidates_found: int
+    not_found_region_ids: list[str]
+    skipped: list[dict]
+
+
+class RegionDiscoverySettingsSummary(BaseModel):
+    cadence_type: str
+    default_batch_size: int
+    updated_at: datetime
+
+
+class RegionDiscoverySettingsUpdateRequest(BaseModel):
+    cadence_type: Literal["manual", "weekly", "monthly"] | None = None
+    default_batch_size: int | None = Field(default=None, ge=1, le=50)
+
+
 class SearchRequest(BaseModel):
     query: str
     region_id: str | None = None  # narrows to one region on top of visibility; national docs stay included

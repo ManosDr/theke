@@ -27,6 +27,7 @@ from app.models import (
     Project,
     Region,
     RegionContactCandidate,
+    RegionDiscoverySettings,
     RegionRequest,
     SpendAlertCheck,
     SpendAlertThreshold,
@@ -88,6 +89,10 @@ from app.schemas import (
     RegionContactCandidateConfirmRequest,
     RegionContactCandidateRejectRequest,
     RegionContactCandidateSummary,
+    RegionDiscoveryBatchResult,
+    RegionDiscoveryBatchRunRequest,
+    RegionDiscoverySettingsSummary,
+    RegionDiscoverySettingsUpdateRequest,
     RegionRequestSummary,
     RevalidateAllResponse,
     RevalidationStatusResponse,
@@ -126,6 +131,7 @@ def _solo_super_admin_user_ids():
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
+from app.services.region_contact_discovery import next_batch_region_ids, run_batch
 from app.services.source_fetch import content_hash, fetch_url_content
 from app.services.sources import group_label
 from app.services.subscription import get_or_create_subscription, get_or_create_usage
@@ -2306,6 +2312,109 @@ async def reject_region_contact_candidate(
         source_url=candidate.source_url,
         discovered_at=candidate.discovered_at,
         status=candidate.status,
+    )
+
+
+@router.get("/region-discovery-settings", response_model=RegionDiscoverySettingsSummary)
+async def get_region_discovery_settings(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionDiscoverySettingsSummary:
+    require_super_admin(user)
+    row = db.get(RegionDiscoverySettings, 1)
+    if row is None:
+        # Matches the seeded db/init.sql row - only missing if a DB was
+        # created before this migration ran; create it rather than 500ing.
+        row = RegionDiscoverySettings(id=1)
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return RegionDiscoverySettingsSummary(
+        cadence_type=row.cadence_type, default_batch_size=row.default_batch_size, updated_at=row.updated_at
+    )
+
+
+@router.patch("/region-discovery-settings", response_model=RegionDiscoverySettingsSummary)
+async def update_region_discovery_settings(
+    payload: RegionDiscoverySettingsUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionDiscoverySettingsSummary:
+    """cadence_type is stored but, deliberately, not yet read by any
+    scheduled job - same as data_sources' crawl_frequency_type/_days before
+    a source is ever actually auto-synced. Kept manual-only given the pilot's
+    ~40% failure/false-positive rate; see KNOWN_DECISIONS.md."""
+    require_super_admin(user)
+    row = db.get(RegionDiscoverySettings, 1)
+    if row is None:
+        row = RegionDiscoverySettings(id=1)
+        db.add(row)
+
+    if payload.cadence_type is not None:
+        row.cadence_type = payload.cadence_type
+    if payload.default_batch_size is not None:
+        row.default_batch_size = payload.default_batch_size
+    row.updated_at = datetime.utcnow()
+
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="region_discovery_settings_updated", resource_type="region_discovery_settings", resource_id=1,
+    )
+    db.commit()
+    db.refresh(row)
+    return RegionDiscoverySettingsSummary(
+        cadence_type=row.cadence_type, default_batch_size=row.default_batch_size, updated_at=row.updated_at
+    )
+
+
+@router.post("/region-contact-discovery/run", response_model=RegionDiscoveryBatchResult)
+async def run_region_contact_discovery_batch(
+    payload: RegionDiscoveryBatchRunRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionDiscoveryBatchResult:
+    """Admin-UI trigger for the semi-automated ΥΔΟΜ contact discovery pass -
+    same discovery algorithm and the same region_contact_candidates staging
+    table as the CLI pilot (crawler/crawler/region_contact_discovery.py; see
+    app/services/region_contact_discovery.py's module docstring for why this
+    is a mirrored port rather than a cross-container import). Only how a
+    batch gets triggered changes: the next N `pending` regions, prioritized
+    by accumulated region_requests count (desc) then alphabetically, instead
+    of a hand-picked CLI argument list. Runs synchronously and returns the
+    batch's own summary, same shape as the pilot's report - no change to the
+    actual discovery or review logic."""
+    require_super_admin(user)
+    settings_row = db.get(RegionDiscoverySettings, 1)
+    default_size = settings_row.default_batch_size if settings_row else 15
+    batch_size = payload.batch_size or default_size
+
+    region_ids = next_batch_region_ids(db, batch_size)
+    if not region_ids:
+        return RegionDiscoveryBatchResult(
+            region_ids_attempted=[], candidates_found=0, not_found_region_ids=[], skipped=[]
+        )
+
+    result = await run_batch(db, region_ids)
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="region_contact_discovery_batch_run",
+        resource_type="region_discovery_batch",
+        resource_id=None,
+        metadata={
+            "regions_attempted": result["regions_attempted"],
+            "candidates_found": result["candidates_found"],
+        },
+    )
+    db.commit()
+
+    return RegionDiscoveryBatchResult(
+        region_ids_attempted=region_ids,
+        candidates_found=result["candidates_found"],
+        not_found_region_ids=result["not_found"],
+        skipped=result["skipped"],
     )
 
 

@@ -1526,3 +1526,22 @@ CREATE TABLE IF NOT EXISTS region_contact_candidates (
 CREATE INDEX IF NOT EXISTS idx_region_contact_candidates_region ON region_contact_candidates(region_id);
 CREATE INDEX IF NOT EXISTS idx_region_contact_candidates_status ON region_contact_candidates(status);
 
+-- Singleton row (id always 1), same pattern as spend_alert_thresholds -
+-- holds the admin-UI batch runner's cadence preference for the region
+-- contact discovery pipeline above. cadence_type = 'manual' means exactly
+-- that: nothing auto-runs a batch, matching data_sources' crawl_frequency_*
+-- fields, which are likewise stored but not read by any scheduled job today
+-- (see KNOWN_DECISIONS.md - kept manual-only given the pilot's ~40%
+-- failure/false-positive rate).
+CREATE TABLE IF NOT EXISTS region_discovery_settings (
+  id                  integer PRIMARY KEY DEFAULT 1,
+  cadence_type        varchar NOT NULL DEFAULT 'manual', -- 'manual', 'weekly', 'monthly'
+  default_batch_size  integer NOT NULL DEFAULT 15,
+  updated_at          timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT region_discovery_settings_singleton CHECK (id = 1)
+);
+
+INSERT INTO region_discovery_settings (id, cadence_type, default_batch_size)
+VALUES (1, 'manual', 15)
+ON CONFLICT (id) DO NOTHING;
+

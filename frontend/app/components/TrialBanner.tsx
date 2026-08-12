@@ -53,7 +53,7 @@ export function TrialBanner() {
           <div className={styles.overlayActions}>
             <a
               className="btn btn-primary"
-              href={`mailto:sales@theke.ai?subject=${encodeURIComponent("Αναβάθμιση πλάνου")}`}
+              href={`mailto:info@theke.ai?subject=${encodeURIComponent("Αναβάθμιση πλάνου")}`}
             >
               {t("trialBanner.contactUpgrade")}
             </a>

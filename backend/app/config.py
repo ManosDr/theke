@@ -24,7 +24,11 @@ class Settings(BaseSettings):
     # email() is a no-op and the caller falls back to logging the link, same
     # as before this was added.
     resend_api_key: str = ""
-    email_from: str = "noreply@theke.ai"
+    # info@theke.ai, not a dedicated noreply@ - only one inbox is currently
+    # provisioned, so password-reset/system mail shares it with general
+    # inquiries. Acceptable for now; revisit once a second mailbox exists
+    # (see KNOWN_DECISIONS.md's email consolidation entry).
+    email_from: str = "info@theke.ai"
     email_enabled: bool = False
 
     openai_api_key: str = ""

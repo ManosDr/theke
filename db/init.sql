@@ -120,6 +120,30 @@ CREATE TABLE IF NOT EXISTS regions (
 
 CREATE INDEX IF NOT EXISTS idx_regions_parent ON regions(parent_region_id);
 
+-- Seed for the 5 municipalities/providers actually covered by real KB
+-- content (Kavala, Drama, Xanthi, Thassos, Paggaio) - previously only ever
+-- existed as manually-inserted live-DB state, never captured here, so a
+-- genuinely fresh `docker compose up` on a wiped volume produced zero
+-- regions at all. Inserted before the 332-row municipality bulk seed below
+-- so that block's ON CONFLICT DO NOTHING correctly skips these 5 rather
+-- than needing them excluded from that generated list.
+INSERT INTO utility_providers (provider_id, provider_type, provider_name, base_url, coverage_region_ids, status) VALUES
+    ('deddie-kavala', 'electric_grid', 'ΔΕΔΔΗΕ - Περιοχή Καβάλας (Διεύθυνση Περιφέρειας Μακεδονίας-Θράκης)', 'https://www.deddie.gr/', ARRAY['kavala','paggaio','thassos'], 'active'),
+    ('deyaap-paggaiou', 'water', 'Δ.Ε.Υ.Α.Α. Παγγαίου', 'https://deyapaggaiou.gr/', ARRAY['paggaio'], 'active'),
+    ('deyad-dramas', 'water', 'Δ.Ε.Υ.Α. Δράμας', 'https://deyad.gr/', ARRAY['drama'], 'active'),
+    ('deya-kavalas', 'water', 'Δ.Ε.Υ.Α. Καβάλας', 'https://deyakav.gr/', ARRAY['kavala'], 'active'),
+    ('deya-thassou', 'water', 'Δ.Ε.Υ.Α. Θάσου', 'https://deyathassou.gr/', ARRAY['thassos'], 'active'),
+    ('deyax-xanthis', 'water', 'Δ.Ε.Υ.Α. Ξάνθης', 'https://www.deyaxanthis.gr/', ARRAY['xanthi'], 'active')
+ON CONFLICT (provider_id) DO NOTHING;
+
+INSERT INTO regions (region_id, region_name_el, region_name_en, level, ydom_authority_name, contact_phone, contact_email, deya_provider_id, deddie_region_id, status, has_coefficient_data, has_zone_level_coefficient_text) VALUES
+    ('drama', 'Δήμος Δράμας', 'Municipality of Drama', 'municipality', 'Διεύθυνση Δόμησης Δήμου Δράμας', '2521351399', 'emilk@dimosdramas.gr', 'deyad-dramas', NULL, 'active', NULL, false),
+    ('kavala', 'Δήμος Καβάλας', 'Municipality of Kavala', 'municipality', 'Διεύθυνση Δόμησης και Πολεοδομικού Σχεδιασμού Δήμου Καβάλας', '2513503323', 'poldirect@kavala.gov.gr', 'deya-kavalas', 'deddie-kavala', 'active', false, true),
+    ('paggaio', 'Δήμος Παγγαίου', 'Municipality of Paggaio', 'municipality', 'Διεύθυνση Δόμησης, Πολεοδομικού Σχεδιασμού & Εφαρμογών Δήμου Παγγαίου', '2592350051', 'ydom@dimospaggaiou.gr', 'deyaap-paggaiou', 'deddie-kavala', 'active', false, NULL),
+    ('thassos', 'Δήμος Θάσου', 'Municipality of Thassos', 'municipality', 'Υπηρεσία Δόμησης (ΥΔΟΜ) Δήμου Θάσου', '2593350154', 'dimos@thassos.gr', 'deya-thassou', 'deddie-kavala', 'active', false, NULL),
+    ('xanthi', 'Δήμος Ξάνθης', 'Municipality of Xanthi', 'municipality', 'Διεύθυνση Δόμησης Δήμου Ξάνθης', '2541354110', 'ebarbalexi@cityofxanthi.gr', 'deyax-xanthis', NULL, 'active', NULL, true)
+ON CONFLICT (region_id) DO NOTHING;
+
 -- Auto-generated from Wikipedia 'List of municipalities of Greece (2011)'
 -- (Kallikratis reform, 332 municipalities), 2026-08-11.
 -- Source: https://en.wikipedia.org/wiki/List_of_municipalities_of_Greece_(2011)

@@ -28,7 +28,7 @@ import {
   SourcesIcon,
 } from "./NavIcons";
 import { LogoutIcon, MoonIcon, SunIcon } from "./StatIcons";
-import { CloseIcon } from "./UiIcons";
+import { CloseIcon, EyeIcon } from "./UiIcons";
 import styles from "./Sidebar.module.css";
 
 const NAV_ITEMS = [
@@ -53,11 +53,18 @@ const ADMIN_SECTIONS = [
     key: "kb",
     labelKey: "nav.knowledgeBase",
     Icon: NavKnowledgeBaseIcon,
-    match: (p: string) => p === "/admin/documents" || p === "/admin/data-sources" || p === "/admin/feedback",
+    match: (p: string) =>
+      p === "/admin/documents" || p === "/admin/data-sources" || p === "/admin/feedback" || p === "/admin/regions",
     children: [
       { href: "/admin/documents", labelKey: "nav.documents", match: (p: string) => p === "/admin/documents" },
       { href: "/admin/data-sources", labelKey: "nav.dataSources", match: (p: string) => p === "/admin/data-sources" },
       { href: "/admin/feedback", labelKey: "nav.feedback", match: (p: string) => p === "/admin/feedback" },
+      // Moved here from "settings" - regional KB coverage and its
+      // contact-info/request review queues are a knowledge-base content
+      // concern, not platform config, and belong next to the other
+      // content-management screens rather than under Verticals/General
+      // Settings.
+      { href: "/admin/regions", labelKey: "nav.regionsProviders", match: (p: string) => p === "/admin/regions" },
     ],
   },
   {
@@ -77,11 +84,10 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals" || p === "/admin/regions",
+    match: (p: string) => p === "/admin/verticals",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
-      { href: "/admin/regions", labelKey: "nav.regionsProviders", match: (p: string) => p === "/admin/regions" },
     ],
   },
   {
@@ -91,10 +97,11 @@ const ADMIN_SECTIONS = [
     // (a company-less super_admin's own chat/admin activity). Deliberately
     // its own small section rather than folded into "settings" above, since
     // it's not a settings screen and not something a real customer-facing
-    // admin task would ever route through.
+    // admin task would ever route through. EyeIcon (monitoring), distinct
+    // from "settings"'s SettingsIcon - the two used to collide.
     key: "internal",
     labelKey: "nav.internalActivity",
-    Icon: SettingsIcon,
+    Icon: EyeIcon,
     match: (p: string) => p === "/admin/internal-activity",
     children: [
       { href: "/admin/internal-activity", labelKey: "nav.internalActivity", match: (p: string) => p === "/admin/internal-activity" },

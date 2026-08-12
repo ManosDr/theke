@@ -871,6 +871,32 @@ class CompanyCountThresholdAlert(Base):
     notified_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class LegalDocument(Base):
+    """The three public legal documents (terms/privacy/dpa), admin-editable
+    with an explicit publish gate - replaces the old file-based system
+    (app/legal_docs/*.md) where draft-state was only ever inferred from
+    `[...]` placeholders in the file. is_published is now a real, explicit
+    admin decision; the placeholder scan only gates whether publish is
+    ALLOWED, it no longer determines the public-facing draft state itself.
+    version increments on every successful publish (see
+    POST /admin/legal-documents/{slug}/publish) - Company.dpa_version
+    stamps whichever value this holds for slug='dpa' at registration time,
+    giving a real "which edition did this company agree to" audit trail
+    instead of the old hand-bumped CURRENT_DPA_VERSION string constant."""
+
+    __tablename__ = "legal_documents"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(Text, unique=True)
+    title: Mapped[str] = mapped_column(Text)
+    content: Mapped[str] = mapped_column(Text)
+    is_published: Mapped[bool] = mapped_column(default=False)
+    version: Mapped[int] = mapped_column(Integer, default=1)
+    published_at: Mapped[datetime | None] = mapped_column(DateTime)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

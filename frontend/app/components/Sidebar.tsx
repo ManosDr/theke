@@ -84,9 +84,10 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals",
+    match: (p: string) => p === "/admin/verticals" || p === "/admin/legal-documents",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
+      { href: "/admin/legal-documents", labelKey: "nav.legalDocuments", match: (p: string) => p === "/admin/legal-documents" },
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
     ],
   },

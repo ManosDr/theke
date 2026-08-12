@@ -22,6 +22,7 @@ from app.models import (
     Embedding,
     InfraHealthCheck,
     Invite,
+    LegalDocument,
     MessageFeedback,
     PasswordResetToken,
     Plan,
@@ -79,6 +80,10 @@ from app.schemas import (
     InternalActivityResponse,
     InternalAuditActivityEntry,
     InternalChatActivityEntry,
+    LegalDocumentAdminDetail,
+    LegalDocumentAdminSummary,
+    LegalDocumentSaveRequest,
+    LegalDocumentUnpublishRequest,
     MarkReviewedRequest,
     MarkSupersededRequest,
     PlanCreateRequest,
@@ -132,6 +137,7 @@ def _solo_super_admin_user_ids():
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
+from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
 from app.services.politeness import CrawlBlocked, RobotsDisallowed
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
 from app.services.source_fetch import content_hash, extract_content, fetch_raw, fetch_url_content
@@ -2593,6 +2599,184 @@ async def update_vertical(
         off_topic_hint=vertical.off_topic_hint,
         uses_regional_scoping=vertical.uses_regional_scoping,
         status=vertical.status,
+    )
+
+
+def _legal_summary(doc: LegalDocument, updated_by_name: str | None) -> LegalDocumentAdminSummary:
+    return LegalDocumentAdminSummary(
+        slug=doc.slug,
+        title=doc.title,
+        is_published=doc.is_published,
+        version=doc.version,
+        placeholder_count=len(find_placeholders(doc.content)),
+        published_at=doc.published_at,
+        updated_at=doc.updated_at,
+        updated_by_name=updated_by_name,
+    )
+
+
+def _updated_by_names(db: Session, docs: list[LegalDocument]) -> dict[int, str]:
+    user_ids = {d.updated_by for d in docs if d.updated_by is not None}
+    if not user_ids:
+        return {}
+    rows = db.scalars(select(User).where(User.id.in_(user_ids)))
+    return {u.id: f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email for u in rows}
+
+
+@router.get("/legal-documents", response_model=list[LegalDocumentAdminSummary])
+async def list_legal_documents(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[LegalDocumentAdminSummary]:
+    require_super_admin(user)
+    docs = list(db.scalars(select(LegalDocument).order_by(LegalDocument.slug)))
+    names = _updated_by_names(db, docs)
+    return [_legal_summary(d, names.get(d.updated_by)) for d in docs]
+
+
+@router.get("/legal-documents/{slug}", response_model=LegalDocumentAdminDetail)
+async def get_legal_document(
+    slug: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> LegalDocumentAdminDetail:
+    require_super_admin(user)
+    if slug not in LEGAL_SLUGS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+    doc = db.scalar(select(LegalDocument).where(LegalDocument.slug == slug))
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+    names = _updated_by_names(db, [doc])
+    placeholders = find_placeholders(doc.content)
+    return LegalDocumentAdminDetail(
+        **_legal_summary(doc, names.get(doc.updated_by)).model_dump(),
+        content=doc.content,
+        placeholders=placeholders,
+    )
+
+
+@router.patch("/legal-documents/{slug}", response_model=LegalDocumentAdminDetail)
+async def save_legal_document(
+    slug: str,
+    payload: LegalDocumentSaveRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> LegalDocumentAdminDetail:
+    """Save only - never touches is_published/published_at/version. A
+    published document can be edited freely without going offline; the new
+    text only reaches the public route once /publish is called again."""
+    require_super_admin(user)
+    if slug not in LEGAL_SLUGS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+    doc = db.scalar(select(LegalDocument).where(LegalDocument.slug == slug))
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+
+    doc.title = payload.title
+    doc.content = payload.content
+    doc.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="legal_document_saved", resource_type="legal_document", resource_id=doc.id,
+        metadata={"slug": slug},
+    )
+    db.commit()
+    db.refresh(doc)
+    names = _updated_by_names(db, [doc])
+    return LegalDocumentAdminDetail(
+        **_legal_summary(doc, names.get(doc.updated_by)).model_dump(),
+        content=doc.content,
+        placeholders=find_placeholders(doc.content),
+    )
+
+
+@router.post("/legal-documents/{slug}/publish", response_model=LegalDocumentAdminDetail)
+async def publish_legal_document(
+    slug: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> LegalDocumentAdminDetail:
+    """Hard-blocked (422) while the saved content still has an unresolved
+    `[...]` placeholder - the specific remaining placeholders are returned
+    so the admin UI can point at exactly what's left, not just say "no"."""
+    require_super_admin(user)
+    if slug not in LEGAL_SLUGS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+    doc = db.scalar(select(LegalDocument).where(LegalDocument.slug == slug))
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+
+    placeholders = find_placeholders(doc.content)
+    if placeholders:
+        # {message, placeholders} - the message half surfaces automatically
+        # via the frontend api.ts's existing detail.message handling (same
+        # shape as auth.py's vertical_slug validation); placeholders is for
+        # the admin UI to list the specific blockers, not parsed from the
+        # error - it re-reads the document's own placeholders field instead.
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": f"Δεν είναι δυνατή η δημοσίευση όσο υπάρχουν {len(placeholders)} αγκύλες προς συμπλήρωση",
+                "placeholders": placeholders,
+            },
+        )
+
+    doc.is_published = True
+    doc.published_at = datetime.utcnow()
+    doc.version += 1
+    doc.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="legal_document_published", resource_type="legal_document", resource_id=doc.id,
+        metadata={"slug": slug, "version": doc.version},
+    )
+    db.commit()
+    db.refresh(doc)
+    names = _updated_by_names(db, [doc])
+    return LegalDocumentAdminDetail(
+        **_legal_summary(doc, names.get(doc.updated_by)).model_dump(),
+        content=doc.content,
+        placeholders=[],
+    )
+
+
+@router.post("/legal-documents/{slug}/unpublish", response_model=LegalDocumentAdminDetail)
+async def unpublish_legal_document(
+    slug: str,
+    payload: LegalDocumentUnpublishRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> LegalDocumentAdminDetail:
+    """Reverts the public page to draft-banner state. Requires explicit
+    confirmation, same pattern as mark_document_reviewed's confirmed gate -
+    taking a live legal page offline is not something a stray click should
+    do. Content/version are untouched; only is_published flips."""
+    require_super_admin(user)
+    if not payload.confirmed:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Confirm before reverting a published document to draft",
+        )
+    if slug not in LEGAL_SLUGS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+    doc = db.scalar(select(LegalDocument).where(LegalDocument.slug == slug))
+    if not doc:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown legal document")
+
+    doc.is_published = False
+    doc.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="legal_document_unpublished", resource_type="legal_document", resource_id=doc.id,
+        metadata={"slug": slug},
+    )
+    db.commit()
+    db.refresh(doc)
+    names = _updated_by_names(db, [doc])
+    return LegalDocumentAdminDetail(
+        **_legal_summary(doc, names.get(doc.updated_by)).model_dump(),
+        content=doc.content,
+        placeholders=find_placeholders(doc.content),
     )
 
 

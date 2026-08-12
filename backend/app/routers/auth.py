@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, Invite, PasswordResetToken, User, Vertical
+from app.models import Company, Invite, LegalDocument, PasswordResetToken, User, Vertical
 from app.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -31,14 +31,6 @@ from app.services.rate_limit import record_login_failure, reset_login_failures, 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
-
-# Bumped whenever the ToS/DPA text materially changes - dpa_version on the
-# companies row records which text a company's founding admin actually
-# agreed to, distinct from dpa_accepted_at (when). Not tied to any other
-# versioning scheme in this codebase; just a plain string a human updates
-# by hand alongside the actual policy documents.
-CURRENT_DPA_VERSION = "1.0"
-
 
 @router.get("/invite-info/{token}", response_model=InviteInfoResponse)
 async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
@@ -135,12 +127,18 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         # above, same as any registration), but doesn't re-accept on the
         # company's behalf - that already happened when the founding admin
         # created it. See KNOWN_DECISIONS.md.
+        # dpa_version stamps whichever legal_documents.version the 'dpa' row
+        # currently holds - a real "which edition did they agree to" record,
+        # not a hand-bumped constant. Read regardless of is_published: DPA
+        # acceptance at registration is a separate requirement from whether
+        # the text is publicly viewable yet (see KNOWN_DECISIONS.md).
+        dpa_version = db.scalar(select(LegalDocument.version).where(LegalDocument.slug == "dpa"))
         company = Company(
             name=payload.company_name,
             type=payload.company_type,
             vertical_id=vertical.id,
             dpa_accepted_at=datetime.utcnow(),
-            dpa_version=CURRENT_DPA_VERSION,
+            dpa_version=str(dpa_version) if dpa_version is not None else None,
         )
         db.add(company)
         db.flush()

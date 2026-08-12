@@ -960,3 +960,19 @@ export interface LegalDocResponse {
   is_draft: boolean;
   content: string | null;
 }
+
+export interface LegalDocumentAdminSummary {
+  slug: LegalDocSlug;
+  title: string;
+  is_published: boolean;
+  version: number;
+  placeholder_count: number;
+  published_at: string | null;
+  updated_at: string;
+  updated_by_name: string | null;
+}
+
+export interface LegalDocumentAdminDetail extends LegalDocumentAdminSummary {
+  content: string;
+  placeholders: string[];
+}

@@ -1590,3 +1590,36 @@ class LegalDocResponse(BaseModel):
     # to the client at all (see app/services/legal_docs.py), not just
     # hidden by the frontend.
     content: str | None
+
+
+class LegalDocumentAdminSummary(BaseModel):
+    """One card's worth of data for the admin legal-documents screen -
+    no content, so the list endpoint stays light."""
+
+    slug: Literal["terms", "privacy", "dpa"]
+    title: str
+    is_published: bool
+    version: int
+    placeholder_count: int
+    published_at: datetime | None
+    updated_at: datetime
+    updated_by_name: str | None
+
+
+class LegalDocumentAdminDetail(LegalDocumentAdminSummary):
+    content: str
+    placeholders: list[str]
+
+
+class LegalDocumentSaveRequest(BaseModel):
+    title: str
+    content: str
+
+
+class LegalDocumentPublishError(BaseModel):
+    detail: str
+    placeholders: list[str]
+
+
+class LegalDocumentUnpublishRequest(BaseModel):
+    confirmed: bool = False

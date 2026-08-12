@@ -8,12 +8,26 @@ import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { SubscriptionStatusResponse } from "../lib/types";
 import { ChatIcon } from "./NavIcons";
-import { BookIcon, BugIcon, LightbulbIcon } from "./UiIcons";
+import { BookIcon, BugIcon, CloseIcon, LightbulbIcon } from "./UiIcons";
 import styles from "./FeedbackWidget.module.css";
 
 type Category = "bug" | "suggestion" | "content_gap";
 
 const MESSAGE_MAX_LENGTH = 500;
+
+// First-visit highlight: shown for a user's first HIGHLIGHT_SESSION_LIMIT
+// distinct browser sessions, then permanently reverts to the plain trigger.
+// "Session" = one browser tab/window lifetime, not one login - a 15-minute
+// JWT expiry means "per login" would over-count wildly. sessionStorage
+// (cleared when the tab closes) gates a one-time-per-session bump of a
+// localStorage counter (persists across sessions). Keyed by email, not a
+// single global key, so switching between demo accounts in the same
+// browser (routine in this dev environment) doesn't leak one user's visit
+// count onto another's first impression.
+const HIGHLIGHT_SESSION_LIMIT = 3;
+const SESSION_COUNT_KEY_PREFIX = "theke-feedback-widget-sessions:";
+const SESSION_SEEN_KEY_PREFIX = "theke-feedback-widget-seen-this-tab:";
+const CALLOUT_DISMISSED_KEY_PREFIX = "theke-feedback-widget-callout-dismissed:";
 
 const CATEGORIES: { value: Category; Icon: typeof BugIcon; labelKey: "feedbackWidget.categoryBug" | "feedbackWidget.categorySuggestion" | "feedbackWidget.categoryContentGap" }[] = [
   { value: "bug", Icon: BugIcon, labelKey: "feedbackWidget.categoryBug" },
@@ -38,9 +52,16 @@ export function FeedbackWidget() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [subscriptionStatus, setSubscriptionStatus] = useState<SubscriptionStatusResponse | null>(null);
+  const [showHighlight, setShowHighlight] = useState(false);
+  const [calloutDismissed, setCalloutDismissed] = useState(false);
   const wrapperRef = useRef<HTMLDivElement>(null);
 
   const subscriptionEligible = !!user && user.role !== "super_admin" && user.companyId != null;
+  const eligibleForWidget =
+    !!user &&
+    !!subscriptionStatus?.is_beta &&
+    subscriptionStatus.status !== "expired" &&
+    subscriptionStatus.status !== "cancelled";
 
   useEffect(() => {
     if (!subscriptionEligible || !token) return;
@@ -50,6 +71,27 @@ export function FeedbackWidget() {
       .catch(() => setSubscriptionStatus(null));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [subscriptionEligible, token]);
+
+  useEffect(() => {
+    if (!eligibleForWidget || !user) return;
+    const email = user.email;
+    const seenKey = SESSION_SEEN_KEY_PREFIX + email;
+    const countKey = SESSION_COUNT_KEY_PREFIX + email;
+    let count = Number(localStorage.getItem(countKey)) || 0;
+    if (!sessionStorage.getItem(seenKey)) {
+      count += 1;
+      localStorage.setItem(countKey, String(count));
+      sessionStorage.setItem(seenKey, "true");
+    }
+    setShowHighlight(count <= HIGHLIGHT_SESSION_LIMIT);
+    setCalloutDismissed(localStorage.getItem(CALLOUT_DISMISSED_KEY_PREFIX + email) === "true");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [eligibleForWidget, user?.email]);
+
+  function dismissCallout() {
+    if (user) localStorage.setItem(CALLOUT_DISMISSED_KEY_PREFIX + user.email, "true");
+    setCalloutDismissed(true);
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -94,10 +136,25 @@ export function FeedbackWidget() {
     }
   }
 
-  if (!user || !subscriptionStatus?.is_beta) return null;
+  if (!eligibleForWidget) return null;
+
+  const showCallout = showHighlight && !calloutDismissed && !open;
 
   return (
     <div className={styles.wrapper} ref={wrapperRef}>
+      {showCallout && (
+        <div className={styles.calloutBubble} role="status">
+          <span>{t("feedbackWidget.firstVisitCallout")}</span>
+          <button
+            type="button"
+            className={styles.calloutDismiss}
+            onClick={dismissCallout}
+            aria-label={t("common.dismiss")}
+          >
+            <CloseIcon size={12} />
+          </button>
+        </div>
+      )}
       {open && (
         <div className={styles.panel} role="dialog" aria-label={t("feedbackWidget.title")}>
           {submitted ? (
@@ -142,7 +199,7 @@ export function FeedbackWidget() {
 
       <button
         type="button"
-        className={styles.trigger}
+        className={showHighlight && !open ? `${styles.trigger} ${styles.triggerPulse}` : styles.trigger}
         onClick={() => setOpen((o) => !o)}
         aria-haspopup="dialog"
         aria-expanded={open}

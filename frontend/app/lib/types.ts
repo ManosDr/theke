@@ -885,6 +885,18 @@ export interface RegionRequestSummary {
   last_requested_at: string;
 }
 
+export interface RegionContactCandidateSummary {
+  id: number;
+  region_id: string;
+  region_name_el: string;
+  candidate_authority_name: string | null;
+  candidate_phone: string | null;
+  candidate_email: string | null;
+  source_url: string;
+  discovered_at: string;
+  status: string;
+}
+
 export interface UtilityProviderAdminSummary {
   provider_id: string;
   provider_name: string;

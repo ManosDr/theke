@@ -26,6 +26,7 @@ from app.models import (
     Plan,
     Project,
     Region,
+    RegionContactCandidate,
     RegionRequest,
     SpendAlertCheck,
     SpendAlertThreshold,
@@ -84,6 +85,9 @@ from app.schemas import (
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
+    RegionContactCandidateConfirmRequest,
+    RegionContactCandidateRejectRequest,
+    RegionContactCandidateSummary,
     RegionRequestSummary,
     RevalidateAllResponse,
     RevalidationStatusResponse,
@@ -2150,6 +2154,159 @@ async def list_region_requests(
         )
         for r in rows
     ]
+
+
+@router.get("/region-contact-candidates", response_model=list[RegionContactCandidateSummary])
+async def list_region_contact_candidates(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    status_filter: str = Query("pending_review", alias="status"),
+) -> list[RegionContactCandidateSummary]:
+    """Review queue for the semi-automated ΥΔΟΜ contact discovery pass - same
+    needs_review pattern as document review, but for a wholly separate
+    concern (contact info, not KB content). Nothing here is live until a
+    super admin explicitly confirms it (see the confirm/reject actions
+    below and KNOWN_DECISIONS.md)."""
+    require_super_admin(user)
+    query = select(RegionContactCandidate, Region.region_name_el).join(
+        Region, Region.region_id == RegionContactCandidate.region_id
+    )
+    if status_filter != "all":
+        query = query.where(RegionContactCandidate.status == status_filter)
+    query = query.order_by(RegionContactCandidate.discovered_at.desc())
+    rows = db.execute(query).all()
+    return [
+        RegionContactCandidateSummary(
+            id=c.id,
+            region_id=c.region_id,
+            region_name_el=region_name_el,
+            candidate_authority_name=c.candidate_authority_name,
+            candidate_phone=c.candidate_phone,
+            candidate_email=c.candidate_email,
+            source_url=c.source_url,
+            discovered_at=c.discovered_at,
+            status=c.status,
+        )
+        for c, region_name_el in rows
+    ]
+
+
+@router.post("/region-contact-candidates/{candidate_id}/confirm", response_model=RegionContactCandidateSummary)
+async def confirm_region_contact_candidate(
+    candidate_id: int,
+    payload: RegionContactCandidateConfirmRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionContactCandidateSummary:
+    """The only path that writes discovered contact info into the live
+    Region row chat retrieval reads from. Confirming only ever moves
+    Region.status pending -> stub ("basic contact info confirmed") - never
+    -> active, since that's reserved for regions with real regulatory
+    content ingested (a wholly separate, unaffected process). See
+    KNOWN_DECISIONS.md."""
+    require_super_admin(user)
+    candidate = db.get(RegionContactCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "pending_review":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate already reviewed")
+
+    region = db.get(Region, candidate.region_id)
+    if not region:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Region not found")
+
+    # The frontend always pre-fills these fields with the candidate's own
+    # discovered values and sends whatever is currently in them - so the
+    # payload IS the final desired state, whether untouched or edited
+    # (including a field the reviewer deliberately cleared to blank). An
+    # earlier version of this endpoint fell back to the candidate's value
+    # whenever a payload field was falsy, which made clearing a field
+    # before confirming impossible - a blanked field just silently came
+    # back. Caught live while verifying the edit-then-confirm path.
+    was_edited = (
+        payload.authority_name != candidate.candidate_authority_name
+        or payload.phone != candidate.candidate_phone
+        or payload.email != candidate.candidate_email
+    )
+
+    region.ydom_authority_name = payload.authority_name
+    region.contact_phone = payload.phone
+    region.contact_email = payload.email
+    if region.status == "pending":
+        region.status = "stub"
+
+    candidate.status = "confirmed"
+    candidate.reviewed_by = user.user_id
+    candidate.reviewed_at = datetime.utcnow()
+    if was_edited:
+        candidate.review_note = "Edited before confirming"
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="region_contact_candidate_confirmed",
+        resource_type="region_contact_candidate",
+        resource_id=candidate.id,
+        metadata={"region_id": region.region_id},
+    )
+    db.commit()
+    db.refresh(candidate)
+    return RegionContactCandidateSummary(
+        id=candidate.id,
+        region_id=candidate.region_id,
+        region_name_el=region.region_name_el,
+        candidate_authority_name=candidate.candidate_authority_name,
+        candidate_phone=candidate.candidate_phone,
+        candidate_email=candidate.candidate_email,
+        source_url=candidate.source_url,
+        discovered_at=candidate.discovered_at,
+        status=candidate.status,
+    )
+
+
+@router.post("/region-contact-candidates/{candidate_id}/reject", response_model=RegionContactCandidateSummary)
+async def reject_region_contact_candidate(
+    candidate_id: int,
+    payload: RegionContactCandidateRejectRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> RegionContactCandidateSummary:
+    require_super_admin(user)
+    candidate = db.get(RegionContactCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "pending_review":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate already reviewed")
+
+    candidate.status = "rejected"
+    candidate.reviewed_by = user.user_id
+    candidate.reviewed_at = datetime.utcnow()
+    candidate.review_note = payload.review_note
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="region_contact_candidate_rejected",
+        resource_type="region_contact_candidate",
+        resource_id=candidate.id,
+        metadata={"region_id": candidate.region_id},
+    )
+    db.commit()
+    db.refresh(candidate)
+    region = db.get(Region, candidate.region_id)
+    return RegionContactCandidateSummary(
+        id=candidate.id,
+        region_id=candidate.region_id,
+        region_name_el=region.region_name_el if region else candidate.region_id,
+        candidate_authority_name=candidate.candidate_authority_name,
+        candidate_phone=candidate.candidate_phone,
+        candidate_email=candidate.candidate_email,
+        source_url=candidate.source_url,
+        discovered_at=candidate.discovered_at,
+        status=candidate.status,
+    )
 
 
 @router.get("/utility-providers", response_model=list[UtilityProviderAdminSummary])

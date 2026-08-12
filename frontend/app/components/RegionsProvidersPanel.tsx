@@ -6,7 +6,12 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { ProviderTypeBadge } from "./TypeBadge";
-import type { RegionAdminSummary, RegionRequestSummary, UtilityProviderAdminSummary } from "../lib/types";
+import type {
+  RegionAdminSummary,
+  RegionContactCandidateSummary,
+  RegionRequestSummary,
+  UtilityProviderAdminSummary,
+} from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 
 export function RegionsProvidersPanel() {
@@ -17,6 +22,7 @@ export function RegionsProvidersPanel() {
   const [regions, setRegions] = useState<RegionAdminSummary[]>([]);
   const [providers, setProviders] = useState<UtilityProviderAdminSummary[]>([]);
   const [requests, setRequests] = useState<RegionRequestSummary[]>([]);
+  const [candidates, setCandidates] = useState<RegionContactCandidateSummary[]>([]);
   const [regionsById, setRegionsById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editingRegion, setEditingRegion] = useState<string | null>(null);
@@ -27,14 +33,16 @@ export function RegionsProvidersPanel() {
     if (!token) return;
     setLoading(true);
     try {
-      const [regionsData, providersData, requestsData] = await Promise.all([
+      const [regionsData, providersData, requestsData, candidatesData] = await Promise.all([
         api.get<RegionAdminSummary[]>("/admin/regions", token),
         api.get<UtilityProviderAdminSummary[]>("/admin/utility-providers", token),
         api.get<RegionRequestSummary[]>("/admin/region-requests", token),
+        api.get<RegionContactCandidateSummary[]>("/admin/region-contact-candidates?status=pending_review", token),
       ]);
       setRegions(regionsData);
       setProviders(providersData);
       setRequests(requestsData);
+      setCandidates(candidatesData);
       setRegionsById(Object.fromEntries(regionsData.map((r) => [r.region_id, r.region_name_el])));
     } finally {
       setLoading(false);
@@ -54,6 +62,37 @@ export function RegionsProvidersPanel() {
   return (
     <div>
       <h1>{t("adminRegions.title")}</h1>
+
+      <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <h2>{t("adminRegions.candidatesHeading")}</h2>
+        <p className="text-muted" style={{ fontSize: "0.85rem" }}>{t("adminRegions.candidatesNote")}</p>
+        {candidates.length === 0 ? (
+          <p className={dashStyles.emptyState}>{t("adminRegions.noCandidates")}</p>
+        ) : (
+          <table className={dashStyles.table}>
+            <thead>
+              <tr>
+                <th>{tUpper("adminRegions.colRegion")}</th>
+                <th>{tUpper("adminRegions.colYdom")}</th>
+                <th>{tUpper("adminRegions.colPhone")}</th>
+                <th>{tUpper("adminRegions.colEmail")}</th>
+                <th>{tUpper("adminRegions.colSource")}</th>
+                <th>{tUpper("adminRegions.colActions")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {candidates.map((c) => (
+                <ContactCandidateRow
+                  key={c.id}
+                  candidate={c}
+                  token={token}
+                  onResolved={() => setCandidates((prev) => prev.filter((x) => x.id !== c.id))}
+                />
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
 
       <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <h2>{t("adminRegions.requestsHeading")}</h2>
@@ -255,6 +294,96 @@ function RegionEditRow({
           <button className="btn btn-primary" onClick={save} disabled={saving}>
             {t("adminRegions.save")}
           </button>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
+function ContactCandidateRow({
+  candidate,
+  token,
+  onResolved,
+}: {
+  candidate: RegionContactCandidateSummary;
+  token: string | null;
+  onResolved: () => void;
+}) {
+  const { t } = useLocale();
+  const [authorityName, setAuthorityName] = useState(candidate.candidate_authority_name ?? "");
+  const [phone, setPhone] = useState(candidate.candidate_phone ?? "");
+  const [email, setEmail] = useState(candidate.candidate_email ?? "");
+  const [rejectNote, setRejectNote] = useState("");
+  const [showRejectNote, setShowRejectNote] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  async function confirm() {
+    if (!token) return;
+    setBusy(true);
+    try {
+      await api.post(
+        `/admin/region-contact-candidates/${candidate.id}/confirm`,
+        { authority_name: authorityName || null, phone: phone || null, email: email || null },
+        token
+      );
+      onResolved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function reject() {
+    if (!token) return;
+    setBusy(true);
+    try {
+      await api.post(`/admin/region-contact-candidates/${candidate.id}/reject`, { review_note: rejectNote || null }, token);
+      onResolved();
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  return (
+    <tr>
+      <td>{candidate.region_name_el}</td>
+      <td>
+        <input className="input" value={authorityName} onChange={(e) => setAuthorityName(e.target.value)} style={{ minWidth: 200 }} />
+      </td>
+      <td>
+        <input className="input" value={phone} onChange={(e) => setPhone(e.target.value)} style={{ minWidth: 120 }} />
+      </td>
+      <td>
+        <input className="input" type="email" value={email} onChange={(e) => setEmail(e.target.value)} style={{ minWidth: 180 }} />
+      </td>
+      <td>
+        <a href={candidate.source_url} target="_blank" rel="noreferrer" className="text-muted" style={{ fontSize: "0.78rem" }}>
+          {t("adminRegions.viewSource")}
+        </a>
+      </td>
+      <td>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, alignItems: "flex-start" }}>
+          <div style={{ display: "flex", gap: 4 }}>
+            <button className="btn btn-primary" disabled={busy} onClick={confirm}>
+              {t("adminRegions.confirm")}
+            </button>
+            <button className="btn btn-secondary" disabled={busy} onClick={() => setShowRejectNote((v) => !v)}>
+              {t("adminRegions.reject")}
+            </button>
+          </div>
+          {showRejectNote && (
+            <div style={{ display: "flex", gap: 4 }}>
+              <input
+                className="input"
+                placeholder={t("adminRegions.rejectNotePlaceholder")}
+                value={rejectNote}
+                onChange={(e) => setRejectNote(e.target.value)}
+                style={{ fontSize: "0.78rem" }}
+              />
+              <button className="btn btn-secondary" disabled={busy} onClick={reject}>
+                {t("adminRegions.confirmReject")}
+              </button>
+            </div>
+          )}
         </div>
       </td>
     </tr>

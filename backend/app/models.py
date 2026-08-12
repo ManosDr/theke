@@ -323,6 +323,29 @@ class RegionRequest(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RegionContactCandidate(Base):
+    """Unverified ΥΔΟΜ/utility contact info found by the semi-automated
+    discovery pass (crawler/crawler/region_contact_discovery.py) - never read
+    by chat retrieval. Only a super admin's Confirm action copies a row's
+    fields into the live Region.contact_phone/contact_email/ydom_authority_name
+    columns; see KNOWN_DECISIONS.md for why this stays a distinct staging
+    table rather than writing Region directly."""
+
+    __tablename__ = "region_contact_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    region_id: Mapped[str] = mapped_column(ForeignKey("regions.region_id"))
+    candidate_authority_name: Mapped[str | None] = mapped_column(Text)
+    candidate_phone: Mapped[str | None] = mapped_column(Text)
+    candidate_email: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str] = mapped_column(Text)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(Text, default="pending_review")  # 'pending_review', 'confirmed', 'rejected'
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class ArchaeologicalSite(Base):
     """Known protected archaeological sites, checked by coordinate proximity
     (Haversine distance) in services/gis.py's check_archaeological_flag() -

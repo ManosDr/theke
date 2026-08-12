@@ -863,6 +863,32 @@ class RegionRequestSummary(BaseModel):
     last_requested_at: datetime
 
 
+class RegionContactCandidateSummary(BaseModel):
+    id: int
+    region_id: str
+    region_name_el: str
+    candidate_authority_name: str | None
+    candidate_phone: str | None
+    candidate_email: str | None
+    source_url: str
+    discovered_at: datetime
+    status: str
+
+
+class RegionContactCandidateConfirmRequest(BaseModel):
+    # Overrides applied before writing to the live Region row - present
+    # only when the reviewer edited the discovered candidate first
+    # ("Edit then Confirm"); omitted fields fall back to the candidate's
+    # own discovered value.
+    authority_name: str | None = None
+    phone: str | None = None
+    email: str | None = None
+
+
+class RegionContactCandidateRejectRequest(BaseModel):
+    review_note: str | None = None
+
+
 class SearchRequest(BaseModel):
     query: str
     region_id: str | None = None  # narrows to one region on top of visibility; national docs stay included

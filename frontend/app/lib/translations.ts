@@ -430,6 +430,15 @@ export const translations = {
     "adminRegions.colRequestCount": "Requests",
     "adminRegions.colLastRequested": "Last Requested",
     "adminRegions.noRequests": "No coverage requests yet.",
+    "adminRegions.candidatesHeading": "Contact Info Review Queue",
+    "adminRegions.candidatesNote": "Unverified contact details found by the automated discovery pass. Confirming only records basic contact info - it does not mean regulatory content (ΓΠΣ/ΦΕΚ) has been ingested for this municipality.",
+    "adminRegions.noCandidates": "No candidates awaiting review.",
+    "adminRegions.colSource": "Source",
+    "adminRegions.viewSource": "View source ↗",
+    "adminRegions.confirm": "Confirm",
+    "adminRegions.reject": "Reject",
+    "adminRegions.rejectNotePlaceholder": "Reason (optional)",
+    "adminRegions.confirmReject": "Confirm reject",
 
     // account
     "account.title": "My Account",
@@ -1829,6 +1838,15 @@ export const translations = {
     "adminRegions.colRequestCount": "Αιτήματα",
     "adminRegions.colLastRequested": "Τελευταίο Αίτημα",
     "adminRegions.noRequests": "Δεν υπάρχουν αιτήματα κάλυψης ακόμη.",
+    "adminRegions.candidatesHeading": "Ουρά Επιβεβαίωσης Στοιχείων Επικοινωνίας",
+    "adminRegions.candidatesNote": "Μη επιβεβαιωμένα στοιχεία επικοινωνίας που εντοπίστηκαν αυτόματα. Η επιβεβαίωση καταγράφει μόνο βασικά στοιχεία επικοινωνίας - δεν σημαίνει ότι έχει ενσωματωθεί κανονιστικό περιεχόμενο (ΓΠΣ/ΦΕΚ) για τον δήμο.",
+    "adminRegions.noCandidates": "Δεν υπάρχουν υποψήφιες καταχωρήσεις προς έλεγχο.",
+    "adminRegions.colSource": "Πηγή",
+    "adminRegions.viewSource": "Προβολή πηγής ↗",
+    "adminRegions.confirm": "Επιβεβαίωση",
+    "adminRegions.reject": "Απόρριψη",
+    "adminRegions.rejectNotePlaceholder": "Αιτιολογία (προαιρετικό)",
+    "adminRegions.confirmReject": "Επιβεβαίωση απόρριψης",
 
     // account
     "account.title": "Ο Λογαριασμός μου",

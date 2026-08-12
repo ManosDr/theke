@@ -1476,3 +1476,29 @@ CREATE TABLE IF NOT EXISTS weekly_digests (
 
 CREATE INDEX IF NOT EXISTS idx_weekly_digests_created ON weekly_digests(created_at DESC);
 
+-- Staging table for the semi-automated ΥΔΟΜ/utility contact discovery
+-- pipeline (crawler/crawler/region_contact_discovery.py). A row here is
+-- ALWAYS an unverified candidate, never read by chat retrieval - only a
+-- super admin Confirm (POST /admin/region-contact-candidates/{id}/confirm)
+-- writes into the live regions.contact_phone/contact_email/ydom_authority_name
+-- columns that chat actually reads. Deliberately separate from the fuller
+-- "regulatory content ingested" notion of coverage - confirming a phone
+-- number here only ever moves Region.status pending -> stub, never -> active
+-- (see KNOWN_DECISIONS.md).
+CREATE TABLE IF NOT EXISTS region_contact_candidates (
+  id                        serial PRIMARY KEY,
+  region_id                 varchar NOT NULL REFERENCES regions(region_id),
+  candidate_authority_name  varchar,
+  candidate_phone           varchar,
+  candidate_email           varchar,
+  source_url                text NOT NULL,
+  discovered_at             timestamp NOT NULL DEFAULT now(),
+  status                    varchar NOT NULL DEFAULT 'pending_review', -- 'pending_review', 'confirmed', 'rejected'
+  review_note               text,
+  reviewed_by               integer REFERENCES users(id),
+  reviewed_at               timestamp
+);
+
+CREATE INDEX IF NOT EXISTS idx_region_contact_candidates_region ON region_contact_candidates(region_id);
+CREATE INDEX IF NOT EXISTS idx_region_contact_candidates_status ON region_contact_candidates(status);
+

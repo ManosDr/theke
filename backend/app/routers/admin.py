@@ -26,6 +26,7 @@ from app.models import (
     Plan,
     Project,
     Region,
+    RegionRequest,
     SpendAlertCheck,
     SpendAlertThreshold,
     SubscriptionUsage,
@@ -83,6 +84,7 @@ from app.schemas import (
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
+    RegionRequestSummary,
     RevalidateAllResponse,
     RevalidationStatusResponse,
     RoleChangeRequest,
@@ -2113,6 +2115,41 @@ async def update_admin_region(
         contact_email=region.contact_email,
         status=region.status,
     )
+
+
+@router.get("/region-requests", response_model=list[RegionRequestSummary])
+async def list_region_requests(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[RegionRequestSummary]:
+    """Ranks accumulated "request coverage" clicks (POST
+    /projects/regions/{region_id}/request) by request_count, so which
+    uncovered municipality to ingest next is a data-driven call rather than
+    a guess. Report-only - see KNOWN_DECISIONS.md for why this never
+    triggers an automatic crawl."""
+    require_super_admin(user)
+    rows = db.execute(
+        select(
+            RegionRequest.region_id,
+            Region.region_name_el,
+            Region.region_name_en,
+            func.count(RegionRequest.id).label("request_count"),
+            func.max(RegionRequest.created_at).label("last_requested_at"),
+        )
+        .join(Region, Region.region_id == RegionRequest.region_id)
+        .group_by(RegionRequest.region_id, Region.region_name_el, Region.region_name_en)
+        .order_by(func.count(RegionRequest.id).desc(), func.max(RegionRequest.created_at).desc())
+    ).all()
+    return [
+        RegionRequestSummary(
+            region_id=r.region_id,
+            region_name_el=r.region_name_el,
+            region_name_en=r.region_name_en,
+            request_count=r.request_count,
+            last_requested_at=r.last_requested_at,
+        )
+        for r in rows
+    ]
 
 
 @router.get("/utility-providers", response_model=list[UtilityProviderAdminSummary])

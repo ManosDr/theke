@@ -8,6 +8,7 @@ import { useEffect, useState } from "react";
 import { AppShell } from "../../components/AppShell";
 import CustomerCombobox, { type CustomerComboboxState } from "../../components/CustomerCombobox";
 import FieldError from "../../components/FieldError";
+import MunicipalityCombobox from "../../components/MunicipalityCombobox";
 import type { PinState } from "../../components/MapPicker";
 import { InfoIcon } from "../../components/StatIcons";
 import Tooltip from "../../components/Tooltip";
@@ -339,24 +340,16 @@ function NewProjectContent() {
             </label>
             <label className={styles.field}>
               {t("project.detail.region")}
-              <select
-                className="input"
+              <MunicipalityCombobox
+                regions={regions}
                 value={regionId}
-                onChange={(e) => {
-                  setRegionId(e.target.value);
-                  if (e.target.value) setFieldErrors((prev) => ({ ...prev, region: undefined }));
+                onChange={(id) => {
+                  setRegionId(id);
+                  if (id) setFieldErrors((prev) => ({ ...prev, region: undefined }));
                 }}
-                aria-invalid={!!fieldErrors.region}
-              >
-                <option value="" disabled>
-                  {t("dash.member.selectMunicipality")}
-                </option>
-                {regions.map((r) => (
-                  <option key={r.region_id} value={r.region_id}>
-                    {r.region_name_el}
-                  </option>
-                ))}
-              </select>
+                token={token}
+                ariaInvalid={!!fieldErrors.region}
+              />
               {fieldErrors.region && <FieldError message={fieldErrors.region} />}
             </label>
           </section>

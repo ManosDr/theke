@@ -309,6 +309,20 @@ class Region(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class RegionRequest(Base):
+    """One row per "request coverage for this region" click on an uncovered
+    municipality - a demand signal only (see KNOWN_DECISIONS.md: no
+    auto-crawl on region selection)."""
+
+    __tablename__ = "region_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    region_id: Mapped[str] = mapped_column(ForeignKey("regions.region_id"))
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    requested_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class ArchaeologicalSite(Base):
     """Known protected archaeological sites, checked by coordinate proximity
     (Haversine distance) in services/gis.py's check_archaeological_flag() -

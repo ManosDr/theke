@@ -877,6 +877,14 @@ export interface RegionAdminSummary {
   status: string;
 }
 
+export interface RegionRequestSummary {
+  region_id: string;
+  region_name_el: string;
+  region_name_en: string;
+  request_count: number;
+  last_requested_at: string;
+}
+
 export interface UtilityProviderAdminSummary {
   provider_id: string;
   provider_name: string;

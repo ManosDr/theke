@@ -8,7 +8,18 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.dependencies import CurrentUser, get_company_vertical, get_current_user
-from app.models import Company, Customer, Document, Embedding, Plan, Project, Region, UserDefaultProject, Vertical
+from app.models import (
+    Company,
+    Customer,
+    Document,
+    Embedding,
+    Plan,
+    Project,
+    Region,
+    RegionRequest,
+    UserDefaultProject,
+    Vertical,
+)
 from app.schemas import (
     ProjectCreateRequest,
     ProjectDocumentSummary,
@@ -26,6 +37,7 @@ from app.services.documents import (
     extract_text,
 )
 from app.services.embeddings import embed_document
+from app.services.notifications import notify_super_admins
 from app.services.subscription import check_project_client_limit, get_or_create_subscription
 
 router = APIRouter(prefix="/projects", tags=["projects"])
@@ -159,6 +171,36 @@ async def list_regions(db: Session = Depends(get_db)) -> list[RegionSummary]:
         )
         for r in regions
     ]
+
+
+@router.post("/regions/{region_id}/request", status_code=status.HTTP_201_CREATED)
+async def request_region_coverage(
+    region_id: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> dict:
+    """Records a "request coverage" click on an uncovered region as a demand
+    signal and notifies super admins - it does NOT trigger any crawl or
+    ingestion (see KNOWN_DECISIONS.md: regional KB content requires
+    per-municipality editorial verification, so nothing here is automatic)."""
+    if not user.company_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account has no company")
+
+    region = db.get(Region, region_id)
+    if not region:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown region")
+
+    company = db.get(Company, user.company_id)
+    db.add(RegionRequest(region_id=region_id, company_id=user.company_id, requested_by=user.user_id))
+    notify_super_admins(
+        db,
+        type="region_coverage_requested",
+        title=f"Αίτημα κάλυψης περιοχής: {region.region_name_el}",
+        body=f"Η εταιρεία \"{company.name if company else user.company_id}\" ζήτησε κάλυψη KB για {region.region_name_el}.",
+        link="/admin/regions",
+    )
+    db.commit()
+    return {"ok": True}
 
 
 @router.get("/{project_id}", response_model=ProjectSummary)

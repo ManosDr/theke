@@ -6,7 +6,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { ProviderTypeBadge } from "./TypeBadge";
-import type { RegionAdminSummary, UtilityProviderAdminSummary } from "../lib/types";
+import type { RegionAdminSummary, RegionRequestSummary, UtilityProviderAdminSummary } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 
 export function RegionsProvidersPanel() {
@@ -16,21 +16,25 @@ export function RegionsProvidersPanel() {
 
   const [regions, setRegions] = useState<RegionAdminSummary[]>([]);
   const [providers, setProviders] = useState<UtilityProviderAdminSummary[]>([]);
+  const [requests, setRequests] = useState<RegionRequestSummary[]>([]);
   const [regionsById, setRegionsById] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [editingRegion, setEditingRegion] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
+  const [regionQuery, setRegionQuery] = useState("");
 
   async function refresh() {
     if (!token) return;
     setLoading(true);
     try {
-      const [regionsData, providersData] = await Promise.all([
+      const [regionsData, providersData, requestsData] = await Promise.all([
         api.get<RegionAdminSummary[]>("/admin/regions", token),
         api.get<UtilityProviderAdminSummary[]>("/admin/utility-providers", token),
+        api.get<RegionRequestSummary[]>("/admin/region-requests", token),
       ]);
       setRegions(regionsData);
       setProviders(providersData);
+      setRequests(requestsData);
       setRegionsById(Object.fromEntries(regionsData.map((r) => [r.region_id, r.region_name_el])));
     } finally {
       setLoading(false);
@@ -44,13 +48,50 @@ export function RegionsProvidersPanel() {
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
 
+  const q = regionQuery.trim().toLowerCase();
+  const filteredRegions = q ? regions.filter((r) => r.region_name_el.toLowerCase().includes(q)) : regions;
+
   return (
     <div>
       <h1>{t("adminRegions.title")}</h1>
 
       <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <h2>{t("adminRegions.requestsHeading")}</h2>
+        {requests.length === 0 ? (
+          <p className={dashStyles.emptyState}>{t("adminRegions.noRequests")}</p>
+        ) : (
+          <table className={dashStyles.table}>
+            <thead>
+              <tr>
+                <th>{tUpper("adminRegions.colRegion")}</th>
+                <th>{tUpper("adminRegions.colRequestCount")}</th>
+                <th>{tUpper("adminRegions.colLastRequested")}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {requests.map((r) => (
+                <tr key={r.region_id}>
+                  <td>{r.region_name_el}</td>
+                  <td>{r.request_count}</td>
+                  <td>{new Date(r.last_requested_at).toLocaleDateString()}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </section>
+
+      <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <h2>{t("adminRegions.regionsHeading")}</h2>
-        {regions.length === 0 ? (
+        <input
+          className="input"
+          type="text"
+          value={regionQuery}
+          onChange={(e) => setRegionQuery(e.target.value)}
+          placeholder={t("adminRegions.regionsSearchPlaceholder")}
+          style={{ marginBottom: "var(--space-3)", maxWidth: 320 }}
+        />
+        {filteredRegions.length === 0 ? (
           <p className={dashStyles.emptyState}>{t("adminRegions.empty")}</p>
         ) : (
           <table className={dashStyles.table}>
@@ -65,7 +106,7 @@ export function RegionsProvidersPanel() {
               </tr>
             </thead>
             <tbody>
-              {regions.map((r) =>
+              {filteredRegions.map((r) =>
                 editingRegion === r.region_id ? (
                   <RegionEditRow
                     key={r.region_id}

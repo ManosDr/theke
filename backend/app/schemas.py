@@ -855,6 +855,14 @@ class RegionSummary(BaseModel):
     has_zone_level_coefficient_text: bool | None = None
 
 
+class RegionRequestSummary(BaseModel):
+    region_id: str
+    region_name_el: str
+    region_name_en: str
+    request_count: int
+    last_requested_at: datetime
+
+
 class SearchRequest(BaseModel):
     query: str
     region_id: str | None = None  # narrows to one region on top of visibility; national docs stay included

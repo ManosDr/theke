@@ -8,6 +8,12 @@ approach (prefer <article>, fall back to <main>) rather than importing that
 module directly - the crawler is a separate deployable service with its own
 container/dependencies (see docker-compose.yml), not something the backend
 can import at runtime.
+
+Every fetch goes through app/services/politeness.py's PoliteFetcher (per-host
+delay, robots.txt respect, ban detection) - both callers used to issue plain
+unthrottled httpx requests, which is exactly the pattern that got the
+crawler package's IP banned before its own politeness layer existed (see
+KNOWN_DECISIONS.md).
 """
 
 import hashlib
@@ -15,7 +21,9 @@ import hashlib
 import httpx
 from bs4 import BeautifulSoup
 
-USER_AGENT = "thekebot/0.1 (regulatory compliance assistant; contact: manos.drams@gmail.com)"
+from app.services.politeness import DEFAULT_FETCHER, CrawlBlocked, RobotsDisallowed
+
+USER_AGENT = DEFAULT_FETCHER.user_agent
 _FETCH_TIMEOUT = 30.0
 
 
@@ -47,18 +55,21 @@ def _extract_html_text(html: str) -> str | None:
     return text or None
 
 
-async def fetch_url_content(url: str) -> str | None:
-    """Fetches `url` and returns its extracted plain text, or None if the
-    URL is unreachable, returns an error status, or has no extractable
-    content. Never raises - every failure mode collapses to None so callers
-    can treat "no content" uniformly regardless of cause."""
-    try:
-        async with httpx.AsyncClient(timeout=_FETCH_TIMEOUT, follow_redirects=True) as client:
-            resp = await client.get(url, headers={"User-Agent": USER_AGENT})
-            resp.raise_for_status()
-    except httpx.HTTPError:
-        return None
+async def fetch_raw(url: str) -> httpx.Response:
+    """Fetches `url` through the shared PoliteFetcher and raises on any
+    failure: httpx.HTTPError (unreachable/non-2xx), CrawlBlocked (banned/
+    rate-limited), or RobotsDisallowed (robots.txt says no). Callers that
+    need to distinguish these (e.g. sync_data_source reporting a ban
+    distinctly) should call this directly; fetch_url_content below collapses
+    all three to None for callers that don't."""
+    resp = await DEFAULT_FETCHER.get(url, timeout=_FETCH_TIMEOUT)
+    resp.raise_for_status()
+    return resp
 
+
+def extract_content(resp: httpx.Response, url: str) -> str | None:
+    """Extracts plain text from an already-fetched response - PDF-aware,
+    HTML-aware, None if there's nothing extractable."""
     content_type = resp.headers.get("content-type", "")
     if "pdf" in content_type or url.lower().endswith(".pdf"):
         try:
@@ -71,6 +82,20 @@ async def fetch_url_content(url: str) -> str | None:
         return text.strip() or None
 
     return _extract_html_text(resp.text)
+
+
+async def fetch_url_content(url: str) -> str | None:
+    """Fetches `url` and returns its extracted plain text, or None if the
+    URL is unreachable, returns an error status, has no extractable content,
+    or was blocked/disallowed. Never raises - every failure mode collapses to
+    None so callers can treat "no content" uniformly regardless of cause.
+    Use fetch_raw()/extract_content() directly if the cause needs to be
+    distinguished (e.g. a ban reported distinctly from an ordinary failure)."""
+    try:
+        resp = await fetch_raw(url)
+    except (httpx.HTTPError, CrawlBlocked, RobotsDisallowed):
+        return None
+    return extract_content(resp, url)
 
 
 def content_hash(text: str) -> str:

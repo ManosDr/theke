@@ -1,6 +1,7 @@
 import json
 from datetime import date, datetime, timedelta
 
+import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from openai import OpenAI, OpenAIError
 from sqlalchemy import delete, func, or_, select, text
@@ -131,8 +132,9 @@ def _solo_super_admin_user_ids():
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
+from app.services.politeness import CrawlBlocked, RobotsDisallowed
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
-from app.services.source_fetch import content_hash, fetch_url_content
+from app.services.source_fetch import content_hash, extract_content, fetch_raw, fetch_url_content
 from app.services.sources import group_label
 from app.services.subscription import get_or_create_subscription, get_or_create_usage
 from app.services.usage import company_token_usage
@@ -1957,6 +1959,15 @@ async def sync_data_source(
     last checked" signal for any base_url that's itself the content (an
     e-nomothesia.gr or aade.gr guidance/law page), which is exactly the
     staleness gap this feature exists to close.
+
+    The fetch itself goes through app/services/politeness.py's shared
+    PoliteFetcher (per-host delay, robots.txt respect, ban detection) -
+    this endpoint used to issue a plain unthrottled request, its own
+    separate risk from the crawler package's now-protected one. A ban/403
+    is reported as its own distinct last_crawl_status ('blocked') rather
+    than folded into the generic 'failed' bucket, so a super admin sees it
+    and doesn't keep re-triggering a sync against a host that's actively
+    rejecting the traffic.
     """
     require_super_admin(user)
     source = db.get(DataSource, source_id)
@@ -1964,14 +1975,33 @@ async def sync_data_source(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
 
     now = datetime.utcnow()
-    fetched_text = await fetch_url_content(source.base_url)
+    try:
+        resp = await fetch_raw(source.base_url)
+        fetched_text = extract_content(resp, source.base_url)
+    except CrawlBlocked as exc:
+        source.last_crawl_status = "blocked"
+        source.last_crawl_error = f"Η πηγή απέκλεισε το αίτημα ({exc.reason}) - πιθανό μπλοκάρισμα IP, μην επαναλάβετε άμεσα"
+        log_action(
+            db, actor_user_id=user.user_id, company_id=None,
+            action="data_source_sync_blocked", resource_type="data_source", resource_id=source.id,
+            metadata={"host": exc.host, "status_code": exc.status_code, "reason": exc.reason},
+        )
+        db.commit()
+        db.refresh(source)
+        return DataSourceSyncStatus(
+            id=source.id, last_crawled_at=source.last_crawled_at, next_crawl_at=source.next_crawl_at,
+            last_crawl_status=source.last_crawl_status, last_crawl_document_count=source.last_crawl_document_count,
+            last_crawl_error=source.last_crawl_error,
+        )
+    except (httpx.HTTPError, RobotsDisallowed):
+        fetched_text = None
 
     if fetched_text is None:
         # Crawl failed (unreachable, non-2xx, JS SPA with no server-rendered
-        # content, etc.) - record the failure but leave last_crawled_at,
-        # next_crawl_at, last_content_hash, and every linked document
-        # untouched. A transient fetch failure must never look like "the
-        # source was checked and found unchanged".
+        # content, robots.txt disallowed, etc.) - record the failure but
+        # leave last_crawled_at, next_crawl_at, last_content_hash, and every
+        # linked document untouched. A transient fetch failure must never
+        # look like "the source was checked and found unchanged".
         source.last_crawl_status = "failed"
         source.last_crawl_error = "Η πηγή δεν ήταν προσβάσιμη ή δεν επέστρεψε εξαγώγιμο περιεχόμενο"
         log_action(

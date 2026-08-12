@@ -8,6 +8,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
 import type { DataSourceSummary, DataSourcesByVertical } from "../lib/types";
+import { ShieldIcon } from "./NavIcons";
 import { InfoIcon } from "./StatIcons";
 import { CheckIcon, CloseIcon, DotIcon, LinkIcon, RefreshIcon, WarningIcon } from "./UiIcons";
 import Tooltip from "./Tooltip";
@@ -19,12 +20,16 @@ const ACCENT_CLASS: Record<string, string> = {
   tax_accounting: styles.accentTax,
 };
 
-type Health = "healthy" | "overdue" | "failed" | "syncing" | "inactive" | "never_synced";
+type Health = "healthy" | "overdue" | "failed" | "blocked" | "syncing" | "inactive" | "never_synced";
 
 function healthOf(source: DataSourceSummary, syncing: boolean): Health {
   if (syncing) return "syncing";
   if (!source.is_active) return "inactive";
   if (!source.last_crawled_at) return "never_synced";
+  // Checked before the generic /fail|error/i match below - a ban/403 is
+  // reported as its own last_crawl_status ("blocked") specifically so it
+  // doesn't fold into the ordinary "failed" bucket (see KNOWN_DECISIONS.md).
+  if (source.last_crawl_status === "blocked") return "blocked";
   if (source.last_crawl_status && /fail|error/i.test(source.last_crawl_status)) return "failed";
   if (source.next_crawl_at && new Date(source.next_crawl_at) < new Date()) return "overdue";
   return "healthy";
@@ -34,6 +39,7 @@ const HEALTH_ICON: Record<Health, typeof CheckIcon> = {
   healthy: CheckIcon,
   overdue: WarningIcon,
   failed: CloseIcon,
+  blocked: ShieldIcon,
   syncing: RefreshIcon,
   inactive: DotIcon,
   never_synced: DotIcon,
@@ -218,8 +224,8 @@ function SourceCard({
           })()}{" "}
           {health === "never_synced"
             ? t("adminSources.health.never_synced")
-            : health === "failed" && source.last_crawl_error
-              ? `${t("adminSources.health.failed")}: ${source.last_crawl_error}`
+            : (health === "failed" || health === "blocked") && source.last_crawl_error
+              ? `${t(`adminSources.health.${health}` as TranslationKey)}: ${source.last_crawl_error}`
               : health === "healthy" && source.last_crawl_document_count != null
                 ? t("adminSources.documentCount", { count: source.last_crawl_document_count })
                 : t(`adminSources.health.${health}` as TranslationKey)}

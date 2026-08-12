@@ -16,9 +16,12 @@ RUN curl -fsSLO "https://github.com/aptible/supercronic/releases/download/${SUPE
     && chmod +x supercronic-linux-amd64 \
     && mv supercronic-linux-amd64 /usr/local/bin/supercronic
 
-COPY requirements.txt .
+COPY crawler/requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+COPY crawler/ .
+# Pure logic shared with the backend service - see
+# KNOWN_DECISIONS.md's "crawler/backend discovery-logic duplication" entry.
+COPY shared/theke_shared ./theke_shared
 
 CMD ["python", "-m", "crawler.main"]

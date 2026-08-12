@@ -10,6 +10,12 @@ shape - many sequential requests, and fek_api.discover_recent() alone makes
 up to 35 sequential POSTs to one host with zero delay - so it carries the
 same risk against production's IP. Every raw `requests.get`/`requests.post`
 call in this package should go through DEFAULT_FETCHER instead.
+
+The identifying constants and block/ban exception types are shared with
+backend/app/services/politeness.py via theke_shared.politeness_shared - see
+that module's docstring and KNOWN_DECISIONS.md for why PoliteFetcher itself
+(this class) stays separately implemented on each side rather than also
+being shared.
 """
 
 import time
@@ -17,63 +23,29 @@ import urllib.robotparser
 from urllib.parse import urlparse
 
 import requests
+from theke_shared.politeness_shared import (
+    BLOCK_PAGE_SIGNATURES as _BLOCK_PAGE_SIGNATURES,
+    CONTACT_EMAIL,
+    DEFAULT_MIN_DELAY_SECONDS,
+    USER_AGENT,
+    CrawlBlocked,
+    RobotsDisallowed,
+)
 
-CONTACT_EMAIL = "manos.drams@gmail.com"
-# Distinct from the ad-hoc per-module UA strings this package used to carry
-# (all now consolidated here) - names the crawler, states its purpose, and
-# gives a real contact so a site operator who notices the traffic has a way
-# to reach us instead of just banning silently, which is what happened.
-USER_AGENT = f"thekebot/0.1 (regulatory compliance research crawler for theke.ai; contact: {CONTACT_EMAIL})"
-
-# Conservative floor even when a host's robots.txt specifies no Crawl-delay
-# at all. robots.txt Crawl-delay, when present, wins if it's larger.
-DEFAULT_MIN_DELAY_SECONDS = 2.5
 REQUEST_TIMEOUT = 30
 ROBOTS_TIMEOUT = 10
 
-# Phrases seen on real block/ban pages. e-nomothesia.gr's Elxis CMS security
-# module returns exactly "Request dropped! You have been banned!" - the
-# others are common enough across other CMS/WAF block pages that treating
-# them the same way (loud, distinct report) is worth the small false-positive
-# risk; missing a real ban silently is the worse failure mode.
-_BLOCK_PAGE_SIGNATURES = (
-    "you have been banned",
-    "request dropped",
-    "security alert",
-    "access denied",
-    "ip has been blocked",
-    "your ip has been blocked",
-    "blocked by",
-)
-
-
-class CrawlBlocked(Exception):
-    """The host appears to have blocked/banned the crawler: HTTP 403, HTTP
-    429, or a 2xx response whose body matches a known block-page signature.
-    Distinct from an ordinary RequestException so callers can surface a ban
-    loudly (its own summary section, its own notification) instead of
-    folding it into a generic "N sources failed" count, which is exactly how
-    the e-nomothesia.gr ban went unnoticed until an unrelated audit."""
-
-    def __init__(self, host: str, url: str, status_code: int | None, reason: str):
-        self.host = host
-        self.url = url
-        self.status_code = status_code
-        self.reason = reason
-        super().__init__(f"Blocked by {host}: {reason} (status={status_code}, url={url})")
-
-
-class RobotsDisallowed(Exception):
-    """robots.txt explicitly disallows fetching this URL for our user agent.
-    Distinct from CrawlBlocked (a host telling us not to, in advance, via
-    the standard mechanism, vs. a host actively rejecting/banning us) and
-    from an ordinary failure (this is expected, polite behavior, not an
-    error)."""
-
-    def __init__(self, host: str, url: str):
-        self.host = host
-        self.url = url
-        super().__init__(f"robots.txt disallows fetching {url} for {USER_AGENT!r}")
+__all__ = [
+    "CONTACT_EMAIL",
+    "USER_AGENT",
+    "DEFAULT_MIN_DELAY_SECONDS",
+    "REQUEST_TIMEOUT",
+    "ROBOTS_TIMEOUT",
+    "CrawlBlocked",
+    "RobotsDisallowed",
+    "PoliteFetcher",
+    "DEFAULT_FETCHER",
+]
 
 
 class PoliteFetcher:

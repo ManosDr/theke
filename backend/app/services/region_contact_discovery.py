@@ -2,14 +2,14 @@
 (status='pending') municipalities, triggered from the admin UI's batch
 runner (POST /admin/region-contact-discovery/run).
 
-Mirrors crawler/crawler/region_contact_discovery.py's algorithm (domain
-templates, contact paths, extraction regexes) rather than importing that
-module directly - the crawler is a separate deployable service with its own
-container/dependencies (see docker-compose.yml, and source_fetch.py's
-docstring for the same rationale applied to data-source syncing). The
-discovery LOGIC itself is not meant to change between the two copies; only
-the trigger mechanism and the writer (httpx/SQLAlchemy here vs
-requests/psycopg there) differ.
+The domain-guess list, contact-path list, and phone/email extraction are
+shared with crawler/crawler/region_contact_discovery.py via
+theke_shared.contact_discovery (see that module's docstring). Only the
+fetching (here: async httpx) and persistence (here: SQLAlchemy Session,
+prioritized by region_requests count) differ, tied to this service's own
+architecture - genuinely different from the crawler's sync requests + raw
+psycopg from CLI args, not duplicated logic. See KNOWN_DECISIONS.md's
+"crawler/backend discovery-logic duplication" entry.
 
 Same safety property as the crawler version: this NEVER writes to
 Region.contact_phone/Region.contact_email/Region.ydom_authority_name
@@ -19,12 +19,16 @@ explicit Confirm action. See KNOWN_DECISIONS.md.
 """
 
 import asyncio
-import re
 from datetime import datetime
 
 import httpx
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
+from theke_shared.contact_discovery import (
+    CONTACT_PATHS,
+    DOMAIN_TEMPLATES,
+    extract_contact,
+)
 
 from app.models import Region, RegionContactCandidate, RegionRequest
 
@@ -34,51 +38,6 @@ _REQUEST_TIMEOUT = 8.0
 # region's own domain-guess/contact-path loop (different regions are
 # normally different hosts, so no cross-region delay is needed).
 _SAME_HOST_DELAY_SECONDS = 1.5
-
-DOMAIN_TEMPLATES = [
-    "https://{s}.gov.gr",
-    "https://www.{s}.gov.gr",
-    "https://dimos{s}.gr",
-    "https://www.dimos{s}.gr",
-    "https://{s}.gr",
-    "https://www.{s}.gr",
-    "https://cityof{s}.gr",
-]
-
-CONTACT_PATHS = [
-    "/organotiki-domi/",
-    "/ypiresies/domisi",
-    "/epikoinonia",
-    "/poleodomia",
-    "/contact",
-]
-
-_PHONE_RUN_RE = re.compile(r"\b2[\d\s.\-]{8,13}\d\b")
-_EMAIL_RE = re.compile(r"[a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,}")
-_NON_EMAIL_EXTENSIONS = (".png", ".jpg", ".jpeg", ".gif", ".svg", ".webp", ".ico", ".css", ".js")
-_PREFERRED_EMAIL_HINTS = ("poleodom", "ydom", "domisi", "domhs", "domisis")
-
-
-def _extract_phone(html: str) -> str | None:
-    for raw in _PHONE_RUN_RE.findall(html):
-        cleaned = re.sub(r"[\s.\-]", "", raw)
-        if len(cleaned) == 10:
-            return cleaned
-    return None
-
-
-def _extract_contact(html: str) -> tuple[str | None, str | None]:
-    phone = _extract_phone(html)
-
-    emails = [e for e in _EMAIL_RE.findall(html) if not e.lower().endswith(_NON_EMAIL_EXTENSIONS)]
-    email = None
-    for e in emails:
-        if any(hint in e.lower() for hint in _PREFERRED_EMAIL_HINTS):
-            email = e
-            break
-    if email is None and emails:
-        email = emails[0]
-    return phone, email
 
 
 async def _get(client: httpx.AsyncClient, url: str) -> httpx.Response | None:
@@ -112,7 +71,7 @@ async def _discover_one(client: httpx.AsyncClient, slug: str, name_en: str) -> d
         resp = await _get(client, base_url.rstrip("/") + path)
         if resp is None or resp.status_code != 200:
             continue
-        phone, email = _extract_contact(resp.text)
+        phone, email = extract_contact(resp.text)
         if phone or email:
             return {
                 "authority_name": f"Πολεοδομία/ΥΔΟΜ Δήμου {name_en}",
@@ -121,7 +80,7 @@ async def _discover_one(client: httpx.AsyncClient, slug: str, name_en: str) -> d
                 "source_url": str(resp.url),
             }
 
-    phone, email = _extract_contact(homepage_html)
+    phone, email = extract_contact(homepage_html)
     if phone or email:
         return {
             "authority_name": f"Δήμος {name_en} (γενική επικοινωνία - όχι επιβεβαιωμένα στοιχεία ΥΔΟΜ)",

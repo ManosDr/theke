@@ -1,0 +1,10 @@
+# Repo root is now the build context for backend/crawler (see
+# docker-compose.yml) so the shared/theke_shared module reaches both.
+# Excludes here keep the build context small - without this, every build
+# would upload frontend/node_modules and .git into the context even though
+# neither Dockerfile ever COPYs them.
+.git
+frontend/node_modules
+frontend/.next
+**/__pycache__
+**/*.pyc

@@ -38,9 +38,13 @@ services:
       - redis_data:/data
 
   backend:
+    # Repo-root context (not ./backend) so Dockerfile.prod can also COPY
+    # shared/theke_shared - see docker-compose.yml's backend service for
+    # the full rationale (KNOWN_DECISIONS.md's "crawler/backend
+    # discovery-logic duplication" entry). dockerfile path updated to match.
     build:
-      context: ./backend
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: backend/Dockerfile.prod
     restart: unless-stopped
     env_file: .env
     ports:
@@ -69,7 +73,10 @@ services:
   # One-off/manual crawl run - `docker compose -f docker-compose.prod.yml
   # --profile crawler run --rm crawler`. Not part of the default `up`.
   crawler:
-    build: ./crawler
+    # Same repo-root-context reason as backend above.
+    build:
+      context: .
+      dockerfile: crawler/Dockerfile
     env_file: .env
     profiles:
       - crawler
@@ -82,7 +89,9 @@ services:
   # depends_on backend too: the weekly canary_benchmark job calls POST
   # /chat/message over HTTP, unlike the other scheduled jobs.
   scheduler:
-    build: ./crawler
+    build:
+      context: .
+      dockerfile: crawler/Dockerfile
     env_file: .env
     command: ["supercronic", "/app/crontab"]
     restart: unless-stopped

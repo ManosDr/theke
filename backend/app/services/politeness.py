@@ -1,11 +1,13 @@
 """Async port of crawler/crawler/politeness.py's per-host rate limiting,
-robots.txt Crawl-delay respect, and ban/block detection - mirrored rather
-than imported because the crawler package lives in a separate Docker
-service/container (see docker-compose.yml) the backend cannot reach at
-runtime, the same rationale already used for source_fetch.py's HTML
-extraction and region_contact_discovery.py's scrape logic. If the
-politeness rules themselves are ever tuned, check the other copy too -
-see KNOWN_DECISIONS.md for the wider assessment of this duplication.
+robots.txt Crawl-delay respect, and ban/block detection - PoliteFetcher
+itself is mirrored, not imported, because the crawler package lives in a
+separate Docker service/container (see docker-compose.yml) with a
+fundamentally different concurrency model (a cron-triggered batch script,
+where a blocking time.sleep is fine, vs. this live FastAPI server sharing
+one event loop, where it would stall every other request). The identifying
+constants and block/ban exception types ARE shared, via
+theke_shared.politeness_shared - see KNOWN_DECISIONS.md's "crawler/backend
+discovery-logic duplication" entry for the full reasoning.
 
 Built because POST /admin/data-sources/{id}/sync had no throttling of its
 own - a wholly separate HTTP call path from the crawler package's now-
@@ -20,47 +22,29 @@ import urllib.robotparser
 from urllib.parse import urlparse
 
 import httpx
+from theke_shared.politeness_shared import (
+    BLOCK_PAGE_SIGNATURES as _BLOCK_PAGE_SIGNATURES,
+    CONTACT_EMAIL,
+    DEFAULT_MIN_DELAY_SECONDS,
+    USER_AGENT,
+    CrawlBlocked,
+    RobotsDisallowed,
+)
 
-CONTACT_EMAIL = "manos.drams@gmail.com"
-USER_AGENT = f"thekebot/0.1 (regulatory compliance research crawler for theke.ai; contact: {CONTACT_EMAIL})"
-
-DEFAULT_MIN_DELAY_SECONDS = 2.5
 REQUEST_TIMEOUT = 30.0
 ROBOTS_TIMEOUT = 10.0
 
-_BLOCK_PAGE_SIGNATURES = (
-    "you have been banned",
-    "request dropped",
-    "security alert",
-    "access denied",
-    "ip has been blocked",
-    "your ip has been blocked",
-    "blocked by",
-)
-
-
-class CrawlBlocked(Exception):
-    """The host appears to have blocked/banned us: HTTP 403, HTTP 429, or a
-    2xx response whose body matches a known block-page signature. Distinct
-    from an ordinary httpx error so callers can surface a ban loudly instead
-    of folding it into a generic "sync failed" outcome."""
-
-    def __init__(self, host: str, url: str, status_code: int | None, reason: str):
-        self.host = host
-        self.url = url
-        self.status_code = status_code
-        self.reason = reason
-        super().__init__(f"Blocked by {host}: {reason} (status={status_code}, url={url})")
-
-
-class RobotsDisallowed(Exception):
-    """robots.txt explicitly disallows fetching this URL for our user agent -
-    expected, polite behavior, not an error."""
-
-    def __init__(self, host: str, url: str):
-        self.host = host
-        self.url = url
-        super().__init__(f"robots.txt disallows fetching {url} for {USER_AGENT!r}")
+__all__ = [
+    "CONTACT_EMAIL",
+    "USER_AGENT",
+    "DEFAULT_MIN_DELAY_SECONDS",
+    "REQUEST_TIMEOUT",
+    "ROBOTS_TIMEOUT",
+    "CrawlBlocked",
+    "RobotsDisallowed",
+    "PoliteFetcher",
+    "DEFAULT_FETCHER",
+]
 
 
 class PoliteFetcher:

@@ -24,12 +24,23 @@ services:
       - redis_data:/data
 
   backend:
-    build: ./backend
+    # Build context is the repo root (not ./backend) so the Dockerfile can
+    # also COPY shared/theke_shared - pure logic shared with the crawler
+    # service (see KNOWN_DECISIONS.md's "crawler/backend discovery-logic
+    # duplication" entry). Everything else about this build is unchanged.
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
     env_file: .env
     ports:
       - "8000:8000"
     volumes:
       - ./backend:/app
+      # Bind-mounted separately, and after ./backend:/app, so live-reload
+      # dev edits to the shared module are picked up too - without this the
+      # image's build-time COPY of shared/theke_shared would be hidden
+      # under the ./backend:/app mount above.
+      - ./shared/theke_shared:/app/theke_shared
       - uploads_data:/app/uploads
     depends_on:
       postgres:
@@ -50,10 +61,14 @@ services:
       - backend
 
   crawler:
-    build: ./crawler
+    # See backend's build comment above - same repo-root-context reason.
+    build:
+      context: .
+      dockerfile: crawler/Dockerfile
     env_file: .env
     volumes:
       - ./crawler:/app
+      - ./shared/theke_shared:/app/theke_shared
     profiles:
       - crawler
     depends_on:
@@ -67,7 +82,13 @@ services:
   # canary_benchmark.py) calls POST /chat/message over HTTP, unlike the
   # other scheduled jobs which only ever talk to Postgres directly.
   scheduler:
-    build: ./crawler
+    # Same repo-root-context reason as backend/crawler above. No shared-dir
+    # bind mount needed here - this service never bind-mounts its own code
+    # either (see the uploads_data comment below), so it always runs from
+    # whatever was baked into the image at build time.
+    build:
+      context: .
+      dockerfile: crawler/Dockerfile
     env_file: .env
     command: ["supercronic", "/app/crontab"]
     # Same uploads_data volume the backend service mounts, at the same

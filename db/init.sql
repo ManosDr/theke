@@ -2028,3 +2028,178 @@ INSERT INTO email_settings (id, test_email_address)
 VALUES (1, 'manos_drams@hotmail.com')
 ON CONFLICT (id) DO NOTHING;
 
+-- Admin-editable Help page content, replacing the hardcoded sections/notes
+-- that used to live in frontend/app/help/page.tsx's component logic.
+-- visible_to_roles/vertical_scope/is_active are read at GET /help-sections
+-- time (see app/routers/help.py) to reproduce the exact same filtering the
+-- old component did, just data-driven. Seed content below is a verbatim
+-- migration of the old translations.ts help.* strings (bullet lists
+-- reformatted to real markdown "- " syntax, rendered via the same
+-- react-markdown + remark-gfm pipeline already used for legal documents).
+CREATE TABLE IF NOT EXISTS help_sections (
+  id                serial PRIMARY KEY,
+  slug              varchar(50) NOT NULL UNIQUE,
+  title_el          text NOT NULL,
+  title_en          text NOT NULL,
+  body_el           text NOT NULL,
+  body_en           text NOT NULL,
+  visible_to_roles  text[] NOT NULL,
+  vertical_scope    varchar(20),
+  display_order     integer NOT NULL DEFAULT 0,
+  is_active         boolean NOT NULL DEFAULT true,
+  updated_at        timestamp NOT NULL DEFAULT now(),
+  updated_by        integer REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_help_sections_display_order ON help_sections(display_order);
+
+
+INSERT INTO help_sections (slug, title_el, title_en, body_el, body_en, visible_to_roles, vertical_scope, display_order) VALUES
+('chat-construction', 'Πώς λειτουργεί η συνομιλία', 'How the conversation works', 'Η Theke απαντά σε ερωτήσεις χρησιμοποιώντας τεχνητή νοημοσύνη που αναζητά σε αξιόπιστες πηγές πριν απαντήσει· δεν «μαντεύει».
+
+Κάθε απάντηση συνοδεύεται από παραπομπές (citations) στις πηγές που χρησιμοποιήθηκαν, ώστε να μπορείτε να επαληθεύσετε την πληροφορία στην αρχική της μορφή.
+
+Η Theke αντλεί πληροφορία από τέσσερα επίπεδα πηγών:
+- Δημόσια βάση γνώσης: νόμοι, ΦΕΚ, εγκύκλιοι και άλλες επίσημες πηγές, κοινές για όλους τους χρήστες.
+- Έγγραφα εταιρείας: αρχεία που έχει ανεβάσει η εταιρεία σας, ορατά σε όλα τα μέλη της. Αυτά τα έγγραφα είναι ορατά μόνο στην εταιρεία σας· καμία άλλη εταιρεία δεν μπορεί να τα δει.
+- Έγγραφα πελάτη: αρχεία συνδεδεμένα με συγκεκριμένο πελάτη. Αυτά τα έγγραφα είναι απομονωμένα ανά πελάτη· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλους πελάτες σας.
+- Έγγραφα έργου: αρχεία συνδεδεμένα με συγκεκριμένο έργο. Αυτά τα έγγραφα είναι απομονωμένα ανά έργο· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλα έργα, ακόμη και του ίδιου πελάτη.
+
+Όταν δεν έχουμε αρκετά αξιόπιστη πηγή για να απαντήσουμε με σιγουριά, σας το λέμε καθαρά αντί να μαντέψουμε.
+
+Το κουμπί «Νέα Εκκίνηση» ξεκινά μια καινούρια συνομιλία χωρίς το ιστορικό της προηγούμενης. Χρησιμοποιήστε το όταν αλλάζετε θέμα εντελώς.
+
+Τα εικονίδια «μου αρέσει» / «δεν μου αρέσει» κάτω από κάθε απάντηση μας βοηθούν να εντοπίζουμε απαντήσεις που χρειάζονται βελτίωση. Η ανατροφοδότησή σας φτάνει απευθείας στην ομάδα μας.
+
+Για ερωτήσεις εντός/εκτός σχεδίου και Ζώνης ΓΠΣ, δείτε την επεξήγηση δίπλα στο αντίστοιχο πεδίο κατά τη δημιουργία έργου.', 'Theke answers questions using AI that searches trustworthy sources before responding; it doesn''t "guess".
+
+Every answer comes with citations pointing to the sources it used, so you can verify the information in its original form.
+
+Theke draws on four tiers of sources:
+- Public knowledge base: laws, official gazette entries, circulars, and other official sources shared by all users.
+- Company documents: files your company has uploaded, visible to everyone at your company. These documents are only visible within your company; no other company can see them.
+- Client documents: files linked to a specific client. These documents are isolated per client; they never appear in conversations about your other clients.
+- Project documents: files linked to a specific project. These documents are isolated per project; they never appear in conversations about your other projects, even for the same client.
+
+When we don''t have a reliable enough source to answer with confidence, we say so plainly instead of guessing.
+
+The "New session" button starts a fresh conversation without the previous history. Use it when you''re switching topics entirely.
+
+The thumbs up/down icons under each answer help us spot answers that need improvement. Your feedback goes straight to our team.
+
+For questions about being inside or outside the town plan and ΓΠΣ zoning, see the explanation next to that field when creating a project.', ARRAY['member','admin']::text[], 'construction', 1),
+('chat-platform', 'Πώς λειτουργεί η συνομιλία', 'How the conversation works', 'Η Theke απαντά σε ερωτήσεις χρησιμοποιώντας τεχνητή νοημοσύνη που αναζητά σε αξιόπιστες πηγές πριν απαντήσει· δεν «μαντεύει».
+
+Κάθε απάντηση συνοδεύεται από παραπομπές (citations) στις πηγές που χρησιμοποιήθηκαν, ώστε να μπορείτε να επαληθεύσετε την πληροφορία στην αρχική της μορφή.
+
+Η Theke αντλεί πληροφορία από τέσσερα επίπεδα πηγών:
+- Δημόσια βάση γνώσης: νόμοι, ΦΕΚ, εγκύκλιοι και άλλες επίσημες πηγές, κοινές για όλους τους χρήστες.
+- Έγγραφα εταιρείας: αρχεία που έχει ανεβάσει η εταιρεία σας, ορατά σε όλα τα μέλη της. Αυτά τα έγγραφα είναι ορατά μόνο στην εταιρεία σας· καμία άλλη εταιρεία δεν μπορεί να τα δει.
+- Έγγραφα πελάτη: αρχεία συνδεδεμένα με συγκεκριμένο πελάτη. Αυτά τα έγγραφα είναι απομονωμένα ανά πελάτη· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλους πελάτες σας.
+- Έγγραφα έργου: αρχεία συνδεδεμένα με συγκεκριμένο έργο. Αυτά τα έγγραφα είναι απομονωμένα ανά έργο· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλα έργα, ακόμη και του ίδιου πελάτη.
+
+Όταν δεν έχουμε αρκετά αξιόπιστη πηγή για να απαντήσουμε με σιγουριά, σας το λέμε καθαρά αντί να μαντέψουμε.
+
+Το κουμπί «Νέα Εκκίνηση» ξεκινά μια καινούρια συνομιλία χωρίς το ιστορικό της προηγούμενης. Χρησιμοποιήστε το όταν αλλάζετε θέμα εντελώς.
+
+Τα εικονίδια «μου αρέσει» / «δεν μου αρέσει» κάτω από κάθε απάντηση μας βοηθούν να εντοπίζουμε απαντήσεις που χρειάζονται βελτίωση. Η ανατροφοδότησή σας φτάνει απευθείας στην ομάδα μας.', 'Theke answers questions using AI that searches trustworthy sources before responding; it doesn''t "guess".
+
+Every answer comes with citations pointing to the sources it used, so you can verify the information in its original form.
+
+Theke draws on four tiers of sources:
+- Public knowledge base: laws, official gazette entries, circulars, and other official sources shared by all users.
+- Company documents: files your company has uploaded, visible to everyone at your company. These documents are only visible within your company; no other company can see them.
+- Client documents: files linked to a specific client. These documents are isolated per client; they never appear in conversations about your other clients.
+- Project documents: files linked to a specific project. These documents are isolated per project; they never appear in conversations about your other projects, even for the same client.
+
+When we don''t have a reliable enough source to answer with confidence, we say so plainly instead of guessing.
+
+The "New session" button starts a fresh conversation without the previous history. Use it when you''re switching topics entirely.
+
+The thumbs up/down icons under each answer help us spot answers that need improvement. Your feedback goes straight to our team.', ARRAY['super_admin']::text[], NULL, 1),
+('chat-tax', 'Πώς λειτουργεί η συνομιλία', 'How the conversation works', 'Η Theke απαντά σε ερωτήσεις χρησιμοποιώντας τεχνητή νοημοσύνη που αναζητά σε αξιόπιστες πηγές πριν απαντήσει· δεν «μαντεύει».
+
+Κάθε απάντηση συνοδεύεται από παραπομπές (citations) στις πηγές που χρησιμοποιήθηκαν, ώστε να μπορείτε να επαληθεύσετε την πληροφορία στην αρχική της μορφή.
+
+Η Theke αντλεί πληροφορία από τέσσερα επίπεδα πηγών:
+- Δημόσια βάση γνώσης: νόμοι, ΦΕΚ, εγκύκλιοι και άλλες επίσημες πηγές, κοινές για όλους τους χρήστες.
+- Έγγραφα εταιρείας: αρχεία που έχει ανεβάσει η εταιρεία σας, ορατά σε όλα τα μέλη της. Αυτά τα έγγραφα είναι ορατά μόνο στην εταιρεία σας· καμία άλλη εταιρεία δεν μπορεί να τα δει.
+- Έγγραφα πελάτη: αρχεία συνδεδεμένα με συγκεκριμένο πελάτη. Αυτά τα έγγραφα είναι απομονωμένα ανά πελάτη· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλους πελάτες σας.
+- Έγγραφα έργου: αρχεία συνδεδεμένα με συγκεκριμένο έργο. Αυτά τα έγγραφα είναι απομονωμένα ανά έργο· δεν εμφανίζονται ποτέ σε συνομιλίες που αφορούν άλλα έργα, ακόμη και του ίδιου πελάτη.
+
+Όταν δεν έχουμε αρκετά αξιόπιστη πηγή για να απαντήσουμε με σιγουριά, σας το λέμε καθαρά αντί να μαντέψουμε.
+
+Το κουμπί «Νέα Εκκίνηση» ξεκινά μια καινούρια συνομιλία χωρίς το ιστορικό της προηγούμενης. Χρησιμοποιήστε το όταν αλλάζετε θέμα εντελώς.
+
+Τα εικονίδια «μου αρέσει» / «δεν μου αρέσει» κάτω από κάθε απάντηση μας βοηθούν να εντοπίζουμε απαντήσεις που χρειάζονται βελτίωση. Η ανατροφοδότησή σας φτάνει απευθείας στην ομάδα μας.', 'Theke answers questions using AI that searches trustworthy sources before responding; it doesn''t "guess".
+
+Every answer comes with citations pointing to the sources it used, so you can verify the information in its original form.
+
+Theke draws on four tiers of sources:
+- Public knowledge base: laws, official gazette entries, circulars, and other official sources shared by all users.
+- Company documents: files your company has uploaded, visible to everyone at your company. These documents are only visible within your company; no other company can see them.
+- Client documents: files linked to a specific client. These documents are isolated per client; they never appear in conversations about your other clients.
+- Project documents: files linked to a specific project. These documents are isolated per project; they never appear in conversations about your other projects, even for the same client.
+
+When we don''t have a reliable enough source to answer with confidence, we say so plainly instead of guessing.
+
+The "New session" button starts a fresh conversation without the previous history. Use it when you''re switching topics entirely.
+
+The thumbs up/down icons under each answer help us spot answers that need improvement. Your feedback goes straight to our team.', ARRAY['member','admin']::text[], 'tax_accounting', 1),
+('project-construction', 'Πώς να δημιουργήσετε έργο', 'How to create a project', 'Κατά τη δημιουργία νέου έργου, μπορείτε να προσδιορίσετε την τοποθεσία με τρεις τρόπους (επιλέξτε όποιον σας βολεύει):
+- ΚΑΕΚ: αν το γνωρίζετε, η τοποθεσία συμπληρώνεται αυτόματα.
+- Διεύθυνση: αναζήτηση με βάση τη διεύθυνση του ακινήτου.
+- Pin στον χάρτη: τοποθετήστε το σημείο απευθείας πάνω στον χάρτη.
+
+Μπορείτε προαιρετικά να συνδέσετε το έργο με έναν πελάτη από τη λίστα σας, ή να δημιουργήσετε νέο πελάτη απευθείας από τη φόρμα.
+
+Κατά το ανέβασμα εγγράφων, επιλέγετε σε ποιο επίπεδο θα είναι ορατό το έγγραφο:
+- Έργο: ορατό μόνο σε όσους έχουν πρόσβαση σε αυτό το συγκεκριμένο έργο.
+- Πελάτης: ορατό σε όλα τα έργα του ίδιου πελάτη.
+- Εταιρεία: ορατό σε όλη την εταιρεία, ανεξαρτήτως έργου ή πελάτη.', 'When creating a new project, you can set its location three ways (pick whichever suits you):
+- KAEK: if you know it, the location fills in automatically.
+- Address: search by the property''s address.
+- Map pin: place the point directly on the map.
+
+You can optionally link the project to a client from your list, or create a new client directly from the form.
+
+When uploading documents, you choose which level the document is visible at:
+- Project: visible only to people with access to this specific project.
+- Client: visible across all of that client''s projects.
+- Company: visible company-wide, regardless of project or client.', ARRAY['member','admin']::text[], 'construction', 2),
+('project-tax', 'Πώς να δημιουργήσετε πελάτη', 'How to create a client', 'Οι πελάτες είναι ο βασικός τρόπος οργάνωσης της δουλειάς σας στη Theke Λογιστικής. Δημιουργήστε έναν νέο πελάτη με το όνομά του και προαιρετικά τον ΑΦΜ του, και προσθέστε σημειώσεις υπόθεσης όπως χρειάζεται.
+
+Χρησιμοποιήστε το πεδίο αναζήτησης πελάτη για να βρείτε γρήγορα έναν υπάρχοντα πελάτη αντί να δημιουργήσετε διπλότυπο.
+
+Κατά το ανέβασμα εγγράφων, επιλέγετε σε ποιο επίπεδο θα είναι ορατό το έγγραφο:
+- Πελάτης: ορατό μόνο για τον συγκεκριμένο πελάτη.
+- Εταιρεία: ορατό σε όλη την εταιρεία, ανεξαρτήτως πελάτη.', 'Clients are the main way work is organized in Theke Accounting. Create a new client with their name and, optionally, their ΑΦΜ, and add case notes as needed.
+
+Use the client search field to quickly find an existing client instead of creating a duplicate.
+
+When uploading documents, you choose which level the document is visible at:
+- Client: visible only for that specific client.
+- Company: visible company-wide, regardless of client.', ARRAY['member','admin']::text[], 'tax_accounting', 2),
+('users', 'Διαχείριση Χρηστών', 'Managing users', 'Από την καρτέλα «Χρήστες» του πίνακα διαχείρισης μπορείτε να προσκαλέσετε νέα μέλη με email, να ορίσετε τον ρόλο τους (μέλος ή διαχειριστής), και να απενεργοποιήσετε λογαριασμούς που δεν χρειάζονται πλέον πρόσβαση.
+
+Μια πρόσκληση παραμένει ενεργή για 7 ημέρες. Μπορείτε να τη στείλετε ξανά αν λήξει.', 'From the "Users" tab of the admin dashboard you can invite new members by email, set their role (member or admin), and deactivate accounts that no longer need access.
+
+An invite stays valid for 7 days. You can resend it if it expires.', ARRAY['admin']::text[], NULL, 3),
+('usage', 'Παρακολούθηση Χρήσης', 'Monitoring usage', 'Η καρτέλα «Επισκόπηση» δείχνει τη χρήση της εταιρείας σας: αριθμό μηνυμάτων, ενεργούς χρήστες, και ποσοστό απαντήσεων με κενό (gap rate). Κρατήστε τον δείκτη πάνω σε κάθε στατιστικό για επεξήγηση.
+
+Έγγραφα που επισημαίνονται ως «χρειάζονται επανεξέταση» σημαίνει ότι είτε η πηγή τους έχει αλλάξει από τότε που ανέβηκαν, είτε κάποιος τα σημείωσε χειροκίνητα για έλεγχο. Μπορείτε να τα βρείτε και να τα σημειώσετε ως ελεγμένα από την καρτέλα «Έγγραφα».', 'The "Overview" tab shows your company''s usage: message counts, active users, and the gap rate (the share of answers where we didn''t have a confident source). Hover over any stat for an explanation.
+
+Documents flagged as "needs review" means either their source has changed since they were uploaded, or someone flagged them manually for a check. You can find and mark them reviewed from the "Documents" tab.', ARRAY['admin']::text[], NULL, 4),
+('subscription', 'Συνδρομή & Πλάνο', 'Subscription & plan', 'Η καρτέλα «Συνδρομή» δείχνει το τρέχον πλάνο της εταιρείας σας, το όριο μηνυμάτων ανά μήνα, και τη χρήση αποθηκευτικού χώρου.
+
+Αν χρειάζεστε αναβάθμιση πλάνου ή πρόσθετο πακέτο μηνυμάτων, μπορείτε να υποβάλετε αίτημα απευθείας από εκεί. Ειδοποιούμε την ομάδα μας αυτόματα.', 'The "Subscription" tab shows your company''s current plan, monthly message limit, and storage usage.
+
+If you need a plan upgrade or an extra message pack, you can submit a request directly from there. It notifies our team automatically.', ARRAY['admin']::text[], NULL, 5),
+('platform', 'Διαχείριση Πλατφόρμας', 'Managing the platform', 'Από το μενού διαχειριστή έχετε πρόσβαση σε τρεις βασικές ενότητες:
+- Πλάνα: διαχείριση συνδρομητικών πλάνων ανά κάθετη υπηρεσία.
+- Πηγές Δεδομένων: παρακολούθηση της κατάστασης άντλησης περιεχομένου από επίσημες πηγές.
+- Ανατροφοδότηση: επισκόπηση όλων των σχολίων «μου αρέσει» / «δεν μου αρέσει» χρηστών σε όλες τις εταιρείες.', 'From the admin menu you have access to three core sections:
+- Plans: manage subscription plans per vertical.
+- Data Sources: monitor the status of content pulled from official sources.
+- Feedback: review all thumbs up/down user feedback across every company.', ARRAY['super_admin']::text[], NULL, 6)
+ON CONFLICT (slug) DO NOTHING;

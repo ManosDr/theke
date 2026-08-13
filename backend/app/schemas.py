@@ -1672,3 +1672,66 @@ class EmailSettingsEntry(BaseModel):
 
 class EmailSettingsUpdateRequest(BaseModel):
     test_email_address: str = Field(min_length=3)
+
+
+HELP_ROLES = ("member", "admin", "super_admin")
+HELP_VERTICALS = ("construction", "tax_accounting")
+
+
+class HelpSectionAdminSummary(BaseModel):
+    id: int
+    slug: str
+    title_el: str
+    visible_to_roles: list[str]
+    vertical_scope: str | None
+    display_order: int
+    is_active: bool
+    updated_at: datetime
+    updated_by_name: str | None
+
+
+class HelpSectionAdminDetail(HelpSectionAdminSummary):
+    title_en: str
+    body_el: str
+    body_en: str
+
+
+class HelpSectionSaveRequest(BaseModel):
+    slug: str = Field(min_length=1, max_length=50)
+    title_el: str = Field(min_length=1)
+    title_en: str = Field(min_length=1)
+    body_el: str = Field(min_length=1)
+    body_en: str = Field(min_length=1)
+    visible_to_roles: list[str] = Field(min_length=1)
+    vertical_scope: str | None = None
+    is_active: bool = True
+
+    @field_validator("visible_to_roles")
+    @classmethod
+    def _valid_roles(cls, v: list[str]) -> list[str]:
+        bad = [r for r in v if r not in HELP_ROLES]
+        if bad:
+            raise ValueError(f"Unknown role(s): {', '.join(bad)}")
+        return v
+
+    @field_validator("vertical_scope")
+    @classmethod
+    def _valid_vertical(cls, v: str | None) -> str | None:
+        if v is not None and v not in HELP_VERTICALS:
+            raise ValueError(f"Unknown vertical_scope: {v}")
+        return v
+
+
+class HelpSectionReorderRequest(BaseModel):
+    ordered_ids: list[int] = Field(min_length=1)
+
+
+class HelpSectionPublic(BaseModel):
+    """Locale-resolved for the requester's current UI language - the public
+    endpoint picks title_el/body_el vs title_en/body_en server-side rather
+    than shipping both and making the frontend choose."""
+
+    id: int
+    slug: str
+    title: str
+    body: str

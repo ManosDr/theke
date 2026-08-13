@@ -1002,3 +1002,31 @@ export interface EmailTestSendResponse {
   sent: boolean;
   reason: "disabled" | "send_failed" | null;
 }
+
+export type HelpRole = "member" | "admin" | "super_admin";
+export type HelpVertical = "construction" | "tax_accounting";
+
+export interface HelpSectionPublic {
+  id: number;
+  slug: string;
+  title: string;
+  body: string;
+}
+
+export interface HelpSectionAdminSummary {
+  id: number;
+  slug: string;
+  title_el: string;
+  visible_to_roles: HelpRole[];
+  vertical_scope: HelpVertical | null;
+  display_order: number;
+  is_active: boolean;
+  updated_at: string;
+  updated_by_name: string | null;
+}
+
+export interface HelpSectionAdminDetail extends HelpSectionAdminSummary {
+  title_en: string;
+  body_el: string;
+  body_en: string;
+}

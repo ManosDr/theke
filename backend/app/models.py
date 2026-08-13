@@ -626,6 +626,34 @@ class EmailSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class HelpSection(Base):
+    """Admin-editable Help page content - replaces the hardcoded sections/
+    notes that used to live in frontend/app/help/page.tsx's component
+    logic. visible_to_roles/vertical_scope/is_active are read at
+    GET /help-sections time to reproduce the same filtering the old
+    component did in code, just data-driven now. display_order is unique
+    per active row only by convention, not a DB constraint - the reorder
+    endpoint always rewrites the full sequence."""
+
+    __tablename__ = "help_sections"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    slug: Mapped[str] = mapped_column(Text, unique=True)
+    title_el: Mapped[str] = mapped_column(Text)
+    title_en: Mapped[str] = mapped_column(Text)
+    body_el: Mapped[str] = mapped_column(Text)
+    body_en: Mapped[str] = mapped_column(Text)
+    visible_to_roles: Mapped[list[str]] = mapped_column(ARRAY(Text))
+    # Null = shown regardless of vertical (e.g. admin-only sections like
+    # Users/Usage/Subscription). Otherwise a real Vertical.slug value
+    # ('construction', 'tax_accounting').
+    vertical_scope: Mapped[str | None] = mapped_column(Text)
+    display_order: Mapped[int] = mapped_column(Integer, default=0)
+    is_active: Mapped[bool] = mapped_column(default=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
 class SpendAlertCheck(Base):
     """One row per daily platform-wide spend check
     (crawler/crawler/spend_alert_check.py) - trailing 24h/7d

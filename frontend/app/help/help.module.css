@@ -50,8 +50,32 @@
 
 .body {
   padding: 0 var(--space-5) var(--space-5);
-  white-space: pre-line;
   font-size: 0.9rem;
   line-height: 1.6;
   color: var(--color-text);
+}
+
+.body p,
+.body ul,
+.body ol {
+  margin: 0 0 var(--space-3);
+}
+
+.body p:last-child,
+.body ul:last-child,
+.body ol:last-child {
+  margin-bottom: 0;
+}
+
+.body ul,
+.body ol {
+  padding-left: var(--space-5);
+}
+
+.body li {
+  margin-bottom: var(--space-1);
+}
+
+.body strong {
+  font-weight: 700;
 }

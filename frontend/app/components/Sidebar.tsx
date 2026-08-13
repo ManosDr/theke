@@ -84,11 +84,13 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals" || p === "/admin/legal-documents" || p === "/admin/email-templates",
+    match: (p: string) => p === "/admin/verticals" || p === "/admin/content",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
-      { href: "/admin/legal-documents", labelKey: "nav.legalDocuments", match: (p: string) => p === "/admin/legal-documents" },
-      { href: "/admin/email-templates", labelKey: "nav.emailTemplates", match: (p: string) => p === "/admin/email-templates" },
+      // Replaces the previous separate Legal Documents / Email Templates
+      // entries - both now live as tabs inside one page, alongside the new
+      // Help Sections editor (see ContentPanel.tsx).
+      { href: "/admin/content", labelKey: "nav.content", match: (p: string) => p === "/admin/content" },
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
     ],
   },

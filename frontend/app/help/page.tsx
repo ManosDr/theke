@@ -1,62 +1,30 @@
 "use client";
 
-import { AppShell } from "../components/AppShell";
-import { RequireAuth, useAuth } from "../lib/auth";
-import { useCompany } from "../lib/company";
-import { useLocale } from "../lib/i18n";
-import type { TranslationKey } from "../lib/translations";
-import styles from "./help.module.css";
+import { useEffect, useState } from "react";
+import Markdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 
-interface HelpSection {
-  key: string;
-  titleKey: TranslationKey;
-  bodyKey: TranslationKey;
-  noteKey?: TranslationKey;
-}
+import { AppShell } from "../components/AppShell";
+import { api } from "../lib/api";
+import { RequireAuth, useAuth } from "../lib/auth";
+import { useLocale } from "../lib/i18n";
+import type { HelpSectionPublic } from "../lib/types";
+import styles from "./help.module.css";
 
 function HelpContent() {
   const { user } = useAuth();
-  const { company } = useCompany();
-  const { t } = useLocale();
+  const { locale, t } = useLocale();
+  const [sections, setSections] = useState<HelpSectionPublic[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  // Municipality companies share vertical_slug="construction" with real
-  // construction firms (see auth.tsx's companyTypeToVerticalSlug), but have
-  // no project-creation feature at all - checked separately so the
-  // "how to create a project" section/note below doesn't describe a
-  // workflow this account type can't actually use.
-  const isMunicipality = company?.type === "municipality";
-  const isConstruction = !isMunicipality && (company ? company.vertical_slug === "construction" : true);
-  const isAdmin = user?.role === "admin";
-  const isSuperAdmin = user?.role === "super_admin";
-
-  const sections: HelpSection[] = [
-    {
-      key: "chat",
-      titleKey: "help.chatTitle",
-      bodyKey: "help.chatBody",
-      noteKey: isConstruction && !isSuperAdmin ? "help.chatConstructionNote" : undefined,
-    },
-  ];
-
-  if (!isSuperAdmin && !isMunicipality) {
-    sections.push({
-      key: "project",
-      titleKey: isConstruction ? "help.projectTitleConstruction" : "help.projectTitleTax",
-      bodyKey: isConstruction ? "help.projectBodyConstruction" : "help.projectBodyTax",
-    });
-  }
-
-  if (isAdmin) {
-    sections.push(
-      { key: "users", titleKey: "help.usersTitle", bodyKey: "help.usersBody" },
-      { key: "usage", titleKey: "help.usageTitle", bodyKey: "help.usageBody" },
-      { key: "subscription", titleKey: "help.subscriptionTitle", bodyKey: "help.subscriptionBody" }
-    );
-  }
-
-  if (isSuperAdmin) {
-    sections.push({ key: "platform", titleKey: "help.platformTitle", bodyKey: "help.platformBody" });
-  }
+  useEffect(() => {
+    if (!user?.token) return;
+    setLoading(true);
+    api
+      .get<HelpSectionPublic[]>(`/help-sections?locale=${locale}`, user.token)
+      .then(setSections)
+      .finally(() => setLoading(false));
+  }, [user?.token, locale]);
 
   return (
     <div className={styles.wrapper}>
@@ -65,20 +33,23 @@ function HelpContent() {
         <p className={styles.subtitle}>{t("help.subtitle")}</p>
       </div>
 
-      {sections.map((section, i) => (
-        <details key={section.key} className={`card ${styles.section}`} open={i === 0}>
-          <summary className={styles.summary}>
-            {t(section.titleKey)}
-            <span className={styles.chevron} aria-hidden="true">
-              ▸
-            </span>
-          </summary>
-          <div className={styles.body}>
-            {t(section.bodyKey)}
-            {section.noteKey && `\n\n${t(section.noteKey)}`}
-          </div>
-        </details>
-      ))}
+      {loading ? (
+        <p className="text-muted">{t("common.loading")}</p>
+      ) : (
+        sections.map((section, i) => (
+          <details key={section.id} className={`card ${styles.section}`} open={i === 0}>
+            <summary className={styles.summary}>
+              {section.title}
+              <span className={styles.chevron} aria-hidden="true">
+                ▸
+              </span>
+            </summary>
+            <div className={styles.body}>
+              <Markdown remarkPlugins={[remarkGfm]}>{section.body}</Markdown>
+            </div>
+          </details>
+        ))
+      )}
     </div>
   );
 }

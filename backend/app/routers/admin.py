@@ -22,6 +22,7 @@ from app.models import (
     EmailSettings,
     EmailTemplate,
     Embedding,
+    HelpSection,
     InfraHealthCheck,
     Invite,
     LegalDocument,
@@ -84,6 +85,10 @@ from app.schemas import (
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
+    HelpSectionAdminDetail,
+    HelpSectionAdminSummary,
+    HelpSectionReorderRequest,
+    HelpSectionSaveRequest,
     InfraHealthCheckEntry,
     InfraHealthResponse,
     InternalActivityResponse,
@@ -2956,6 +2961,181 @@ async def test_send_email_template(
         template_key, settings_row.test_email_address, payload.subject_el, payload.subject_en, payload.body_el, payload.body_en
     )
     return EmailTestSendResponse(sent=ok, reason=None if ok else "send_failed")
+
+
+def _help_section_updated_by_names(db: Session, rows: list[HelpSection]) -> dict[int, str]:
+    user_ids = {r.updated_by for r in rows if r.updated_by is not None}
+    if not user_ids:
+        return {}
+    rows_ = db.scalars(select(User).where(User.id.in_(user_ids)))
+    return {u.id: f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email for u in rows_}
+
+
+def _help_section_summary(row: HelpSection, updated_by_name: str | None) -> HelpSectionAdminSummary:
+    return HelpSectionAdminSummary(
+        id=row.id,
+        slug=row.slug,
+        title_el=row.title_el,
+        visible_to_roles=row.visible_to_roles,
+        vertical_scope=row.vertical_scope,
+        display_order=row.display_order,
+        is_active=row.is_active,
+        updated_at=row.updated_at,
+        updated_by_name=updated_by_name,
+    )
+
+
+def _help_section_detail(row: HelpSection, updated_by_name: str | None) -> HelpSectionAdminDetail:
+    return HelpSectionAdminDetail(
+        **_help_section_summary(row, updated_by_name).model_dump(),
+        title_en=row.title_en,
+        body_el=row.body_el,
+        body_en=row.body_en,
+    )
+
+
+@router.get("/help-sections", response_model=list[HelpSectionAdminSummary])
+async def list_help_sections(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[HelpSectionAdminSummary]:
+    require_super_admin(user)
+    rows = list(db.scalars(select(HelpSection).order_by(HelpSection.display_order, HelpSection.id)))
+    names = _help_section_updated_by_names(db, rows)
+    return [_help_section_summary(r, names.get(r.updated_by)) for r in rows]
+
+
+@router.get("/help-sections/{section_id}", response_model=HelpSectionAdminDetail)
+async def get_help_section(
+    section_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> HelpSectionAdminDetail:
+    require_super_admin(user)
+    row = db.get(HelpSection, section_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown help section")
+    names = _help_section_updated_by_names(db, [row])
+    return _help_section_detail(row, names.get(row.updated_by))
+
+
+@router.post("/help-sections", response_model=HelpSectionAdminDetail, status_code=status.HTTP_201_CREATED)
+async def create_help_section(
+    payload: HelpSectionSaveRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> HelpSectionAdminDetail:
+    require_super_admin(user)
+    if db.scalar(select(HelpSection).where(HelpSection.slug == payload.slug)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A help section with this slug already exists")
+
+    max_order = db.scalar(select(func.max(HelpSection.display_order))) or 0
+    row = HelpSection(
+        slug=payload.slug,
+        title_el=payload.title_el,
+        title_en=payload.title_en,
+        body_el=payload.body_el,
+        body_en=payload.body_en,
+        visible_to_roles=payload.visible_to_roles,
+        vertical_scope=payload.vertical_scope,
+        is_active=payload.is_active,
+        display_order=max_order + 1,
+        updated_by=user.user_id,
+    )
+    db.add(row)
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="help_section_created", resource_type="help_section", resource_id=None,
+        metadata={"slug": payload.slug},
+    )
+    db.commit()
+    db.refresh(row)
+    names = _help_section_updated_by_names(db, [row])
+    return _help_section_detail(row, names.get(row.updated_by))
+
+
+@router.patch("/help-sections/reorder", status_code=status.HTTP_204_NO_CONTENT)
+async def reorder_help_sections(
+    payload: HelpSectionReorderRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Rewrites display_order for every id in payload.ordered_ids to match
+    its position in that list (1-indexed) - always the full sequence, not a
+    partial move, so the frontend just sends its current on-screen order
+    after a drag/up-down action."""
+    require_super_admin(user)
+    rows = {r.id: r for r in db.scalars(select(HelpSection).where(HelpSection.id.in_(payload.ordered_ids)))}
+    missing = [i for i in payload.ordered_ids if i not in rows]
+    if missing:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=f"Unknown help section id(s): {missing}")
+
+    for position, section_id in enumerate(payload.ordered_ids, start=1):
+        rows[section_id].display_order = position
+        rows[section_id].updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="help_sections_reordered", resource_type="help_section", resource_id=None,
+        metadata={"ordered_ids": payload.ordered_ids},
+    )
+    db.commit()
+
+
+@router.patch("/help-sections/{section_id}", response_model=HelpSectionAdminDetail)
+async def update_help_section(
+    section_id: int,
+    payload: HelpSectionSaveRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> HelpSectionAdminDetail:
+    require_super_admin(user)
+    row = db.get(HelpSection, section_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown help section")
+    if payload.slug != row.slug and db.scalar(select(HelpSection).where(HelpSection.slug == payload.slug)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A help section with this slug already exists")
+
+    row.slug = payload.slug
+    row.title_el = payload.title_el
+    row.title_en = payload.title_en
+    row.body_el = payload.body_el
+    row.body_en = payload.body_en
+    row.visible_to_roles = payload.visible_to_roles
+    row.vertical_scope = payload.vertical_scope
+    row.is_active = payload.is_active
+    row.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="help_section_updated", resource_type="help_section", resource_id=row.id,
+        metadata={"slug": row.slug},
+    )
+    db.commit()
+    db.refresh(row)
+    names = _help_section_updated_by_names(db, [row])
+    return _help_section_detail(row, names.get(row.updated_by))
+
+
+@router.delete("/help-sections/{section_id}", status_code=status.HTTP_204_NO_CONTENT)
+async def deactivate_help_section(
+    section_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> None:
+    """Soft-delete only (is_active=false) - matches this project's established
+    preference for reversible admin actions over hard deletes; the row (and
+    its edit history) stays intact and can be reactivated via PATCH."""
+    require_super_admin(user)
+    row = db.get(HelpSection, section_id)
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown help section")
+    row.is_active = False
+    row.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="help_section_deactivated", resource_type="help_section", resource_id=row.id,
+        metadata={"slug": row.slug},
+    )
+    db.commit()
 
 
 @router.get("/gap-queries", response_model=list[GapQueryEntry])

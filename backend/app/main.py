@@ -18,6 +18,7 @@ from app.routers import (
     customers,
     documents,
     gis,
+    help,
     invoices,
     legal,
     notifications,
@@ -85,6 +86,7 @@ app.include_router(companies.public_router)
 app.include_router(customers.router)
 app.include_router(documents.router)
 app.include_router(gis.router)
+app.include_router(help.router)
 app.include_router(invoices.router)
 app.include_router(legal.router)
 app.include_router(notifications.router)

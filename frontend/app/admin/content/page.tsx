@@ -1,14 +1,14 @@
 "use client";
 
 import { AppShell } from "../../components/AppShell";
-import { LegalDocumentsPanel } from "../../components/LegalDocumentsPanel";
+import { ContentPanel } from "../../components/ContentPanel";
 import { RequireSuperAdmin } from "../../lib/auth";
 
-export default function AdminLegalDocumentsPage() {
+export default function AdminContentPage() {
   return (
     <RequireSuperAdmin>
       <AppShell>
-        <LegalDocumentsPanel />
+        <ContentPanel />
       </AppShell>
     </RequireSuperAdmin>
   );

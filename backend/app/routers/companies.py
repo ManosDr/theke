@@ -40,9 +40,11 @@ from app.schemas import (
     UserSummary,
 )
 from app.security import generate_password, hash_password
+from app.config import settings
 from app.services.audit import log_action
 from app.services.authorization import require_company_admin
 from app.services.documents import UPLOAD_DIR
+from app.services.email import send_invite_email
 from app.services.sources import group_label
 from app.services.visibility import visible_documents_filter
 
@@ -222,6 +224,20 @@ async def create_invite(
     )
     db.commit()
     db.refresh(invite)
+
+    inviter = db.get(User, user.user_id)
+    vertical = db.get(Vertical, invite.vertical_id) if invite.vertical_id else None
+    if inviter and vertical and company:
+        accept_url = f"{settings.frontend_url}/register?invite_token={invite.token}"
+        send_invite_email(
+            to_email=invite.email,
+            inviter_name=inviter.display_name,
+            company_name=company.name,
+            vertical_slug=vertical.slug,
+            role=invite.role,
+            accept_url=accept_url,
+            expiry_days=INVITE_VALID_DAYS,
+        )
 
     return InviteSummary(
         id=invite.id,

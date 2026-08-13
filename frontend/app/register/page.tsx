@@ -123,6 +123,20 @@ function RegisterContent() {
       .catch(() => setLegalStatus(null));
   }, []);
 
+  // Prefills the invite code from the invite email's "Αποδοχή πρόσκλησης"
+  // button (?invite_token=...) so clicking it actually lands the invitee
+  // in a ready-to-submit form, rather than a blank one they'd have to
+  // paste the code into by hand. Read once on mount, same as intendedTier
+  // above.
+  useEffect(() => {
+    const tokenFromUrl = searchParams.get("invite_token");
+    if (tokenFromUrl) {
+      setMode("invite");
+      setInviteToken(tokenFromUrl);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // Looks up the invite's company/vertical as soon as a plausible token is
   // typed/pasted, so the invitee sees what they're joining before
   // submitting - GET /auth/invite-info/{token} exists on the backend

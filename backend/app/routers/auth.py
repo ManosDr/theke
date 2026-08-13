@@ -24,7 +24,7 @@ from app.schemas import (
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
-from app.services.email import send_password_reset_email
+from app.services.email import send_password_reset_email, send_welcome_email
 from app.services.notifications import notify
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
 
@@ -176,6 +176,13 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
     )
     db.commit()
 
+    # Fires for both paths (invite-accepted and self-serve) - company.vertical_id
+    # is always set by this point either way (carried over from the inviting
+    # company, or set explicitly above on the new-company path).
+    company_vertical = db.get(Vertical, company.vertical_id)
+    if company_vertical:
+        send_welcome_email(user.email, company_vertical.slug, user.preferred_locale or "el")
+
     token = create_access_token(user_id=user.id, company_id=company.id, role=role)
     return TokenResponse(
         token=token,
@@ -271,7 +278,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
         )
         db.commit()
         reset_url = f"{settings.frontend_url}/reset-password?token={token}"
-        send_password_reset_email(user.email, reset_url, user.display_name)
+        send_password_reset_email(user.email, reset_url, user.preferred_locale or "el")
         # This line exists only so "a reset was requested" is observable in
         # logs, not to substitute for real delivery - see the docstring on
         # why the token/link itself never appears here.

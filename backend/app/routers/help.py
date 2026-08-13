@@ -14,6 +14,17 @@ from app.schemas import HelpSectionPublic
 
 router = APIRouter(tags=["help"])
 
+# Municipality companies share vertical_slug="construction" with real
+# construction firms (help_sections.vertical_scope has no separate
+# company-type dimension - see KNOWN_DECISIONS.md), but have no
+# project-creation feature at all (same isMunicipality distinction
+# chat/page.tsx's first-session hint and the dashboard welcome card's
+# "Δημιουργία Έργου" button already make). Sections that are specifically
+# about creating a project are excluded for municipality accounts here,
+# the same way those two surfaces already exclude their own
+# municipality-inapplicable content.
+MUNICIPALITY_EXCLUDED_SLUGS = frozenset({"project-construction"})
+
 
 @router.get("/help-sections", response_model=list[HelpSectionPublic])
 async def list_visible_help_sections(
@@ -28,13 +39,17 @@ async def list_visible_help_sections(
             vertical = db.get(Vertical, company.vertical_id)
             vertical_slug = vertical.slug if vertical else None
 
+    is_municipality = user.company_type == "municipality"
+
     rows = db.scalars(
         select(HelpSection).where(HelpSection.is_active.is_(True)).order_by(HelpSection.display_order, HelpSection.id)
     )
     visible = [
         r
         for r in rows
-        if user.role in r.visible_to_roles and (r.vertical_scope is None or r.vertical_scope == vertical_slug)
+        if user.role in r.visible_to_roles
+        and (r.vertical_scope is None or r.vertical_scope == vertical_slug)
+        and not (is_municipality and r.slug in MUNICIPALITY_EXCLUDED_SLUGS)
     ]
     return [
         HelpSectionPublic(

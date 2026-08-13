@@ -22,8 +22,9 @@ router = APIRouter(tags=["help"])
 # "Δημιουργία Έργου" button already make). Sections that are specifically
 # about creating a project are excluded for municipality accounts here,
 # the same way those two surfaces already exclude their own
-# municipality-inapplicable content.
-MUNICIPALITY_EXCLUDED_SLUGS = frozenset({"project-construction"})
+# municipality-inapplicable content. onboarding-construction also
+# instructs "δημιουργήστε πρώτα ένα έργο" and has the identical problem.
+MUNICIPALITY_EXCLUDED_SLUGS = frozenset({"project-construction", "onboarding-construction"})
 
 
 @router.get("/help-sections", response_model=list[HelpSectionPublic])

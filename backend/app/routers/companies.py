@@ -230,6 +230,7 @@ async def create_invite(
     if inviter and vertical and company:
         accept_url = f"{settings.frontend_url}/register?invite_token={invite.token}"
         send_invite_email(
+            db=db,
             to_email=invite.email,
             inviter_name=inviter.display_name,
             company_name=company.name,

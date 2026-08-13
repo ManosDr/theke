@@ -1949,3 +1949,67 @@ INSERT INTO region_discovery_settings (id, cadence_type, default_batch_size)
 VALUES (1, 'manual', 15)
 ON CONFLICT (id) DO NOTHING;
 
+-- Admin-editable content for the three transactional sends (invite,
+-- welcome, password_reset) - see app/services/email_templates.py for the
+-- {{variable}} substitution engine and app/services/email.py for how each
+-- is rendered/combined at send time. Structural HTML (button markup,
+-- header/footer chrome) stays code-owned; only wording is stored here.
+-- ON CONFLICT DO NOTHING so a live DB with admin-edited rows is never
+-- overwritten by a fresh init.sql apply, same discipline as legal_documents.
+CREATE TABLE IF NOT EXISTS email_templates (
+  id            serial PRIMARY KEY,
+  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset')),
+  subject_el    text NOT NULL,
+  subject_en    text NOT NULL,
+  body_el       text NOT NULL,
+  body_en       text NOT NULL,
+  updated_at    timestamp NOT NULL DEFAULT now(),
+  updated_by    integer REFERENCES users(id)
+);
+
+INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
+('invite',
+ '{{company_name}} σας προσκαλεί στο Theke',
+ 'You''ve been invited to Theke',
+ '<p>Γεια σας,</p>
+<p>Ο/Η <b>{{inviter_name}}</b> σας προσκαλεί να συμμετάσχετε στην ομάδα της <b>{{company_name}}</b> στο Theke, στον κλάδο <b>{{vertical_name}}</b>.</p>
+<p>Το Theke είναι εργαλείο κανονιστικής πληροφόρησης για επαγγελματίες {{audience}} — απαντά σε ερωτήσεις για {{examples}}, με παραπομπή σε επίσημες πηγές.</p>
+<p>Θα συμμετέχετε ως <b>{{role_label}}</b>.</p>
+{{accept_button_html}}
+<p>Ο σύνδεσμος ισχύει για {{expiry_label}}.</p>
+<p>Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {{email_from}}.</p>',
+ '<p style="font-size:13px; color:#737791;"><b>{{inviter_name}}</b> has invited you to join <b>{{company_name}}</b>''s team on Theke, a regulatory intelligence tool for {{audience_en}}. You''ll join as <b>{{role_label_en}}</b>. Use the button above to accept — the link is valid for {{expiry_label_en}}.</p>'
+),
+('welcome',
+ 'Καλώς ήρθατε στο Theke',
+ 'Welcome to Theke',
+ '<p>Γεια σας,</p>
+<p>Ο λογαριασμός σας στο Theke είναι έτοιμος. Έχετε ήδη πρόσβαση στη γνωσιακή βάση <b>{{vertical_name}}</b> και μπορείτε να ξεκινήσετε αμέσως.</p>
+<p><b>Δοκιμάστε μια από αυτές τις ερωτήσεις για να δείτε πώς λειτουργεί:</b></p>
+{{questions_html}}
+{{chat_button_html}}
+<p>Κάθε απάντηση συνοδεύεται από παραπομπές σε επίσημες πηγές (ΦΕΚ, ΤΕΕ, ΑΑΔΕ κ.ά.). Όταν δεν υπάρχει επαρκής πηγή, το Theke το δηλώνει ρητά αντί να μαντεύει.</p>
+<p>Μπορείτε επίσης να δημιουργήσετε το πρώτο σας έργο όποτε είστε έτοιμοι.</p>
+<p>Με εκτίμηση,<br>Theke</p>',
+ '<p>Hello,</p>
+<p>Your Theke account is ready, with access to the {{vertical_name}} knowledge base. Use the button below to ask your first question — every answer is cited against official sources, and Theke states plainly when it doesn''t have enough of one, rather than guessing.</p>
+{{chat_button_html}}
+<p>You can also create your first project whenever you''re ready.</p>
+<p>Theke</p>'
+),
+('password_reset',
+ 'Επαναφορά κωδικού πρόσβασης — Theke',
+ 'Password reset — Theke',
+ '<p>Γεια σας,</p>
+<p>Λάβαμε αίτημα επαναφοράς του κωδικού πρόσβασής σας στο Theke.</p>
+{{reset_button_html}}
+<p>Ο σύνδεσμος ισχύει για {{expiry_label}}. Αν δεν ζητήσατε εσείς αυτή την ενέργεια, αγνοήστε αυτό το μήνυμα — ο κωδικός σας παραμένει αμετάβλητος.</p>
+<p style="font-size:13px; color:#737791;">Για λόγους ασφαλείας, μην προωθήσετε αυτό το μήνυμα σε τρίτους.</p>',
+ '<p>Hello,</p>
+<p>We received a request to reset your Theke password.</p>
+{{reset_button_html}}
+<p>The link is valid for {{expiry_label}}. If you didn''t request this, no action is needed — your password is unchanged.</p>
+<p style="font-size:13px; color:#737791;">For security reasons, don''t forward this message to anyone else.</p>'
+)
+ON CONFLICT (template_key) DO NOTHING;
+

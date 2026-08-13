@@ -84,10 +84,11 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals" || p === "/admin/legal-documents",
+    match: (p: string) => p === "/admin/verticals" || p === "/admin/legal-documents" || p === "/admin/email-templates",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
       { href: "/admin/legal-documents", labelKey: "nav.legalDocuments", match: (p: string) => p === "/admin/legal-documents" },
+      { href: "/admin/email-templates", labelKey: "nav.emailTemplates", match: (p: string) => p === "/admin/email-templates" },
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
     ],
   },

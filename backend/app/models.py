@@ -897,6 +897,27 @@ class LegalDocument(Base):
     updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
 
+class EmailTemplate(Base):
+    """Admin-editable content for the three transactional sends (invite,
+    welcome, password_reset) - see app/services/email_templates.py for the
+    {{variable}} substitution this feeds. subject_el/body_el and
+    subject_en/body_en are separate full fields per language, not a single
+    bilingual blob; how they're combined (invite: both, glued together;
+    welcome/password_reset: whichever matches the recipient's locale) is a
+    send-time code decision, not stored here."""
+
+    __tablename__ = "email_templates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    template_key: Mapped[str] = mapped_column(Text, unique=True)
+    subject_el: Mapped[str] = mapped_column(Text)
+    subject_en: Mapped[str] = mapped_column(Text)
+    body_el: Mapped[str] = mapped_column(Text)
+    body_en: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
+    updated_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
 class AuditLog(Base):
     __tablename__ = "audit_log"
 

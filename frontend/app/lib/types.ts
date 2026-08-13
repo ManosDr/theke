@@ -976,3 +976,19 @@ export interface LegalDocumentAdminDetail extends LegalDocumentAdminSummary {
   content: string;
   placeholders: string[];
 }
+
+export type EmailTemplateKey = "invite" | "welcome" | "password_reset";
+
+export interface EmailTemplateSummary {
+  template_key: EmailTemplateKey;
+  subject_el: string;
+  updated_at: string;
+  updated_by_name: string | null;
+}
+
+export interface EmailTemplateDetail extends EmailTemplateSummary {
+  subject_en: string;
+  body_el: string;
+  body_en: string;
+  available_variables: string[];
+}

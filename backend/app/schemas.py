@@ -1623,3 +1623,35 @@ class LegalDocumentPublishError(BaseModel):
 
 class LegalDocumentUnpublishRequest(BaseModel):
     confirmed: bool = False
+
+
+class EmailTemplateSummary(BaseModel):
+    """One card's worth of data for the admin email-templates screen - no
+    body content, so the list endpoint stays light, same split as
+    LegalDocumentAdminSummary/Detail."""
+
+    template_key: Literal["invite", "welcome", "password_reset"]
+    subject_el: str
+    updated_at: datetime
+    updated_by_name: str | None
+
+
+class EmailTemplateDetail(EmailTemplateSummary):
+    subject_en: str
+    body_el: str
+    body_en: str
+    available_variables: list[str]
+
+
+class EmailTemplateSaveRequest(BaseModel):
+    subject_el: str = Field(min_length=1)
+    subject_en: str = Field(min_length=1)
+    body_el: str = Field(min_length=1)
+    body_en: str = Field(min_length=1)
+
+
+class EmailTemplateTestSendRequest(BaseModel):
+    subject_el: str
+    subject_en: str
+    body_el: str
+    body_en: str

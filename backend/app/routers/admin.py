@@ -19,6 +19,7 @@ from app.models import (
     DataSource,
     Document,
     DocumentValidation,
+    EmailTemplate,
     Embedding,
     InfraHealthCheck,
     Invite,
@@ -70,6 +71,10 @@ from app.schemas import (
     DocumentSummary,
     DocumentValidationResult,
     EmailStatusResponse,
+    EmailTemplateDetail,
+    EmailTemplateSaveRequest,
+    EmailTemplateSummary,
+    EmailTemplateTestSendRequest,
     ExtendTrialRequest,
     FeedbackEntry,
     FeedbackListResponse,
@@ -135,6 +140,11 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
+from app.services.email_templates import (
+    ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
+    TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
+    find_unknown_placeholders,
+)
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
@@ -2777,6 +2787,106 @@ async def unpublish_legal_document(
         **_legal_summary(doc, names.get(doc.updated_by)).model_dump(),
         content=doc.content,
         placeholders=find_placeholders(doc.content),
+    )
+
+
+def _email_template_updated_by_names(db: Session, rows: list[EmailTemplate]) -> dict[int, str]:
+    user_ids = {r.updated_by for r in rows if r.updated_by is not None}
+    if not user_ids:
+        return {}
+    rows_ = db.scalars(select(User).where(User.id.in_(user_ids)))
+    return {u.id: f"{u.first_name or ''} {u.last_name or ''}".strip() or u.email for u in rows_}
+
+
+def _email_template_summary(row: EmailTemplate, updated_by_name: str | None) -> EmailTemplateSummary:
+    return EmailTemplateSummary(
+        template_key=row.template_key,
+        subject_el=row.subject_el,
+        updated_at=row.updated_at,
+        updated_by_name=updated_by_name,
+    )
+
+
+@router.get("/email-templates", response_model=list[EmailTemplateSummary])
+async def list_email_templates(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> list[EmailTemplateSummary]:
+    require_super_admin(user)
+    rows = list(db.scalars(select(EmailTemplate).order_by(EmailTemplate.template_key)))
+    names = _email_template_updated_by_names(db, rows)
+    return [_email_template_summary(r, names.get(r.updated_by)) for r in rows]
+
+
+@router.get("/email-templates/{template_key}", response_model=EmailTemplateDetail)
+async def get_email_template(
+    template_key: str,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> EmailTemplateDetail:
+    require_super_admin(user)
+    if template_key not in EMAIL_TEMPLATE_KEYS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown email template")
+    row = db.scalar(select(EmailTemplate).where(EmailTemplate.template_key == template_key))
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown email template")
+    names = _email_template_updated_by_names(db, [row])
+    return EmailTemplateDetail(
+        **_email_template_summary(row, names.get(row.updated_by)).model_dump(),
+        subject_en=row.subject_en,
+        body_el=row.body_el,
+        body_en=row.body_en,
+        available_variables=sorted(EMAIL_TEMPLATE_VARIABLES.get(template_key, set())),
+    )
+
+
+@router.patch("/email-templates/{template_key}", response_model=EmailTemplateDetail)
+async def save_email_template(
+    template_key: str,
+    payload: EmailTemplateSaveRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> EmailTemplateDetail:
+    """Blocked (422) if any field contains a `{{variable}}` this template
+    doesn't recognize - same reasoning as the legal-document placeholder
+    gate: catch a typo'd/foreign variable name immediately rather than let
+    it show up as a blank spot (or worse, leak raw) in a real send."""
+    require_super_admin(user)
+    if template_key not in EMAIL_TEMPLATE_KEYS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown email template")
+    row = db.scalar(select(EmailTemplate).where(EmailTemplate.template_key == template_key))
+    if not row:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown email template")
+
+    unknown = find_unknown_placeholders(template_key, payload.subject_el, payload.subject_en, payload.body_el, payload.body_en)
+    if unknown:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail={
+                "message": f"Άγνωστες μεταβλητές: {', '.join(unknown)}",
+                "placeholders": unknown,
+            },
+        )
+
+    row.subject_el = payload.subject_el
+    row.subject_en = payload.subject_en
+    row.body_el = payload.body_el
+    row.body_en = payload.body_en
+    row.updated_by = user.user_id
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="email_template_saved", resource_type="email_template", resource_id=row.id,
+        metadata={"template_key": template_key},
+    )
+    db.commit()
+    db.refresh(row)
+    names = _email_template_updated_by_names(db, [row])
+    return EmailTemplateDetail(
+        **_email_template_summary(row, names.get(row.updated_by)).model_dump(),
+        subject_en=row.subject_en,
+        body_el=row.body_el,
+        body_en=row.body_en,
+        available_variables=sorted(EMAIL_TEMPLATE_VARIABLES.get(template_key, set())),
     )
 
 

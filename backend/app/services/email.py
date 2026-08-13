@@ -1,8 +1,12 @@
+import html
 import logging
+import re
 
 import resend
+from sqlalchemy.orm import Session
 
 from app.config import settings
+from app.services.email_templates import get_template, render
 
 logger = logging.getLogger(__name__)
 
@@ -161,7 +165,53 @@ def _send(to_email: str, subject: str, html: str, text: str) -> bool:
         return False
 
 
+_TAG_RE = re.compile(r"<[^>]+>")
+
+
+def _html_to_text(html_content: str) -> str:
+    """Best-effort plain-text alternative, derived from the (admin-edited)
+    HTML body rather than hand-written separately - once the body is
+    admin-editable, a hand-written text twin would silently drift from
+    whatever the admin last saved. Good enough for an email client's plain-
+    text fallback; not a general HTML-to-Markdown converter."""
+    text = re.sub(r"<br\s*/?>", "\n", html_content, flags=re.IGNORECASE)
+    text = re.sub(r"</p>", "\n\n", text, flags=re.IGNORECASE)
+    text = re.sub(r"<li[^>]*>", "- ", text, flags=re.IGNORECASE)
+    text = re.sub(r"</li>", "\n", text, flags=re.IGNORECASE)
+    text = _TAG_RE.sub("", text)
+    text = html.unescape(text)
+    return re.sub(r"\n{3,}", "\n\n", text).strip()
+
+
+def _derive_preheader(html_content: str, limit: int = 150) -> str:
+    text = _html_to_text(html_content).replace("\n", " ")
+    text = re.sub(r"\s{2,}", " ", text).strip()
+    return text[:limit]
+
+
+def _invite_variables(
+    inviter_name: str, company_name: str, vertical_slug: str, role: str, accept_url: str, expiry_days: int
+) -> dict[str, str]:
+    expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
+    expiry_label_en = f"{expiry_days} days" if expiry_days != 1 else "1 day"
+    return {
+        "inviter_name": inviter_name,
+        "company_name": company_name,
+        "vertical_name": _VERTICAL_NAME["el"][vertical_slug],
+        "audience": _VERTICAL_AUDIENCE["el"][vertical_slug],
+        "audience_en": _VERTICAL_AUDIENCE["en"][vertical_slug],
+        "examples": _VERTICAL_EXAMPLES_EL[vertical_slug],
+        "role_label": _ROLE_LABEL["el"][role],
+        "role_label_en": _ROLE_LABEL["en"][role],
+        "expiry_label": expiry_label,
+        "expiry_label_en": expiry_label_en,
+        "email_from": settings.email_from,
+        "accept_button_html": _button_html(accept_url, "Αποδοχή πρόσκλησης"),
+    }
+
+
 def send_invite_email(
+    db: Session,
     to_email: str,
     inviter_name: str,
     company_name: str,
@@ -172,162 +222,98 @@ def send_invite_email(
 ) -> bool:
     """Invite email - always Greek-primary/English-secondary regardless of
     locale, since the invitee has no account (and thus no preferred_locale)
-    yet at send time. Vertical-conditional per _VERTICAL_* dicts."""
-    locale = "el"
-    vertical_name = _VERTICAL_NAME[locale][vertical_slug]
-    vertical_name_en = _VERTICAL_NAME["en"][vertical_slug]
-    audience = _VERTICAL_AUDIENCE[locale][vertical_slug]
-    audience_en = _VERTICAL_AUDIENCE["en"][vertical_slug]
-    examples = _VERTICAL_EXAMPLES_EL[vertical_slug]
-    role_label = _ROLE_LABEL[locale][role]
-    role_label_en = _ROLE_LABEL["en"][role]
-    expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
-    expiry_label_en = f"{expiry_days} days" if expiry_days != 1 else "1 day"
+    yet at send time. Content comes from the admin-editable email_templates
+    row ('invite'); subject/body are combined el+en (both fields always
+    used together), unlike welcome/password_reset which pick one locale."""
+    row = get_template(db, "invite")
+    if row is None:
+        logger.error("Email template 'invite' missing from email_templates - skipping send")
+        return False
 
-    subject = f"{company_name} σας προσκαλεί στο Theke · You've been invited to Theke"
-    preheader = f"Ο/Η {inviter_name} σας προσκάλεσε να συμμετάσχετε ως {role_label} στο πλάνο {vertical_name}."
+    variables = _invite_variables(inviter_name, company_name, vertical_slug, role, accept_url, expiry_days)
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
 
-    body_html = f"""\
-<p>Γεια σας,</p>
-<p>Ο/Η <b>{inviter_name}</b> σας προσκαλεί να συμμετάσχετε στην ομάδα της <b>{company_name}</b> στο Theke, στον κλάδο <b>{vertical_name}</b>.</p>
-<p>Το Theke είναι εργαλείο κανονιστικής πληροφόρησης για επαγγελματίες {audience} — απαντά σε ερωτήσεις για {examples}, με παραπομπή σε επίσημες πηγές.</p>
-<p>Θα συμμετέχετε ως <b>{role_label}</b>.</p>
-{_button_html(accept_url, "Αποδοχή πρόσκλησης")}
-<p>Ο σύνδεσμος ισχύει για {expiry_label}.</p>
-<p>Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {settings.email_from}.</p>
-<hr style="border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;">
-<p style="font-size:13px; color:{_COLOR_TEXT_MUTED};"><b>{inviter_name}</b> has invited you to join <b>{company_name}</b>'s team on Theke, a regulatory intelligence tool for {audience_en}. You'll join as <b>{role_label_en}</b>. Use the button above to accept — the link is valid for {expiry_label_en}.</p>
-<p style="font-size:13px; color:{_COLOR_TEXT_MUTED};">Theke</p>
-"""
-    html = _base_html(subject, preheader, body_html, locale)
-
-    text = (
-        f"Γεια σας,\n\n"
-        f"Ο/Η {inviter_name} σας προσκαλεί να συμμετάσχετε στην ομάδα της {company_name} στο Theke, στον κλάδο {vertical_name}.\n\n"
-        f"Το Theke είναι εργαλείο κανονιστικής πληροφόρησης για επαγγελματίες {audience} — απαντά σε ερωτήσεις για {examples}, με παραπομπή σε επίσημες πηγές.\n\n"
-        f"Θα συμμετέχετε ως {role_label}.\n\n"
-        f"Αποδοχή πρόσκλησης: {accept_url}\n\n"
-        f"Ο σύνδεσμος ισχύει για {expiry_label}.\n\n"
-        f"Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {settings.email_from}.\n\n"
-        f"---\n\n"
-        f"{inviter_name} has invited you to join {company_name}'s team on Theke, a regulatory intelligence tool for {audience_en}. "
-        f"You'll join as {role_label_en}. Accept: {accept_url} (valid for {expiry_label_en}).\n\n"
-        f"Theke"
-    )
-    return _send(to_email, subject, html, text)
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
+    return _send(to_email, subject, html_content, text)
 
 
-def send_welcome_email(to_email: str, vertical_slug: str, locale: str = "el") -> bool:
+def send_welcome_email(db: Session, to_email: str, vertical_slug: str, locale: str = "el") -> bool:
     """Fires once, right after registration completes (invite-accepted or
     self-serve) - a deliberate lever against the most common first-session
     failure mode (leading with a hard edge-case question before seeing the
     product succeed at anything), by steering toward a concrete first
     question. locale is the real user's preferred_locale, known at this
-    point (unlike the invite email, sent before an account exists)."""
-    chat_url = f"{settings.frontend_url}/chat"
+    point (unlike the invite email, sent before an account exists).
+    Content comes from the admin-editable email_templates row ('welcome');
+    unlike invite, only the matching locale's subject/body is used, never
+    both combined."""
+    row = get_template(db, "welcome")
+    if row is None:
+        logger.error("Email template 'welcome' missing from email_templates - skipping send")
+        return False
 
+    chat_url = f"{settings.frontend_url}/chat"
     if locale == "en":
         vertical_name = _VERTICAL_NAME["en"][vertical_slug]
-        subject = "Welcome to Theke"
-        preheader = "Your account is ready. See how to ask your first question."
-        body_html = f"""\
-<p>Hello,</p>
-<p>Your Theke account is ready, with access to the {vertical_name} knowledge base. Use the button below to ask your first question — every answer is cited against official sources, and Theke states plainly when it doesn't have enough of one, rather than guessing.</p>
-{_button_html(chat_url, "Ask your first question")}
-<p>You can also create your first project whenever you're ready.</p>
-<p>Theke</p>
-"""
-        text = (
-            f"Hello,\n\nYour Theke account is ready, with access to the {vertical_name} knowledge base. "
-            f"Use the link below to ask your first question — every answer is cited against official sources, "
-            f"and Theke states plainly when it doesn't have enough of one, rather than guessing.\n\n"
-            f"Ask your first question: {chat_url}\n\n"
-            f"You can also create your first project whenever you're ready.\n\nTheke"
+        variables = {"vertical_name": vertical_name, "chat_button_html": _button_html(chat_url, "Ask your first question")}
+    else:
+        vertical_name = _VERTICAL_NAME["el"][vertical_slug]
+        questions = _VERTICAL_QUESTIONS_EL[vertical_slug]
+        questions_html = (
+            f'<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">'
+            f'<ul style="margin:0; padding-left:20px;">' + "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions) + "</ul></div>"
         )
-        return _send(to_email, subject, _base_html(subject, preheader, body_html, "en"), text)
+        variables = {
+            "vertical_name": vertical_name,
+            "chat_button_html": _button_html(chat_url, "Κάντε την πρώτη σας ερώτηση"),
+            "questions_html": questions_html,
+        }
 
-    vertical_name = _VERTICAL_NAME["el"][vertical_slug]
-    questions = _VERTICAL_QUESTIONS_EL[vertical_slug]
-    questions_html = "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions)
-    subject = "Καλώς ήρθατε στο Theke · Welcome to Theke"
-    preheader = "Ο λογαριασμός σας είναι έτοιμος. Δείτε πώς να κάνετε την πρώτη σας ερώτηση."
-
-    body_html = f"""\
-<p>Γεια σας,</p>
-<p>Ο λογαριασμός σας στο Theke είναι έτοιμος. Έχετε ήδη πρόσβαση στη γνωσιακή βάση <b>{vertical_name}</b> και μπορείτε να ξεκινήσετε αμέσως.</p>
-<p><b>Δοκιμάστε μια από αυτές τις ερωτήσεις για να δείτε πώς λειτουργεί:</b></p>
-<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">
-<ul style="margin:0; padding-left:20px;">{questions_html}</ul>
-</div>
-{_button_html(chat_url, "Κάντε την πρώτη σας ερώτηση")}
-<p>Κάθε απάντηση συνοδεύεται από παραπομπές σε επίσημες πηγές (ΦΕΚ, ΤΕΕ, ΑΑΔΕ κ.ά.). Όταν δεν υπάρχει επαρκής πηγή, το Theke το δηλώνει ρητά αντί να μαντεύει.</p>
-<p>Μπορείτε επίσης να δημιουργήσετε το πρώτο σας έργο όποτε είστε έτοιμοι.</p>
-<p>Με εκτίμηση,<br>Theke</p>
-"""
-    html = _base_html(subject, preheader, body_html, "el")
-
-    text = (
-        f"Γεια σας,\n\nΟ λογαριασμός σας στο Theke είναι έτοιμος. Έχετε ήδη πρόσβαση στη γνωσιακή βάση {vertical_name} "
-        f"και μπορείτε να ξεκινήσετε αμέσως.\n\n"
-        f"Δοκιμάστε μια από αυτές τις ερωτήσεις για να δείτε πώς λειτουργεί:\n"
-        + "".join(f"- {q}\n" for q in questions)
-        + f"\nΚάντε την πρώτη σας ερώτηση: {chat_url}\n\n"
-        f"Κάθε απάντηση συνοδεύεται από παραπομπές σε επίσημες πηγές (ΦΕΚ, ΤΕΕ, ΑΑΔΕ κ.ά.). "
-        f"Όταν δεν υπάρχει επαρκής πηγή, το Theke το δηλώνει ρητά αντί να μαντεύει.\n\n"
-        f"Μπορείτε επίσης να δημιουργήσετε το πρώτο σας έργο όποτε είστε έτοιμοι.\n\n"
-        f"Με εκτίμηση,\nTheke"
-    )
-    return _send(to_email, subject, html, text)
+    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
+    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
+    preheader = _derive_preheader(body_html)
+    html_content = _base_html(subject, preheader, body_html, locale)
+    text = _html_to_text(body_html)
+    return _send(to_email, subject, html_content, text)
 
 
-def send_password_reset_email(to_email: str, reset_url: str, locale: str = "el") -> bool:
+def send_password_reset_email(db: Session, to_email: str, reset_url: str, locale: str = "el") -> bool:
     """Sends a password-reset email via Resend. Returns True on success,
     False if email is disabled or the send fails - never raises, so the
     caller can fall back to logging the link either way without a
-    try/except of its own.
+    try/except of its own. Content comes from the admin-editable
+    email_templates row ('password_reset'); only the matching locale's
+    subject/body is used.
 
     Deliberately the plainest of the three sends - no hero band, no card
     block, no bulleted content, per the transactional-email spec: an
     over-branded, image-heavy security email reads as more suspicious to a
     security-conscious professional than a plain one does. No sign-off
     block either, for the same reason."""
+    row = get_template(db, "password_reset")
+    if row is None:
+        logger.error("Email template 'password_reset' missing from email_templates - skipping send")
+        return False
+
     expiry_minutes = settings.password_reset_token_expire_minutes
-    expiry_label_el = f"{expiry_minutes} λεπτά" if expiry_minutes != 60 else "1 ώρα"
-    expiry_label_en = f"{expiry_minutes} minutes" if expiry_minutes != 60 else "1 hour"
-
     if locale == "en":
-        subject = "Password reset — Theke"
-        preheader = f"The link is valid for {expiry_label_en}."
-        body_html = f"""\
-<p>Hello,</p>
-<p>We received a request to reset your Theke password.</p>
-{_button_html(reset_url, "Reset password")}
-<p>The link is valid for {expiry_label_en}. If you didn't request this, no action is needed — your password is unchanged.</p>
-<p style="font-size:13px; color:{_COLOR_TEXT_MUTED};">For security reasons, don't forward this message to anyone else.</p>
-"""
-        text = (
-            f"Hello,\n\nWe received a request to reset your Theke password.\n\n"
-            f"Reset password: {reset_url}\n\n"
-            f"The link is valid for {expiry_label_en}. If you didn't request this, no action is needed — your password is unchanged.\n\n"
-            f"For security reasons, don't forward this message to anyone else."
-        )
-        return _send(to_email, subject, _base_html(subject, preheader, body_html, "en"), text)
+        expiry_label = f"{expiry_minutes} minutes" if expiry_minutes != 60 else "1 hour"
+        button_label = "Reset password"
+    else:
+        expiry_label = f"{expiry_minutes} λεπτά" if expiry_minutes != 60 else "1 ώρα"
+        button_label = "Επαναφορά κωδικού"
+    variables = {"reset_button_html": _button_html(reset_url, button_label), "expiry_label": expiry_label}
 
-    subject = "Επαναφορά κωδικού πρόσβασης — Theke"
-    preheader = f"Ο σύνδεσμος ισχύει για {expiry_label_el}."
-    body_html = f"""\
-<p>Γεια σας,</p>
-<p>Λάβαμε αίτημα επαναφοράς του κωδικού πρόσβασής σας στο Theke.</p>
-{_button_html(reset_url, "Επαναφορά κωδικού")}
-<p>Ο σύνδεσμος ισχύει για {expiry_label_el}. Αν δεν ζητήσατε εσείς αυτή την ενέργεια, αγνοήστε αυτό το μήνυμα — ο κωδικός σας παραμένει αμετάβλητος.</p>
-<p style="font-size:13px; color:{_COLOR_TEXT_MUTED};">Για λόγους ασφαλείας, μην προωθήσετε αυτό το μήνυμα σε τρίτους.</p>
-"""
-    html = _base_html(subject, preheader, body_html, "el")
-    text = (
-        f"Γεια σας,\n\nΛάβαμε αίτημα επαναφοράς του κωδικού πρόσβασής σας στο Theke.\n\n"
-        f"Επαναφορά κωδικού: {reset_url}\n\n"
-        f"Ο σύνδεσμος ισχύει για {expiry_label_el}. Αν δεν ζητήσατε εσείς αυτή την ενέργεια, αγνοήστε αυτό το μήνυμα — "
-        f"ο κωδικός σας παραμένει αμετάβλητος.\n\n"
-        f"Για λόγους ασφαλείας, μην προωθήσετε αυτό το μήνυμα σε τρίτους."
-    )
-    return _send(to_email, subject, html, text)
+    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
+    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
+    preheader = _derive_preheader(body_html)
+    html_content = _base_html(subject, preheader, body_html, locale)
+    text = _html_to_text(body_html)
+    return _send(to_email, subject, html_content, text)

@@ -74,6 +74,14 @@ class ResetPasswordRequest(BaseModel):
     new_password: str = Field(min_length=8)
 
 
+class VerifyEmailRequest(BaseModel):
+    token: str
+
+
+class ResendVerificationResponse(BaseModel):
+    message: str
+
+
 class TokenResponse(BaseModel):
     token: str
     company_id: int | None = None
@@ -83,6 +91,7 @@ class TokenResponse(BaseModel):
     last_name: str | None = None
     preferred_locale: str | None = None
     preferred_theme: str | None = None
+    email_verified: bool = True
 
 
 class UpdateLocaleRequest(BaseModel):

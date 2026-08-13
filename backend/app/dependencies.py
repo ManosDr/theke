@@ -23,6 +23,7 @@ class CurrentUser:
     role: str
     company_type: str | None
     preferred_locale: str | None = None
+    email_verified: bool = True
 
 
 def get_current_user(
@@ -55,6 +56,7 @@ def get_current_user(
         role=user.role,
         company_type=company_type,
         preferred_locale=user.preferred_locale,
+        email_verified=user.email_verified,
     )
 
 

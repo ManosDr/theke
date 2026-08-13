@@ -977,7 +977,7 @@ export interface LegalDocumentAdminDetail extends LegalDocumentAdminSummary {
   placeholders: string[];
 }
 
-export type EmailTemplateKey = "invite" | "welcome" | "password_reset";
+export type EmailTemplateKey = "invite" | "welcome" | "password_reset" | "email_verification";
 
 export interface EmailTemplateSummary {
   template_key: EmailTemplateKey;

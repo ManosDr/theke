@@ -52,6 +52,7 @@ export interface AuthUser {
   lastName: string | null;
   preferredLocale: string | null;
   preferredTheme: string | null;
+  emailVerified: boolean;
 }
 
 interface TokenResponse {
@@ -63,6 +64,7 @@ interface TokenResponse {
   last_name: string | null;
   preferred_locale: string | null;
   preferred_theme: string | null;
+  email_verified: boolean;
 }
 
 interface AuthContextValue {
@@ -72,6 +74,7 @@ interface AuthContextValue {
   logout: () => void;
   updatePreferredLocale: (locale: string) => Promise<void>;
   updatePreferredTheme: (theme: string) => Promise<void>;
+  markEmailVerified: () => void;
   showSessionExpiryWarning: boolean;
   dismissSessionExpiryWarning: () => void;
 }
@@ -100,6 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     if (raw) {
       try {
         const stored = JSON.parse(raw) as AuthUser;
+        // Sessions persisted before emailVerified existed have no such key
+        // in localStorage - default true (matches the DB's own default for
+        // every pre-existing account) rather than treating them as
+        // suddenly unverified.
+        if (stored.emailVerified === undefined) stored.emailVerified = true;
         setUser(stored);
         scheduleExpiryWarning(stored.token);
       } catch {
@@ -125,6 +133,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       lastName: data.last_name,
       preferredLocale: data.preferred_locale,
       preferredTheme: data.preferred_theme,
+      emailVerified: data.email_verified,
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
@@ -158,6 +167,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(updated);
   }
 
+  // Called by the /verify-email page after a successful POST /auth/verify-
+  // email, purely local state - no extra API round-trip, since the backend
+  // call that just succeeded already did the actual work.
+  function markEmailVerified() {
+    if (!user) return;
+    const updated = { ...user, emailVerified: true };
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(updated));
+    setUser(updated);
+  }
+
   return (
     <AuthContext.Provider
       value={{
@@ -167,6 +186,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         logout,
         updatePreferredLocale,
         updatePreferredTheme,
+        markEmailVerified,
         showSessionExpiryWarning,
         dismissSessionExpiryWarning,
       }}

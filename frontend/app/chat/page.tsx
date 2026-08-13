@@ -231,6 +231,24 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
+  const [resendingVerification, setResendingVerification] = useState(false);
+  const [verificationResent, setVerificationResent] = useState(false);
+
+  async function handleResendVerification() {
+    if (!token || resendingVerification) return;
+    setResendingVerification(true);
+    try {
+      await api.post("/auth/resend-verification", {}, token);
+      setVerificationResent(true);
+    } catch {
+      // Silently ignored - a failed resend just leaves the button
+      // clickable again, same low-ceremony handling the rest of this page
+      // gives non-critical background calls.
+    } finally {
+      setResendingVerification(false);
+    }
+  }
+
   // Swipe-down-to-close on the sheet's drag handle - a plain touch-delta
   // threshold, not a full drag-follows-finger gesture library; closes once
   // a downward swipe clears SWIPE_CLOSE_THRESHOLD_PX, same as tapping the
@@ -1108,6 +1126,35 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           <span className={styles.mobileContextStripText}>{contextStripLabel}</span>
           <ChevronIcon size={14} />
         </button>
+
+        {user && !user.emailVerified && (
+          <div className={styles.chatHeaderBar}>
+            <span className={styles.rateLimitIndicator} data-level="warning">
+              {t("chat.emailNotVerifiedBanner")}
+            </span>
+            {verificationResent ? (
+              <span className={styles.rateLimitIndicator}>{t("chat.emailNotVerifiedResendSent")}</span>
+            ) : (
+              <button
+                type="button"
+                onClick={handleResendVerification}
+                disabled={resendingVerification}
+                style={{
+                  background: "none",
+                  border: "none",
+                  padding: 0,
+                  color: "var(--color-link)",
+                  font: "inherit",
+                  fontSize: "0.75rem",
+                  cursor: resendingVerification ? "default" : "pointer",
+                  textDecoration: "underline",
+                }}
+              >
+                {t("chat.emailNotVerifiedResend")}
+              </button>
+            )}
+          </div>
+        )}
 
         {(showPoolWarning || showRateLimitWarning) && (
           <div className={styles.chatHeaderBar}>

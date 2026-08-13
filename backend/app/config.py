@@ -17,6 +17,11 @@ class Settings(BaseSettings):
     # (see app/routers/auth.py and KNOWN_DECISIONS.md).
     frontend_url: str = "http://localhost:3000"
     password_reset_token_expire_minutes: int = 60
+    # Longer than the password-reset window (60 min) - a verification link
+    # is low-urgency (no account-takeover risk if it sits unclicked for a
+    # few days) and clicking it isn't blocking anything the account can't
+    # already do (see chat.py - only message-sending is gated on this).
+    email_verification_token_expire_minutes: int = 4320  # 3 days
 
     # Resend (https://resend.com) for transactional email - currently just
     # password-reset links (see app/services/email.py). email_enabled must

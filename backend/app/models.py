@@ -120,6 +120,21 @@ class PasswordResetToken(Base):
     used_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class EmailVerificationToken(Base):
+    """Same shape as PasswordResetToken - see app/routers/auth.py's
+    /auth/register (self-serve branch), /auth/verify-email, and
+    /auth/resend-verification."""
+
+    __tablename__ = "email_verification_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
 class User(Base):
     __tablename__ = "users"
 
@@ -131,6 +146,16 @@ class User(Base):
     role: Mapped[str] = mapped_column(Text, default="member")  # 'super_admin', 'admin', 'member'
     is_active: Mapped[bool] = mapped_column(default=True)
     password_hash: Mapped[str] = mapped_column(Text)
+    # Default True - the general case (invite-completions, admin-created
+    # users, demo seed accounts) needs no verification step. Only
+    # /auth/register's self-serve (company_name) branch explicitly sets this
+    # False and sends a real verification email; invite-completions are
+    # skipped because the inviting admin already vouched for that email.
+    # Gates POST /chat/message only (see chat.py) - not every write
+    # endpoint, to keep the blast radius of this check small; see
+    # KNOWN_DECISIONS.md.
+    email_verified: Mapped[bool] = mapped_column(default=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(DateTime)
     preferred_locale: Mapped[str | None] = mapped_column(Text)
     preferred_theme: Mapped[str | None] = mapped_column(Text)  # 'light' or 'dark'; NULL defaults to 'light'
     phone: Mapped[str | None] = mapped_column(Text)

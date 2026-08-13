@@ -319,6 +319,38 @@ def send_password_reset_email(db: Session, to_email: str, reset_url: str, locale
     return _send(to_email, subject, html_content, text)
 
 
+def send_verification_email(db: Session, to_email: str, verify_url: str, locale: str = "el") -> bool:
+    """Sent once from /auth/register's self-serve branch (and again from
+    POST /auth/resend-verification on request) - never for invite-completions,
+    which skip verification entirely since the inviting admin already vouched
+    for that email (see KNOWN_DECISIONS.md). Same plain, no-hero-band
+    treatment as send_password_reset_email, for the same reason: a single
+    actionable security/account link reads as more trustworthy without
+    marketing-style chrome. Content comes from the admin-editable
+    email_templates row ('email_verification')."""
+    row = get_template(db, "email_verification")
+    if row is None:
+        logger.error("Email template 'email_verification' missing from email_templates - skipping send")
+        return False
+
+    expiry_minutes = settings.email_verification_token_expire_minutes
+    expiry_days = expiry_minutes // 1440
+    if locale == "en":
+        expiry_label = f"{expiry_days} days" if expiry_days != 1 else "1 day"
+        button_label = "Verify email address"
+    else:
+        expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
+        button_label = "Επιβεβαίωση email"
+    variables = {"verify_button_html": _button_html(verify_url, button_label), "expiry_label": expiry_label}
+
+    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
+    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
+    preheader = _derive_preheader(body_html)
+    html_content = _base_html(subject, preheader, body_html, locale)
+    text = _html_to_text(body_html)
+    return _send(to_email, subject, html_content, text)
+
+
 def _test_send_variables(template_key: str) -> dict[str, str]:
     """Realistic-but-fake substitution values for the admin test-send
     button, so a preview looks like a real email rather than a page full of
@@ -343,6 +375,12 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             "vertical_name": _VERTICAL_NAME["el"]["construction"],
             "questions_html": questions_html,
             "chat_button_html": _button_html(f"{settings.frontend_url}/chat", "Κάντε την πρώτη σας ερώτηση"),
+        }
+    if template_key == "email_verification":
+        expiry_days = settings.email_verification_token_expire_minutes // 1440
+        return {
+            "verify_button_html": _button_html(f"{settings.frontend_url}/verify-email?token=sample-test-token", "Επιβεβαίωση email"),
+            "expiry_label": f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα",
         }
     # password_reset
     return {

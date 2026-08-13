@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, Invite, LegalDocument, PasswordResetToken, User, Vertical
+from app.models import Company, EmailVerificationToken, Invite, LegalDocument, PasswordResetToken, User, Vertical
 from app.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
@@ -17,20 +17,41 @@ from app.schemas import (
     InviteInfoResponse,
     LoginRequest,
     RegisterRequest,
+    ResendVerificationResponse,
     ResetPasswordRequest,
     TokenResponse,
     UpdateLocaleRequest,
     UpdateThemeRequest,
+    VerifyEmailRequest,
 )
 from app.security import create_access_token, hash_password, verify_password
 from app.services.audit import log_action
-from app.services.email import send_password_reset_email, send_welcome_email
+from app.services.email import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.notifications import notify
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+
+def _issue_and_send_verification(db: Session, user: User) -> None:
+    """Shared by /auth/register's self-serve branch and
+    /auth/resend-verification - generates a fresh token (old ones, if any,
+    are simply left to expire naturally rather than explicitly revoked,
+    same laissez-faire approach as password-reset tokens) and sends the
+    email via the admin-editable 'email_verification' template."""
+    token = secrets.token_urlsafe(32)
+    db.add(
+        EmailVerificationToken(
+            user_id=user.id,
+            token=token,
+            expires_at=datetime.utcnow() + timedelta(minutes=settings.email_verification_token_expire_minutes),
+        )
+    )
+    db.commit()
+    verify_url = f"{settings.frontend_url}/verify-email?token={token}"
+    send_verification_email(db, user.email, verify_url, user.preferred_locale or "el")
 
 @router.get("/invite-info/{token}", response_model=InviteInfoResponse)
 async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
@@ -144,6 +165,13 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         db.flush()
         role = "admin"
 
+    # Self-serve (company_name path) registrations start unverified and get
+    # a real verification email below, once the row has an id to send it
+    # to. Invite-completions skip verification entirely - the inviting
+    # admin already vouched for that exact email address by sending the
+    # invite to it, so there's nothing a click-through link would add. See
+    # KNOWN_DECISIONS.md.
+    is_self_serve = not payload.invite_token
     user = User(
         company_id=company.id,
         email=payload.email,
@@ -152,6 +180,8 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         role=role,
         password_hash=hash_password(payload.password),
         preferred_locale=payload.preferred_locale,
+        email_verified=not is_self_serve,
+        email_verified_at=None if is_self_serve else datetime.utcnow(),
     )
     db.add(user)
     db.flush()
@@ -183,6 +213,9 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
     if company_vertical:
         send_welcome_email(db, user.email, company_vertical.slug, user.preferred_locale or "el")
 
+    if is_self_serve:
+        _issue_and_send_verification(db, user)
+
     token = create_access_token(user_id=user.id, company_id=company.id, role=role)
     return TokenResponse(
         token=token,
@@ -193,6 +226,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         last_name=user.last_name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
+        email_verified=user.email_verified,
     )
 
 
@@ -241,6 +275,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         last_name=user.last_name,
         preferred_locale=user.preferred_locale,
         preferred_theme=user.preferred_theme,
+        email_verified=user.email_verified,
     )
 
 
@@ -297,6 +332,40 @@ async def reset_password(payload: ResetPasswordRequest, db: Session = Depends(ge
     reset.used_at = datetime.utcnow()
     log_action(db, actor_user_id=user.id, company_id=user.company_id, action="password_reset")
     db.commit()
+
+
+@router.post("/verify-email", status_code=status.HTTP_204_NO_CONTENT)
+async def verify_email(payload: VerifyEmailRequest, db: Session = Depends(get_db)) -> None:
+    """No auth required - possession of the token IS the proof, same as
+    /reset-password. Reachable whether or not the clicking browser happens
+    to be logged in as that user (a verification link is often opened from
+    a different device/browser than the one that registered)."""
+    record = db.scalar(select(EmailVerificationToken).where(EmailVerificationToken.token == payload.token))
+    if not record or record.used_at is not None or record.expires_at < datetime.utcnow():
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid or expired verification link")
+
+    user = db.get(User, record.user_id)
+    user.email_verified = True
+    user.email_verified_at = datetime.utcnow()
+    record.used_at = datetime.utcnow()
+    log_action(db, actor_user_id=user.id, company_id=user.company_id, action="email_verified")
+    db.commit()
+
+
+@router.post("/resend-verification", response_model=ResendVerificationResponse)
+async def resend_verification(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> ResendVerificationResponse:
+    """Authenticated (unlike /forgot-password, there's no email-enumeration
+    concern here - the caller already proved who they are via their JWT),
+    so no need for the same "always identical response" discipline that
+    endpoint uses."""
+    db_user = db.get(User, user.user_id)
+    if db_user.email_verified:
+        return ResendVerificationResponse(message="Η διεύθυνση email σας είναι ήδη επιβεβαιωμένη.")
+    _issue_and_send_verification(db, db_user)
+    return ResendVerificationResponse(message="Στείλαμε νέο email επιβεβαίωσης. Ελέγξτε τα εισερχόμενά σας.")
 
 
 @router.post("/change-password", status_code=status.HTTP_204_NO_CONTENT)

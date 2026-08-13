@@ -53,6 +53,19 @@ SERVICE_UNAVAILABLE_MESSAGE_EN = "The service is temporarily unavailable. Please
 CHAT_RATE_LIMIT_MESSAGE = "Έχετε φτάσει το όριο μηνυμάτων. Δοκιμάστε ξανά σε λίγο."
 CHAT_RATE_LIMIT_MESSAGE_EN = "You've reached your message limit. Please try again shortly."
 
+# Self-serve registrations only (see auth.py's register() and
+# KNOWN_DECISIONS.md) - gates message-sending specifically, not every write
+# endpoint, to keep this check's blast radius small and match the account's
+# ability to otherwise look around the product before verifying.
+EMAIL_NOT_VERIFIED_MESSAGE = (
+    "Επιβεβαιώστε τη διεύθυνση email σας για να στείλετε μηνύματα. Ελέγξτε τα εισερχόμενά σας ή ζητήστε νέο "
+    "email επιβεβαίωσης από τις ρυθμίσεις λογαριασμού σας."
+)
+EMAIL_NOT_VERIFIED_MESSAGE_EN = (
+    "Please verify your email address to send messages. Check your inbox, or request a new verification "
+    "email from your account settings."
+)
+
 MAX_QUERY_LENGTH = 1500
 QUERY_TOO_LONG_MESSAGE = f"Η ερώτηση δεν πρέπει να υπερβαίνει τους {MAX_QUERY_LENGTH} χαρακτήρες."
 QUERY_TOO_LONG_MESSAGE_EN = f"The question must not exceed {MAX_QUERY_LENGTH} characters."
@@ -825,11 +838,12 @@ async def chat_message(
     uses), not an HTTP call to /search, so this never depends on the API
     being reachable from itself.
 
-    Guardrails, in order: empty/oversized query -> 400 before anything else
-    is touched; rate limit -> 429, checked only after the query is valid so
-    a rejected query doesn't burn a user's hourly budget; everything past
-    that point (topic guard, embedding, completion) is one OpenAI-dependent
-    block wrapped in a single try/except -> 503 on any OpenAIError.
+    Guardrails, in order: unverified email -> 403, checked first since it
+    doesn't depend on the query at all; empty/oversized query -> 400; rate
+    limit -> 429, checked only after the query is valid so a rejected query
+    doesn't burn a user's hourly budget; everything past that point (topic
+    guard, embedding, completion) is one OpenAI-dependent block wrapped in a
+    single try/except -> 503 on any OpenAIError.
     """
     # payload.preferred_locale (the frontend's current in-memory locale)
     # wins over the DB value when present - see ChatMessageRequest's own
@@ -837,6 +851,10 @@ async def chat_message(
     # hasn't reached the DB yet via the fire-and-forget PATCH
     # /auth/me/locale call.
     locale = payload.preferred_locale if payload.preferred_locale in ("en", "el") else user.preferred_locale
+
+    if not user.email_verified:
+        detail = EMAIL_NOT_VERIFIED_MESSAGE_EN if locale == "en" else EMAIL_NOT_VERIFIED_MESSAGE
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=detail)
 
     question = payload.query.strip()
     if not question:

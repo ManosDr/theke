@@ -1463,6 +1463,27 @@ ALTER TABLE users ADD COLUMN IF NOT EXISTS last_login_at TIMESTAMP;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS first_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS last_name VARCHAR(255);
 
+-- Self-serve email verification (see app/routers/auth.py's /auth/register,
+-- /auth/verify-email, /auth/resend-verification and KNOWN_DECISIONS.md).
+-- Defaults true so every existing row (demo accounts, admin-created users,
+-- invite-completions) is unaffected - only the self-serve (company_name)
+-- registration path explicitly sets this false and sends a real
+-- verification email. Gates POST /chat/message only, not every write
+-- endpoint (see app/routers/chat.py).
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified BOOLEAN NOT NULL DEFAULT true;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verified_at TIMESTAMP;
+
+CREATE TABLE IF NOT EXISTS email_verification_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id),
+    token TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    expires_at TIMESTAMP NOT NULL,
+    used_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_email_verification_tokens_user ON email_verification_tokens(user_id);
+
 -- Token consumption tracking, per completion call - NULL on any row where
 -- no GPT call was made at all (e.g. the off-topic-guard gap path), not
 -- just zero, so "no LLM call" and "a genuinely free response" stay
@@ -1958,7 +1979,7 @@ ON CONFLICT (id) DO NOTHING;
 -- overwritten by a fresh init.sql apply, same discipline as legal_documents.
 CREATE TABLE IF NOT EXISTS email_templates (
   id            serial PRIMARY KEY,
-  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset')),
+  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification')),
   subject_el    text NOT NULL,
   subject_en    text NOT NULL,
   body_el       text NOT NULL,
@@ -1966,6 +1987,14 @@ CREATE TABLE IF NOT EXISTS email_templates (
   updated_at    timestamp NOT NULL DEFAULT now(),
   updated_by    integer REFERENCES users(id)
 );
+
+-- email_verification added after this table's original 3-key CHECK
+-- constraint - relax it for a container whose volume predates this change
+-- (a fresh CREATE TABLE already gets the 4-key version above via
+-- IF NOT EXISTS never firing on a brand-new database).
+ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_check;
+ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
+  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification'));
 
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
@@ -2010,6 +2039,18 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 {{reset_button_html}}
 <p>The link is valid for {{expiry_label}}. If you didn''t request this, no action is needed — your password is unchanged.</p>
 <p style="font-size:13px; color:#737791;">For security reasons, don''t forward this message to anyone else.</p>'
+),
+('email_verification',
+ 'Επιβεβαιώστε τη διεύθυνση email σας — Theke',
+ 'Verify your email address — Theke',
+ '<p>Γεια σας,</p>
+<p>Ευχαριστούμε που δημιουργήσατε λογαριασμό στο Theke. Επιβεβαιώστε τη διεύθυνση email σας για να αποκτήσετε πλήρη πρόσβαση στις ερωτήσεις προς το σύστημα.</p>
+{{verify_button_html}}
+<p>Ο σύνδεσμος ισχύει για {{expiry_label}}. Αν δεν δημιουργήσατε εσείς αυτόν τον λογαριασμό, αγνοήστε αυτό το μήνυμα.</p>',
+ '<p>Hello,</p>
+<p>Thanks for creating a Theke account. Verify your email address to get full access to asking questions.</p>
+{{verify_button_html}}
+<p>The link is valid for {{expiry_label}}. If you did not create this account, you can safely ignore this message.</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 

@@ -20,6 +20,13 @@ _COLOR_TEXT_ON_PRIMARY = "#ffffff"
 
 _FONT_STACK = "Georgia, 'Times New Roman', serif"
 
+# Real wordmark PNG (rasterized from frontend/app/components/Logo.tsx's SVG
+# paths in the brand's navy, since email clients don't reliably render
+# inline/linked SVG) - served from the frontend's own public/ directory, so
+# no separate asset host is needed. alt text still carries "theke" for the
+# image-blocked case.
+_LOGO_URL = f"{settings.frontend_url}/theke-logo-email.png"
+
 # Every send carries this - a technical header for inbox-provider sender
 # reputation (Gmail/Outlook expect it), not a visible unsubscribe link in
 # the body. None of these three sends are marketing mail under GDPR/Ν.3471
@@ -68,12 +75,11 @@ _VERTICAL_QUESTIONS_EL = {
 
 
 def _base_html(title: str, preheader: str, body_html: str, locale: str = "el") -> str:
-    """Shared branded skeleton: header band with a text-based wordmark
-    (never an image - must render with images blocked, especially on a
-    first-touch invite/welcome email), single-column 600px container, and
-    the shared footer. body_html is inserted as-is; callers own their own
-    heading/paragraph markup."""
-    close_label = "Κλείσιμο" if locale == "el" else "Close"
+    """Shared branded skeleton: a navy top accent bar, a header band with
+    the real "theke" wordmark image (rasterized from the app's own Logo.tsx
+    SVG, alt-texted for the image-blocked case), single-column 600px
+    container, and the shared footer. body_html is inserted as-is; callers
+    own their own heading/paragraph markup."""
     return f"""\
 <!doctype html>
 <html lang="{locale}">
@@ -83,8 +89,11 @@ def _base_html(title: str, preheader: str, body_html: str, locale: str = "el") -
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_COLOR_BG};">
 <tr><td align="center" style="padding: 24px 12px;">
 <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px; width:100%; background:{_COLOR_SURFACE};">
+<tr><td style="height:4px; line-height:4px; font-size:0; background:{_COLOR_PRIMARY};">&nbsp;</td></tr>
 <tr><td style="height:64px; background:{_COLOR_SURFACE}; border-bottom:1px solid {_COLOR_BORDER}; padding:0 32px;">
-<table role="presentation" width="100%" height="64" cellpadding="0" cellspacing="0"><tr><td style="font-family:{_FONT_STACK}; font-size:20px; color:{_COLOR_TEXT}; font-weight:bold;">theke</td></tr></table>
+<table role="presentation" width="100%" height="64" cellpadding="0" cellspacing="0"><tr><td>
+<img src="{_LOGO_URL}" alt="theke" height="26" style="height:26px; width:auto; display:block; border:0;">
+</td></tr></table>
 </td></tr>
 <tr><td style="padding: 32px 32px 8px 32px; font-family:{_FONT_STACK}; color:{_COLOR_TEXT}; font-size:15px; line-height:1.5; text-align:left;">
 {body_html}

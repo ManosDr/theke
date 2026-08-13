@@ -85,9 +85,17 @@ export function WelcomeCard({
           </Link>
         )}
       </div>
-      <Link href="/help" className={welcomeStyles.helpLink}>
-        {t("dash.welcome.helpLink")}
-      </Link>
+      <div className={welcomeStyles.helpLinks}>
+        <Link
+          href={`/help?section=onboarding-${isConstruction ? "construction" : "tax"}`}
+          className={welcomeStyles.helpLink}
+        >
+          {t("dash.welcome.onboardingLink")}
+        </Link>
+        <Link href="/help" className={welcomeStyles.helpLink}>
+          {t("dash.welcome.helpLink")}
+        </Link>
+      </div>
     </section>
   );
 }

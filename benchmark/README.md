@@ -39,9 +39,10 @@ result file before the session that ran it ends.
 
 | Set | Latest result file |
 |---|---|
-| comprehensive-105 | `results/2026-07-16-comprehensive-105.md` |
-| stress-round-1 | `results/2026-07-16-stress-round-1.md` |
-| stress-round-3 | `results/2026-07-16-stress-round-3.md` |
+| comprehensive-105 | `results/2026-08-13-comprehensive-105.md` |
+| stress-round-1 | `results/2026-08-13-stress-round-1.md` |
+| stress-round-3 | `results/2026-08-13-stress-round-3.md` |
+| bilingual (24-question sample) | `results/2026-08-13-bilingual-verification.md` |
 
 ## Scoring rubric (all sets)
 

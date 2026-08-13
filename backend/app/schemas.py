@@ -1655,3 +1655,20 @@ class EmailTemplateTestSendRequest(BaseModel):
     subject_en: str
     body_el: str
     body_en: str
+
+
+class EmailTestSendResponse(BaseModel):
+    sent: bool
+    # None when sent=True; "disabled" (email sending off in this
+    # environment) or "send_failed" (Resend rejected/errored) otherwise -
+    # lets the frontend show a specific message instead of a generic one.
+    reason: Literal["disabled", "send_failed"] | None = None
+
+
+class EmailSettingsEntry(BaseModel):
+    test_email_address: str
+    updated_at: datetime
+
+
+class EmailSettingsUpdateRequest(BaseModel):
+    test_email_address: str = Field(min_length=3)

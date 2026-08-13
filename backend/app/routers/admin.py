@@ -19,6 +19,7 @@ from app.models import (
     DataSource,
     Document,
     DocumentValidation,
+    EmailSettings,
     EmailTemplate,
     Embedding,
     InfraHealthCheck,
@@ -70,11 +71,14 @@ from app.schemas import (
     DocumentReplacementRef,
     DocumentSummary,
     DocumentValidationResult,
+    EmailSettingsEntry,
+    EmailSettingsUpdateRequest,
     EmailStatusResponse,
     EmailTemplateDetail,
     EmailTemplateSaveRequest,
     EmailTemplateSummary,
     EmailTemplateTestSendRequest,
+    EmailTestSendResponse,
     ExtendTrialRequest,
     FeedbackEntry,
     FeedbackListResponse,
@@ -140,6 +144,7 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
+from app.services.email import send_test_email
 from app.services.email_templates import (
     ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
     TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
@@ -2888,6 +2893,69 @@ async def save_email_template(
         body_en=row.body_en,
         available_variables=sorted(EMAIL_TEMPLATE_VARIABLES.get(template_key, set())),
     )
+
+
+def _get_or_create_email_settings(db: Session) -> EmailSettings:
+    row = db.get(EmailSettings, 1)
+    if row is None:
+        row = EmailSettings(id=1, test_email_address="manos_drams@hotmail.com")
+        db.add(row)
+        db.commit()
+        db.refresh(row)
+    return row
+
+
+@router.get("/email-settings", response_model=EmailSettingsEntry)
+async def get_email_settings(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> EmailSettingsEntry:
+    require_super_admin(user)
+    row = _get_or_create_email_settings(db)
+    return EmailSettingsEntry(test_email_address=row.test_email_address, updated_at=row.updated_at)
+
+
+@router.patch("/email-settings", response_model=EmailSettingsEntry)
+async def update_email_settings(
+    payload: EmailSettingsUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> EmailSettingsEntry:
+    require_super_admin(user)
+    if "@" not in payload.test_email_address:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Not a valid email address")
+    row = _get_or_create_email_settings(db)
+    row.test_email_address = payload.test_email_address
+    row.updated_at = datetime.utcnow()
+    db.commit()
+    db.refresh(row)
+    return EmailSettingsEntry(test_email_address=row.test_email_address, updated_at=row.updated_at)
+
+
+@router.post("/email-templates/{template_key}/test-send", response_model=EmailTestSendResponse)
+async def test_send_email_template(
+    template_key: str,
+    payload: EmailTemplateTestSendRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> EmailTestSendResponse:
+    """Sends the given (possibly unsaved, in-editor) subject/body content
+    for real to the admin-configured test address, with realistic sample
+    data substituted - lets an admin preview a change before saving it.
+    Returns a structured `reason` rather than raising, so the frontend can
+    show "email sending is disabled here" as a distinct, specific message
+    instead of a generic error - the same "clear message, not a silent
+    failure" bar this file already holds every other admin action to."""
+    require_super_admin(user)
+    if template_key not in EMAIL_TEMPLATE_KEYS:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Unknown email template")
+    if not settings.email_enabled or not settings.resend_api_key:
+        return EmailTestSendResponse(sent=False, reason="disabled")
+    settings_row = _get_or_create_email_settings(db)
+    ok = send_test_email(
+        template_key, settings_row.test_email_address, payload.subject_el, payload.subject_en, payload.body_el, payload.body_en
+    )
+    return EmailTestSendResponse(sent=ok, reason=None if ok else "send_failed")
 
 
 @router.get("/gap-queries", response_model=list[GapQueryEntry])

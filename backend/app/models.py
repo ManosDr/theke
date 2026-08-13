@@ -613,6 +613,19 @@ class SpendAlertThreshold(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class EmailSettings(Base):
+    """Singleton row (id always 1) holding the super-admin-editable
+    recipient address used by the email-templates admin screen's test-send
+    button - replaces an address that used to be typed by hand into ad-hoc
+    verification commands."""
+
+    __tablename__ = "email_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    test_email_address: Mapped[str] = mapped_column(Text)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class SpendAlertCheck(Base):
     """One row per daily platform-wide spend check
     (crawler/crawler/spend_alert_check.py) - trailing 24h/7d

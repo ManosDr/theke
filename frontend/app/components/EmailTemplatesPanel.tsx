@@ -6,13 +6,25 @@ import { api, ApiError } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
-import type { EmailTemplateDetail, EmailTemplateKey, EmailTemplateSummary } from "../lib/types";
+import type {
+  EmailSettingsEntry,
+  EmailTemplateDetail,
+  EmailTemplateKey,
+  EmailTemplateSummary,
+  EmailTestSendResponse,
+} from "../lib/types";
 import styles from "./EmailTemplatesPanel.module.css";
 
 const KEY_LABEL_KEY: Record<EmailTemplateKey, TranslationKey> = {
   invite: "adminEmailTemplates.keyInvite",
   welcome: "adminEmailTemplates.keyWelcome",
   password_reset: "adminEmailTemplates.keyPasswordReset",
+};
+
+const TEST_SEND_MESSAGE_KEY: Record<NonNullable<EmailTestSendResponse["reason"]> | "success", TranslationKey> = {
+  success: "adminEmailTemplates.testSendSuccess",
+  disabled: "adminEmailTemplates.testSendDisabled",
+  send_failed: "adminEmailTemplates.testSendFailed",
 };
 
 export function EmailTemplatesPanel() {
@@ -31,12 +43,22 @@ export function EmailTemplatesPanel() {
   const [error, setError] = useState<string | null>(null);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
 
+  const [testAddress, setTestAddress] = useState("");
+  const [testAddressBusy, setTestAddressBusy] = useState(false);
+  const [testAddressSaved, setTestAddressSaved] = useState(false);
+  const [testSendBusy, setTestSendBusy] = useState(false);
+  const [testSendMessage, setTestSendMessage] = useState<string | null>(null);
+
   async function refreshList() {
     if (!token) return;
     setLoading(true);
     try {
-      const data = await api.get<EmailTemplateSummary[]>("/admin/email-templates", token);
-      setTemplates(data);
+      const [tpls, emailSettings] = await Promise.all([
+        api.get<EmailTemplateSummary[]>("/admin/email-templates", token),
+        api.get<EmailSettingsEntry>("/admin/email-settings", token),
+      ]);
+      setTemplates(tpls);
+      setTestAddress(emailSettings.test_email_address);
     } finally {
       setLoading(false);
     }
@@ -51,6 +73,7 @@ export function EmailTemplatesPanel() {
     if (!token) return;
     setError(null);
     setSavedMessage(null);
+    setTestSendMessage(null);
     const data = await api.get<EmailTemplateDetail>(`/admin/email-templates/${key}`, token);
     setSelected(data);
     setSubjectEl(data.subject_el);
@@ -63,6 +86,7 @@ export function EmailTemplatesPanel() {
     setSelected(null);
     setError(null);
     setSavedMessage(null);
+    setTestSendMessage(null);
   }
 
   async function save() {
@@ -86,10 +110,64 @@ export function EmailTemplatesPanel() {
     }
   }
 
+  async function saveTestAddress() {
+    if (!token) return;
+    setTestAddressBusy(true);
+    setTestAddressSaved(false);
+    try {
+      const data = await api.patch<EmailSettingsEntry>("/admin/email-settings", { test_email_address: testAddress }, token);
+      setTestAddress(data.test_email_address);
+      setTestAddressSaved(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setTestAddressBusy(false);
+    }
+  }
+
+  async function sendTest() {
+    if (!token || !selected) return;
+    setTestSendBusy(true);
+    setTestSendMessage(null);
+    try {
+      // Sends whatever's currently in the editor, including unsaved edits -
+      // a preview, not a save.
+      const result = await api.post<EmailTestSendResponse>(
+        `/admin/email-templates/${selected.template_key}/test-send`,
+        { subject_el: subjectEl, subject_en: subjectEn, body_el: bodyEl, body_en: bodyEn },
+        token
+      );
+      setTestSendMessage(t(TEST_SEND_MESSAGE_KEY[result.sent ? "success" : result.reason ?? "send_failed"]));
+    } catch (err) {
+      setTestSendMessage(err instanceof ApiError ? err.message : String(err));
+    } finally {
+      setTestSendBusy(false);
+    }
+  }
+
   return (
     <div>
       <h1>{t("adminEmailTemplates.title")}</h1>
       <p className="text-muted">{t("adminEmailTemplates.subtitle")}</p>
+
+      <div className={styles.settingsRow}>
+        <label className={styles.label}>{t("adminEmailTemplates.testEmailAddressLabel")}</label>
+        <div className={styles.settingsInputRow}>
+          <input
+            className="input"
+            type="email"
+            value={testAddress}
+            onChange={(e) => {
+              setTestAddress(e.target.value);
+              setTestAddressSaved(false);
+            }}
+          />
+          <button type="button" className="btn btn-secondary" disabled={testAddressBusy} onClick={saveTestAddress}>
+            {t("adminEmailTemplates.testEmailAddressSave")}
+          </button>
+          {testAddressSaved && <span className={styles.savedMessage}>{t("adminEmailTemplates.testEmailAddressSaved")}</span>}
+        </div>
+      </div>
 
       {loading ? (
         <p className="text-muted">{t("common.loading")}</p>
@@ -154,10 +232,14 @@ export function EmailTemplatesPanel() {
 
           {error && <div className={styles.blockError}>{error}</div>}
           {savedMessage && <div className={styles.savedMessage}>{savedMessage}</div>}
+          {testSendMessage && <div className={styles.savedMessage}>{testSendMessage}</div>}
 
           <div className={styles.actions}>
             <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
               {t("adminEmailTemplates.save")}
+            </button>
+            <button type="button" className="btn btn-secondary" disabled={testSendBusy} onClick={sendTest}>
+              {t("adminEmailTemplates.testSend")}
             </button>
           </div>
         </div>

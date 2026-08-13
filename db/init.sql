@@ -2013,3 +2013,18 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 )
 ON CONFLICT (template_key) DO NOTHING;
 
+-- Singleton row (id always 1), same pattern as spend_alert_thresholds -
+-- holds the super-admin-editable recipient address for the email-templates
+-- admin screen's "Δοκιμαστική αποστολή" test-send button, replacing what
+-- was previously a manually-typed address in ad-hoc verification commands.
+CREATE TABLE IF NOT EXISTS email_settings (
+  id                  integer PRIMARY KEY DEFAULT 1,
+  test_email_address  varchar NOT NULL DEFAULT 'manos_drams@hotmail.com',
+  updated_at          timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT email_settings_singleton CHECK (id = 1)
+);
+
+INSERT INTO email_settings (id, test_email_address)
+VALUES (1, 'manos_drams@hotmail.com')
+ON CONFLICT (id) DO NOTHING;
+

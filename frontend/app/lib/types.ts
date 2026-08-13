@@ -992,3 +992,13 @@ export interface EmailTemplateDetail extends EmailTemplateSummary {
   body_en: string;
   available_variables: string[];
 }
+
+export interface EmailSettingsEntry {
+  test_email_address: string;
+  updated_at: string;
+}
+
+export interface EmailTestSendResponse {
+  sent: boolean;
+  reason: "disabled" | "send_failed" | null;
+}

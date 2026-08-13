@@ -317,3 +317,61 @@ def send_password_reset_email(db: Session, to_email: str, reset_url: str, locale
     html_content = _base_html(subject, preheader, body_html, locale)
     text = _html_to_text(body_html)
     return _send(to_email, subject, html_content, text)
+
+
+def _test_send_variables(template_key: str) -> dict[str, str]:
+    """Realistic-but-fake substitution values for the admin test-send
+    button, so a preview looks like a real email rather than a page full of
+    literal placeholders. Deliberately not real data - no lookup of an
+    actual user/company happens for a test send."""
+    if template_key == "invite":
+        return _invite_variables(
+            inviter_name="Νίκος Δοκιμαστικός",
+            company_name="Δοκιμαστική Εταιρεία ΑΕ",
+            vertical_slug="construction",
+            role="member",
+            accept_url=f"{settings.frontend_url}/register?invite_token=sample-test-token",
+            expiry_days=7,
+        )
+    if template_key == "welcome":
+        questions = _VERTICAL_QUESTIONS_EL["construction"]
+        questions_html = (
+            f'<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">'
+            f'<ul style="margin:0; padding-left:20px;">' + "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions) + "</ul></div>"
+        )
+        return {
+            "vertical_name": _VERTICAL_NAME["el"]["construction"],
+            "questions_html": questions_html,
+            "chat_button_html": _button_html(f"{settings.frontend_url}/chat", "Κάντε την πρώτη σας ερώτηση"),
+        }
+    # password_reset
+    return {
+        "reset_button_html": _button_html(f"{settings.frontend_url}/reset-password?token=sample-test-token", "Επαναφορά κωδικού"),
+        "expiry_label": f"{settings.password_reset_token_expire_minutes} λεπτά" if settings.password_reset_token_expire_minutes != 60 else "1 ώρα",
+    }
+
+
+def send_test_email(
+    template_key: str, to_email: str, subject_el: str, subject_en: str, body_el: str, body_en: str
+) -> bool:
+    """Renders the given (possibly unsaved, in-editor) template content with
+    realistic sample data and sends it for real to the admin-configured test
+    address - lets an admin preview a change without saving it first. Uses
+    the same combine-vs-pick-locale behavior as the real sends (invite:
+    combined bilingual; welcome/password_reset: Greek only, the default
+    locale) so the preview matches what an actual recipient would see."""
+    variables = _test_send_variables(template_key)
+    if template_key == "invite":
+        subject = f"{render(subject_el, variables)} · {render(subject_en, variables)}"
+        body_html = (
+            f"{render(body_el, variables)}\n"
+            f'<hr style="border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;">\n'
+            f"{render(body_en, variables)}"
+        )
+    else:
+        subject = render(subject_el, variables)
+        body_html = render(body_el, variables)
+    preheader = _derive_preheader(body_html)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = _html_to_text(body_html)
+    return _send(to_email, subject, html_content, text)

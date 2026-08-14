@@ -25,9 +25,19 @@ const sourceSerif = Source_Serif_4({
   variable: "--font-heading",
 });
 
+// Shared across og:description/twitter:description/meta description below -
+// the landing page's own hero subhead (see translations.ts's "landing.heroSub",
+// English row), not a third rewrite of the same pitch. Trimmed to its first
+// sentence to stay within the ~155-200 char range link previews actually
+// render before truncating.
+const SITE_DESCRIPTION =
+  "You ask in plain Greek; theke answers with citations to the Government Gazette (ΦΕΚ), laws and AADE circulars.";
+const SITE_TITLE = "theke — Regulations, answered: with the source, every time.";
+
 export const metadata: Metadata = {
-  title: "theke",
-  description: "AI copilot for Greek construction permits and compliance",
+  metadataBase: new URL("https://theke.ai"),
+  title: SITE_TITLE,
+  description: SITE_DESCRIPTION,
   manifest: "/manifest.json",
   icons: {
     icon: [
@@ -40,6 +50,27 @@ export const metadata: Metadata = {
     capable: true,
     statusBarStyle: "default",
     title: "theke",
+  },
+  openGraph: {
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    url: "https://theke.ai",
+    siteName: "theke",
+    // Absolute URL, not resolved via metadataBase - some social scrapers
+    // (and next dev's own metadataBase resolution) are inconsistent about
+    // relative image URLs, so this is spelled out explicitly. 1200x630 is
+    // the standard safe size across platforms. Placeholder - the wordmark
+    // on the brand navy background - until a properly designed share image
+    // is commissioned (see KNOWN_DECISIONS.md).
+    images: [{ url: "https://theke.ai/og-image.png", width: 1200, height: 630, alt: "theke" }],
+    locale: "el_GR",
+    type: "website",
+  },
+  twitter: {
+    card: "summary_large_image",
+    title: SITE_TITLE,
+    description: SITE_DESCRIPTION,
+    images: ["https://theke.ai/og-image.png"],
   },
 };
 

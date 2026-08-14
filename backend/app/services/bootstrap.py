@@ -52,6 +52,24 @@ DEMO_ACCOUNTS = [
     ("demo-member@accounting.theke.gr", "Άννα", "Στεφανίδου", "member", "Demo Λογιστικό Γραφείο", "accounting"),
 ]
 
+# Domains derived from DEMO_ACCOUNTS itself (not a separate hardcoded list,
+# so this can never drift from the real seed data) - e.g. "theke.gr",
+# "construction.theke.gr". The real bootstrap super_admin and any other
+# real platform account live on "theke.ai", a different TLD entirely, so
+# this cleanly separates the two without ambiguity.
+_DEMO_EMAIL_DOMAINS = frozenset(email.split("@", 1)[1] for email, *_ in DEMO_ACCOUNTS)
+
+
+def is_demo_seed_email(email: str) -> bool:
+    """True for the 7 seeded demo/QA account addresses above. This is the
+    only signal available for classifying a company-less super_admin as
+    demo vs. real on the Users screen (see admin.py's list_all_users) -
+    Company.is_test_account has nothing to key off of when company_id IS
+    NULL, which is exactly the gap that let demo-superadmin@theke.gr show
+    up under "real users" instead of "demo" (see KNOWN_DECISIONS.md)."""
+    domain = email.rsplit("@", 1)[-1].lower()
+    return domain in _DEMO_EMAIL_DOMAINS
+
 
 def seed_demo_data() -> None:
     if not settings.seed_demo_data:

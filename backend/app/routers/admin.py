@@ -138,6 +138,7 @@ from app.schemas import (
 from app.security import generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
+from app.services.bootstrap import is_demo_seed_email
 
 
 def _solo_super_admin_user_ids():
@@ -455,7 +456,17 @@ async def list_all_users(
             company_id=u.company_id,
             company_name=companies[u.company_id].name if u.company_id in companies else "—",
             vertical_slug=vertical_slugs.get(companies[u.company_id].vertical_id) if u.company_id in companies else None,
-            is_test_account=companies[u.company_id].is_test_account if u.company_id in companies else False,
+            # Company.is_test_account has no signal for a company-less user
+            # (company_id IS NULL - every super_admin) - falls back to the
+            # email-domain check for those, so demo-superadmin@theke.gr
+            # correctly lands in the demo tab instead of defaulting to
+            # "real" the way a bare `else False` would (see
+            # KNOWN_DECISIONS.md).
+            is_test_account=(
+                companies[u.company_id].is_test_account
+                if u.company_id in companies
+                else is_demo_seed_email(u.email)
+            ),
         )
         for u in users
     ]

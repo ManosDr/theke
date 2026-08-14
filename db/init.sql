@@ -1323,6 +1323,14 @@ CREATE INDEX IF NOT EXISTS idx_data_sources_vertical ON data_sources(vertical_id
 ALTER TABLE invites ADD COLUMN IF NOT EXISTS vertical_id INTEGER REFERENCES verticals(id);
 UPDATE invites SET vertical_id = (SELECT c.vertical_id FROM companies c WHERE c.id = invites.company_id) WHERE vertical_id IS NULL;
 
+-- Company-less, vertical-scoped super_admin invite (see admin.py's
+-- create_super_admin_invite / auth.py's register()) - the invitee creates
+-- their own company at acceptance time, so company_id has to be nullable
+-- (originally NOT NULL, hence the explicit DROP NOT NULL for an existing
+-- volume) and company_type holds the pending company's type until then.
+ALTER TABLE invites ALTER COLUMN company_id DROP NOT NULL;
+ALTER TABLE invites ADD COLUMN IF NOT EXISTS company_type VARCHAR;
+
 -- projects.region_id is already nullable (construction-only concept; a tax
 -- engagement has no region). is_client flags a project as a client
 -- engagement (chiefly for the tax vertical, but available to both) - in
@@ -1979,7 +1987,7 @@ ON CONFLICT (id) DO NOTHING;
 -- overwritten by a fresh init.sql apply, same discipline as legal_documents.
 CREATE TABLE IF NOT EXISTS email_templates (
   id            serial PRIMARY KEY,
-  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification')),
+  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company')),
   subject_el    text NOT NULL,
   subject_en    text NOT NULL,
   body_el       text NOT NULL,
@@ -1988,13 +1996,14 @@ CREATE TABLE IF NOT EXISTS email_templates (
   updated_by    integer REFERENCES users(id)
 );
 
--- email_verification added after this table's original 3-key CHECK
--- constraint - relax it for a container whose volume predates this change
--- (a fresh CREATE TABLE already gets the 4-key version above via
--- IF NOT EXISTS never firing on a brand-new database).
+-- email_verification, then invite_no_company, were both added after this
+-- table's original CHECK constraint - relax it for a container whose
+-- volume predates either change (a fresh CREATE TABLE already gets the
+-- full version above via IF NOT EXISTS never firing on a brand-new
+-- database).
 ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_check;
 ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
-  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification'));
+  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company'));
 
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
@@ -2051,6 +2060,18 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p>Thanks for creating a Theke account. Verify your email address to get full access to asking questions.</p>
 {{verify_button_html}}
 <p>The link is valid for {{expiry_label}}. If you did not create this account, you can safely ignore this message.</p>'
+),
+('invite_no_company',
+ 'Προσκληθήκατε στο Theke',
+ 'You''ve been invited to Theke',
+ '<p>Γεια σας,</p>
+<p>Προσκληθήκατε να δημιουργήσετε τον δικό σας λογαριασμό στο Theke, στον κλάδο <b>{{vertical_name}}</b>.</p>
+<p>Το Theke είναι εργαλείο κανονιστικής πληροφόρησης για επαγγελματίες {{audience}} — απαντά σε ερωτήσεις για {{examples}}, με παραπομπή σε επίσημες πηγές.</p>
+<p>Θα είστε ο/η διαχειριστής/τρια του δικού σας χώρου εργασίας — αν εργάζεστε μόνος/η, αυτό είναι εντάξει, το όνομά σας αρκεί.</p>
+{{accept_button_html}}
+<p>Ο σύνδεσμος ισχύει για {{expiry_label}}.</p>
+<p>Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {{email_from}}.</p>',
+ '<p style="font-size:13px; color:#737791;">You''ve been invited to create your own Theke account, a regulatory intelligence tool for {{audience_en}}. You''ll be the administrator of your own workspace — working solo is fine, your own name is enough. Use the button above to accept — the link is valid for {{expiry_label_en}}.</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 

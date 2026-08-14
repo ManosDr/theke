@@ -21,6 +21,11 @@ class RegisterRequest(BaseModel):
     invite_token: str | None = None
     company_name: str | None = None
     company_type: str = "construction"
+    # Only used when accepting a company-less invite (see admin.py's
+    # create_super_admin_invite / auth.py's register()) - the invitee names
+    # their own company right here, in the same registration call, rather
+    # than a separate follow-up request. Ignored on every other path.
+    new_company_name: str | None = None
     # Required only on the company_name (new-company) path - validated
     # against the verticals table in the endpoint itself (not here), since
     # a Pydantic-level check has no DB access. Ignored on the invite_token
@@ -51,9 +56,14 @@ class RegisterRequest(BaseModel):
 
 
 class InviteInfoResponse(BaseModel):
-    company_name: str
+    # None only for a company-less invite (requires_company_name=True) -
+    # there's no company yet for the invitee to see the name of.
+    company_name: str | None = None
     vertical_display_name: str
     role: str
+    # True => the registration form must collect a company name (the
+    # invitee is creating their own company, not joining an existing one).
+    requires_company_name: bool = False
 
 
 class LoginRequest(BaseModel):
@@ -105,6 +115,25 @@ class UpdateThemeRequest(BaseModel):
 class InviteCreateRequest(BaseModel):
     email: str
     role: str = "member"  # 'admin' or 'member'
+
+
+class SuperAdminInviteCreateRequest(BaseModel):
+    """Company-less invite (see admin.py's create_super_admin_invite) -
+    only an email and a vertical (via the same construction/municipality/
+    accounting selector used everywhere else a company is created). No
+    company name, no region, no role choice: the invitee always becomes
+    the founding 'admin' of a company they create themselves at
+    acceptance time (see auth.py's register())."""
+
+    email: str
+    company_type: str = "construction"
+
+    @field_validator("company_type")
+    @classmethod
+    def _validate_company_type(cls, v: str) -> str:
+        if v not in COMPANY_TYPES:
+            raise ValueError(f"company_type must be one of {COMPANY_TYPES}")
+        return v
 
 
 class RoleChangeRequest(BaseModel):
@@ -349,8 +378,11 @@ class EmailStatusResponse(BaseModel):
 
 
 class AdminInviteSummary(InviteSummary):
-    company_id: int
-    company_name: str
+    # None for a still-pending company-less invite (see
+    # SuperAdminInviteCreateRequest) - filled in once accepted, when the
+    # invitee's own company gets created.
+    company_id: int | None = None
+    company_name: str | None = None
 
 
 class CompanyOverviewResponse(BaseModel):

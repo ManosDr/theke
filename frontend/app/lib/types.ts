@@ -263,8 +263,15 @@ export interface InviteSummary {
 }
 
 export interface AdminInviteSummary extends InviteSummary {
-  company_id: number;
-  company_name: string;
+  // null for a still-pending company-less invite (see
+  // SuperAdminInviteCreateRequest) - filled in once accepted.
+  company_id: number | null;
+  company_name: string | null;
+}
+
+export interface SuperAdminInviteCreateRequest {
+  email: string;
+  company_type: "construction" | "municipality" | "accounting";
 }
 
 export interface ProjectSummary {
@@ -978,7 +985,7 @@ export interface LegalDocumentAdminDetail extends LegalDocumentAdminSummary {
   placeholders: string[];
 }
 
-export type EmailTemplateKey = "invite" | "welcome" | "password_reset" | "email_verification";
+export type EmailTemplateKey = "invite" | "welcome" | "password_reset" | "email_verification" | "invite_no_company";
 
 export interface EmailTemplateSummary {
   template_key: EmailTemplateKey;

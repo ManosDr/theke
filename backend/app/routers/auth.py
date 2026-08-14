@@ -65,6 +65,19 @@ async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoRe
     if not invite or invite.status != "pending" or invite.expires_at < datetime.utcnow():
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite")
 
+    if invite.company_id is None:
+        # Company-less invite (see admin.py's create_super_admin_invite) -
+        # the invitee names their own company as part of /auth/register
+        # itself (see new_company_name below), so there's no existing
+        # company to show yet.
+        vertical = db.get(Vertical, invite.vertical_id) if invite.vertical_id else None
+        return InviteInfoResponse(
+            company_name=None,
+            vertical_display_name=vertical.display_name if vertical else "",
+            role=invite.role,
+            requires_company_name=True,
+        )
+
     company = db.get(Company, invite.company_id)
     if not company:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Invalid or expired invite")
@@ -109,7 +122,45 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid, expired, or used invite")
 
-        company = db.get(Company, invite.company_id)
+        if invite.company_id is None:
+            # Company-less invite (see admin.py's create_super_admin_invite)
+            # - the invitee creates their own company right here, in the
+            # same transaction as their account, rather than a separate
+            # follow-up call: leaves no window where an account exists
+            # without a company. See KNOWN_DECISIONS.md.
+            if not payload.new_company_name or not payload.new_company_name.strip():
+                raise HTTPException(
+                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                    detail="new_company_name is required to accept this invite",
+                )
+            if db.scalar(select(Company).where(Company.name == payload.new_company_name)):
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail="A company with this name already exists - choose a different name",
+                )
+            # This person is genuinely establishing a new controller
+            # relationship for the first time (same situation as the
+            # company_name/self-serve path below), unlike joining an
+            # existing company via a normal invite - so DPA acceptance is
+            # recorded here too, not skipped.
+            dpa_version = db.scalar(select(LegalDocument.version).where(LegalDocument.slug == "dpa"))
+            company = Company(
+                name=payload.new_company_name,
+                type=invite.company_type or "construction",
+                vertical_id=invite.vertical_id,
+                dpa_accepted_at=datetime.utcnow(),
+                dpa_version=str(dpa_version) if dpa_version is not None else None,
+            )
+            db.add(company)
+            db.flush()
+            # Backfilled so this invite shows up correctly in the new
+            # company's own "recent invites accepted" activity feed (see
+            # companies.py's recent_invites query), exactly like any other
+            # invite - not left dangling at NULL now that a company exists.
+            invite.company_id = company.id
+        else:
+            company = db.get(Company, invite.company_id)
+
         role = invite.role
         invite.status = "accepted"
         invite.accepted_at = datetime.utcnow()

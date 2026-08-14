@@ -244,6 +244,46 @@ def send_invite_email(
     return _send(to_email, subject, html_content, text)
 
 
+def _invite_no_company_variables(vertical_slug: str, accept_url: str, expiry_days: int) -> dict[str, str]:
+    expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
+    expiry_label_en = f"{expiry_days} days" if expiry_days != 1 else "1 day"
+    return {
+        "vertical_name": _VERTICAL_NAME["el"][vertical_slug],
+        "audience": _VERTICAL_AUDIENCE["el"][vertical_slug],
+        "audience_en": _VERTICAL_AUDIENCE["en"][vertical_slug],
+        "examples": _VERTICAL_EXAMPLES_EL[vertical_slug],
+        "expiry_label": expiry_label,
+        "expiry_label_en": expiry_label_en,
+        "email_from": settings.email_from,
+        "accept_button_html": _button_html(accept_url, "Αποδοχή πρόσκλησης"),
+    }
+
+
+def send_company_less_invite_email(db: Session, to_email: str, vertical_slug: str, accept_url: str, expiry_days: int) -> bool:
+    """Company-less invite (see admin.py's create_super_admin_invite) - same
+    structure as send_invite_email, but with no inviter_name/company_name/
+    role_label variables, since none of those exist yet at send time.
+    Content comes from the admin-editable email_templates row
+    ('invite_no_company')."""
+    row = get_template(db, "invite_no_company")
+    if row is None:
+        logger.error("Email template 'invite_no_company' missing from email_templates - skipping send")
+        return False
+
+    variables = _invite_no_company_variables(vertical_slug, accept_url, expiry_days)
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
+    return _send(to_email, subject, html_content, text)
+
+
 def send_welcome_email(db: Session, to_email: str, vertical_slug: str, locale: str = "el") -> bool:
     """Fires once, right after registration completes (invite-accepted or
     self-serve) - a deliberate lever against the most common first-session

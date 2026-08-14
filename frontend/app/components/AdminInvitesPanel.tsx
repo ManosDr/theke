@@ -2,11 +2,12 @@
 
 import { useEffect, useState } from "react";
 
+import FieldError from "./FieldError";
 import { ApiError, api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
-import type { AdminInviteSummary } from "../lib/types";
+import type { AdminInviteSummary, InviteSummary, SuperAdminInviteCreateRequest } from "../lib/types";
 import type { TranslationKey } from "../lib/translations";
 
 // Platform-wide equivalent of CompanyAdminDashboard's pending-invites list -
@@ -20,6 +21,14 @@ export function AdminInvitesPanel() {
   const [invites, setInvites] = useState<AdminInviteSummary[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteCompanyType, setInviteCompanyType] = useState<"construction" | "municipality" | "accounting">(
+    "construction"
+  );
+  const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
+  const [inviteSent, setInviteSent] = useState(false);
+  const [creating, setCreating] = useState(false);
 
   async function refresh() {
     if (!token) return;
@@ -47,6 +56,28 @@ export function AdminInvitesPanel() {
     }
   }
 
+  async function createInvite(e: React.FormEvent) {
+    e.preventDefault();
+    if (!inviteEmail.trim()) {
+      setInviteEmailError(t("validation.emailRequired"));
+      return;
+    }
+    setInviteEmailError(null);
+    setInviteSent(false);
+    setCreating(true);
+    try {
+      const payload: SuperAdminInviteCreateRequest = { email: inviteEmail, company_type: inviteCompanyType };
+      await api.post<InviteSummary>("/admin/invites", payload, token);
+      setInviteEmail("");
+      setInviteSent(true);
+      refresh();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to create invite");
+    } finally {
+      setCreating(false);
+    }
+  }
+
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
   if (error) return <p className={dashStyles.emptyState}>{error}</p>;
 
@@ -56,6 +87,45 @@ export function AdminInvitesPanel() {
   return (
     <div>
       <h1>{t("nav.invites")}</h1>
+
+      <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+        <div className={dashStyles.sectionHeader}>
+          <h2>{t("adminInvites.createHeading")}</h2>
+        </div>
+        <p className="text-muted" style={{ marginTop: 0 }}>
+          {t("adminInvites.createDescription")}
+        </p>
+        <form className={dashStyles.inlineForm} onSubmit={createInvite} noValidate>
+          <div>
+            <input
+              type="email"
+              className="input"
+              placeholder={t("dash.company.inviteEmailPlaceholder")}
+              value={inviteEmail}
+              onChange={(e) => {
+                setInviteEmail(e.target.value);
+                if (e.target.value.trim()) setInviteEmailError(null);
+              }}
+              aria-invalid={!!inviteEmailError}
+            />
+            {inviteEmailError && <FieldError message={inviteEmailError} />}
+          </div>
+          <select
+            className="input"
+            value={inviteCompanyType}
+            onChange={(e) => setInviteCompanyType(e.target.value as "construction" | "municipality" | "accounting")}
+            style={{ width: "auto" }}
+          >
+            <option value="construction">{t("register.typeConstruction")}</option>
+            <option value="municipality">{t("register.typeMunicipality")}</option>
+            <option value="accounting">{t("register.typeAccounting")}</option>
+          </select>
+          <button type="submit" className="btn btn-primary" disabled={creating}>
+            {t("dash.company.sendInvite")}
+          </button>
+        </form>
+        {inviteSent && <p className="text-muted">{t("adminInvites.inviteSent")}</p>}
+      </section>
 
       <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
         <div className={dashStyles.sectionHeader}>
@@ -79,7 +149,7 @@ export function AdminInvitesPanel() {
               {pending.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.email}</td>
-                  <td>{inv.company_name}</td>
+                  <td>{inv.company_name ?? <span className="text-muted">{t("adminInvites.pendingCompanyLess")}</span>}</td>
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
                   <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
                   <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
@@ -114,7 +184,7 @@ export function AdminInvitesPanel() {
               {resolved.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.email}</td>
-                  <td>{inv.company_name}</td>
+                  <td>{inv.company_name ?? <span className="text-muted">{t("adminInvites.pendingCompanyLess")}</span>}</td>
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
                   <td>
                     <span className={`badge ${inv.status === "accepted" ? "badge-success" : "badge-danger"}`}>

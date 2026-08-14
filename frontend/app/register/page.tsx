@@ -24,9 +24,10 @@ interface TokenResponse {
 }
 
 interface InviteInfo {
-  company_name: string;
+  company_name: string | null;
   vertical_display_name: string;
   role: string;
+  requires_company_name?: boolean;
 }
 
 export default function RegisterPage() {
@@ -61,6 +62,12 @@ function RegisterContent() {
   const [inviteInfoError, setInviteInfoError] = useState<string | null>(null);
   const [companyName, setCompanyName] = useState("");
   const [companyType, setCompanyType] = useState<"construction" | "municipality" | "accounting">("construction");
+  // Only used when accepting a company-less invite (inviteInfo.requires_company_name)
+  // - collected here, in the same step, but uploaded via the existing
+  // POST /companies/me/logo endpoint right after registration succeeds,
+  // since that endpoint requires an authenticated company that doesn't
+  // exist until this very form submits.
+  const [logoFile, setLogoFile] = useState<File | null>(null);
   const [dpaAccepted, setDpaAccepted] = useState(false);
   const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +121,12 @@ function RegisterContent() {
     const nextHeight = content.scrollHeight;
     const frame = requestAnimationFrame(() => setModeContentHeight(nextHeight));
     return () => cancelAnimationFrame(frame);
-  }, [mode]);
+    // requires_company_name arrives asynchronously (after the debounced
+    // GET /auth/invite-info call resolves), well after the mode switch
+    // itself - re-measuring only on [mode] would lock the wrapper's height
+    // before the company-name/logo fields exist, so the invite step
+    // silently overflows below the animated container.
+  }, [mode, inviteInfo?.requires_company_name]);
 
   useEffect(() => {
     api
@@ -180,6 +192,8 @@ function RegisterContent() {
     if (!lastName.trim()) errors.lastName = t("validation.fieldRequired");
     if (mode === "invite" && !inviteToken.trim()) errors.inviteToken = t("validation.fieldRequired");
     if (mode === "new_company" && !companyName.trim()) errors.companyName = t("validation.fieldRequired");
+    if (mode === "invite" && inviteInfo?.requires_company_name && !companyName.trim())
+      errors.companyName = t("validation.fieldRequired");
     if (!dpaAccepted) errors.dpaAccepted = t("register.dpaRequired");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -187,7 +201,7 @@ function RegisterContent() {
     setError(null);
     setLoading(true);
     try {
-      await api.post<TokenResponse>("/auth/register", {
+      const registerResponse = await api.post<TokenResponse>("/auth/register", {
         email,
         password,
         first_name: firstName,
@@ -206,7 +220,12 @@ function RegisterContent() {
         // every new-company registration regardless of companyType, until
         // that was caught live during Section 8.5 verification.
         ...(mode === "invite"
-          ? { invite_token: inviteToken }
+          ? {
+              invite_token: inviteToken,
+              // Only meaningful (and only required server-side) for a
+              // company-less invite - ignored by the backend otherwise.
+              ...(inviteInfo?.requires_company_name ? { new_company_name: companyName } : {}),
+            }
           : {
               intended_tier: intendedTier || undefined,
               company_name: companyName,
@@ -214,6 +233,23 @@ function RegisterContent() {
               vertical_slug: companyType === "accounting" ? "tax_accounting" : "construction",
             }),
       });
+
+      // Uploads the optional logo picked in the same step, using the fresh
+      // token straight from the register response - reuses the existing
+      // company-logo endpoint rather than a second upload path, and avoids
+      // any dependency on auth-context state having settled yet.
+      if (mode === "invite" && inviteInfo?.requires_company_name && logoFile) {
+        const formData = new FormData();
+        formData.append("file", logoFile);
+        try {
+          await api.upload("/companies/me/logo", formData, registerResponse.token);
+        } catch {
+          // A failed logo upload shouldn't block account creation - the
+          // admin can add/retry a logo later from the Account page, which
+          // uses this exact same endpoint.
+        }
+      }
+
       await login(email, password);
       router.push("/dashboard");
     } catch (err) {
@@ -357,11 +393,43 @@ function RegisterContent() {
                   aria-invalid={!!fieldErrors.inviteToken}
                 />
                 {fieldErrors.inviteToken && <FieldError message={fieldErrors.inviteToken} />}
-                {inviteInfo && (
+                {inviteInfo && !inviteInfo.requires_company_name && (
                   <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
                     {t("register.joiningCompany")} <strong>{inviteInfo.company_name}</strong> ·{" "}
                     {inviteInfo.vertical_display_name}
                   </p>
+                )}
+                {inviteInfo?.requires_company_name && (
+                  <>
+                    <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
+                      {t("register.joiningVertical")} <strong>{inviteInfo.vertical_display_name}</strong>
+                    </p>
+                    <div className={styles.field} style={{ marginTop: "var(--space-3)" }}>
+                      <label htmlFor="newCompanyName">{t("register.yourCompanyName")}</label>
+                      <input
+                        id="newCompanyName"
+                        type="text"
+                        className="input"
+                        value={companyName}
+                        placeholder={t("register.yourCompanyNamePlaceholder")}
+                        onChange={(e) => {
+                          setCompanyName(e.target.value);
+                          if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, companyName: undefined }));
+                        }}
+                        aria-invalid={!!fieldErrors.companyName}
+                      />
+                      {fieldErrors.companyName && <FieldError message={fieldErrors.companyName} />}
+                    </div>
+                    <div className={styles.field}>
+                      <label htmlFor="newCompanyLogo">{t("register.logoOptional")}</label>
+                      <input
+                        id="newCompanyLogo"
+                        type="file"
+                        accept="image/png,image/jpeg,image/webp,image/svg+xml"
+                        onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
+                      />
+                    </div>
+                  </>
                 )}
                 {inviteInfoError && <p className={styles.error}>{inviteInfoError}</p>}
               </div>

@@ -95,14 +95,26 @@ class Invite(Base):
     __tablename__ = "invites"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    # Nullable for a super_admin-issued company-less invite (see admin.py's
+    # create_super_admin_invite) - company_id is filled in only once the
+    # invitee creates their own company at acceptance time (see auth.py's
+    # register()). Every other invite still has this set from creation.
+    company_id: Mapped[int | None] = mapped_column(ForeignKey("companies.id"))
     email: Mapped[str] = mapped_column(Text)
     token: Mapped[str] = mapped_column(Text, unique=True)
     role: Mapped[str] = mapped_column(Text, default="member")
     status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'accepted', 'revoked'
     invited_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
-    # Derived from company.vertical_id at invite-creation time, never chosen
-    # manually - see app/routers/admin.py's invite-creation endpoint.
+    # Only set for a company-less invite - the company_type the invitee's
+    # own company will get once they create it at acceptance time (same
+    # 3-value convention as Company.type/RegisterRequest.company_type).
+    # Unused (always NULL) for a normal company-scoped invite, where the
+    # company (and its type) already exists.
+    company_type: Mapped[str | None] = mapped_column(Text)
+    # Derived from company.vertical_id at invite-creation time for a normal
+    # invite, or chosen directly by the super_admin for a company-less one -
+    # never chosen manually otherwise. See app/routers/companies.py and
+    # admin.py's two invite-creation endpoints.
     vertical_id: Mapped[int | None] = mapped_column(ForeignKey("verticals.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)

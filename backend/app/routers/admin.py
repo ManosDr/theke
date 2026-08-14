@@ -1,4 +1,5 @@
 import json
+import secrets
 from datetime import date, datetime, timedelta
 
 import httpx
@@ -94,6 +95,7 @@ from app.schemas import (
     InternalActivityResponse,
     InternalAuditActivityEntry,
     InternalChatActivityEntry,
+    InviteSummary,
     LegalDocumentAdminDetail,
     LegalDocumentAdminSummary,
     LegalDocumentSaveRequest,
@@ -124,6 +126,7 @@ from app.schemas import (
     StaleDocumentSummary,
     SubscriptionEntry,
     SubscriptionListResponse,
+    SuperAdminInviteCreateRequest,
     UndoSupersedeRequest,
     UserFeedbackEntry,
     UserFeedbackListResponse,
@@ -138,6 +141,7 @@ from app.schemas import (
 from app.security import generate_password, hash_password
 from app.services.audit import log_action
 from app.services.authorization import require_super_admin
+from app.routers.companies import INVITE_VALID_DAYS
 from app.services.bootstrap import is_demo_seed_email
 
 
@@ -150,7 +154,7 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
-from app.services.email import send_test_email
+from app.services.email import send_company_less_invite_email, send_test_email
 from app.services.email_templates import (
     ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
     TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
@@ -611,6 +615,74 @@ async def admin_change_user_role(
     )
 
 
+@router.post("/invites", response_model=InviteSummary, status_code=status.HTTP_201_CREATED)
+async def create_super_admin_invite(
+    payload: SuperAdminInviteCreateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> InviteSummary:
+    """Company-less invite: super_admin only enters an email + vertical (via
+    the same construction/municipality/accounting selector used everywhere
+    else a company is created) - no company exists yet. The invitee creates
+    their own company during onboarding and becomes its founding admin
+    (role is always 'admin', never asked here). See auth.py's register()
+    for the acceptance-side company-creation logic, and KNOWN_DECISIONS.md
+    for why this is a separate endpoint from POST /companies/me/invites
+    (that one requires an existing company_id via the caller's own JWT -
+    a super_admin has none)."""
+    require_super_admin(user)
+    if db.scalar(select(User).where(User.email == payload.email)):
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="That email is already registered")
+
+    vertical_slug = "tax_accounting" if payload.company_type == "accounting" else "construction"
+    vertical = db.scalar(select(Vertical).where(Vertical.slug == vertical_slug, Vertical.status == "active"))
+    if not vertical:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail=f"Unknown or inactive vertical_slug '{vertical_slug}'"
+        )
+
+    invite = Invite(
+        company_id=None,
+        company_type=payload.company_type,
+        email=payload.email,
+        token=secrets.token_urlsafe(24),
+        role="admin",
+        invited_by=user.user_id,
+        vertical_id=vertical.id,
+        expires_at=datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS),
+    )
+    db.add(invite)
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="invite_created",
+        resource_type="invite",
+        metadata={"email": payload.email, "company_type": payload.company_type, "company_less": True},
+    )
+    db.commit()
+    db.refresh(invite)
+
+    accept_url = f"{settings.frontend_url}/register?invite_token={invite.token}"
+    send_company_less_invite_email(
+        db=db,
+        to_email=invite.email,
+        vertical_slug=vertical.slug,
+        accept_url=accept_url,
+        expiry_days=INVITE_VALID_DAYS,
+    )
+
+    return InviteSummary(
+        id=invite.id,
+        email=invite.email,
+        role=invite.role,
+        status=invite.status,
+        token=invite.token,
+        created_at=invite.created_at,
+        expires_at=invite.expires_at,
+    )
+
+
 @router.get("/invites", response_model=list[AdminInviteSummary])
 async def list_all_invites(
     db: Session = Depends(get_db),
@@ -631,7 +703,9 @@ async def list_all_invites(
             created_at=i.created_at,
             expires_at=i.expires_at,
             company_id=i.company_id,
-            company_name=company_names.get(i.company_id, "—"),
+            # None (not "—") for a still-pending company-less invite - the
+            # frontend renders its own placeholder for that case.
+            company_name=company_names.get(i.company_id) if i.company_id else None,
         )
         for i in invites
     ]

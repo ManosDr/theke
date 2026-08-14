@@ -709,7 +709,12 @@ function AssignPlanModal({
   }, [token]);
 
   const filtered = useMemo(
-    () => (query ? companies.filter((c) => c.name.toLowerCase().includes(query.toLowerCase())).slice(0, 8) : []),
+    () =>
+      query
+        ? companies
+            .filter((c) => !c.is_test_account && c.name.toLowerCase().includes(query.toLowerCase()))
+            .slice(0, 8)
+        : [],
     [companies, query]
   );
 

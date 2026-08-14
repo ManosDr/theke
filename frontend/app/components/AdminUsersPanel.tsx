@@ -171,11 +171,13 @@ export function AdminUsersPanel() {
           onChange={(e) => setCompanyFilter(e.target.value ? Number(e.target.value) : "")}
         >
           <option value="">{t("adminUsers.filterCompany")}</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {companies
+            .filter((c) => !c.is_test_account)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
 
         <select className="input" value={verticalFilter} onChange={(e) => setVerticalFilter(e.target.value)}>

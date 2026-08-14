@@ -124,6 +124,7 @@ export interface CompanySummary {
   name: string;
   type: "construction" | "municipality" | "accounting";
   is_suspended: boolean;
+  is_test_account: boolean;
   created_at: string;
   vertical_id: number | null;
   vertical_slug: string | null;

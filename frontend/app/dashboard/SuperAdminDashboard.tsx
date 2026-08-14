@@ -288,8 +288,13 @@ export function SuperAdminDashboard() {
   // VerticalStatsCard row - selecting a vertical in the sidebar now filters
   // the whole page, not one card.
   const scopedStats = selectedVertical === "all" ? null : statsByVertical.get(selectedVertical);
-  const scopedCompanies =
-    selectedVertical === "all" ? companies : companies.filter((c) => c.vertical_slug === selectedVertical);
+  // Excludes is_test_account companies so "Total Tenants"/suspended counts
+  // stay consistent with the backend's own platform-stats exclusion (see
+  // admin.py's not_test_company) - these are business metrics, not a
+  // management table, so demo/seed companies shouldn't inflate them.
+  const scopedCompanies = (
+    selectedVertical === "all" ? companies : companies.filter((c) => c.vertical_slug === selectedVertical)
+  ).filter((c) => !c.is_test_account);
   const scopedStaleDocs =
     selectedVertical === "all" ? staleDocs : staleDocs.filter((d) => d.vertical_slug === selectedVertical);
   // company_id-null entries (platform-level actions with no single owning

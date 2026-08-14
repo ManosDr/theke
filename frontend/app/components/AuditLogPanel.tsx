@@ -81,11 +81,13 @@ export function AuditLogPanel() {
           }}
         >
           <option value="">{t("adminAuditLog.filterCompany")}</option>
-          {companies.map((c) => (
-            <option key={c.id} value={c.id}>
-              {c.name}
-            </option>
-          ))}
+          {companies
+            .filter((c) => !c.is_test_account)
+            .map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
         </select>
         {hasFilters && (
           <button

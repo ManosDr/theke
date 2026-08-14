@@ -182,6 +182,7 @@ def _to_company_summary(db: Session, c: Company, vertical_slugs: dict[int, str])
         name=c.name,
         type=c.type,
         is_suspended=c.is_suspended,
+        is_test_account=c.is_test_account,
         created_at=c.created_at,
         vertical_id=c.vertical_id,
         vertical_slug=vertical_slugs.get(c.vertical_id),

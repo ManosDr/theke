@@ -482,6 +482,7 @@ class CompanySummary(BaseModel):
     name: str
     type: str
     is_suspended: bool
+    is_test_account: bool = False
     created_at: datetime
     vertical_id: int | None = None
     vertical_slug: str | None = None

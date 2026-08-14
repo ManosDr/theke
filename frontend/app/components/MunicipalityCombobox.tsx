@@ -19,7 +19,7 @@ interface MunicipalityComboboxProps {
 }
 
 export default function MunicipalityCombobox({ regions, value, onChange, token, ariaInvalid }: MunicipalityComboboxProps) {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   const [query, setQuery] = useState("");
   const [open, setOpen] = useState(false);
   const [requestStatus, setRequestStatus] = useState<"idle" | "sending" | "sent" | "error">("idle");
@@ -109,13 +109,13 @@ export default function MunicipalityCombobox({ regions, value, onChange, token, 
               {filtered.total === 0 && <p className={styles.emptyState}>{t("common.noMatches")}</p>}
               {filtered.covered.length > 0 && (
                 <>
-                  <div className={styles.groupHeading}>{t("municipality.coveredGroupHeading")}</div>
+                  <div className={styles.groupHeading}>{tUpper("municipality.coveredGroupHeading")}</div>
                   {filtered.covered.slice(0, MAX_RESULTS).map(renderOption)}
                 </>
               )}
               {filtered.uncovered.length > 0 && (
                 <>
-                  <div className={styles.groupHeading}>{t("municipality.uncoveredGroupHeading")}</div>
+                  <div className={styles.groupHeading}>{tUpper("municipality.uncoveredGroupHeading")}</div>
                   {filtered.uncovered.slice(0, MAX_RESULTS).map(renderOption)}
                 </>
               )}

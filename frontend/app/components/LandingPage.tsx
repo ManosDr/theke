@@ -85,7 +85,7 @@ function useScrollReveal() {
 // in translations.ts and KNOWN_DECISIONS.md's Phase 4 entry for exactly
 // which real questions/answers/citations were used and why.
 export function LandingPage() {
-  const { t } = useLocale();
+  const { t, tUpper } = useLocale();
   useScrollReveal();
 
   return (
@@ -112,7 +112,7 @@ export function LandingPage() {
       <section className={styles.section}>
         <div className={`${styles.container} ${styles.heroRow}`}>
           <div className={styles.heroLeft} data-reveal>
-            <p className={styles.eyebrow}>{t("landing.heroEyebrow")}</p>
+            <p className={styles.eyebrow}>{tUpper("landing.heroEyebrow")}</p>
             <h1 className={styles.h1}>{t("landing.heroH1")}</h1>
             <p className={styles.heroSub}>{t("landing.heroSub")}</p>
             <div className={styles.ctaRow}>
@@ -140,7 +140,7 @@ export function LandingPage() {
                 <span className={styles.assistantName}>theke</span>
               </div>
               <p className={styles.assistantAnswer}>{t("landing.heroAnswer")}</p>
-              <p className={styles.sourcesLabel}>{t("landing.sources")}</p>
+              <p className={styles.sourcesLabel}>{tUpper("landing.sources")}</p>
               <div className={styles.chipRow}>
                 <span className={styles.citationChip}>
                   <span className={styles.citationDot} />
@@ -160,7 +160,7 @@ export function LandingPage() {
       <section className={`${styles.section} ${styles.sectionSurface}`}>
         <div className={styles.container}>
           <div className={styles.sectionIntro} data-reveal>
-            <p className={styles.eyebrow}>{t("landing.howEyebrow")}</p>
+            <p className={styles.eyebrow}>{tUpper("landing.howEyebrow")}</p>
             <h2 className={styles.h2}>{t("landing.howH2")}</h2>
           </div>
           <div className={styles.stepGrid}>
@@ -179,7 +179,7 @@ export function LandingPage() {
       <section className={styles.section}>
         <div className={styles.container}>
           <div className={styles.sectionIntroCentered} data-reveal>
-            <p className={styles.eyebrow}>{t("landing.pathEyebrow")}</p>
+            <p className={styles.eyebrow}>{tUpper("landing.pathEyebrow")}</p>
             <h2 className={styles.h2}>{t("landing.pathH2")}</h2>
             <p className={styles.sectionSub}>{t("landing.pathSub")}</p>
           </div>
@@ -188,7 +188,7 @@ export function LandingPage() {
               <span className={`${styles.badge} ${styles.badgeCon}`}>{t("landing.conBadge")}</span>
               <h3 className={styles.pathTitle}>{t("landing.conTitle")}</h3>
               <p className={styles.pathDesc}>{t("landing.conDesc")}</p>
-              <p className={styles.exampleLabel}>{t("landing.exampleLabel")}</p>
+              <p className={styles.exampleLabel}>{tUpper("landing.exampleLabel")}</p>
               <div className={styles.questionChip}>
                 <span className={`${styles.questionMark} ${styles.questionMarkCon}`}>;</span>
                 <span>{t("landing.qConstruction")}</span>
@@ -202,7 +202,7 @@ export function LandingPage() {
               <span className={`${styles.badge} ${styles.badgeTax}`}>{t("landing.taxBadge")}</span>
               <h3 className={styles.pathTitle}>{t("landing.taxTitle")}</h3>
               <p className={styles.pathDesc}>{t("landing.taxDesc")}</p>
-              <p className={styles.exampleLabel}>{t("landing.exampleLabel")}</p>
+              <p className={styles.exampleLabel}>{tUpper("landing.exampleLabel")}</p>
               <div className={styles.questionChip}>
                 <span className={`${styles.questionMark} ${styles.questionMarkTax}`}>;</span>
                 <span>{t("landing.qTax")}</span>
@@ -219,7 +219,7 @@ export function LandingPage() {
       <section className={`${styles.section} ${styles.sectionSurface}`}>
         <div className={`${styles.container} ${styles.trustRow}`}>
           <div className={styles.trustLeft} data-reveal>
-            <p className={styles.eyebrow}>{t("landing.trustEyebrow")}</p>
+            <p className={styles.eyebrow}>{tUpper("landing.trustEyebrow")}</p>
             <h2 className={styles.h2}>{t("landing.trustH2")}</h2>
             <p className={styles.trustIntro}>{t("landing.trustIntro")}</p>
             <div className={styles.honestyBox}>
@@ -244,7 +244,7 @@ export function LandingPage() {
 
               <div data-reveal-source>
                 <p className={styles.sourcesLabel}>
-                  <span className={styles.checkMark}>✓</span> {t("landing.verifiedSources")}
+                  <span className={styles.checkMark}>✓</span> {tUpper("landing.verifiedSources")}
                 </p>
                 <div className={styles.sourceList}>
                   <div className={styles.sourceRow}>

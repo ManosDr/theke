@@ -946,7 +946,9 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               ) : selectedProject ? (
                 <div className={styles.activeProjectChip}>
                   <div style={{ minWidth: 0 }}>
-                    <div className={styles.activeProjectChipLabel}>{activeContextLabel}</div>
+                    <div className={styles.activeProjectChipLabel}>
+                      {tUpper(isTaxAccounting ? "chat.clientLabel" : "chat.projectLabel")}
+                    </div>
                     <div className={styles.activeProjectChipValue}>
                       {selectedProject.customer_name || selectedProject.name}
                     </div>
@@ -1266,7 +1268,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                   <div className={styles.messageBody}>{renderAnswerBody(m.text, m.citations)}</div>
                   {m.citations && m.citations.length > 0 && (
                     <div className={styles.sourcesBlock}>
-                      <div className={styles.sourcesLabel}>{t("chat.sources", { count: m.citations.length })}</div>
+                      <div className={styles.sourcesLabel}>{tUpper("chat.sources", { count: m.citations.length })}</div>
                       <div className={styles.sourcesList}>{m.citations.map((c, j) => renderSourceRow(c, j))}</div>
                       {/* ydom (building/planning office) is the authority
                           zone-coefficient and setback figures actually come
@@ -1366,7 +1368,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               here anymore; an empty list means no row at all. */}
           {!historyLoading && !loading && messages.length > 0 && followupChips.length > 0 && (
             <div className={styles.followupChips}>
-              <div className={styles.followupChipsLabel}>{t("chat.suggestedQuestions")}</div>
+              <div className={styles.followupChipsLabel}>{tUpper("chat.suggestedQuestions")}</div>
               <div className={styles.followupChipsRow}>
                 {followupChips.map((chip) => (
                   <button key={chip.label} type="button" className={styles.suggestionChip} onClick={chip.onClick}>

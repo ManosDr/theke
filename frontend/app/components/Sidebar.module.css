@@ -355,8 +355,20 @@
   background: var(--admin-row-border);
 }
 
-.navChildItemActive,
-.navChildItemActive:hover {
+.navChildItemActive {
+  background: var(--admin-accent-navy);
+  color: var(--color-text-on-primary);
+  font-weight: 600;
+}
+
+/* Both classes (the element always carries .navChildItem too) to outrank
+   globals.css's a:not(.btn):hover { color: var(--color-link-hover) } -
+   that rule's specificity (0,2,1) beat a bare .navChildItemActive:hover
+   (0,2,0), so hovering the active/selected item silently swapped its text
+   to --color-link-hover (light theme: a medium blue meant for text on
+   light surfaces) while the background stayed this dark navy pill -
+   unreadable. Combining both classes reaches (0,3,0), unambiguously ahead. */
+.navChildItem.navChildItemActive:hover {
   background: var(--admin-accent-navy);
   color: var(--color-text-on-primary);
   font-weight: 600;

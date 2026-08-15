@@ -656,7 +656,15 @@
   border: 1px solid rgba(255, 255, 255, 0.32);
 }
 
-.ctaBandSecondary:hover {
+/* .ctaBand prefix (not just :hover) to outrank globals.css's
+   a:not(.btn):hover { color: var(--color-link-hover) } - that rule exists to
+   recolor plain content links on hover, but its specificity (0,2,1) beats a
+   bare .ctaBandSecondary:hover (0,2,0), so without this the link's hover
+   text was silently swapped to --color-link-hover (a medium blue meant for
+   text on light surfaces) while the button itself stayed on this section's
+   solid dark navy - unreadable. Scoping through the section's own class
+   pushes this to (0,3,0), unambiguously ahead of the global rule. */
+.ctaBand .ctaBandSecondary:hover {
   background: rgba(255, 255, 255, 0.08);
   border-color: rgba(255, 255, 255, 0.55);
   color: #fff;

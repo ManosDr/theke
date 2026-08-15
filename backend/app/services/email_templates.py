@@ -56,11 +56,13 @@ ALLOWED_VARIABLES: dict[str, set[str]] = {
     },
     "invite_no_company": {
         "vertical_name",
+        "vertical_name_en",
         "audience",
         "examples",
         "expiry_label",
         "email_from",
         "accept_button_html",
+        "accept_button_html_en",
         "audience_en",
         "expiry_label_en",
     },

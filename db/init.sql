@@ -2065,13 +2065,21 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
  'Προσκληθήκατε στο Theke',
  'You''ve been invited to Theke',
  '<p>Γεια σας,</p>
-<p>Προσκληθήκατε να δημιουργήσετε τον δικό σας λογαριασμό στο Theke, στον κλάδο <b>{{vertical_name}}</b>.</p>
-<p>Το Theke είναι εργαλείο κανονιστικής πληροφόρησης για επαγγελματίες {{audience}} — απαντά σε ερωτήσεις για {{examples}}, με παραπομπή σε επίσημες πηγές.</p>
-<p>Θα είστε ο/η διαχειριστής/τρια του δικού σας χώρου εργασίας — αν εργάζεστε μόνος/η, αυτό είναι εντάξει, το όνομά σας αρκεί.</p>
+<p>Σας προσκαλούμε στο theke, για {{vertical_name}}.</p>
+<p>Ρωτάτε στα ελληνικά· το theke απαντά τεκμηριωμένα, με παραπομπή στην πηγή: νόμο, ΦΕΚ, εγκύκλιο.</p>
+<p>Θα είστε διαχειριστής/τρια του χώρου εργασίας σας. Αν δουλεύετε μόνος/η, αυτό αρκεί.</p>
+<p>30 ημέρες δωρεάν &middot; Χωρίς πιστωτική κάρτα.</p>
 {{accept_button_html}}
 <p>Ο σύνδεσμος ισχύει για {{expiry_label}}.</p>
-<p>Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {{email_from}}.</p>',
- '<p style="font-size:13px; color:#737791;">You''ve been invited to create your own Theke account, a regulatory intelligence tool for {{audience_en}}. You''ll be the administrator of your own workspace — working solo is fine, your own name is enough. Use the button above to accept — the link is valid for {{expiry_label_en}}.</p>'
+<p>Ερωτήσεις; Γράψτε μας στο {{email_from}}.</p>',
+ '<p>Hi,</p>
+<p>You''re invited to theke, for {{vertical_name_en}}.</p>
+<p>You ask in plain language, theke answers with documentation: the source, every time.</p>
+<p>You''ll be the admin of your workspace. If you work solo, that''s all you need.</p>
+<p>30 days free &middot; No credit card required.</p>
+{{accept_button_html_en}}
+<p>The link is valid for {{expiry_label_en}}.</p>
+<p>Questions? Write to us at {{email_from}}.</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 

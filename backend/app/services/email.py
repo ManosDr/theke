@@ -249,6 +249,7 @@ def _invite_no_company_variables(vertical_slug: str, accept_url: str, expiry_day
     expiry_label_en = f"{expiry_days} days" if expiry_days != 1 else "1 day"
     return {
         "vertical_name": _VERTICAL_NAME["el"][vertical_slug],
+        "vertical_name_en": _VERTICAL_NAME["en"][vertical_slug],
         "audience": _VERTICAL_AUDIENCE["el"][vertical_slug],
         "audience_en": _VERTICAL_AUDIENCE["en"][vertical_slug],
         "examples": _VERTICAL_EXAMPLES_EL[vertical_slug],
@@ -256,6 +257,7 @@ def _invite_no_company_variables(vertical_slug: str, accept_url: str, expiry_day
         "expiry_label_en": expiry_label_en,
         "email_from": settings.email_from,
         "accept_button_html": _button_html(accept_url, "Αποδοχή πρόσκλησης"),
+        "accept_button_html_en": _button_html(accept_url, "Accept invite"),
     }
 
 

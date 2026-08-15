@@ -1672,7 +1672,7 @@ class EmailTemplateSummary(BaseModel):
     body content, so the list endpoint stays light, same split as
     LegalDocumentAdminSummary/Detail."""
 
-    template_key: Literal["invite", "welcome", "password_reset"]
+    template_key: Literal["invite", "invite_no_company", "welcome", "password_reset", "email_verification"]
     subject_el: str
     updated_at: datetime
     updated_by_name: str | None

@@ -46,7 +46,7 @@ _ROLE_LABEL = {
 }
 
 _VERTICAL_NAME = {
-    "el": {"construction": "Κατασκευές", "tax_accounting": "Λογιστική"},
+    "el": {"construction": "Κατασκευαστικές", "tax_accounting": "Λογιστική"},
     "en": {"construction": "Construction", "tax_accounting": "Tax & Accounting"},
 }
 

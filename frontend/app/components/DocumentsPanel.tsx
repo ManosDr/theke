@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -68,6 +69,13 @@ export function DocumentsPanel() {
   const { t, tUpper } = useLocale();
   const token = user?.token ?? null;
   const { selectedVertical } = useVertical();
+  // Deep-link support for the dashboard's "review queue" card/other pages
+  // that used to route to a separate, read-only StaleDocumentsQueue screen
+  // (removed - see KNOWN_DECISIONS.md) - ?needs_review_only=true lands here
+  // pre-filtered instead, so a reviewer gets the real revalidate panel
+  // (reasoning, current vs. suggested content, accept/edit/dismiss) instead
+  // of a bare "confirm correct" checkbox with nothing to read.
+  const searchParams = useSearchParams();
 
   const [verticals, setVerticals] = useState<VerticalSummary[]>([]);
   const [verticalFilter, setVerticalFilter] = useState<number | "">("");
@@ -76,7 +84,7 @@ export function DocumentsPanel() {
   const [contentType, setContentType] = useState("");
   const [supersededOnly, setSupersededOnly] = useState(false);
   const [autoFlaggedOnly, setAutoFlaggedOnly] = useState(false);
-  const [needsReviewOnly, setNeedsReviewOnly] = useState(false);
+  const [needsReviewOnly, setNeedsReviewOnly] = useState(() => searchParams.get("needs_review_only") === "true");
   const [q, setQ] = useState("");
   const [debouncedQ, setDebouncedQ] = useState("");
   const [offset, setOffset] = useState(0);
@@ -241,6 +249,23 @@ export function DocumentsPanel() {
       setRevalidationLoading(false);
     }
   }
+
+  // Deep-link companion to needs_review_only above: ?doc=<id> auto-opens
+  // that document's revalidate panel on load, so a notification/dashboard
+  // link can drop a reviewer straight onto the one document that needs
+  // attention rather than making them find it in the filtered list.
+  const [deepLinkDocOpened, setDeepLinkDocOpened] = useState(false);
+  useEffect(() => {
+    if (deepLinkDocOpened || !token) return;
+    const docParam = searchParams.get("doc");
+    if (!docParam) return;
+    setDeepLinkDocOpened(true);
+    api
+      .get<DocumentSummary>(`/admin/documents/${docParam}`, token)
+      .then((doc) => startRevalidation(doc))
+      .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token, searchParams, deepLinkDocOpened]);
 
   function closeRevalidationPanel() {
     setRevalidatingId(null);

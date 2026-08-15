@@ -1,17 +1,14 @@
 "use client";
 
-import { AppShell } from "../../components/AppShell";
-import { StaleDocumentsQueue } from "../../components/StaleDocumentsQueue";
-import { RequireSuperAdmin } from "../../lib/auth";
-import { useLocale } from "../../lib/i18n";
+import { redirect } from "next/navigation";
 
+// This screen's dedicated read-only queue (StaleDocumentsQueue) was
+// removed - it only let a reviewer blindly confirm a flagged document
+// without any way to read its content or see why the AI flagged it. The
+// real reviewing UI (revalidate panel: reasoning, current vs. suggested
+// content, accept/edit/dismiss) already existed at /admin/documents;
+// redirecting here instead of duplicating it, with the needs-review filter
+// pre-applied so this route still lands on the same set of documents.
 export default function StaleDocumentsPage() {
-  const { t } = useLocale();
-  return (
-    <RequireSuperAdmin>
-      <AppShell>
-        <StaleDocumentsQueue title={t("admin.staleDocuments.title")} description={t("admin.staleDocuments.description")} />
-      </AppShell>
-    </RequireSuperAdmin>
-  );
+  redirect("/admin/documents?needs_review_only=true");
 }

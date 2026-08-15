@@ -1,17 +1,9 @@
 "use client";
 
-import { AppShell } from "../../components/AppShell";
-import { StaleDocumentsQueue } from "../../components/StaleDocumentsQueue";
-import { RequireSuperAdmin } from "../../lib/auth";
-import { useLocale } from "../../lib/i18n";
+import { redirect } from "next/navigation";
 
+// See admin/stale-documents/page.tsx's comment - same redirect, same reason
+// (this route showed the identical, now-removed read-only queue).
 export default function NeedsReviewPage() {
-  const { t } = useLocale();
-  return (
-    <RequireSuperAdmin>
-      <AppShell>
-        <StaleDocumentsQueue title={t("admin.needsReview.title")} description={t("admin.needsReview.description")} />
-      </AppShell>
-    </RequireSuperAdmin>
-  );
+  redirect("/admin/documents?needs_review_only=true");
 }

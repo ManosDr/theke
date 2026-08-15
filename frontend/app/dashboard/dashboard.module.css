@@ -398,6 +398,14 @@
   text-decoration: underline;
 }
 
+.clickableRow {
+  cursor: pointer;
+}
+
+.clickableRow:hover {
+  background: var(--color-surface-hover);
+}
+
 .table {
   width: 100%;
   border-collapse: collapse;

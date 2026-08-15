@@ -394,7 +394,13 @@ export function SuperAdminDashboard() {
           value={scopedStaleDocs.length}
           label={tUpper("dash.super.staleDocs")}
           cta={t("dash.super.reviewQueue")}
-          onCtaClick={() => router.push("/admin/stale-documents")}
+          onCtaClick={() =>
+            router.push(
+              scopedStaleDocs.length === 1
+                ? `/admin/documents?needs_review_only=true&doc=${scopedStaleDocs[0].id}`
+                : "/admin/documents?needs_review_only=true"
+            )
+          }
         />
         <AttentionCard
           tone="info"
@@ -587,7 +593,11 @@ export function SuperAdminDashboard() {
               </thead>
               <tbody>
                 {scopedStaleDocs.map((doc) => (
-                  <tr key={doc.id}>
+                  <tr
+                    key={doc.id}
+                    className={styles.clickableRow}
+                    onClick={() => router.push(`/admin/documents?needs_review_only=true&doc=${doc.id}`)}
+                  >
                     <td>{doc.title}</td>
                     <td className="text-muted">{doc.source_group ?? "—"}</td>
                     <td className="text-muted">{doc.region_id ?? t("dash.super.national")}</td>

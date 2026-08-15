@@ -29,6 +29,8 @@ export function AdminInvitesPanel() {
   const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
   const [inviteSent, setInviteSent] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [resendingId, setResendingId] = useState<number | null>(null);
+  const [justResentId, setJustResentId] = useState<number | null>(null);
 
   async function refresh() {
     if (!token) return;
@@ -53,6 +55,20 @@ export function AdminInvitesPanel() {
       refresh();
     } catch (err) {
       alert(err instanceof ApiError ? err.message : "Failed to revoke invite");
+    }
+  }
+
+  async function resendInvite(id: number) {
+    setResendingId(id);
+    try {
+      await api.post(`/admin/invites/${id}/resend`, undefined, token);
+      setJustResentId(id);
+      setTimeout(() => setJustResentId((cur) => (cur === id ? null : cur)), 3000);
+      refresh();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to resend invite");
+    } finally {
+      setResendingId(null);
     }
   }
 
@@ -153,7 +169,14 @@ export function AdminInvitesPanel() {
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
                   <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
                   <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
-                  <td>
+                  <td style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => resendInvite(inv.id)}
+                      disabled={resendingId === inv.id}
+                    >
+                      {justResentId === inv.id ? t("dash.company.inviteResent") : t("dash.company.resendInvite")}
+                    </button>
                     <button className="btn btn-secondary" onClick={() => revokeInvite(inv.id)}>
                       {t("dash.company.cancelInvite")}
                     </button>

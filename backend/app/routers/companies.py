@@ -273,6 +273,59 @@ async def list_invites(
     ]
 
 
+@router.post("/invites/{invite_id}/resend", response_model=InviteSummary)
+async def resend_invite(
+    invite_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> InviteSummary:
+    """Re-sends the invite email as-is (same token, same accept link) and
+    pushes expires_at forward another INVITE_VALID_DAYS - for invitees who
+    missed the original email or let it expire, per the existing "you can
+    resend it if it expires" line in help.usersBody that this now backs."""
+    require_company_admin(user)
+    invite = db.get(Invite, invite_id)
+    if not invite or invite.company_id != user.company_id or invite.status != "pending":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending invite not found")
+
+    invite.expires_at = datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS)
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=user.company_id,
+        action="invite_resent",
+        resource_type="invite",
+        resource_id=invite.id,
+    )
+    db.commit()
+    db.refresh(invite)
+
+    company = db.get(Company, user.company_id)
+    inviter = db.get(User, invite.invited_by)
+    vertical = db.get(Vertical, invite.vertical_id) if invite.vertical_id else None
+    if inviter and vertical and company:
+        accept_url = f"{settings.frontend_url}/register?invite_token={invite.token}"
+        send_invite_email(
+            db=db,
+            to_email=invite.email,
+            inviter_name=inviter.display_name,
+            company_name=company.name,
+            vertical_slug=vertical.slug,
+            role=invite.role,
+            accept_url=accept_url,
+            expiry_days=INVITE_VALID_DAYS,
+        )
+
+    return InviteSummary(
+        id=invite.id,
+        email=invite.email,
+        role=invite.role,
+        status=invite.status,
+        created_at=invite.created_at,
+        expires_at=invite.expires_at,
+    )
+
+
 @router.post("/invites/{invite_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)
 async def revoke_invite(
     invite_id: int,

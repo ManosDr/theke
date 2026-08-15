@@ -154,7 +154,7 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
-from app.services.email import send_company_less_invite_email, send_test_email
+from app.services.email import send_company_less_invite_email, send_invite_email, send_test_email
 from app.services.email_templates import (
     ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
     TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
@@ -709,6 +709,70 @@ async def list_all_invites(
         )
         for i in invites
     ]
+
+
+@router.post("/invites/{invite_id}/resend", response_model=AdminInviteSummary)
+async def admin_resend_invite(
+    invite_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> AdminInviteSummary:
+    """Platform-wide equivalent of POST /companies/me/invites/{id}/resend -
+    covers both company-attached invites (created via that endpoint, visible
+    here too) and company-less ones (see create_super_admin_invite above),
+    since this list mixes both. Same token, fresh expires_at."""
+    require_super_admin(user)
+    invite = db.get(Invite, invite_id)
+    if not invite or invite.status != "pending":
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Pending invite not found")
+
+    invite.expires_at = datetime.utcnow() + timedelta(days=INVITE_VALID_DAYS)
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=invite.company_id,
+        action="invite_resent",
+        resource_type="invite",
+        resource_id=invite.id,
+    )
+    db.commit()
+    db.refresh(invite)
+
+    vertical = db.get(Vertical, invite.vertical_id) if invite.vertical_id else None
+    accept_url = f"{settings.frontend_url}/register?invite_token={invite.token}"
+    company = db.get(Company, invite.company_id) if invite.company_id else None
+    if company:
+        inviter = db.get(User, invite.invited_by)
+        if inviter and vertical:
+            send_invite_email(
+                db=db,
+                to_email=invite.email,
+                inviter_name=inviter.display_name,
+                company_name=company.name,
+                vertical_slug=vertical.slug,
+                role=invite.role,
+                accept_url=accept_url,
+                expiry_days=INVITE_VALID_DAYS,
+            )
+    elif vertical:
+        send_company_less_invite_email(
+            db=db,
+            to_email=invite.email,
+            vertical_slug=vertical.slug,
+            accept_url=accept_url,
+            expiry_days=INVITE_VALID_DAYS,
+        )
+
+    return AdminInviteSummary(
+        id=invite.id,
+        email=invite.email,
+        role=invite.role,
+        status=invite.status,
+        created_at=invite.created_at,
+        expires_at=invite.expires_at,
+        company_id=invite.company_id,
+        company_name=company.name if company else None,
+    )
 
 
 @router.post("/invites/{invite_id}/revoke", status_code=status.HTTP_204_NO_CONTENT)

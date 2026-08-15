@@ -387,6 +387,8 @@ function UsersTab({ token }: { token: string | null }) {
   const [inviteRole, setInviteRole] = useState<"admin" | "member">("member");
   const [newInviteToken, setNewInviteToken] = useState<string | null>(null);
   const [inviteEmailError, setInviteEmailError] = useState<string | null>(null);
+  const [resendingInviteId, setResendingInviteId] = useState<number | null>(null);
+  const [justResentInviteId, setJustResentInviteId] = useState<number | null>(null);
 
   const [q, setQ] = useState("");
   const [roleFilter, setRoleFilter] = useState("");
@@ -474,6 +476,20 @@ function UsersTab({ token }: { token: string | null }) {
   async function revokeInvite(id: number) {
     await api.post(`/companies/me/invites/${id}/revoke`, undefined, token);
     refresh();
+  }
+
+  async function resendInvite(id: number) {
+    setResendingInviteId(id);
+    try {
+      await api.post(`/companies/me/invites/${id}/resend`, undefined, token);
+      setJustResentInviteId(id);
+      setTimeout(() => setJustResentInviteId((cur) => (cur === id ? null : cur)), 3000);
+      refresh();
+    } catch (err) {
+      alert(err instanceof ApiError ? err.message : "Failed to resend invite");
+    } finally {
+      setResendingInviteId(null);
+    }
   }
 
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
@@ -662,7 +678,14 @@ function UsersTab({ token }: { token: string | null }) {
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
                   <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
                   <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
-                  <td>
+                  <td style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
+                    <button
+                      className="btn btn-secondary"
+                      onClick={() => resendInvite(inv.id)}
+                      disabled={resendingInviteId === inv.id}
+                    >
+                      {justResentInviteId === inv.id ? t("dash.company.inviteResent") : t("dash.company.resendInvite")}
+                    </button>
                     <button className="btn btn-secondary" onClick={() => revokeInvite(inv.id)}>
                       {t("dash.company.cancelInvite")}
                     </button>

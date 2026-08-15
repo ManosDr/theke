@@ -1,7 +1,14 @@
 # Production compose file. Differences from docker-compose.yml (dev):
-#   - No bind mounts anywhere - every image bakes its own code in
-#     (backend/Dockerfile.prod, frontend/Dockerfile.prod), so there's
-#     nothing to overlay and no --reload/npm-run-dev dev servers.
+#   - No bind mounts for application CODE - every image bakes its own code
+#     in (backend/Dockerfile.prod, frontend/Dockerfile.prod), so there's
+#     nothing to overlay and no --reload/npm-run-dev dev servers. Two
+#     read-only CONFIG bind mounts remain deliberately (postgres's
+#     ./db/init.sql, nginx's ./infra/nginx.conf below) - both require an
+#     explicit restart of their container on every deploy to actually pick
+#     up changes (see scripts/deploy.sh and KNOWN_DECISIONS.md's
+#     "bind-mounted config/data files silently go stale" entry for why,
+#     and audit that restart coverage if a third bind mount is ever added
+#     here).
 #   - restart policies set on every long-running service.
 #   - Postgres/Redis ports are NOT published to the host - only nginx is
 #     internet-facing; backend/frontend are reachable from the host on

@@ -7,6 +7,39 @@
 # location. Expects .env and docker-compose.prod.yml to already exist in
 # the repo root (see infra/nginx.conf's header comment for the one-time
 # SSL bootstrap this script does NOT handle).
+#
+# --- STANDING RULE: bind-mounted config/data files and container restarts
+#     (see KNOWN_DECISIONS.md's matching entry for the full writeup) ---
+#
+# Any file mounted into a container via a bind mount (not baked into the
+# image at build time) can go stale after `git pull` - the container keeps
+# serving whatever it read at its own last startup, even though the file on
+# disk has changed. `docker compose up -d` does NOT fix this on its own: it
+# only recreates a container whose own image/service definition changed,
+# and a bind-mounted file's *content* changing isn't part of that. This has
+# bitten this project twice - db/init.sql (postgres) and nginx.conf
+# (nginx), both silently serving outdated content with no error, discovered
+# only by chance.
+#
+# Before adding any new bind-mounted file to docker-compose.prod.yml, or
+# changing what an existing bind-mounted file controls:
+#   1. Add an explicit restart step for the consuming container below -
+#      do not assume `docker compose up -d --build` naturally restarts a
+#      container whose own image/service definition didn't change.
+#   2. Verify the restart actually applies the new file's content on a real
+#      deploy run - don't just add the restart line and assume it works;
+#      confirm post-restart state matches the current file on disk.
+#   3. If a file is bind-mounted read-only (:ro) specifically because it's
+#      meant to be edited on the server directly (rare, and generally a
+#      pattern to avoid) - document why explicitly, since it breaks the
+#      normal git-is-source-of-truth deploy model and creates exactly the
+#      kind of silent server-side drift already found and fixed twice.
+#
+# Current restart coverage below (audit this list whenever a new
+# bind-mounted file is added to docker-compose.prod.yml - it should stay
+# in sync):
+#   - postgres  (db/init.sql)
+#   - nginx     (infra/nginx.conf)
 
 set -euo pipefail
 

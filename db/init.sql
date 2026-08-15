@@ -2042,15 +2042,21 @@ ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
  '{{company_name}} σας προσκαλεί στο Theke',
- 'You''ve been invited to Theke',
+ '{{company_name}} invites you to Theke',
  '<p>Γεια σας,</p>
 <p>Ο/Η <b>{{inviter_name}}</b> σας προσκαλεί να συμμετάσχετε στην ομάδα της <b>{{company_name}}</b> στο Theke, στον κλάδο <b>{{vertical_name}}</b>.</p>
-<p>Το Theke βοηθά επαγγελματίες {{audience}} να βρίσκουν άμεσα απαντήσεις σε ερωτήσεις για {{examples}}, με παραπομπή σε επίσημες πηγές.</p>
+<p>Το Theke είναι εργαλείο πληροφόρησης για επαγγελματίες {{audience}}. Aπαντά σε ερωτήσεις για {{examples}}, με παραπομπή σε επίσημες πηγές.</p>
 <p>Θα συμμετέχετε ως <b>{{role_label}}</b>.</p>
 {{accept_button_html}}
 <p>Ο σύνδεσμος ισχύει για {{expiry_label}}.</p>
 <p>Αν δεν αναγνωρίζετε αυτό το μήνυμα ή έχετε ερωτήσεις, επικοινωνήστε μαζί μας στο {{email_from}}.</p>',
- '<p style="font-size:13px; color:#737791;"><b>{{inviter_name}}</b> has invited you to join <b>{{company_name}}</b>''s team on Theke, a regulatory intelligence tool for {{audience_en}}. You''ll join as <b>{{role_label_en}}</b>. Use the button above to accept — the link is valid for {{expiry_label_en}}.</p>'
+ '<p>Hi,</p>
+<p><b>{{inviter_name}}</b> has invited you to join <b>{{company_name}}</b>''s team on Theke, in <b>{{vertical_name_en}}</b>.</p>
+<p>Theke is an information tool for {{audience_en}}. It answers questions about {{examples_en}}, with citations from official sources.</p>
+<p>You''ll join as <b>{{role_label_en}}</b>.</p>
+{{accept_button_html_en}}
+<p>The link is valid for {{expiry_label_en}}.</p>
+<p>If you don''t recognize this message or have questions, contact us at {{email_from}}.</p>'
 ),
 ('welcome',
  'Καλώς ήρθατε στο Theke',
@@ -2064,8 +2070,11 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p>Μπορείτε επίσης να δημιουργήσετε το πρώτο σας έργο όποτε είστε έτοιμοι.</p>
 <p>Με εκτίμηση,<br>Theke</p>',
  '<p>Hello,</p>
-<p>Your Theke account is ready, with access to the {{vertical_name}} knowledge base. Use the button below to ask your first question — every answer is cited against official sources, and Theke states plainly when it doesn''t have enough of one, rather than guessing.</p>
-{{chat_button_html}}
+<p>Your Theke account is ready, with access to the {{vertical_name_en}} knowledge base. You can start right away.</p>
+<p><b>Try one of these questions to see how it works:</b></p>
+{{questions_html_en}}
+{{chat_button_html_en}}
+<p>Every answer is cited against official sources (ΦΕΚ, ΤΕΕ, ΑΑΔΕ, and others). When there isn''t enough of a source, Theke says so plainly instead of guessing.</p>
 <p>You can also create your first project whenever you''re ready.</p>
 <p>Theke</p>'
 ),
@@ -2079,8 +2088,8 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p style="font-size:13px; color:#737791;">Για λόγους ασφαλείας, μην προωθήσετε αυτό το μήνυμα σε τρίτους.</p>',
  '<p>Hello,</p>
 <p>We received a request to reset your Theke password.</p>
-{{reset_button_html}}
-<p>The link is valid for {{expiry_label}}. If you didn''t request this, no action is needed — your password is unchanged.</p>
+{{reset_button_html_en}}
+<p>The link is valid for {{expiry_label_en}}. If you didn''t request this, no action is needed — your password is unchanged.</p>
 <p style="font-size:13px; color:#737791;">For security reasons, don''t forward this message to anyone else.</p>'
 ),
 ('email_verification',
@@ -2092,8 +2101,8 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p>Ο σύνδεσμος ισχύει για {{expiry_label}}. Αν δεν δημιουργήσατε εσείς αυτόν τον λογαριασμό, αγνοήστε αυτό το μήνυμα.</p>',
  '<p>Hello,</p>
 <p>Thanks for creating a Theke account. Verify your email address to get full access to asking questions.</p>
-{{verify_button_html}}
-<p>The link is valid for {{expiry_label}}. If you did not create this account, you can safely ignore this message.</p>'
+{{verify_button_html_en}}
+<p>The link is valid for {{expiry_label_en}}. If you did not create this account, you can safely ignore this message.</p>'
 ),
 ('invite_no_company',
  'Προσκληθήκατε στο Theke',

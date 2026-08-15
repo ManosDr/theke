@@ -75,6 +75,10 @@ _VERTICAL_EXAMPLES_EL = {
     "construction": "αδειοδότηση, πολεοδομικούς κανονισμούς και διαδικασίες ΥΔΟΜ",
     "tax_accounting": "ΦΠΑ, φορολογικές υποχρεώσεις και διαδικασίες ΑΑΔΕ",
 }
+_VERTICAL_EXAMPLES_EN = {
+    "construction": "permitting, planning regulations, and ΥΔΟΜ procedures",
+    "tax_accounting": "VAT, tax obligations, and ΑΑΔΕ procedures",
+}
 _VERTICAL_QUESTIONS_EL = {
     "construction": [
         "Ποια δικαιολογητικά χρειάζομαι για άδεια δόμησης;",
@@ -87,6 +91,25 @@ _VERTICAL_QUESTIONS_EL = {
         "Τι ισχύει για την υποβολή μέσω myDATA;",
     ],
 }
+_VERTICAL_QUESTIONS_EN = {
+    "construction": [
+        "What documents do I need for a building permit?",
+        "What building coefficients apply in my municipality?",
+        "What applies if the plot is within an archaeological zone?",
+    ],
+    "tax_accounting": [
+        "What are the VAT filing deadlines this quarter?",
+        "What are the ΕΦΚΑ obligations for a new hire?",
+        "What applies for submission through myDATA?",
+    ],
+}
+
+
+def _questions_html(questions: list[str]) -> str:
+    return (
+        f'<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">'
+        f'<ul style="margin:0; padding-left:20px;">' + "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions) + "</ul></div>"
+    )
 
 
 def _base_html(title: str, preheader: str, body_html: str, locale: str = "el") -> str:
@@ -221,6 +244,20 @@ def _derive_preheader(html_content: str, limit: int = 150) -> str:
     return text[:limit]
 
 
+# Every transactional email below sends BOTH languages in one message -
+# subject as "{el} · {en}", body as the Greek section followed by an <hr>
+# divider then the English section - never one-or-the-other based on a
+# stored preference. Originally only the invite emails worked this way
+# (there's no account/preferred_locale yet at send time for those), while
+# welcome/password_reset/email_verification picked a single language via
+# the recipient's preferred_locale. Unified to always-bilingual for all
+# five templates: a stored locale preference isn't a reliable signal the
+# recipient actually reads only that language, and showing both costs
+# nothing but a bit of email length. Each template's *_en variable is the
+# English half of the same content its non-suffixed counterpart renders in
+# Greek (see ALLOWED_VARIABLES in email_templates.py for the exact pairs
+# per template) - both halves are built into one variables dict per send,
+# not selected between.
 def _invite_variables(
     inviter_name: str, company_name: str, vertical_slug: str, role: str, accept_url: str, expiry_days: int
 ) -> dict[str, str]:
@@ -230,15 +267,18 @@ def _invite_variables(
         "inviter_name": inviter_name,
         "company_name": company_name,
         "vertical_name": _VERTICAL_NAME["el"][vertical_slug],
+        "vertical_name_en": _VERTICAL_NAME["en"][vertical_slug],
         "audience": _VERTICAL_AUDIENCE["el"][vertical_slug],
         "audience_en": _VERTICAL_AUDIENCE["en"][vertical_slug],
         "examples": _VERTICAL_EXAMPLES_EL[vertical_slug],
+        "examples_en": _VERTICAL_EXAMPLES_EN[vertical_slug],
         "role_label": _ROLE_LABEL["el"][role],
         "role_label_en": _ROLE_LABEL["en"][role],
         "expiry_label": expiry_label,
         "expiry_label_en": expiry_label_en,
         "email_from": settings.email_from,
         "accept_button_html": _button_html(accept_url, "Αποδοχή πρόσκλησης"),
+        "accept_button_html_en": _button_html(accept_url, "Accept invite"),
     }
 
 
@@ -252,11 +292,9 @@ def send_invite_email(
     accept_url: str,
     expiry_days: int,
 ) -> bool:
-    """Invite email - always Greek-primary/English-secondary regardless of
-    locale, since the invitee has no account (and thus no preferred_locale)
-    yet at send time. Content comes from the admin-editable email_templates
-    row ('invite'); subject/body are combined el+en (both fields always
-    used together), unlike welcome/password_reset which pick one locale."""
+    """Invite email - always bilingual (see the module-level comment above
+    _invite_variables). Content comes from the admin-editable
+    email_templates row ('invite')."""
     row = get_template(db, "invite")
     if row is None:
         logger.error("Email template 'invite' missing from email_templates - skipping send")
@@ -298,7 +336,8 @@ def send_company_less_invite_email(db: Session, to_email: str, vertical_slug: st
     structure as send_invite_email, but with no inviter_name/company_name/
     role_label variables, since none of those exist yet at send time.
     Content comes from the admin-editable email_templates row
-    ('invite_no_company')."""
+    ('invite_no_company'). Always bilingual, see the module-level comment
+    above _invite_variables."""
     row = get_template(db, "invite_no_company")
     if row is None:
         logger.error("Email template 'invite_no_company' missing from email_templates - skipping send")
@@ -318,56 +357,52 @@ def send_company_less_invite_email(db: Session, to_email: str, vertical_slug: st
     return _send(to_email, subject, html_content, text)
 
 
-def send_welcome_email(db: Session, to_email: str, vertical_slug: str, locale: str = "el") -> bool:
+def send_welcome_email(db: Session, to_email: str, vertical_slug: str) -> bool:
     """Fires once, right after registration completes (invite-accepted or
     self-serve) - a deliberate lever against the most common first-session
     failure mode (leading with a hard edge-case question before seeing the
     product succeed at anything), by steering toward a concrete first
-    question. locale is the real user's preferred_locale, known at this
-    point (unlike the invite email, sent before an account exists).
-    Content comes from the admin-editable email_templates row ('welcome');
-    unlike invite, only the matching locale's subject/body is used, never
-    both combined."""
+    question. Content comes from the admin-editable email_templates row
+    ('welcome'). Always bilingual, see the module-level comment above
+    _invite_variables."""
     row = get_template(db, "welcome")
     if row is None:
         logger.error("Email template 'welcome' missing from email_templates - skipping send")
         return False
 
     chat_url = f"{settings.frontend_url}/chat"
-    if locale == "en":
-        vertical_name = _VERTICAL_NAME["en"][vertical_slug]
-        variables = {"vertical_name": vertical_name, "chat_button_html": _button_html(chat_url, "Ask your first question")}
-    else:
-        vertical_name = _VERTICAL_NAME["el"][vertical_slug]
-        questions = _VERTICAL_QUESTIONS_EL[vertical_slug]
-        questions_html = (
-            f'<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">'
-            f'<ul style="margin:0; padding-left:20px;">' + "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions) + "</ul></div>"
-        )
-        variables = {
-            "vertical_name": vertical_name,
-            "chat_button_html": _button_html(chat_url, "Κάντε την πρώτη σας ερώτηση"),
-            "questions_html": questions_html,
-        }
+    variables = {
+        "vertical_name": _VERTICAL_NAME["el"][vertical_slug],
+        "vertical_name_en": _VERTICAL_NAME["en"][vertical_slug],
+        "chat_button_html": _button_html(chat_url, "Κάντε την πρώτη σας ερώτηση"),
+        "chat_button_html_en": _button_html(chat_url, "Ask your first question"),
+        "questions_html": _questions_html(_VERTICAL_QUESTIONS_EL[vertical_slug]),
+        "questions_html_en": _questions_html(_VERTICAL_QUESTIONS_EN[vertical_slug]),
+    }
 
-    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
-    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
-    preheader = _derive_preheader(body_html)
-    html_content = _base_html(subject, preheader, body_html, locale)
-    text = _html_to_text(body_html)
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
     return _send(to_email, subject, html_content, text)
 
 
-def send_password_reset_email(db: Session, to_email: str, reset_url: str, locale: str = "el") -> bool:
+def send_password_reset_email(db: Session, to_email: str, reset_url: str) -> bool:
     """Sends a password-reset email via Resend. Returns True on success,
     False if email is disabled or the send fails - never raises, so the
     caller can fall back to logging the link either way without a
     try/except of its own. Content comes from the admin-editable
-    email_templates row ('password_reset'); only the matching locale's
-    subject/body is used.
+    email_templates row ('password_reset'). Always bilingual, see the
+    module-level comment above _invite_variables.
 
-    Deliberately the plainest of the three sends - no hero band, no card
-    block, no bulleted content, per the transactional-email spec: an
+    Deliberately the plainest of the sends - no hero band, no card block,
+    no bulleted content, per the transactional-email spec: an
     over-branded, image-heavy security email reads as more suspicious to a
     security-conscious professional than a plain one does. No sign-off
     block either, for the same reason."""
@@ -377,23 +412,29 @@ def send_password_reset_email(db: Session, to_email: str, reset_url: str, locale
         return False
 
     expiry_minutes = settings.password_reset_token_expire_minutes
-    if locale == "en":
-        expiry_label = f"{expiry_minutes} minutes" if expiry_minutes != 60 else "1 hour"
-        button_label = "Reset password"
-    else:
-        expiry_label = f"{expiry_minutes} λεπτά" if expiry_minutes != 60 else "1 ώρα"
-        button_label = "Επαναφορά κωδικού"
-    variables = {"reset_button_html": _button_html(reset_url, button_label), "expiry_label": expiry_label}
+    expiry_label = f"{expiry_minutes} λεπτά" if expiry_minutes != 60 else "1 ώρα"
+    expiry_label_en = f"{expiry_minutes} minutes" if expiry_minutes != 60 else "1 hour"
+    variables = {
+        "reset_button_html": _button_html(reset_url, "Επαναφορά κωδικού"),
+        "reset_button_html_en": _button_html(reset_url, "Reset password"),
+        "expiry_label": expiry_label,
+        "expiry_label_en": expiry_label_en,
+    }
 
-    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
-    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
-    preheader = _derive_preheader(body_html)
-    html_content = _base_html(subject, preheader, body_html, locale)
-    text = _html_to_text(body_html)
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
     return _send(to_email, subject, html_content, text)
 
 
-def send_verification_email(db: Session, to_email: str, verify_url: str, locale: str = "el") -> bool:
+def send_verification_email(db: Session, to_email: str, verify_url: str) -> bool:
     """Sent once from /auth/register's self-serve branch (and again from
     POST /auth/resend-verification on request) - never for invite-completions,
     which skip verification entirely since the inviting admin already vouched
@@ -401,7 +442,8 @@ def send_verification_email(db: Session, to_email: str, verify_url: str, locale:
     treatment as send_password_reset_email, for the same reason: a single
     actionable security/account link reads as more trustworthy without
     marketing-style chrome. Content comes from the admin-editable
-    email_templates row ('email_verification')."""
+    email_templates row ('email_verification'). Always bilingual, see the
+    module-level comment above _invite_variables."""
     row = get_template(db, "email_verification")
     if row is None:
         logger.error("Email template 'email_verification' missing from email_templates - skipping send")
@@ -409,19 +451,25 @@ def send_verification_email(db: Session, to_email: str, verify_url: str, locale:
 
     expiry_minutes = settings.email_verification_token_expire_minutes
     expiry_days = expiry_minutes // 1440
-    if locale == "en":
-        expiry_label = f"{expiry_days} days" if expiry_days != 1 else "1 day"
-        button_label = "Verify email address"
-    else:
-        expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
-        button_label = "Επιβεβαίωση email"
-    variables = {"verify_button_html": _button_html(verify_url, button_label), "expiry_label": expiry_label}
+    expiry_label = f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα"
+    expiry_label_en = f"{expiry_days} days" if expiry_days != 1 else "1 day"
+    variables = {
+        "verify_button_html": _button_html(verify_url, "Επιβεβαίωση email"),
+        "verify_button_html_en": _button_html(verify_url, "Verify email address"),
+        "expiry_label": expiry_label,
+        "expiry_label_en": expiry_label_en,
+    }
 
-    subject = render(row.subject_en if locale == "en" else row.subject_el, variables)
-    body_html = render(row.body_en if locale == "en" else row.body_el, variables)
-    preheader = _derive_preheader(body_html)
-    html_content = _base_html(subject, preheader, body_html, locale)
-    text = _html_to_text(body_html)
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
     return _send(to_email, subject, html_content, text)
 
 
@@ -446,26 +494,29 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             expiry_days=7,
         )
     if template_key == "welcome":
-        questions = _VERTICAL_QUESTIONS_EL["construction"]
-        questions_html = (
-            f'<div style="border:1px solid {_COLOR_BORDER}; border-radius:6px; background:{_COLOR_SURFACE_ALT}; padding:16px; margin: 12px 0;">'
-            f'<ul style="margin:0; padding-left:20px;">' + "".join(f"<li style='margin-bottom:6px;'>{q}</li>" for q in questions) + "</ul></div>"
-        )
         return {
             "vertical_name": _VERTICAL_NAME["el"]["construction"],
-            "questions_html": questions_html,
+            "vertical_name_en": _VERTICAL_NAME["en"]["construction"],
+            "questions_html": _questions_html(_VERTICAL_QUESTIONS_EL["construction"]),
+            "questions_html_en": _questions_html(_VERTICAL_QUESTIONS_EN["construction"]),
             "chat_button_html": _button_html(f"{settings.frontend_url}/chat", "Κάντε την πρώτη σας ερώτηση"),
+            "chat_button_html_en": _button_html(f"{settings.frontend_url}/chat", "Ask your first question"),
         }
     if template_key == "email_verification":
         expiry_days = settings.email_verification_token_expire_minutes // 1440
         return {
             "verify_button_html": _button_html(f"{settings.frontend_url}/verify-email?token=sample-test-token", "Επιβεβαίωση email"),
+            "verify_button_html_en": _button_html(f"{settings.frontend_url}/verify-email?token=sample-test-token", "Verify email address"),
             "expiry_label": f"{expiry_days} ημέρες" if expiry_days != 1 else "1 ημέρα",
+            "expiry_label_en": f"{expiry_days} days" if expiry_days != 1 else "1 day",
         }
     # password_reset
+    expiry_minutes = settings.password_reset_token_expire_minutes
     return {
         "reset_button_html": _button_html(f"{settings.frontend_url}/reset-password?token=sample-test-token", "Επαναφορά κωδικού"),
-        "expiry_label": f"{settings.password_reset_token_expire_minutes} λεπτά" if settings.password_reset_token_expire_minutes != 60 else "1 ώρα",
+        "reset_button_html_en": _button_html(f"{settings.frontend_url}/reset-password?token=sample-test-token", "Reset password"),
+        "expiry_label": f"{expiry_minutes} λεπτά" if expiry_minutes != 60 else "1 ώρα",
+        "expiry_label_en": f"{expiry_minutes} minutes" if expiry_minutes != 60 else "1 hour",
     }
 
 
@@ -474,21 +525,17 @@ def send_test_email(
 ) -> bool:
     """Renders the given (possibly unsaved, in-editor) template content with
     realistic sample data and sends it for real to the admin-configured test
-    address - lets an admin preview a change without saving it first. Uses
-    the same combine-vs-pick-locale behavior as the real sends (invite and
-    invite_no_company: combined bilingual; welcome/password_reset: Greek only, the default
-    locale) so the preview matches what an actual recipient would see."""
+    address - lets an admin preview a change without saving it first. Every
+    template is always bilingual now (see the module-level comment above
+    _invite_variables), so this always combines el+en the same way the real
+    sends do - no per-template branching needed."""
     variables = _test_send_variables(template_key)
-    if template_key in ("invite", "invite_no_company"):
-        subject = f"{render(subject_el, variables)} · {render(subject_en, variables)}"
-        body_html = (
-            f"{render(body_el, variables)}\n"
-            f'<hr style="border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;">\n'
-            f"{render(body_en, variables)}"
-        )
-    else:
-        subject = render(subject_el, variables)
-        body_html = render(body_el, variables)
+    subject = f"{render(subject_el, variables)} · {render(subject_en, variables)}"
+    body_html = (
+        f"{render(body_el, variables)}\n"
+        f'<hr style="border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;">\n'
+        f"{render(body_en, variables)}"
+    )
     preheader = _derive_preheader(body_html)
     html_content = _base_html(subject, preheader, body_html, "el")
     text = _html_to_text(body_html)

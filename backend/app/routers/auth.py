@@ -51,7 +51,7 @@ def _issue_and_send_verification(db: Session, user: User) -> None:
     )
     db.commit()
     verify_url = f"{settings.frontend_url}/verify-email?token={token}"
-    send_verification_email(db, user.email, verify_url, user.preferred_locale or "el")
+    send_verification_email(db, user.email, verify_url)
 
 @router.get("/invite-info/{token}", response_model=InviteInfoResponse)
 async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoResponse:
@@ -262,7 +262,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
     # company, or set explicitly above on the new-company path).
     company_vertical = db.get(Vertical, company.vertical_id)
     if company_vertical:
-        send_welcome_email(db, user.email, company_vertical.slug, user.preferred_locale or "el")
+        send_welcome_email(db, user.email, company_vertical.slug)
 
     if is_self_serve:
         _issue_and_send_verification(db, user)
@@ -364,7 +364,7 @@ async def forgot_password(payload: ForgotPasswordRequest, db: Session = Depends(
         )
         db.commit()
         reset_url = f"{settings.frontend_url}/reset-password?token={token}"
-        send_password_reset_email(db, user.email, reset_url, user.preferred_locale or "el")
+        send_password_reset_email(db, user.email, reset_url)
         # This line exists only so "a reset was requested" is observable in
         # logs, not to substitute for real delivery - see the docstring on
         # why the token/link itself never appears here.

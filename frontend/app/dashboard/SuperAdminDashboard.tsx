@@ -247,7 +247,7 @@ export function SuperAdminDashboard() {
       const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData, spendAlertsData, weeklyDigestData] =
         await Promise.all([
           api.get<CompanySummary[]>("/admin/companies", token),
-          api.get<AuditLogListResponse>("/admin/audit-log", token),
+          api.get<AuditLogListResponse>("/admin/audit-log?exclude_solo_super_admin=true", token),
           api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
           api.get<AdminStatsByVertical>("/admin/stats", token),
           api.get<VerticalSummary[]>("/admin/verticals", token),

@@ -2,6 +2,8 @@
 
 import { Area, CartesianGrid, ComposedChart, Legend, Line, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
+import { InfoIcon } from "../components/StatIcons";
+import ExplainerTooltip from "../components/Tooltip";
 import { useLocale } from "../lib/i18n";
 import type { AuditLogEntry } from "../lib/types";
 
@@ -70,7 +72,16 @@ export function ActivityChart({ entries, days = 14 }: { entries: AuditLogEntry[]
         />
         <Legend
           iconType="circle"
-          formatter={(value) => <span style={{ color: "var(--color-text-muted)" }}>{value}</span>}
+          formatter={(value, entry) => (
+            <span style={{ color: "var(--color-text-muted)" }}>
+              {value}
+              {entry.dataKey === "activity" && (
+                <ExplainerTooltip text={t("dash.super.chartOtherActivityTooltip")}>
+                  <InfoIcon size={11} />
+                </ExplainerTooltip>
+              )}
+            </span>
+          )}
         />
         <Area
           type="monotone"

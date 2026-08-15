@@ -3394,15 +3394,26 @@ async def platform_audit_log(
     offset: int = Query(default=0, ge=0),
     company_id: int | None = None,
     q: str | None = None,
+    exclude_solo_super_admin: bool = False,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> AuditLogListResponse:
     """Defaults (limit=200, offset=0) match the dashboard's own preview call
     exactly, so that call site's behavior is unchanged - the drill-through
     page (/admin/audit-log) is the only caller that passes a non-default
-    offset/company_id/q to page through the full table."""
+    offset/company_id/q to page through the full table.
+
+    exclude_solo_super_admin defaults False so the drill-through page (a
+    genuine audit trail - it should show everything, including a solo
+    super_admin's own actions) is unaffected. The dashboard's activity
+    chart/recent-activity preview opts in, using the same
+    _solo_super_admin_user_ids exclusion already applied to the platform
+    stat cards, weekly digest, and spend-alert checks - their own manual
+    probing shouldn't inflate the "platform activity" story."""
     require_super_admin(user)
     stmt = select(AuditLog)
+    if exclude_solo_super_admin:
+        stmt = stmt.where(AuditLog.actor_user_id.not_in(_solo_super_admin_user_ids()))
     if company_id is not None:
         stmt = stmt.where(AuditLog.company_id == company_id)
     if q:

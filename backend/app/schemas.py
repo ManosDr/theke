@@ -1157,6 +1157,11 @@ class DataSourceSummary(BaseModel):
     last_crawl_error: str | None
     is_active: bool
     notes: str | None = None
+    last_health_check_at: datetime | None = None
+    last_health_check_status: str | None = None
+    last_health_check_error: str | None = None
+    consecutive_failures: int = 0
+    failing_since: datetime | None = None
 
 
 class DataSourcesByVertical(BaseModel):

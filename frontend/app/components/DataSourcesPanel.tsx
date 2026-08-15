@@ -20,6 +20,16 @@ const ACCENT_CLASS: Record<string, string> = {
   tax_accounting: styles.accentTax,
 };
 
+// Mirrors FAILURE_THRESHOLD in crawler/crawler/data_source_health_check.py -
+// kept as a literal here (not fetched from the backend) since it's a small,
+// rarely-changed constant and the two are in different deployable services;
+// if it ever changes, update both.
+const FAILURE_BANNER_THRESHOLD = 3;
+
+function daysSince(iso: string): number {
+  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+}
+
 type Health = "healthy" | "overdue" | "failed" | "blocked" | "syncing" | "inactive" | "never_synced";
 
 function healthOf(source: DataSourceSummary, syncing: boolean): Health {
@@ -58,6 +68,7 @@ export function DataSourcesPanel() {
   const [collapsed, setCollapsed] = useState<Record<string, boolean>>({});
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<number | null>(null);
+  const [showOnlyFailing, setShowOnlyFailing] = useState(false);
 
   async function refresh() {
     if (!token) return;
@@ -79,6 +90,19 @@ export function DataSourcesPanel() {
     () => (selectedVertical === "all" ? groups : groups.filter((g) => g.vertical_slug === selectedVertical)),
     [groups, selectedVertical]
   );
+
+  const failingSources = useMemo(
+    () =>
+      visibleGroups.flatMap((g) => g.sources.filter((s) => s.consecutive_failures >= FAILURE_BANNER_THRESHOLD)),
+    [visibleGroups]
+  );
+
+  const displayGroups = useMemo(() => {
+    if (!showOnlyFailing) return visibleGroups;
+    return visibleGroups
+      .map((g) => ({ ...g, sources: g.sources.filter((s) => s.consecutive_failures >= FAILURE_BANNER_THRESHOLD) }))
+      .filter((g) => g.sources.length > 0);
+  }, [visibleGroups, showOnlyFailing]);
 
   async function syncNow(id: number) {
     if (!token) return;
@@ -106,7 +130,42 @@ export function DataSourcesPanel() {
         </Tooltip>
       </h1>
 
-      {visibleGroups.map((group) => (
+      {failingSources.length > 0 && (
+        <div className={styles.failureBanner}>
+          <div className={styles.failureBannerHeader}>
+            <span className={styles.failureBannerTitle}>
+              <WarningIcon size={16} />
+              {t("adminSources.failingBanner.heading", { count: failingSources.length })}
+            </span>
+            <button
+              type="button"
+              className={styles.failureBannerToggle}
+              onClick={() => setShowOnlyFailing((prev) => !prev)}
+            >
+              {showOnlyFailing ? t("adminSources.failingBanner.showAll") : t("adminSources.failingBanner.filterOnly")}
+            </button>
+          </div>
+          <ul className={styles.failureBannerList}>
+            {failingSources.map((source) => {
+              const banPattern = source.last_health_check_status === "blocked";
+              return (
+                <li key={source.id} className={`${styles.failureBannerItem} ${banPattern ? styles.banPattern : ""}`}>
+                  {banPattern ? <ShieldIcon size={14} /> : <WarningIcon size={14} />}
+                  <span className={styles.failureBannerName}>{source.name}</span>
+                  {banPattern && <span className={styles.banPatternTag}>{t("adminSources.failingBanner.banPattern")}</span>}
+                  <span className={styles.failureBannerDetail}>
+                    {t("adminSources.failingBanner.streak", { count: source.consecutive_failures })}
+                    {source.failing_since && ` – ${t("adminSources.failingBanner.days", { count: daysSince(source.failing_since) })}`}
+                    {source.last_health_check_error ? ` – ${source.last_health_check_error}` : ""}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+      )}
+
+      {displayGroups.map((group) => (
         <div key={group.vertical_slug} className={styles.categoryGroup}>
           {selectedVertical === "all" && (
             <button

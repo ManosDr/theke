@@ -62,6 +62,17 @@ class DataSource(Base):
     # actually change" rather than "when did we last check".
     last_content_hash: Mapped[str | None] = mapped_column(Text)
     content_changed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    # Daily crawl-health check (crawler/crawler/data_source_health_check.py) -
+    # a lighter-weight reachability probe than the sync/content-hash flow
+    # above, deliberately on its own columns so it can never be confused
+    # with a real content sync having happened. consecutive_failures/
+    # failing_since track the current failure streak; failing_since is NULL
+    # while healthy and reset to NULL the moment a check succeeds.
+    last_health_check_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_health_check_status: Mapped[str | None] = mapped_column(Text)  # 'healthy', 'failed', 'blocked'
+    last_health_check_error: Mapped[str | None] = mapped_column(Text)
+    consecutive_failures: Mapped[int] = mapped_column(Integer, default=0)
+    failing_since: Mapped[datetime | None] = mapped_column(DateTime)
     is_active: Mapped[bool] = mapped_column(default=True)
     notes: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)

@@ -1746,6 +1746,40 @@ CREATE TABLE IF NOT EXISTS spend_alert_checks (
 
 CREATE INDEX IF NOT EXISTS idx_spend_alert_checks_created ON spend_alert_checks(created_at DESC);
 
+-- Weekly crawl-health check (crawler/crawler/data_source_health_check.py, cron
+-- daily - reuses the daily cadence already established by spend_alert_check.py
+-- so a persistently-failing source ("banned" pattern, dead URL, etc.) is
+-- caught in days, not weeks, rather than sitting silently until an admin
+-- happens to notice a stuck needs_review queue (see the e-nomothesia.gr
+-- incident in KNOWN_DECISIONS.md). Deliberately separate from
+-- last_crawl_status/last_crawl_error/last_crawled_at (owned by the existing
+-- content-hash "Sync now" flow, admin.py's sync_data_source) - this is a
+-- lighter-weight reachability probe only, never touches last_content_hash
+-- or flags linked documents for review, so it can't be confused with a real
+-- content sync having happened.
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS last_health_check_at timestamp;
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS last_health_check_status varchar; -- 'healthy', 'failed', 'blocked'
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS last_health_check_error text;
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS consecutive_failures integer NOT NULL DEFAULT 0;
+-- NULL while healthy; set the moment consecutive_failures goes 0->1, so
+-- "how long has this been failing" is a direct read, not a derived guess.
+ALTER TABLE data_sources ADD COLUMN IF NOT EXISTS failing_since timestamp;
+
+-- Fire-once tracking for the "N consecutive failures" super-admin alert,
+-- keyed on (data_source_id, failing_since) rather than just data_source_id
+-- so a source that recovers and later fails again starts a genuinely new
+-- streak that's allowed to alert again - the same "notify once per episode,
+-- not once ever" semantics as company_count_threshold_alerts, just scoped
+-- per streak instead of per lifetime.
+CREATE TABLE IF NOT EXISTS data_source_failure_alerts (
+    id serial PRIMARY KEY,
+    data_source_id integer NOT NULL REFERENCES data_sources(id) ON DELETE CASCADE,
+    failing_since timestamp NOT NULL,
+    is_ban_pattern boolean NOT NULL DEFAULT false,
+    notified_at timestamp NOT NULL DEFAULT now(),
+    UNIQUE (data_source_id, failing_since)
+);
+
 -- Data retention/deletion compliance (legal-blocking - closes the gap
 -- between what the Privacy Policy/DPA claim and what the product actually
 -- did before this). deletion_requested_at drives the 30-day hard-delete

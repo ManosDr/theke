@@ -54,3 +54,14 @@
 # spend spikes fast, not just once a week. 08:00 UTC. See
 # crawler/crawler/spend_alert_check.py.
 0 8 * * * python -m crawler.spend_alert_check
+
+# Daily crawl-health check - lightweight reachability probe against every
+# active data_sources.base_url, tracking a consecutive-failure streak per
+# source. Notifies every super admin once per streak, the first time it
+# hits 3 consecutive daily failures - distinguishing a ban-pattern block
+# (403/429/known block-page signature) from an ordinary failure (timeout,
+# connection error, 404, etc.). Runs daily so a persistently-failing source
+# (e.g. an IP-banned host like e-nomothesia.gr) is caught within a week
+# instead of sitting silently for a month. 08:15 UTC, right after the spend
+# check. See crawler/crawler/data_source_health_check.py.
+15 8 * * * python -m crawler.data_source_health_check

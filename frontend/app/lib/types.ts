@@ -828,6 +828,11 @@ export interface DataSourceSummary {
   last_crawl_error: string | null;
   is_active: boolean;
   notes: string | null;
+  last_health_check_at: string | null;
+  last_health_check_status: string | null;
+  last_health_check_error: string | null;
+  consecutive_failures: number;
+  failing_since: string | null;
 }
 
 export interface DataSourcesByVertical {

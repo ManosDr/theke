@@ -2,6 +2,86 @@
   margin-bottom: var(--space-4);
 }
 
+.failureBanner {
+  margin-bottom: var(--space-4);
+  padding: var(--space-4);
+  border-radius: var(--radius-sm);
+  background: var(--admin-danger-bg);
+  border: 1px solid var(--admin-danger-border);
+}
+
+.failureBannerHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.failureBannerTitle {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-weight: 700;
+  color: var(--admin-danger);
+}
+
+.failureBannerToggle {
+  border: 1px solid var(--admin-danger-border);
+  background: var(--color-surface);
+  color: var(--admin-danger);
+  border-radius: var(--radius-sm);
+  padding: 4px var(--space-3);
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.failureBannerList {
+  list-style: none;
+  margin: var(--space-3) 0 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.failureBannerItem {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  color: var(--admin-danger);
+  font-size: 0.85rem;
+}
+
+/* Ban-pattern failures get their own tag but share the same red as an
+   ordinary failure - the tag text, not a second hue, is what signals extra
+   urgency, so the banner doesn't read as two unrelated severities. */
+.banPatternTag {
+  display: inline-flex;
+  padding: 1px var(--space-2);
+  border-radius: 999px;
+  background: var(--admin-danger);
+  /* --admin-danger is deliberately constant (not brightened) across
+     light/dark mode - see globals.css's own comment - so plain white always
+     has strong contrast against it here, unlike --admin-text-on-dark which
+     is tuned for the navy sidebar background, not this red. */
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.failureBannerName {
+  font-weight: 700;
+}
+
+.failureBannerDetail {
+  color: var(--color-text-muted);
+  font-weight: 400;
+}
+
 .categoryHeader {
   display: flex;
   align-items: center;

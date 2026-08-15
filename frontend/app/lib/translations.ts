@@ -477,6 +477,12 @@ export const translations = {
     "adminSources.cancel": "Cancel",
     "adminSources.documentCount": "{{count}} documents",
     "adminSources.partialCount": "Partial: {{done}}/{{total}} documents",
+    "adminSources.failingBanner.heading": "{{count}} sources failing 3+ consecutive checks",
+    "adminSources.failingBanner.filterOnly": "Show only failing",
+    "adminSources.failingBanner.showAll": "Show all sources",
+    "adminSources.failingBanner.banPattern": "IP ban pattern",
+    "adminSources.failingBanner.streak": "{{count}} consecutive checks",
+    "adminSources.failingBanner.days": "{{count}}d",
 
     // admin regions & providers
     "adminRegions.title": "Regions & Providers",
@@ -1994,6 +2000,12 @@ export const translations = {
     "adminSources.cancel": "Ακύρωση",
     "adminSources.documentCount": "{{count}} έγγραφα",
     "adminSources.partialCount": "Μερική: {{done}}/{{total}} έγγραφα",
+    "adminSources.failingBanner.heading": "{{count}} πηγές αποτυγχάνουν σε 3+ συνεχόμενους ελέγχους",
+    "adminSources.failingBanner.filterOnly": "Εμφάνιση μόνο των αποτυχημένων",
+    "adminSources.failingBanner.showAll": "Εμφάνιση όλων των πηγών",
+    "adminSources.failingBanner.banPattern": "Πιθανό μπλοκάρισμα IP",
+    "adminSources.failingBanner.streak": "{{count}} συνεχόμενοι έλεγχοι",
+    "adminSources.failingBanner.days": "{{count}}ημ",
 
     // admin regions & providers
     "adminRegions.title": "Περιοχές & Πάροχοι",

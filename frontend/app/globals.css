@@ -175,6 +175,8 @@
   --admin-warning: #f57f17;
   --admin-warning-bg: #fff4de;
   --admin-warning-border: #f5d999;
+  --admin-danger-bg: #fdeceb;
+  --admin-danger-border: #f0b8b3;
   /* Also used for inline field-validation borders/text (DocumentsPanel,
      CustomerCombobox, FieldError, project forms) - previously a separate
      --error-red token with the identical #c62828 value, consolidated here
@@ -286,6 +288,8 @@
   --admin-warning-bg: #3a2f0a;
   --admin-warning-border: #5a4a1a;
   --admin-danger: #c62828;
+  --admin-danger-bg: #341a19;
+  --admin-danger-border: #5a2a27;
   --admin-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
   --admin-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
   --admin-shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.4);

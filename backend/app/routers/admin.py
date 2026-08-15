@@ -2060,6 +2060,11 @@ def _to_data_source_summary(ds: DataSource) -> DataSourceSummary:
         last_crawl_error=ds.last_crawl_error,
         is_active=ds.is_active,
         notes=ds.notes,
+        last_health_check_at=ds.last_health_check_at,
+        last_health_check_status=ds.last_health_check_status,
+        last_health_check_error=ds.last_health_check_error,
+        consecutive_failures=ds.consecutive_failures,
+        failing_since=ds.failing_since,
     )
 
 

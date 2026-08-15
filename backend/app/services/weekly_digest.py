@@ -114,7 +114,7 @@ def _digest_html(stats: dict) -> str:
         <tr><td style="padding: 6px 0;">Ουρά επανελέγχου εγγράφων</td><td style="text-align: right; font-weight: 600;">{stats["needs_review"]}</td></tr>
       </table>
       <p style="color: #888; font-size: 13px; line-height: 1.5; margin-top: 24px;">
-        Η ομάδα Theke
+        Η ομάδα theke
       </p>
     </div>
     """
@@ -133,7 +133,7 @@ def _send_digest(to_email: str, stats: dict) -> bool:
             {
                 "from": settings.email_from,
                 "to": to_email,
-                "subject": "Theke: Εβδομαδιαία σύνοψη πλατφόρμας",
+                "subject": "theke: Εβδομαδιαία σύνοψη πλατφόρμας",
                 "html": _digest_html(stats),
             }
         )

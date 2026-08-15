@@ -50,9 +50,9 @@ export function WelcomeCard({
   // The vertical's DB display name ("Θήκη Κατασκευαστικών") stays fully
   // Greek everywhere else per the brand-naming rule, but this specific
   // welcome-banner phrasing swaps only the fixed "Θήκη" prefix for the
-  // indeclinable brand "Theke", keeping whatever modifier the DB defines.
+  // indeclinable brand "theke", keeping whatever modifier the DB defines.
   const modifier = verticalDisplayName.replace(/^Θήκη\s+/, "");
-  const title = isGreek ? `Καλώς ήρθατε στη Theke ${modifier}` : t("dash.welcome.title");
+  const title = isGreek ? `Καλώς ήρθατε στη theke ${modifier}` : t("dash.welcome.title");
   const body = isConstruction ? t("dash.welcome.bodyConstruction") : t("dash.welcome.bodyTax");
   const secondaryLabel = isConstruction ? t("dash.welcome.createProject") : t("dash.welcome.createClient");
 

@@ -23,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 NOMINATIM_URL = "https://nominatim.openstreetmap.org/reverse"
 NOMINATIM_SEARCH_URL = "https://nominatim.openstreetmap.org/search"
-NOMINATIM_USER_AGENT = "Theke/1.0 (info@theke.ai)"
+NOMINATIM_USER_AGENT = "theke/1.0 (info@theke.ai)"
 KTIMATOLOGIO_WMS_URL = "http://gis.ktimanet.gr/wms/wmsopen/wmsserver.aspx"
 
 # The FeatureServer behind maps.ktimatologio.gr's own KAEK search (confirmed

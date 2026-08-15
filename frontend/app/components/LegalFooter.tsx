@@ -33,7 +33,7 @@ export function LegalFooter() {
 
   return (
     <footer className={styles.footer}>
-      <span>© {year} Theke</span>
+      <span>© {year} theke</span>
       <span className={styles.sep}>·</span>
       <LegalLink slug="terms" status={status} newTab />
       <span className={styles.sep}>·</span>

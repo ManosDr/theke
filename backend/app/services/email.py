@@ -206,7 +206,7 @@ def _send(to_email: str, subject: str, html: str, text: str) -> bool:
     try:
         resend.Emails.send(
             {
-                "from": f"Theke <{settings.email_from}>",
+                "from": f"theke <{settings.email_from}>",
                 "to": to_email,
                 "subject": subject,
                 "html": html,

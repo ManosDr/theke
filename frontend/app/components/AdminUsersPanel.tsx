@@ -158,7 +158,7 @@ export function AdminUsersPanel() {
           onChange={(e) => setQ(e.target.value)}
         />
 
-        <select className="input" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+        <select className={`input ${styles.filterSelect}`} value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
           <option value="">{t("adminUsers.filterRole")}</option>
           <option value="super_admin">{t("role.super_admin")}</option>
           <option value="admin">{t("role.admin")}</option>
@@ -166,7 +166,7 @@ export function AdminUsersPanel() {
         </select>
 
         <select
-          className="input"
+          className={`input ${styles.filterSelect}`}
           value={companyFilter}
           onChange={(e) => setCompanyFilter(e.target.value ? Number(e.target.value) : "")}
         >
@@ -180,7 +180,7 @@ export function AdminUsersPanel() {
             ))}
         </select>
 
-        <select className="input" value={verticalFilter} onChange={(e) => setVerticalFilter(e.target.value)}>
+        <select className={`input ${styles.filterSelect}`} value={verticalFilter} onChange={(e) => setVerticalFilter(e.target.value)}>
           <option value="">{t("docs.filterVertical")}</option>
           {verticals.map((v) => (
             <option key={v.id} value={v.slug}>
@@ -189,7 +189,7 @@ export function AdminUsersPanel() {
           ))}
         </select>
 
-        <select className="input" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
+        <select className={`input ${styles.filterSelect}`} value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as StatusFilter)}>
           <option value="all">{t("docs.filterStatus")}</option>
           <option value="active">{t("dash.company.statusActive")}</option>
           <option value="revoked">{t("dash.company.statusRevoked")}</option>

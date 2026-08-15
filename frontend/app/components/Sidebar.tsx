@@ -94,24 +94,24 @@ const ADMIN_SECTIONS = [
       { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
     ],
   },
-  {
-    // Not a real customer-facing admin section - a single link to
-    // GET /admin/internal-activity, the internal-only view of activity now
-    // structurally excluded from the platform stat cards/digest/spend alerts
-    // (a company-less super_admin's own chat/admin activity). Deliberately
-    // its own small section rather than folded into "settings" above, since
-    // it's not a settings screen and not something a real customer-facing
-    // admin task would ever route through. EyeIcon (monitoring), distinct
-    // from "settings"'s SettingsIcon - the two used to collide.
-    key: "internal",
-    labelKey: "nav.internalActivity",
-    Icon: EyeIcon,
-    match: (p: string) => p === "/admin/internal-activity",
-    children: [
-      { href: "/admin/internal-activity", labelKey: "nav.internalActivity", match: (p: string) => p === "/admin/internal-activity" },
-    ],
-  },
 ] as const;
+
+// Not a real customer-facing admin section - a single link to
+// GET /admin/internal-activity, the internal-only view of activity now
+// structurally excluded from the platform stat cards/digest/spend alerts
+// (a company-less super_admin's own chat/admin activity). Rendered as a
+// flat link below, NOT via ADMIN_SECTIONS - that renderer always produces
+// a collapsible button+chevron with a child row underneath, which for a
+// single child duplicating the parent's own label just showed as a
+// dropdown you had to open to reveal one more copy of the same entry.
+// EyeIcon (monitoring), distinct from "settings"'s SettingsIcon - the two
+// used to collide.
+const INTERNAL_ACTIVITY_ITEM = {
+  href: "/admin/internal-activity",
+  labelKey: "nav.internalActivity",
+  Icon: EyeIcon,
+  match: (p: string) => p === "/admin/internal-activity",
+} as const;
 
 const VERTICAL_OPTIONS: { value: SelectedVertical; labelKey: "vertical.construction" | "vertical.tax_accounting" | "vertical.all" }[] = [
   { value: "construction", labelKey: "vertical.construction" },
@@ -369,6 +369,18 @@ export function Sidebar() {
                 </div>
               );
             })}
+
+            <Link
+              href={INTERNAL_ACTIVITY_ITEM.href}
+              title={t(INTERNAL_ACTIVITY_ITEM.labelKey)}
+              aria-current={INTERNAL_ACTIVITY_ITEM.match(pathname) ? "page" : undefined}
+              className={`${styles.navItem} ${INTERNAL_ACTIVITY_ITEM.match(pathname) ? styles.navItemActive : ""}`}
+            >
+              <span className={styles.navIconBox}>
+                <INTERNAL_ACTIVITY_ITEM.Icon />
+              </span>
+              {!collapsed && <span className={styles.navLabel}>{t(INTERNAL_ACTIVITY_ITEM.labelKey)}</span>}
+            </Link>
           </>
         )}
       </nav>

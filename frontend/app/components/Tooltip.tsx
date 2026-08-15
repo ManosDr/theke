@@ -32,6 +32,26 @@ export default function Tooltip({ text, children }: TooltipProps) {
   const [open, setOpen] = useState(false);
   const [coords, setCoords] = useState<Coords | null>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const bubbleRef = useRef<HTMLSpanElement>(null);
+
+  // The upfront rect.top < 90 guess in openTooltip() only accounts for a
+  // short one-line bubble - a long legend-style tooltip can be well over
+  // 90px tall once wrapped to its max-width, so "top" placement can still
+  // push its actual rendered top edge above the viewport. Correct for that
+  // once the bubble has a real height to measure, by flipping to "bottom"
+  // and recomputing from the trigger's rect (not the bubble's, which is
+  // already offset from the earlier wrong guess).
+  useEffect(() => {
+    if (!open || coords?.placement !== "top") return;
+    const bubbleRect = bubbleRef.current?.getBoundingClientRect();
+    const triggerRect = triggerRef.current?.getBoundingClientRect();
+    if (!bubbleRect || !triggerRect || bubbleRect.top >= 0) return;
+    setCoords({
+      top: triggerRect.bottom,
+      left: triggerRect.left + triggerRect.width / 2,
+      placement: "bottom",
+    });
+  }, [open, coords]);
 
   useEffect(() => {
     if (!open) return;
@@ -87,6 +107,7 @@ export default function Tooltip({ text, children }: TooltipProps) {
         coords &&
         createPortal(
           <span
+            ref={bubbleRef}
             className={`${styles.bubble} ${coords.placement === "bottom" ? styles.bubbleBelow : ""}`}
             role="tooltip"
             style={{ top: coords.top, left: coords.left }}

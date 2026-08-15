@@ -29,6 +29,21 @@ git pull --ff-only origin main
 log "Building and starting production stack..."
 docker compose -f "$COMPOSE_FILE" up --build -d
 
+# `up -d` only recreates containers whose image/config changed - postgres's
+# never does, so it can stay running across many deploys without a restart.
+# Docker's single-file bind mount (./db/init.sql -> .../init.sql) is bound
+# to the inode that existed when the container started; `git pull` above
+# replaces the file via unlink+rename (a new inode), which orphans that
+# mount. The result: the schema-apply step below can silently run against a
+# stale, pre-pull copy of init.sql inside an already-running postgres
+# container - no error, just whatever migration statements were added since
+# get skipped. Restarting postgres on every deploy re-establishes the bind
+# mount against the current file so this can't happen. Safe/cheap: schema
+# and data live in the separate postgres_data named volume, untouched by
+# container recreation.
+log "Restarting postgres to pick up the current db/init.sql (single-file bind mounts don't follow git's replace-via-rename)..."
+docker compose -f "$COMPOSE_FILE" restart postgres
+
 log "Waiting for postgres to be healthy..."
 until [ "$(docker compose -f "$COMPOSE_FILE" ps --format '{{.Health}}' postgres 2>/dev/null)" = "healthy" ]; do
     sleep 2

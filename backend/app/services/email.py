@@ -24,12 +24,14 @@ _COLOR_TEXT_ON_PRIMARY = "#ffffff"
 
 _FONT_STACK = "Georgia, 'Times New Roman', serif"
 
-# Real wordmark PNG (rasterized from frontend/app/components/Logo.tsx's SVG
-# paths in the brand's navy, since email clients don't reliably render
-# inline/linked SVG) - served from the frontend's own public/ directory, so
-# no separate asset host is needed. alt text still carries "theke" for the
-# image-blocked case.
-_LOGO_URL = f"{settings.frontend_url}/theke-logo-email.png"
+# Real wordmark PNGs (rasterized from frontend/app/components/Logo.tsx's SVG
+# paths - navy fill for light backgrounds, white fill for dark, mirroring
+# useLogoFill()'s in-app light/dark swap) - served from the frontend's own
+# public/ directory, so no separate asset host is needed. Email clients
+# don't reliably render inline/linked SVG, hence PNG. alt text still
+# carries "theke" for the image-blocked case.
+_LOGO_URL_LIGHT = f"{settings.frontend_url}/theke-logo-email.png"
+_LOGO_URL_DARK = f"{settings.frontend_url}/theke-logo-email-dark.png"
 
 # Every send carries this - a technical header for inbox-provider sender
 # reputation (Gmail/Outlook expect it), not a visible unsubscribe link in
@@ -83,11 +85,33 @@ def _base_html(title: str, preheader: str, body_html: str, locale: str = "el") -
     the real "theke" wordmark image (rasterized from the app's own Logo.tsx
     SVG, alt-texted for the image-blocked case), single-column 600px
     container, and the shared footer. body_html is inserted as-is; callers
-    own their own heading/paragraph markup."""
+    own their own heading/paragraph markup.
+
+    The wordmark swaps navy-on-light for white-on-dark, mirroring the
+    in-app Logo.tsx behavior, via two <img>s toggled by CSS rather than
+    one image left for the client to auto-invert - without this, Outlook's
+    own automatic dark-mode color-inversion was turning the navy PNG into
+    a washed-out grey-blue instead of a clean white mark. `[data-ogsc]` is
+    Outlook.com/OWA's own dark-mode marker attribute (added to the message
+    body when the recipient's dark mode is on); the prefers-color-scheme
+    media query covers everything else that honors it (Apple Mail, etc).
+    The dark image's inline display:none is the safe fallback for clients
+    that strip <style> blocks entirely - they simply keep showing the
+    light mark, same as before this existed."""
     return f"""\
 <!doctype html>
 <html lang="{locale}">
-<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"></head>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+.theke-logo-dark {{ display:none !important; }}
+@media (prefers-color-scheme: dark) {{
+  .theke-logo-light {{ display:none !important; }}
+  .theke-logo-dark {{ display:block !important; }}
+}}
+[data-ogsc] .theke-logo-light {{ display:none !important; }}
+[data-ogsc] .theke-logo-dark {{ display:block !important; }}
+</style>
+</head>
 <body style="margin:0; padding:0; background:{_COLOR_BG};">
 <div style="display:none; max-height:0; overflow:hidden; opacity:0;">{preheader}</div>
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:{_COLOR_BG};">
@@ -96,7 +120,8 @@ def _base_html(title: str, preheader: str, body_html: str, locale: str = "el") -
 <tr><td style="height:4px; line-height:4px; font-size:0; background:{_COLOR_PRIMARY};">&nbsp;</td></tr>
 <tr><td style="height:64px; background:{_COLOR_SURFACE}; border-bottom:1px solid {_COLOR_BORDER}; padding:0 32px;">
 <table role="presentation" width="100%" height="64" cellpadding="0" cellspacing="0"><tr><td>
-<img src="{_LOGO_URL}" alt="theke" height="26" style="height:26px; width:auto; display:block; border:0;">
+<img src="{_LOGO_URL_LIGHT}" alt="theke" height="26" class="theke-logo-light" style="height:26px; width:auto; display:block; border:0;">
+<img src="{_LOGO_URL_DARK}" alt="theke" height="26" class="theke-logo-dark" style="height:26px; width:auto; display:none; border:0;">
 </td></tr></table>
 </td></tr>
 <tr><td style="padding: 32px 32px 8px 32px; font-family:{_FONT_STACK}; color:{_COLOR_TEXT}; font-size:15px; line-height:1.5; text-align:left;">
@@ -407,6 +432,12 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             accept_url=f"{settings.frontend_url}/register?invite_token=sample-test-token",
             expiry_days=7,
         )
+    if template_key == "invite_no_company":
+        return _invite_no_company_variables(
+            vertical_slug="construction",
+            accept_url=f"{settings.frontend_url}/register?invite_token=sample-test-token",
+            expiry_days=7,
+        )
     if template_key == "welcome":
         questions = _VERTICAL_QUESTIONS_EL["construction"]
         questions_html = (
@@ -437,11 +468,11 @@ def send_test_email(
     """Renders the given (possibly unsaved, in-editor) template content with
     realistic sample data and sends it for real to the admin-configured test
     address - lets an admin preview a change without saving it first. Uses
-    the same combine-vs-pick-locale behavior as the real sends (invite:
-    combined bilingual; welcome/password_reset: Greek only, the default
+    the same combine-vs-pick-locale behavior as the real sends (invite and
+    invite_no_company: combined bilingual; welcome/password_reset: Greek only, the default
     locale) so the preview matches what an actual recipient would see."""
     variables = _test_send_variables(template_key)
-    if template_key == "invite":
+    if template_key in ("invite", "invite_no_company"):
         subject = f"{render(subject_el, variables)} · {render(subject_en, variables)}"
         body_html = (
             f"{render(body_el, variables)}\n"

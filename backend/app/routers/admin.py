@@ -1504,6 +1504,14 @@ async def revalidate_document(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Public document not found")
 
     validation = await _run_revalidation(db, doc, user.user_id)
+    if validation.status == "validated" and validation.still_accurate:
+        # A clean AI pass is itself the review - without this, needs_review
+        # only ever cleared via mark-reviewed or apply-suggestion, so a
+        # document confirmed accurate stayed stuck in the queue forever and
+        # revalidating it changed nothing the admin could see.
+        doc.needs_review = False
+        doc.last_verified_at = date.today()
+        doc.auto_needs_review_reason = None
     log_action(
         db, actor_user_id=user.user_id, company_id=None,
         action="document_revalidated", resource_type="document", resource_id=doc.id,
@@ -1597,6 +1605,14 @@ def _run_bulk_revalidation(document_ids: list[int], validated_by: int) -> None:
                     _bulk_revalidation_state["completed"] += 1
                     if validation.still_accurate:
                         _bulk_revalidation_state["accurate"] += 1
+                        # Same as the single-document path: a clean AI pass
+                        # is itself the review, so it must clear the flag -
+                        # otherwise the needs-review count never drops for
+                        # documents the AI actually confirmed were fine.
+                        doc.needs_review = False
+                        doc.last_verified_at = date.today()
+                        doc.auto_needs_review_reason = None
+                        db.commit()
                     else:
                         _bulk_revalidation_state["changed"] += 1
                 else:

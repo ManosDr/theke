@@ -104,7 +104,7 @@ export function DocumentsPanel() {
   const [bulkRunning, setBulkRunning] = useState(false);
   const [bulkTotal, setBulkTotal] = useState(0);
   const [bulkStatus, setBulkStatus] = useState<RevalidationStatusResponse | null>(null);
-  const [bulkComplete, setBulkComplete] = useState<{ changed: number; accurate: number } | null>(null);
+  const [bulkComplete, setBulkComplete] = useState<{ changed: number; accurate: number; failed: number } | null>(null);
 
   async function refreshNeedsReviewCount() {
     if (!token) return;
@@ -297,7 +297,7 @@ export function DocumentsPanel() {
       setBulkStatus(data);
       if (data.pending === 0) {
         setBulkRunning(false);
-        setBulkComplete({ changed: data.changed, accurate: data.accurate });
+        setBulkComplete({ changed: data.changed, accurate: data.accurate, failed: data.failed });
         refresh();
         refreshNeedsReviewCount();
       }
@@ -339,6 +339,8 @@ export function DocumentsPanel() {
             ) : bulkComplete ? (
               <span className="text-muted">
                 {t("docs.revalidate.bulkComplete", { changed: bulkComplete.changed, clean: bulkComplete.accurate })}
+                {bulkComplete.failed > 0 &&
+                  " " + t("docs.revalidate.bulkFailed", { failed: bulkComplete.failed })}
               </span>
             ) : null}
             <button type="button" className="btn btn-secondary" onClick={() => setNeedsReviewOnly(true)}>

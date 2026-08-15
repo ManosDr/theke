@@ -39,15 +39,16 @@ export const metadata: Metadata = {
   title: SITE_TITLE,
   description: SITE_DESCRIPTION,
   manifest: "/manifest.json",
-  // Single static default, deliberately not keyed to prefers-color-scheme -
-  // the app's own theme (lib/theme.tsx) ignores the OS preference and
-  // defaults to light too, so this must match rather than race it. Dark
-  // theme is layered on top client-side by FaviconSync, which only ever
-  // adds its own extra <link> and never touches this one (see that file
-  // for why: removing a Next-rendered head tag out from under Next's own
-  // reconciliation crashes the app on the next client-side navigation).
+  // Favicon follows the browser/OS dark-mode preference, not the site's own
+  // in-app theme toggle - those are deliberately independent (the toggle
+  // controls in-page colors only; lib/theme.tsx explicitly ignores
+  // prefers-color-scheme for that). Purely static/CSS-media-query, no JS
+  // involved, so it can't collide with Next's own head-tag reconciliation.
   icons: {
-    icon: "/icons/icon.svg",
+    icon: [
+      { url: "/icons/icon.svg", media: "(prefers-color-scheme: light)" },
+      { url: "/icons/icon-dark-theme.svg", media: "(prefers-color-scheme: dark)" },
+    ],
     apple: "/icons/icon.svg",
   },
   appleWebApp: {

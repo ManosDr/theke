@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 
-import { FaviconSync } from "./components/FaviconSync";
 import { SessionExpiryToast } from "./components/SessionExpiryToast";
 import { AuthProvider } from "./lib/auth";
 import { CompanyProvider } from "./lib/company";
@@ -16,7 +15,6 @@ export function Providers({ children }: { children: ReactNode }) {
     <AuthProvider>
       <CompanyProvider>
         <ThemeProvider>
-          <FaviconSync />
           <LocaleProvider>
             <VerticalProvider>
               <FontScaleProvider>

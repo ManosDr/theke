@@ -1081,6 +1081,39 @@ class AdminStatsByVerticalResponse(BaseModel):
     by_vertical: list[VerticalStatsEntry]
 
 
+class BusinessHealthDayEntry(BaseModel):
+    date: str  # YYYY-MM-DD
+    spend_eur: float
+    messages: int
+    # 0.0 (not an error) on a day with zero messages - mirrors
+    # AdminStatsResponse.gap_rate's convention.
+    gap_rate: float
+    positive_feedback: int
+    negative_feedback: int
+    # positive / (positive + negative) * 100, rounded to 1 decimal - None on
+    # a day with zero feedback rows, so a sparse day doesn't render as a
+    # misleading flat 0% or 100% on the chart.
+    feedback_ratio: float | None
+    # Cumulative real (non-test, non-solo-super-admin) companies/users
+    # registered by end of this day - a growth trend, not a live "active
+    # right now" count (historical suspension state isn't tracked, so that
+    # reconstruction isn't possible; this is honestly a registration curve).
+    real_companies_cumulative: int
+    real_users_cumulative: int
+
+
+class BusinessHealthResponse(BaseModel):
+    days: int
+    timeline: list[BusinessHealthDayEntry]
+    total_spend_eur: float
+    # Distinct real users who sent at least one message in the period -
+    # "active" meaning actually used the product, not just registered.
+    real_active_users_period: int
+    # total_spend_eur / real_active_users_period - None when that's zero
+    # (nothing to divide by), not 0.0, so it can't be misread as "free."
+    cost_per_real_active_user_eur: float | None
+
+
 class InfraHealthCheckEntry(BaseModel):
     total_chunks: int
     index_size_mb: float

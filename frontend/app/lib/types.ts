@@ -780,6 +780,26 @@ export interface SpendAlertsResponse {
   history: SpendAlertCheckEntry[];
 }
 
+export interface BusinessHealthDayEntry {
+  date: string; // YYYY-MM-DD
+  spend_eur: number;
+  messages: number;
+  gap_rate: number;
+  positive_feedback: number;
+  negative_feedback: number;
+  feedback_ratio: number | null;
+  real_companies_cumulative: number;
+  real_users_cumulative: number;
+}
+
+export interface BusinessHealthResponse {
+  days: number;
+  timeline: BusinessHealthDayEntry[];
+  total_spend_eur: number;
+  real_active_users_period: number;
+  cost_per_real_active_user_eur: number | null;
+}
+
 export interface WeeklyDigestEntry {
   total_messages: number;
   gap_rate: number;

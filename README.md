@@ -87,7 +87,7 @@ docker compose --profile crawler run --rm crawler
 docker exec theke-backend-1 python -m pytest tests/ -v
 ```
 
-All tests should pass (93 passed, 0 skipped as of this writing).
+All tests should pass (95 passed, 0 skipped as of this writing).
 
 ## Production deployment
 

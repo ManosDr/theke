@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta
 import httpx
 from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Query, status
 from openai import OpenAI, OpenAIError
-from sqlalchemy import delete, func, or_, select, text
+from sqlalchemy import case, delete, func, or_, select, text
 from sqlalchemy.orm import Session
 
 from app.config import settings
@@ -57,6 +57,8 @@ from app.schemas import (
     AuditLogEntry,
     AuditLogListResponse,
     BrowseResponse,
+    BusinessHealthDayEntry,
+    BusinessHealthResponse,
     CompanyCreateWithAdminRequest,
     CompanyCreateWithAdminResponse,
     CompanyDetail,
@@ -1891,6 +1893,139 @@ async def platform_stats(
         )
 
     return AdminStatsByVerticalResponse(total=total, by_vertical=by_vertical)
+
+
+@router.get("/business-health", response_model=BusinessHealthResponse)
+async def business_health(
+    days: int = Query(default=30, ge=7, le=180),
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> BusinessHealthResponse:
+    """Single view combining real cost, real usage, and real quality over
+    time, so a super_admin doesn't have to cross-reference GET /admin/stats,
+    /spend-alerts, /digests and /feedback by hand. Every number here uses
+    the exact same not_test_company/not_solo_super_admin exclusion as GET
+    /admin/stats - see that endpoint's docstring for why both are needed
+    (is_test_account alone misses a company-less super_admin's own
+    activity, which has company_id IS NULL just like the shared KB).
+
+    Deliberately NOT built: any composite/weighted "health score". Cost,
+    usage, growth, and the two quality signals (gap rate, feedback ratio)
+    are exposed as their own independent numbers - combining them would
+    fabricate a precision this data doesn't support (a rising gap rate and
+    a falling feedback ratio are different problems, not one number)."""
+    require_super_admin(user)
+    not_test_company = (Company.id.is_(None)) | (Company.is_test_account.is_(False))
+    not_solo_super_admin = ChatSession.user_id.not_in(_solo_super_admin_user_ids())
+    since = datetime.utcnow() - timedelta(days=days)
+    since_day = since.date()
+    today = datetime.utcnow().date()
+
+    day_col = func.date(ChatSession.created_at)
+    session_rows = db.execute(
+        select(
+            day_col.label("day"),
+            func.count().label("messages"),
+            func.coalesce(func.sum(case((ChatSession.gap.is_(True), 1), else_=0)), 0).label("gap_count"),
+            func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0).label("spend"),
+        )
+        .select_from(ChatSession)
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .where(ChatSession.created_at >= since, not_test_company, not_solo_super_admin)
+        .group_by(day_col)
+    ).all()
+    session_by_day = {r.day: r for r in session_rows}
+
+    # Bucketed by the feedback row's own created_at (when the rating was
+    # given), not the underlying chat session's - a quality trend should
+    # reflect when the platform's answers were judged, not when they were
+    # asked.
+    feedback_day_col = func.date(MessageFeedback.created_at)
+    feedback_rows = db.execute(
+        select(
+            feedback_day_col.label("day"),
+            func.coalesce(func.sum(case((MessageFeedback.rating == "positive", 1), else_=0)), 0).label("positive"),
+            func.coalesce(func.sum(case((MessageFeedback.rating == "negative", 1), else_=0)), 0).label("negative"),
+        )
+        .select_from(MessageFeedback)
+        .join(ChatSession, ChatSession.id == MessageFeedback.session_id)
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .where(MessageFeedback.created_at >= since, not_test_company, not_solo_super_admin)
+        .group_by(feedback_day_col)
+    ).all()
+    feedback_by_day = {r.day: r for r in feedback_rows}
+
+    # Cumulative real-company/real-user growth curve - a registration
+    # count, not a live "active now" count (historical suspension state
+    # isn't tracked, so that reconstruction isn't possible). Pulling every
+    # creation date (not just within the window) since the cumulative
+    # count at the window's start already includes everything registered
+    # before it.
+    real_company_dates = sorted(
+        d for (d,) in db.execute(select(func.date(Company.created_at)).where(Company.is_test_account.is_(False))).all()
+    )
+    solo_ids = _solo_super_admin_user_ids()
+    real_user_dates = sorted(
+        d
+        for (d,) in db.execute(
+            select(func.date(User.created_at))
+            .outerjoin(Company, Company.id == User.company_id)
+            .where(User.id.not_in(solo_ids), (Company.id.is_(None)) | (Company.is_test_account.is_(False)))
+        ).all()
+    )
+
+    timeline: list[BusinessHealthDayEntry] = []
+    company_idx = 0
+    user_idx = 0
+    n_days = (today - since_day).days + 1
+    for i in range(n_days):
+        d = since_day + timedelta(days=i)
+        while company_idx < len(real_company_dates) and real_company_dates[company_idx] <= d:
+            company_idx += 1
+        while user_idx < len(real_user_dates) and real_user_dates[user_idx] <= d:
+            user_idx += 1
+        s = session_by_day.get(d)
+        f = feedback_by_day.get(d)
+        messages = s.messages if s else 0
+        gap_count = s.gap_count if s else 0
+        positive = f.positive if f else 0
+        negative = f.negative if f else 0
+        total_feedback = positive + negative
+        timeline.append(
+            BusinessHealthDayEntry(
+                date=d.isoformat(),
+                spend_eur=round(float(s.spend), 4) if s else 0.0,
+                messages=messages,
+                gap_rate=round(gap_count / messages * 100, 1) if messages else 0.0,
+                positive_feedback=positive,
+                negative_feedback=negative,
+                feedback_ratio=round(positive / total_feedback * 100, 1) if total_feedback else None,
+                real_companies_cumulative=company_idx,
+                real_users_cumulative=user_idx,
+            )
+        )
+
+    total_spend_eur = round(sum(day.spend_eur for day in timeline), 2)
+    real_active_users_period = (
+        db.scalar(
+            select(func.count(func.distinct(ChatSession.user_id)))
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(ChatSession.created_at >= since, not_test_company, not_solo_super_admin)
+        )
+        or 0
+    )
+    cost_per_real_active_user_eur = (
+        round(total_spend_eur / real_active_users_period, 2) if real_active_users_period else None
+    )
+
+    return BusinessHealthResponse(
+        days=days,
+        timeline=timeline,
+        total_spend_eur=total_spend_eur,
+        real_active_users_period=real_active_users_period,
+        cost_per_real_active_user_eur=cost_per_real_active_user_eur,
+    )
 
 
 @router.get("/infra-health", response_model=InfraHealthResponse)

@@ -30,6 +30,46 @@ def test_admin_stats_returns_per_vertical(client, superadmin_headers):
     assert {"construction", "tax_accounting"} <= slugs
 
 
+def test_business_health_returns_timeline_shape(client, superadmin_headers):
+    resp = client.get("/admin/business-health", headers=superadmin_headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["days"] == 30
+    assert len(body["timeline"]) == 31  # since_day..today inclusive
+    assert body["total_spend_eur"] >= 0
+    assert body["real_active_users_period"] >= 0
+    if body["real_active_users_period"] == 0:
+        assert body["cost_per_real_active_user_eur"] is None
+    else:
+        assert body["cost_per_real_active_user_eur"] == round(
+            body["total_spend_eur"] / body["real_active_users_period"], 2
+        )
+    day = body["timeline"][-1]
+    assert set(day.keys()) == {
+        "date",
+        "spend_eur",
+        "messages",
+        "gap_rate",
+        "positive_feedback",
+        "negative_feedback",
+        "feedback_ratio",
+        "real_companies_cumulative",
+        "real_users_cumulative",
+    }
+    # cumulative growth counts can never decrease day over day
+    company_counts = [d["real_companies_cumulative"] for d in body["timeline"]]
+    assert company_counts == sorted(company_counts)
+
+
+def test_business_health_days_param_bounds(client, superadmin_headers):
+    resp = client.get("/admin/business-health?days=90", headers=superadmin_headers)
+    assert resp.status_code == 200
+    assert resp.json()["days"] == 90
+
+    assert client.get("/admin/business-health?days=6", headers=superadmin_headers).status_code == 422
+    assert client.get("/admin/business-health?days=181", headers=superadmin_headers).status_code == 422
+
+
 def test_infra_health_returns_latest_reading(client, superadmin_headers):
     """Read-only endpoint - crawler/crawler/infra_health_check.py is what
     actually writes rows, so this just checks the shape super_admin sees

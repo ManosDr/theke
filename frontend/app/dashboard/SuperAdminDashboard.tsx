@@ -8,7 +8,17 @@ import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
-import { AlertIcon, BuildingIcon, ClockIcon, CoinIcon, DatabaseIcon, FlagIcon, InfoIcon, MailIcon } from "../components/StatIcons";
+import {
+  AlertIcon,
+  BuildingIcon,
+  ClockIcon,
+  CoinIcon,
+  DatabaseIcon,
+  FlagIcon,
+  InfoIcon,
+  MailIcon,
+  ShieldCheckIcon,
+} from "../components/StatIcons";
 import FieldError from "../components/FieldError";
 import Tooltip from "../components/Tooltip";
 import { TRANSLATION_KEYS, translations, type TranslationKey } from "../lib/translations";
@@ -16,6 +26,7 @@ import type {
   AdminStatsByVertical,
   AuditLogEntry,
   AuditLogListResponse,
+  BusinessHealthResponse,
   CompanySummary,
   InfraHealthResponse,
   SpendAlertsResponse,
@@ -239,22 +250,33 @@ export function SuperAdminDashboard() {
   const [infraHealth, setInfraHealth] = useState<InfraHealthResponse | null>(null);
   const [spendAlerts, setSpendAlerts] = useState<SpendAlertsResponse | null>(null);
   const [weeklyDigest, setWeeklyDigest] = useState<WeeklyDigestsResponse | null>(null);
+  const [businessHealth, setBusinessHealth] = useState<BusinessHealthResponse | null>(null);
 
   const [activeTab, setActiveTab] = useState<SecondaryTab>("staleness");
 
   async function refresh() {
     try {
-      const [companiesData, auditData, staleData, statsData, verticalsData, infraHealthData, spendAlertsData, weeklyDigestData] =
-        await Promise.all([
-          api.get<CompanySummary[]>("/admin/companies", token),
-          api.get<AuditLogListResponse>("/admin/audit-log?exclude_solo_super_admin=true", token),
-          api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
-          api.get<AdminStatsByVertical>("/admin/stats", token),
-          api.get<VerticalSummary[]>("/admin/verticals", token),
-          api.get<InfraHealthResponse>("/admin/infra-health", token),
-          api.get<SpendAlertsResponse>("/admin/spend-alerts", token),
-          api.get<WeeklyDigestsResponse>("/admin/digests", token),
-        ]);
+      const [
+        companiesData,
+        auditData,
+        staleData,
+        statsData,
+        verticalsData,
+        infraHealthData,
+        spendAlertsData,
+        weeklyDigestData,
+        businessHealthData,
+      ] = await Promise.all([
+        api.get<CompanySummary[]>("/admin/companies", token),
+        api.get<AuditLogListResponse>("/admin/audit-log?exclude_solo_super_admin=true", token),
+        api.get<StaleDocumentSummary[]>("/admin/stale-documents", token),
+        api.get<AdminStatsByVertical>("/admin/stats", token),
+        api.get<VerticalSummary[]>("/admin/verticals", token),
+        api.get<InfraHealthResponse>("/admin/infra-health", token),
+        api.get<SpendAlertsResponse>("/admin/spend-alerts", token),
+        api.get<WeeklyDigestsResponse>("/admin/digests", token),
+        api.get<BusinessHealthResponse>("/admin/business-health?days=30", token),
+      ]);
       setCompanies(companiesData);
       setAuditLog(auditData.items);
       setStaleDocs(staleData);
@@ -263,6 +285,7 @@ export function SuperAdminDashboard() {
       setInfraHealth(infraHealthData);
       setSpendAlerts(spendAlertsData);
       setWeeklyDigest(weeklyDigestData);
+      setBusinessHealth(businessHealthData);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Failed to load platform data");
     } finally {
@@ -471,6 +494,27 @@ export function SuperAdminDashboard() {
             }
             cta={t("dash.super.viewTrend")}
             onCtaClick={() => router.push("/admin/digest")}
+          />
+        )}
+        {businessHealth && selectedVertical === "all" && (
+          <AttentionCard
+            tone="info"
+            icon={<ShieldCheckIcon size={14} />}
+            value={
+              businessHealth.cost_per_real_active_user_eur !== null
+                ? `€${businessHealth.cost_per_real_active_user_eur.toFixed(2)}`
+                : "—"
+            }
+            label={
+              <>
+                {tUpper("admin.businessHealth.title")}
+                <Tooltip text={t("admin.businessHealth.costPerUserTooltip")}>
+                  <InfoIcon size={12} />
+                </Tooltip>
+              </>
+            }
+            cta={t("dash.super.viewTrend")}
+            onCtaClick={() => router.push("/admin/business-health")}
           />
         )}
         <AttentionCard

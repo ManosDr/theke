@@ -76,5 +76,15 @@ until response="$(curl -fsS "$HEALTH_URL" 2>/dev/null)"; do
     sleep "$HEALTH_POLL_INTERVAL"
 done
 
+# Same single-file bind-mount staleness class as db/init.sql above:
+# infra/nginx.conf is bind-mounted read-only into nginx, `up -d` won't
+# recreate the nginx container just because the mounted file's content
+# changed (image/service config are unchanged), and nginx's own inode stays
+# pinned to whatever `git pull` replaced it with via unlink+rename. Restart
+# unconditionally so a future infra/nginx.conf edit actually takes effect
+# instead of silently continuing to serve the pre-pull config.
+log "Restarting nginx to pick up the current infra/nginx.conf (same bind-mount staleness issue as db/init.sql)..."
+docker compose -f "$COMPOSE_FILE" restart nginx
+
 log "Health check passed: $response"
 log "Deploy complete."

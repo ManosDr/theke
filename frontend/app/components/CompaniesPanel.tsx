@@ -30,7 +30,7 @@ const ACCENT_CLASS: Record<string, string> = {
   tax_accounting: styles.accentTax,
 };
 
-type CompanyTab = "companies" | "municipalities";
+type CompanyTab = "companies" | "municipalities" | "demo";
 
 export function CompaniesPanel() {
   const { user } = useAuth();
@@ -87,7 +87,14 @@ export function CompaniesPanel() {
   // companies (construction firms, accounting firms) - a separate tab
   // rather than just another row in the same list, so the two are never
   // scanned/managed as if they were the same kind of customer.
-  const visibleCompanies = byVertical.filter((c) => (tab === "municipalities" ? c.type === "municipality" : c.type !== "municipality"));
+  // is_test_account takes priority over that split: a demo municipality
+  // lives in the Demo tab, not Δήμοι, same as AdminUsersPanel's real/demo
+  // split - Εταιρείες and Δήμοι are real-account-only from here down.
+  const visibleCompanies = byVertical.filter((c) => {
+    if (tab === "demo") return c.is_test_account;
+    if (c.is_test_account) return false;
+    return tab === "municipalities" ? c.type === "municipality" : c.type !== "municipality";
+  });
 
   async function openDetail(company: CompanySummary) {
     if (!token) return;
@@ -142,12 +149,25 @@ export function CompaniesPanel() {
         >
           {t("companies.tabMunicipalities")}
         </button>
+        <button
+          type="button"
+          role="tab"
+          aria-selected={tab === "demo"}
+          className={`${styles.tabButton} ${tab === "demo" ? styles.tabButtonActive : ""}`}
+          onClick={() => setTab("demo")}
+        >
+          {t("companies.tabDemo")}
+        </button>
       </div>
 
       <section className={`card ${dashStyles.section}`}>
         {visibleCompanies.length === 0 ? (
           <p className={dashStyles.emptyState}>
-            {tab === "municipalities" ? t("companies.emptyMunicipalities") : t("companies.empty")}
+            {tab === "municipalities"
+              ? t("companies.emptyMunicipalities")
+              : tab === "demo"
+                ? t("companies.emptyDemo")
+                : t("companies.empty")}
           </p>
         ) : (
           <table className={dashStyles.table}>

@@ -2400,3 +2400,12 @@ ON CONFLICT (slug) DO NOTHING;
 -- (see auth.py's register() and admin.py's create_company_with_admin()).
 -- Never a signup blocker.
 ALTER TABLE companies ADD COLUMN IF NOT EXISTS acquisition_source text;
+
+-- NULL on every normal chat_sessions row (gap or real answer alike) - set
+-- only when the request itself broke (an upstream OpenAIError) rather than
+-- the KB genuinely lacking coverage. Before this column existed, a failed
+-- request never reached _log_session at all, so reliability history for
+-- genuine failures simply didn't exist rather than being miscounted as a
+-- content gap. See ChatSession.true_gap()'s updated definition in
+-- models.py, which now excludes these rows explicitly.
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS error_type text;

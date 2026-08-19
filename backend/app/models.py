@@ -13,6 +13,7 @@ from sqlalchemy import (
     Numeric,
     Text,
     UniqueConstraint,
+    and_,
     cast,
     or_,
 )
@@ -588,6 +589,17 @@ class ChatSession(Base):
     total_tokens: Mapped[int | None] = mapped_column(Integer)
     estimated_cost_eur: Mapped[float | None] = mapped_column(Numeric(10, 6))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # NULL on every normal row (gap or real answer alike) - set only when the
+    # request itself broke (an upstream OpenAIError, currently the only
+    # exception type chat.py distinguishes) rather than the KB genuinely
+    # lacking coverage. Before this column existed, a failed request never
+    # reached _log_session at all (the except block raised straight to a 503
+    # with no chat_sessions row) - reliability history for genuine failures
+    # simply didn't exist, rather than being miscounted as a content gap.
+    # This restores that history without polluting true_gap()'s definition -
+    # see below - or the message-pool counter (these calls pass usage=None,
+    # since a system-side failure shouldn't cost the company a message).
+    error_type: Mapped[str | None] = mapped_column(Text)
 
     @classmethod
     def true_gap(cls) -> ColumnElement[bool]:
@@ -616,8 +628,17 @@ class ChatSession(Base):
         InvalidParameterValue on it too ("cannot get array length of a
         scalar" - jsonb null is a scalar). Text-cast equality can't throw
         regardless of what's stored there, and covers plain SQL NULL too
-        (kept for any legacy row without a JSON value at all)."""
-        return or_(cls.citations.is_(None), cast(cls.citations, Text).in_(["[]", "null"]))
+        (kept for any legacy row without a JSON value at all).
+
+        Also excludes error_type IS NOT NULL rows - a failed request (no
+        citations, because retrieval/completion never got the chance to run)
+        would otherwise match the citations check above and get silently
+        counted as a content gap, exactly the collapse this column exists to
+        avoid."""
+        return and_(
+            cls.error_type.is_(None),
+            or_(cls.citations.is_(None), cast(cls.citations, Text).in_(["[]", "null"])),
+        )
 
 
 class DocumentValidation(Base):

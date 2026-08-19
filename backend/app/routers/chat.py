@@ -725,6 +725,9 @@ async def chat(
         )
     except OpenAIError as exc:
         logger.error("OpenAI embedding failed: %s", exc)
+        _log_session(
+            db, user, payload.project_id, question, SERVICE_UNAVAILABLE_MESSAGE, tool_used="error", error_type="openai_error",
+        )
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
 
     if not hits:
@@ -753,6 +756,9 @@ async def chat(
         completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI completion failed: %s", exc)
+        _log_session(
+            db, user, payload.project_id, question, SERVICE_UNAVAILABLE_MESSAGE, tool_used="error", error_type="openai_error",
+        )
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=SERVICE_UNAVAILABLE_MESSAGE) from exc
 
     # Cite every source actually handed to the model as context - this is
@@ -851,6 +857,14 @@ async def chat_message(
     # path too, not just when KB retrieval happens to succeed. These are
     # project-level metadata, valid regardless of retrieval outcome.
     location_context = build_location_context(db, project)
+
+    # Defaulted here (not just at its real assignment inside the try block
+    # below) so the except OpenAIError handler can always safely reference
+    # it when logging an error row - an OpenAIError can be raised before
+    # decompose_query() ever runs (the off-topic guard classifier call and
+    # the English-query translation call both happen first and are
+    # themselves OpenAI calls).
+    decomposed: bool | None = None
 
     try:
         client = OpenAI(api_key=settings.openai_api_key)
@@ -1036,6 +1050,14 @@ async def chat_message(
     except OpenAIError as exc:
         logger.error("OpenAI call failed: %s", exc)
         detail = SERVICE_UNAVAILABLE_MESSAGE_EN if locale == "en" else SERVICE_UNAVAILABLE_MESSAGE
+        # usage intentionally omitted - a system-side failure shouldn't cost
+        # the company a message against their monthly pool, unlike the gap/
+        # low-confidence paths below (which do pass usage=usage), since
+        # those genuinely consumed a real attempt.
+        _log_session(
+            db, user, payload.project_id, question, detail, tool_used="error", error_type="openai_error",
+            decomposed=decomposed,
+        )
         raise HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detail) from exc
 
     if not raw_answer:
@@ -1228,6 +1250,7 @@ def _log_session(
     completion_tokens: int | None = None,
     usage: SubscriptionUsage | None = None,
     followups: list[str] | None = None,
+    error_type: str | None = None,
 ) -> int:
     total_tokens = None
     estimated_cost_eur = None
@@ -1253,6 +1276,7 @@ def _log_session(
         total_tokens=total_tokens,
         estimated_cost_eur=estimated_cost_eur,
         followups=followups,
+        error_type=error_type,
     )
     db.add(session)
     # Every response path in POST /chat/message that reaches this point

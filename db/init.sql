@@ -72,6 +72,27 @@ CREATE TABLE IF NOT EXISTS password_reset_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_password_reset_tokens_user ON password_reset_tokens(user_id);
 
+-- The raw token is never stored - only its SHA-256 hash (see
+-- security.py's hash_refresh_token). Unlike password_reset/email_verification
+-- tokens above (short-lived, single-use, low value if leaked from a DB
+-- backup), a refresh token is long-lived (30 days) and directly mints new
+-- access tokens, so it gets the same "never store the secret itself"
+-- treatment as a password hash. revoked_at covers both explicit logout and
+-- rotation-on-use (POST /auth/refresh revokes the presented token and
+-- issues a new one in the same request, refusing reuse of an already-
+-- rotated token - see KNOWN_DECISIONS.md).
+CREATE TABLE IF NOT EXISTS refresh_tokens (
+    id SERIAL PRIMARY KEY,
+    user_id INT NOT NULL REFERENCES users(id),
+    token_hash TEXT NOT NULL UNIQUE,
+    created_at TIMESTAMP NOT NULL DEFAULT now(),
+    expires_at TIMESTAMP NOT NULL,
+    revoked_at TIMESTAMP
+);
+
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_user ON refresh_tokens(user_id);
+CREATE INDEX IF NOT EXISTS idx_refresh_tokens_hash ON refresh_tokens(token_hash);
+
 -- Utility providers (ΔΕΥΑ water utilities, ΔΕΔΔΗΕ electric-grid regional
 -- offices). Modeled separately from regions since coverage isn't 1:1 with
 -- a municipality: one ΔΕΥΑ can serve several municipalities, and ΔΕΔΔΗΕ's

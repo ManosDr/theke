@@ -201,6 +201,10 @@ def cleanup_company(db, company: Company, user: User, project: Project | None = 
     # assertions, until this was added.
     db.execute(text("DELETE FROM audit_log WHERE actor_user_id = :id OR company_id = :cid"), {"id": user.id, "cid": company.id})
     db.execute(text("DELETE FROM chat_sessions WHERE user_id = :id"), {"id": user.id})
+    # Every real login/register/refresh now mints a refresh_tokens row (see
+    # auth.py's _issue_refresh_cookie) - same FK-blocks-the-delete situation
+    # as audit_log/chat_sessions above.
+    db.execute(text("DELETE FROM refresh_tokens WHERE user_id = :id"), {"id": user.id})
     # get_or_create_subscription (app/services/subscription.py) auto-creates
     # a company_subscriptions row - and get_or_create_usage a
     # subscription_usage row - the first time any test hits POST

@@ -2,7 +2,6 @@
 
 import type { ReactNode } from "react";
 
-import { SessionExpiryToast } from "./components/SessionExpiryToast";
 import { AuthProvider } from "./lib/auth";
 import { CompanyProvider } from "./lib/company";
 import { FontScaleProvider } from "./lib/fontScale";
@@ -17,10 +16,7 @@ export function Providers({ children }: { children: ReactNode }) {
         <ThemeProvider>
           <LocaleProvider>
             <VerticalProvider>
-              <FontScaleProvider>
-                {children}
-                <SessionExpiryToast />
-              </FontScaleProvider>
+              <FontScaleProvider>{children}</FontScaleProvider>
             </VerticalProvider>
           </LocaleProvider>
         </ThemeProvider>

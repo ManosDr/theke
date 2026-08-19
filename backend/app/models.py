@@ -1,7 +1,21 @@
 from datetime import date, datetime
 
 from pgvector.sqlalchemy import Vector
-from sqlalchemy import ARRAY, BigInteger, Date, DateTime, ForeignKey, Integer, JSON, Numeric, Text, UniqueConstraint
+from sqlalchemy import (
+    ARRAY,
+    BigInteger,
+    ColumnElement,
+    Date,
+    DateTime,
+    ForeignKey,
+    Integer,
+    JSON,
+    Numeric,
+    Text,
+    UniqueConstraint,
+    cast,
+    or_,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -24,10 +38,11 @@ class Vertical(Base):
     welcome_message_en: Mapped[str | None] = mapped_column(Text)
     disclaimer_text: Mapped[str | None] = mapped_column(Text)
     # English translation of disclaimer_text, edited separately in the
-    # Vertical Content Editor - get_disclaimer() falls back to the Greek
-    # disclaimer_text when this is null (not yet translated), never a hard
-    # failure. See KNOWN_DECISIONS.md for why this got its own column
-    # instead of a hardcoded translation table.
+    # Vertical Content Editor - the chat page's disclaimerBar (sourced via
+    # GET /companies/me) falls back to the Greek disclaimer_text when this
+    # is null (not yet translated), never a hard failure. See
+    # KNOWN_DECISIONS.md for why this got its own column instead of a
+    # hardcoded translation table.
     disclaimer_text_en: Mapped[str | None] = mapped_column(Text)
     system_prompt_override: Mapped[str | None] = mapped_column(Text)
     off_topic_hint: Mapped[str | None] = mapped_column(Text)
@@ -156,6 +171,23 @@ class EmailVerificationToken(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
     expires_at: Mapped[datetime] = mapped_column(DateTime)
     used_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+
+class RefreshToken(Base):
+    """token_hash, never the raw token - see security.py's
+    hash_refresh_token and db/init.sql's comment on this table. revoked_at
+    is set both on explicit logout (POST /auth/logout) and on rotation
+    (POST /auth/refresh revokes the presented row in the same request it
+    issues a replacement - see KNOWN_DECISIONS.md)."""
+
+    __tablename__ = "refresh_tokens"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"))
+    token_hash: Mapped[str] = mapped_column(Text, unique=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    expires_at: Mapped[datetime] = mapped_column(DateTime)
+    revoked_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class User(Base):
@@ -548,6 +580,36 @@ class ChatSession(Base):
     total_tokens: Mapped[int | None] = mapped_column(Integer)
     estimated_cost_eur: Mapped[float | None] = mapped_column(Numeric(10, 6))
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+    @classmethod
+    def true_gap(cls) -> ColumnElement[bool]:
+        """Filter for a genuine gap - zero citations, no confident answer at
+        all - as distinct from the broader `gap` column, which is also True
+        for a real, cited answer that merely had thin/weak support (see
+        chat.py's is_low_confidence: len(hits) < rag_min_confident_hits or a
+        weak distance, even when hits is non-empty). `gap` itself is left
+        alone - GET /chat/history still needs it to reconstruct the
+        low-confidence UI badge on reload, and /admin/gap-queries deliberately
+        wants the broader set for its own stated purpose (surfacing both true
+        gaps and thin answers as knowledge-base coverage gaps to review).
+        Use this instead of `gap.is_(True)` for any *rate/percentage* metric
+        that claims to measure "no confident answer found" (dashboards,
+        weekly digest, business health) - matching what those screens'
+        own tooltips/labels say they measure.
+
+        Checks the text cast against both '[]' and 'null', not just SQL
+        NULL: every true-gap call site in chat.py omits the `citations=`
+        kwarg entirely, so `_log_session` receives Python `None` - and
+        because the column has no `none_as_null=True`, SQLAlchemy's JSON
+        type serializes that as the *JSON* literal `null` (a real jsonb
+        value), not a SQL-NULL column. Confirmed against real rows: a true
+        gap's `citations` is jsonb `null`, so `citations IS NULL` alone
+        never matches it, and `jsonb_array_length(citations)` throws
+        InvalidParameterValue on it too ("cannot get array length of a
+        scalar" - jsonb null is a scalar). Text-cast equality can't throw
+        regardless of what's stored there, and covers plain SQL NULL too
+        (kept for any legacy row without a JSON value at all)."""
+        return or_(cls.citations.is_(None), cast(cls.citations, Text).in_(["[]", "null"]))
 
 
 class DocumentValidation(Base):

@@ -94,10 +94,12 @@ def test_register_new_company(client, db_session):
             # app/services/audit.py) - must clear it before the user can be
             # deleted (FK on audit_log.actor_user_id). Self-serve
             # registration also issues an email_verification_tokens row
-            # (see auth.py's _issue_and_send_verification) - same FK
-            # cleanup requirement.
+            # (see auth.py's _issue_and_send_verification) and, now, a
+            # refresh_tokens row (see auth.py's _issue_refresh_cookie) -
+            # same FK cleanup requirement for both.
             db_session.execute(text("DELETE FROM audit_log WHERE actor_user_id = :id"), {"id": user.id})
             db_session.execute(text("DELETE FROM email_verification_tokens WHERE user_id = :id"), {"id": user.id})
+            db_session.execute(text("DELETE FROM refresh_tokens WHERE user_id = :id"), {"id": user.id})
             db_session.commit()
             db_session.delete(user)
             db_session.commit()

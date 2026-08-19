@@ -10,6 +10,14 @@ class Settings(BaseSettings):
     jwt_secret: str = "changeme-dev-secret"
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 15
+    # The access token itself stays short - POST /auth/refresh (httpOnly
+    # refresh_token cookie, see auth.py) renews it transparently in the
+    # background, so this being short is no longer something a real user
+    # ever notices. 30 days matches the trial period's own "reasonably long
+    # but not indefinite" horizon - past this, a genuinely inactive session
+    # requires a real re-login, which is the right behavior for something
+    # that's been untouched for a month.
+    refresh_token_expire_days: int = 30
 
     # Base URL the password-reset link is built against - the frontend's
     # origin, not this API's. Actually emailed when email_enabled is true

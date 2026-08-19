@@ -23,6 +23,62 @@ export class ApiError extends Error {
 // both real-world "used on a job site, spotty signal" scenarios.
 export const NETWORK_ERROR_STATUS = 0;
 
+// Lets auth.tsx keep its in-memory user.token in sync whenever this module
+// silently mints a new one via refreshAccessToken() below - api.ts stays
+// framework-agnostic (no React import), so it exposes a plain setter instead
+// of depending on the auth context directly.
+let onTokenRefreshed: ((token: string) => void) | null = null;
+
+export function setOnTokenRefreshed(cb: ((token: string) => void) | null) {
+  onTokenRefreshed = cb;
+}
+
+// Dedupes concurrent 401s: several requests can fail with an expired access
+// token in the same tick (e.g. a page firing off multiple GETs on load), and
+// each of them independently exchanging the refresh cookie would race each
+// other under rotation-on-use (see auth.py's /auth/refresh) - the second
+// exchange would present an already-rotated-away token and fail. Sharing one
+// in-flight promise means only the first caller actually hits the network;
+// everyone else just awaits the same result.
+let refreshPromise: Promise<string | null> | null = null;
+
+async function refreshAccessToken(): Promise<string | null> {
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_URL}/auth/refresh`, { method: "POST", credentials: "include" });
+        if (!res.ok) return null;
+        const data = (await res.json()) as { token: string };
+        const raw = localStorage.getItem(AUTH_STORAGE_KEY);
+        if (raw) {
+          try {
+            const stored = JSON.parse(raw);
+            stored.token = data.token;
+            localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(stored));
+          } catch {
+            // stored session wasn't valid JSON - nothing to patch
+          }
+        }
+        onTokenRefreshed?.(data.token);
+        return data.token;
+      } catch {
+        return null;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+function sessionExpired(): never {
+  localStorage.removeItem(AUTH_STORAGE_KEY);
+  if (typeof window !== "undefined") {
+    window.location.href = "/login?sessionExpired=1";
+  }
+  throw new ApiError(401, "Session expired");
+}
+
 async function request<T>(
   path: string,
   options: RequestInit,
@@ -40,7 +96,7 @@ async function request<T>(
 
   let res: Response;
   try {
-    res = await fetch(`${API_URL}${path}`, { ...options, headers, signal: controller?.signal });
+    res = await fetch(`${API_URL}${path}`, { ...options, headers, credentials: "include", signal: controller?.signal });
   } catch (err) {
     // AbortError (our own timeout) and a raw network failure (offline,
     // DNS, connection reset mid-request) both mean "no usable response
@@ -56,11 +112,21 @@ async function request<T>(
   // conflating the two would show "session expired" instead of "wrong
   // password" on the login form itself.
   if (res.status === 401 && token) {
-    localStorage.removeItem(AUTH_STORAGE_KEY);
-    if (typeof window !== "undefined") {
-      window.location.href = "/login?sessionExpired=1";
+    // The access token itself expiring is no longer a user-visible event -
+    // silently exchange the httpOnly refresh cookie for a new one and retry
+    // this exact request once (see auth.py's POST /auth/refresh). Only a
+    // failure here (refresh token itself expired/revoked/missing) is a real
+    // session expiry.
+    const newToken = await refreshAccessToken();
+    if (!newToken) sessionExpired();
+
+    const retryHeaders = { ...headers, Authorization: `Bearer ${newToken}` };
+    try {
+      res = await fetch(`${API_URL}${path}`, { ...options, headers: retryHeaders, credentials: "include", signal: controller?.signal });
+    } catch (err) {
+      throw new ApiError(NETWORK_ERROR_STATUS, err instanceof Error ? err.message : "Network error");
     }
-    throw new ApiError(401, "Session expired");
+    if (res.status === 401) sessionExpired();
   }
 
   if (!res.ok) {
@@ -104,6 +170,7 @@ export const api = {
   download: async (path: string, token: string | null, filename: string): Promise<void> => {
     const res = await fetch(`${API_URL}${path}`, {
       headers: token ? { Authorization: `Bearer ${token}` } : {},
+      credentials: "include",
     });
     if (!res.ok) throw new ApiError(res.status, res.statusText);
     const blob = await res.blob();

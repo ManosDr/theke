@@ -488,6 +488,17 @@ button {
   outline-offset: 1px;
 }
 
+/* e.g. the invite-locked email field on the register page (see
+   emailLockedByInvite in register/page.tsx) - a text input the user can
+   still click/select-all in (unlike :disabled, which also drops it from
+   focus order and form submission), just not edit. Muted so it visually
+   reads as "not yours to change" without looking broken/greyed-out. */
+.input:read-only {
+  background: var(--color-surface-hover, var(--color-surface));
+  color: var(--color-text-muted);
+  cursor: default;
+}
+
 /* Global so every form's custom-validated fields get the red border
    without each page repeating this rule in its own CSS module - set via
    aria-invalid, not a class, so it doubles as the accessibility signal. */

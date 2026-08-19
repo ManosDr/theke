@@ -1,3 +1,4 @@
+import hashlib
 import secrets
 import string
 from datetime import datetime, timedelta, timezone
@@ -47,3 +48,27 @@ def decode_access_token(token: str) -> dict:
         return jwt.decode(token, settings.jwt_secret, algorithms=[settings.jwt_algorithm])
     except JWTError as exc:
         raise ValueError("Invalid or expired token") from exc
+
+
+def create_refresh_token() -> str:
+    """A plain random opaque token, not a JWT - unlike the access token,
+    nothing ever needs to decode this client-side (it's httpOnly, invisible
+    to JS by design - see auth.py's cookie settings), and revocation has to
+    be a real DB row lookup either way, which a JWT refresh token would
+    still need on top of its own signature check. 48 bytes of entropy is
+    generous for something with a 30-day lifetime."""
+    return secrets.token_urlsafe(48)
+
+
+def hash_refresh_token(token: str) -> str:
+    """SHA-256, not bcrypt: this hash is looked up by equality (WHERE
+    token_hash = ...) against however many live sessions exist, so it needs
+    to be both deterministic (bcrypt's per-call salt means the same input
+    hashes differently every time, making an equality lookup impossible)
+    and fast (bcrypt is deliberately slow, which is the right trade for a
+    low-entropy human password but wrong for a lookup key). The token
+    itself already carries 48 bytes of real entropy from
+    create_refresh_token() - a fast hash is fine here precisely because
+    there's no low-entropy secret to protect against brute force, unlike a
+    password hash."""
+    return hashlib.sha256(token.encode()).hexdigest()

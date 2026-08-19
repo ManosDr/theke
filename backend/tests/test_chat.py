@@ -22,7 +22,7 @@ identical national-scope citations), so migrating loses no coverage.
 
 from sqlalchemy import select
 
-from app.models import Document, MessageFeedback
+from app.models import Document, MessageFeedback, Vertical
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -100,6 +100,16 @@ def test_chat_disclaimer_matches_vertical(client, db_session, construction_verti
         )
         assert tax_resp.status_code == 200
         assert "μηχανικό" not in tax_resp.json()["answer"]
+
+        # No backend-appended disclaimer inside the answer text at all any
+        # more (see chat.py) - the chat page's persistent disclaimerBar is
+        # the single place it renders, once per thread, not once per
+        # message. Reproduces the walkthrough's duplication bug if this
+        # regresses: the vertical's own disclaimer_text sentence used to be
+        # concatenated onto every confident/limited-source answer here.
+        construction_vertical = db_session.get(Vertical, construction_vertical_id)
+        assert construction_vertical.disclaimer_text
+        assert construction_vertical.disclaimer_text not in construction_resp.json()["answer"]
     finally:
         cleanup_company(db_session, construction_company, construction_user, construction_project)
         cleanup_company(db_session, tax_company, tax_user, tax_project)

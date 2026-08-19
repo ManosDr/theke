@@ -1,35 +1,9 @@
 "use client";
 
-import { createContext, useContext, useEffect, useRef, useState, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 
-import { api } from "./api";
-
-// 2 minutes before the JWT's own exp claim - gives the user a chance to
-// save work and re-login in a new tab before the hard 401 redirect (see
-// api.ts's request()) kicks in and drops whatever they were doing.
-const EXPIRY_WARNING_LEAD_MS = 120_000;
-
-// JWTs are three base64url segments; the payload (middle segment) carries
-// the standard "exp" claim in seconds since epoch. No verification needed
-// here - this is just reading a value the frontend already trusts (the
-// token came from our own login response), not authenticating anything.
-function decodeJwtExpMs(token: string): number | null {
-  try {
-    const payload = token.split(".")[1];
-    const base64 = payload.replace(/-/g, "+").replace(/_/g, "/");
-    const json = decodeURIComponent(
-      atob(base64)
-        .split("")
-        .map((c) => "%" + c.charCodeAt(0).toString(16).padStart(2, "0"))
-        .join("")
-    );
-    const decoded = JSON.parse(json);
-    return typeof decoded.exp === "number" ? decoded.exp * 1000 : null;
-  } catch {
-    return null;
-  }
-}
+import { API_URL, api, setOnTokenRefreshed } from "./api";
 
 export type CompanyType = "construction" | "municipality" | "accounting";
 export type Role = "super_admin" | "admin" | "member";
@@ -75,8 +49,6 @@ interface AuthContextValue {
   updatePreferredLocale: (locale: string) => Promise<void>;
   updatePreferredTheme: (theme: string) => Promise<void>;
   markEmailVerified: () => void;
-  showSessionExpiryWarning: boolean;
-  dismissSessionExpiryWarning: () => void;
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null);
@@ -85,18 +57,6 @@ const STORAGE_KEY = "theke-auth";
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [loading, setLoading] = useState(true);
-  const [showSessionExpiryWarning, setShowSessionExpiryWarning] = useState(false);
-  const expiryTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  function scheduleExpiryWarning(token: string) {
-    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
-    setShowSessionExpiryWarning(false);
-    const expiresAtMs = decodeJwtExpMs(token);
-    if (!expiresAtMs) return;
-    const msUntilWarning = expiresAtMs - Date.now() - EXPIRY_WARNING_LEAD_MS;
-    if (msUntilWarning <= 0) return; // already inside the warning window (e.g. a stale page reload) - the 401 handler is the fallback
-    expiryTimerRef.current = setTimeout(() => setShowSessionExpiryWarning(true), msUntilWarning);
-  }
 
   useEffect(() => {
     const raw = localStorage.getItem(STORAGE_KEY);
@@ -109,16 +69,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         // suddenly unverified.
         if (stored.emailVerified === undefined) stored.emailVerified = true;
         setUser(stored);
-        scheduleExpiryWarning(stored.token);
       } catch {
         localStorage.removeItem(STORAGE_KEY);
       }
     }
     setLoading(false);
-    return () => {
-      if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // api.ts silently exchanges the httpOnly refresh cookie for a new access
+  // token whenever a request 401s (see request()'s interceptor) - this
+  // keeps the in-memory user.token (and localStorage) in sync with that, so
+  // the next call made from React state doesn't immediately 401 again on a
+  // token api.ts already knows is stale. Registered/cleared every render
+  // the provider mounts so it always closes over the current `user`.
+  useEffect(() => {
+    setOnTokenRefreshed((newToken) => {
+      setUser((current) => (current ? { ...current, token: newToken } : current));
+    });
+    return () => setOnTokenRefreshed(null);
   }, []);
 
   async function login(email: string, password: string) {
@@ -137,18 +105,23 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     };
     localStorage.setItem(STORAGE_KEY, JSON.stringify(authUser));
     setUser(authUser);
-    scheduleExpiryWarning(authUser.token);
   }
 
   function logout() {
-    if (expiryTimerRef.current) clearTimeout(expiryTimerRef.current);
-    setShowSessionExpiryWarning(false);
+    // Best-effort: revokes the refresh-token cookie server-side (see
+    // auth.py's POST /auth/logout) so a leaked/replayed refresh token can't
+    // mint new access tokens after this point. Not awaited - clearing local
+    // state must not block on the network (e.g. logging out while offline
+    // must still work). keepalive: true (not the api.ts wrapper's plain
+    // fetch) so the request survives the client-side redirect to /login
+    // that follows immediately below - confirmed via the dev DB that a
+    // plain fetch here can still complete, but the browser's network panel
+    // reports it as an aborted request once the page starts navigating
+    // away; keepalive is the standard fix for a fire-and-forget request
+    // that must outlive the triggering page transition.
+    fetch(`${API_URL}/auth/logout`, { method: "POST", credentials: "include", keepalive: true }).catch(() => {});
     localStorage.removeItem(STORAGE_KEY);
     setUser(null);
-  }
-
-  function dismissSessionExpiryWarning() {
-    setShowSessionExpiryWarning(false);
   }
 
   async function updatePreferredLocale(locale: string) {
@@ -187,8 +160,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         updatePreferredLocale,
         updatePreferredTheme,
         markEmailVerified,
-        showSessionExpiryWarning,
-        dismissSessionExpiryWarning,
       }}
     >
       {children}

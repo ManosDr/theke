@@ -326,7 +326,7 @@ async def get_company_detail(
             .where(
                 ChatSession.company_id == company.id,
                 ChatSession.created_at >= since_30d,
-                ChatSession.gap.is_(True),
+                ChatSession.true_gap(),
             )
         )
         or 0
@@ -1709,7 +1709,7 @@ async def platform_stats(
             select(func.count())
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(ChatSession.gap.is_(True), not_test_company, not_solo_super_admin)
+            .where(ChatSession.true_gap(), not_test_company, not_solo_super_admin)
         )
         or 0
     )
@@ -1804,7 +1804,7 @@ async def platform_stats(
                 select(func.count())
                 .select_from(ChatSession)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id, ChatSession.gap.is_(True), Company.is_test_account.is_(False))
+                .where(Company.vertical_id == v.id, ChatSession.true_gap(), Company.is_test_account.is_(False))
             )
             or 0
         )
@@ -1926,7 +1926,7 @@ async def business_health(
         select(
             day_col.label("day"),
             func.count().label("messages"),
-            func.coalesce(func.sum(case((ChatSession.gap.is_(True), 1), else_=0)), 0).label("gap_count"),
+            func.coalesce(func.sum(case((ChatSession.true_gap(), 1), else_=0)), 0).label("gap_count"),
             func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0).label("spend"),
         )
         .select_from(ChatSession)
@@ -2876,9 +2876,10 @@ async def update_vertical(
     user: CurrentUser = Depends(get_current_user),
 ) -> VerticalSummary:
     """Editable fields take effect on the next chat request with no restart
-    needed - get_system_prompt()/get_disclaimer()/get_topic_guard_prompt()
-    in app/routers/chat.py all read straight from this row per-request,
-    never cached at startup."""
+    needed - get_system_prompt()/get_topic_guard_prompt() in
+    app/routers/chat.py, and the chat page's own disclaimerBar (sourced from
+    GET /companies/me's vertical_disclaimer_text[_en]), all read straight
+    from this row per-request, never cached at startup."""
     require_super_admin(user)
     vertical = db.get(Vertical, vertical_id)
     if not vertical:

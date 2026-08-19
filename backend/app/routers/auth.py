@@ -2,20 +2,21 @@ import logging
 import secrets
 from datetime import datetime, timedelta
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Cookie, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user
-from app.models import Company, EmailVerificationToken, Invite, LegalDocument, PasswordResetToken, User, Vertical
+from app.models import Company, EmailVerificationToken, Invite, LegalDocument, PasswordResetToken, RefreshToken, User, Vertical
 from app.schemas import (
     ChangePasswordRequest,
     ForgotPasswordRequest,
     ForgotPasswordResponse,
     InviteInfoResponse,
     LoginRequest,
+    RefreshTokenResponse,
     RegisterRequest,
     ResendVerificationResponse,
     ResetPasswordRequest,
@@ -24,7 +25,7 @@ from app.schemas import (
     UpdateThemeRequest,
     VerifyEmailRequest,
 )
-from app.security import create_access_token, hash_password, verify_password
+from app.security import create_access_token, create_refresh_token, hash_password, hash_refresh_token, verify_password
 from app.services.audit import log_action
 from app.services.email import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.notifications import notify
@@ -33,6 +34,49 @@ from app.services.rate_limit import record_login_failure, reset_login_failures, 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/auth", tags=["auth"])
+
+REFRESH_COOKIE_NAME = "refresh_token"
+
+
+def _issue_refresh_cookie(db: Session, response: Response, user_id: int) -> None:
+    """Called alongside create_access_token() on every real login (register,
+    /auth/login, /auth/refresh's own rotation) - mints a new opaque token,
+    stores its hash (see security.py's hash_refresh_token), and sets it as
+    an httpOnly cookie the frontend's JS never touches directly.
+
+    Path="/" rather than scoping to "/auth": in production this endpoint is
+    reached through nginx at /api/auth/... (see infra/nginx.conf, which
+    strips the /api/ prefix before proxying) while the backend itself only
+    ever sees "/auth/..." - a Path scoped to what the backend sees would be
+    silently wrong for what the browser actually sends requests to. Path="/"
+    sidesteps that mismatch entirely; the cookie is httpOnly and small, so
+    being attached to every same-origin request costs nothing meaningful.
+
+    SameSite="lax", not "none": frontend (:3000) and backend (:8000) are
+    different origins in dev but the same "site" (browsers special-case
+    "localhost" - differing ports don't cross the site boundary), and same-
+    origin entirely in production (both served from theke.ai via nginx) -
+    "lax" covers both without requiring Secure, which plain-http local dev
+    can't satisfy anyway (SameSite=None cookies are dropped by browsers over
+    http://)."""
+    token = create_refresh_token()
+    db.add(
+        RefreshToken(
+            user_id=user_id,
+            token_hash=hash_refresh_token(token),
+            expires_at=datetime.utcnow() + timedelta(days=settings.refresh_token_expire_days),
+        )
+    )
+    db.commit()
+    response.set_cookie(
+        key=REFRESH_COOKIE_NAME,
+        value=token,
+        httponly=True,
+        secure=settings.environment == "production",
+        samesite="lax",
+        path="/",
+        max_age=settings.refresh_token_expire_days * 86400,
+    )
 
 
 def _issue_and_send_verification(db: Session, user: User) -> None:
@@ -76,6 +120,7 @@ async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoRe
             vertical_display_name=vertical.display_name if vertical else "",
             role=invite.role,
             requires_company_name=True,
+            email=invite.email,
         )
 
     company = db.get(Company, invite.company_id)
@@ -87,11 +132,12 @@ async def invite_info(token: str, db: Session = Depends(get_db)) -> InviteInfoRe
         company_name=company.name,
         vertical_display_name=vertical.display_name if vertical else "",
         role=invite.role,
+        email=invite.email,
     )
 
 
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> TokenResponse:
+async def register(payload: RegisterRequest, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     # Rejects False explicitly, not just relying on the Pydantic field being
     # required (dpa_accepted: bool with no default already rejects a missing
     # key) - a request that sends `"dpa_accepted": false` is well-formed
@@ -268,6 +314,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
         _issue_and_send_verification(db, user)
 
     token = create_access_token(user_id=user.id, company_id=company.id, role=role)
+    _issue_refresh_cookie(db, response, user.id)
     return TokenResponse(
         token=token,
         company_id=company.id,
@@ -282,7 +329,7 @@ async def register(payload: RegisterRequest, db: Session = Depends(get_db)) -> T
 
 
 @router.post("/login", response_model=TokenResponse)
-async def login(payload: LoginRequest, request: Request, db: Session = Depends(get_db)) -> TokenResponse:
+async def login(payload: LoginRequest, request: Request, response: Response, db: Session = Depends(get_db)) -> TokenResponse:
     # Client IP, not authenticated identity - this endpoint runs before
     # anyone's identity is known, so IP is the only thing to key a lockout
     # on. Doesn't account for a shared IP behind a proxy/NAT; revisit if
@@ -317,6 +364,7 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
     db.commit()
 
     token = create_access_token(user_id=user.id, company_id=user.company_id, role=user.role)
+    _issue_refresh_cookie(db, response, user.id)
     return TokenResponse(
         token=token,
         company_id=user.company_id,
@@ -328,6 +376,64 @@ async def login(payload: LoginRequest, request: Request, db: Session = Depends(g
         preferred_theme=user.preferred_theme,
         email_verified=user.email_verified,
     )
+
+
+@router.post("/refresh", response_model=RefreshTokenResponse)
+async def refresh(
+    response: Response,
+    db: Session = Depends(get_db),
+    refresh_token: str | None = Cookie(default=None),
+) -> RefreshTokenResponse:
+    """Exchanges the httpOnly refresh_token cookie for a new access token,
+    called silently by the frontend's fetch interceptor on any 401 caused by
+    access-token expiry (see api.ts) - the user never sees this happen.
+
+    Rotation-on-use: the presented row is revoked in the same request that
+    issues its replacement, so a stolen-and-replayed refresh token only ever
+    works once before the legitimate client's next use (or the thief's)
+    finds it already revoked - see KNOWN_DECISIONS.md."""
+    invalid = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid or expired refresh token")
+    if not refresh_token:
+        raise invalid
+
+    token_hash = hash_refresh_token(refresh_token)
+    record = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+    if not record or record.revoked_at is not None or record.expires_at < datetime.utcnow():
+        raise invalid
+
+    user = db.get(User, record.user_id)
+    if not user or not user.is_active:
+        raise invalid
+    company = db.get(Company, user.company_id) if user.company_id else None
+    if company and company.is_suspended:
+        raise invalid
+
+    record.revoked_at = datetime.utcnow()
+    access_token = create_access_token(user_id=user.id, company_id=user.company_id, role=user.role)
+    _issue_refresh_cookie(db, response, user.id)
+    db.commit()
+    return RefreshTokenResponse(token=access_token)
+
+
+@router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)
+async def logout(
+    response: Response,
+    db: Session = Depends(get_db),
+    refresh_token: str | None = Cookie(default=None),
+) -> None:
+    """Best-effort revocation, not auth-gated on the access token: the whole
+    point is a user can log out even with an already-expired/missing access
+    token, as long as the browser still holds the refresh cookie. Always
+    clears the cookie and returns 204 regardless of whether a matching row
+    was found - a client-side "log out" always succeeds from the caller's
+    point of view."""
+    if refresh_token:
+        token_hash = hash_refresh_token(refresh_token)
+        record = db.scalar(select(RefreshToken).where(RefreshToken.token_hash == token_hash))
+        if record and record.revoked_at is None:
+            record.revoked_at = datetime.utcnow()
+            db.commit()
+    response.delete_cookie(key=REFRESH_COOKIE_NAME, path="/")
 
 
 FORGOT_PASSWORD_MESSAGE = "Εάν το email είναι εγγεγραμμένο, θα λάβετε σύντομα οδηγίες επαναφοράς κωδικού."

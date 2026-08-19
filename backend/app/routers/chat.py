@@ -181,15 +181,6 @@ _SUPER_ADMIN_SYSTEM_PROMPT = """Είσαι ο βοηθός γνώσης της �
 4. Αν κάποιο απόσπασμα πηγής αναφέρει ρητά έναν αρμόδιο φορέα (ΥΔΟΜ, ΤΕΕ, ΑΑΔΕ, ή αντίστοιχο), αυτό το \
 όνομα πρέπει να εμφανίζεται στην απάντησή σου."""
 
-_SUPER_ADMIN_DISCLAIMER = (
-    "Οι παραπάνω πληροφορίες είναι για ενημέρωση μόνο. Συμβουλευτείτε τον αρμόδιο επαγγελματία "
-    "(αδειούχο μηχανικό ή λογιστή/φοροτεχνικό, ανάλογα με το θέμα)."
-)
-_SUPER_ADMIN_DISCLAIMER_EN = (
-    "The information above is for informational purposes only. Consult the relevant licensed "
-    "professional (engineer or accountant, depending on the topic)."
-)
-
 
 def get_topic_guard_prompt(vertical: Vertical | None) -> str:
     if vertical is None:
@@ -560,31 +551,6 @@ Add one final line in this exact format:
 {FOLLOWUP_MARKER_EN}
 - [question 1]
 - [question 2]"""
-
-
-_DEFAULT_DISCLAIMER = (
-    "Οι παραπάνω πληροφορίες είναι για ενημέρωση μόνο. Συμβουλευτείτε αδειούχο μηχανικό για το "
-    "συγκεκριμένο έργο σας."
-)
-
-
-_DEFAULT_DISCLAIMER_EN = (
-    "The information above is for informational purposes only. Consult a licensed engineer for your "
-    "specific project."
-)
-
-
-def get_disclaimer(vertical: Vertical | None, locale: str | None = None) -> str:
-    """English callers fall back to the Greek disclaimer_text when
-    disclaimer_text_en hasn't been filled in yet (see the Vertical Content
-    Editor) - a safe default, not a hard failure, same as every other
-    not-yet-translated admin-editable field. vertical is None only for a
-    super_admin's vertical-agnostic chat (see get_vertical_scope)."""
-    if vertical is None:
-        return _SUPER_ADMIN_DISCLAIMER_EN if locale == "en" else _SUPER_ADMIN_DISCLAIMER
-    if locale == "en":
-        return vertical.disclaimer_text_en or vertical.disclaimer_text or _DEFAULT_DISCLAIMER_EN
-    return vertical.disclaimer_text or _DEFAULT_DISCLAIMER
 
 
 def _resolve_project(db: Session, user: CurrentUser, project_id: int | None) -> Project | None:
@@ -979,16 +945,18 @@ async def chat_message(
                 location_lead = NO_KB_DOCS_LOCATION_LEAD_EN if is_en else NO_KB_DOCS_LOCATION_LEAD
                 # Falls back to the Greek notes when no English translation
                 # has been entered for this project yet - same pattern as
-                # get_disclaimer() above.
+                # get_disclaimer() used to follow here.
                 archaeological_notes = (
                     (project.archaeological_notes_en or project.archaeological_notes)
                     if is_en
                     else project.archaeological_notes
                 )
-                gap_answer = (
-                    f"{location_lead}\n\n{archaeological_notes}"
-                    + (f"\n\n{contact_label}\n{archaeological_contact_lines}" if archaeological_contact_lines else "")
-                    + f"\n\n{get_disclaimer(vertical, locale)}"
+                # No get_disclaimer() append - the chat page's persistent
+                # disclaimerBar (chat/page.tsx) already renders the same
+                # per-vertical text once, above every message; appending it
+                # here too just duplicated it inside the message bubble.
+                gap_answer = f"{location_lead}\n\n{archaeological_notes}" + (
+                    f"\n\n{contact_label}\n{archaeological_contact_lines}" if archaeological_contact_lines else ""
                 )
                 session_id = _log_session(
                     db, user, payload.project_id, question, gap_answer, tool_used="none", gap=True,
@@ -1093,7 +1061,11 @@ async def chat_message(
     # own "gap" flag) - discard anything the model produced in that case
     # rather than let it slip through.
     followups = parsed_followups if not is_low_confidence else []
-    answer = f"{raw_answer}\n\n{get_disclaimer(vertical, locale)}"
+    # No get_disclaimer() append - the chat page's persistent disclaimerBar
+    # (chat/page.tsx) already renders the same per-vertical text once, above
+    # every message; appending it here too just duplicated it inside the
+    # message bubble, verbatim, on every single answered question.
+    answer = raw_answer
 
     seen_ids: set[int] = set()
     citations: list[ChatMessageCitation] = []

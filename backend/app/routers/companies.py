@@ -571,7 +571,7 @@ async def company_overview(
             .where(
                 ChatSession.company_id == company_id,
                 ChatSession.created_at >= since_30d,
-                ChatSession.gap.is_(True),
+                ChatSession.true_gap(),
             )
         )
         or 0

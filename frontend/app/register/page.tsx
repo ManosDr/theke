@@ -28,6 +28,7 @@ interface InviteInfo {
   vertical_display_name: string;
   role: string;
   requires_company_name?: boolean;
+  email: string;
 }
 
 export default function RegisterPage() {
@@ -182,6 +183,22 @@ function RegisterContent() {
     };
   }, [mode, inviteToken, t]);
 
+  // The invite already knows exactly who it was sent to (auth.py's
+  // register() 403s if the submitted email doesn't match Invite.email
+  // anyway) - pre-filling and locking the field means an invitee can't
+  // accidentally register under a different address and hit that error,
+  // and can't be tricked into typing a different one on a shared screen.
+  // Self-serve (new_company) registration is untouched - this only runs
+  // once a real invite has resolved.
+  useEffect(() => {
+    if (mode === "invite" && inviteInfo) {
+      setEmail(inviteInfo.email);
+      setFieldErrors((prev) => ({ ...prev, email: undefined }));
+    }
+  }, [mode, inviteInfo]);
+
+  const emailLockedByInvite = mode === "invite" && !!inviteInfo;
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const errors: typeof fieldErrors = {};
@@ -316,12 +333,20 @@ function RegisterContent() {
             className="input"
             value={email}
             onChange={(e) => {
+              if (emailLockedByInvite) return;
               setEmail(e.target.value);
               if (e.target.value.trim()) setFieldErrors((prev) => ({ ...prev, email: undefined }));
             }}
+            readOnly={emailLockedByInvite}
+            aria-readonly={emailLockedByInvite}
             aria-invalid={!!fieldErrors.email}
             autoComplete="email"
           />
+          {emailLockedByInvite && (
+            <p className={styles.footerLink} style={{ marginTop: "var(--space-2)" }}>
+              {t("register.emailLockedByInvite")}
+            </p>
+          )}
           {fieldErrors.email && <FieldError message={fieldErrors.email} />}
         </div>
 

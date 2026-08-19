@@ -64,6 +64,12 @@ class InviteInfoResponse(BaseModel):
     # True => the registration form must collect a company name (the
     # invitee is creating their own company, not joining an existing one).
     requires_company_name: bool = False
+    # Always present - Invite.email is non-nullable. Lets the registration
+    # form pre-fill and lock the email field (see auth.py's register(),
+    # which already 403s if the submitted email doesn't match this exact
+    # value) so an invitee can't accidentally register under a different
+    # address than the one actually invited.
+    email: str
 
 
 class LoginRequest(BaseModel):
@@ -102,6 +108,15 @@ class TokenResponse(BaseModel):
     preferred_locale: str | None = None
     preferred_theme: str | None = None
     email_verified: bool = True
+
+
+class RefreshTokenResponse(BaseModel):
+    """Just a new access token - unlike TokenResponse (login/register),
+    there's no reason to re-send the whole profile on every silent refresh;
+    the frontend already holds it from the original login and refresh never
+    changes it."""
+
+    token: str
 
 
 class UpdateLocaleRequest(BaseModel):
@@ -1278,10 +1293,11 @@ class VerticalUpdateRequest(BaseModel):
     # disclaimer_text_en below.
     welcome_message_en: str | None = None
     # Matches the frontend textarea's cap (VerticalEditorPanel.tsx) - this is
-    # the disclaimer appended to every chat answer, so it needs to stay short
+    # the chat page's persistent disclaimerBar text (rendered once per
+    # thread, not per answer - see chat/page.tsx), so it needs to stay short
     # regardless of which path (UI or a direct API call) sets it.
     disclaimer_text: str | None = Field(default=None, max_length=200)
-    # English translation, same cap - get_disclaimer() falls back to
+    # English translation, same cap - the frontend falls back to
     # disclaimer_text when this is null (see models.py's Vertical comment).
     disclaimer_text_en: str | None = Field(default=None, max_length=200)
     system_prompt_override: str | None = None

@@ -43,8 +43,7 @@
   line-height: 1.45;
   text-align: left;
   /* Above everything else in the app (modals, sheets, etc.) - matches the
-     existing "always on top" convention used by MapPicker's overlay and
-     SessionExpiryToast. */
+     existing "always on top" convention used by MapPicker's overlay. */
   z-index: 1000;
 }
 

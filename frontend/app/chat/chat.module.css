@@ -707,6 +707,24 @@
   padding: 3px 7px;
 }
 
+/* Marks a bare "Α 249/2011"-style raw ΦΕΚ title (see isBareFekTitle in
+   page.tsx) so it doesn't read as unclear next to a curated doc's real
+   title in the same list. Inline within .sourceTitle rather than a
+   row-level pill like .sourceTag, since it needs to sit directly next to
+   the short bare title text, not stack below it in sourceBody's column
+   layout. */
+.fekTag {
+  display: inline-block;
+  margin-left: 6px;
+  vertical-align: middle;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--color-text-muted);
+  background: var(--chat-citation-tag-bg);
+  border-radius: 5px;
+  padding: 2px 6px;
+}
+
 .sourceExt {
   flex-shrink: 0;
   color: var(--color-text-muted);

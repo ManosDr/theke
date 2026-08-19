@@ -97,6 +97,22 @@ function isUnverified(status: string | null): boolean {
   return status === "reference_only" || status === "manual_entry_pending";
 }
 
+// Citations don't carry doc_type (it isn't selected by the RAG retrieval
+// query - see rag.py's _DOC_COLUMNS), and doc_type wouldn't reliably
+// distinguish this anyway (both raw ΦΕΚ crawls and curated docs can share
+// "law"/"circular"). title is the one field that's both always present and
+// a clean signal: a raw ΦΕΚ ingestion's title is nothing but its series
+// letter, issue number, and date (e.g. "Α 249/2011", or the ΑΑΔΕ tax-
+// circular variant "Α. 1061 /13-03-2026") - a curated synthesis doc always
+// has real descriptive text instead. Anchored so a legitimately-titled doc
+// that merely starts with a ΦΕΚ reference (e.g. "Ν.4174/2013 (ΦΕΚ Α'
+// 170/26.07.2013, αρχικό κείμενο)") doesn't false-positive.
+const BARE_FEK_TITLE_RE = /^[ΑΒΓΔΕ]\.?\s*\d+\s*\/\s*(\d{4}|\d{1,2}-\d{1,2}-\d{4})$/;
+
+function isBareFekTitle(title: string | null): boolean {
+  return !!title && BARE_FEK_TITLE_RE.test(title.trim());
+}
+
 // The backend's own system prompt instructs the model to embed inline
 // "[1]", "[2]" markers next to the sentence each citation supports (see
 // chat.py's prompt) - so `answer` already contains these as plain
@@ -698,7 +714,10 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
       <>
         <span className={styles.sourceBadge}>{index + 1}</span>
         <span className={styles.sourceBody}>
-          <span className={styles.sourceTitle}>{c.title ?? t("chat.untitledSource")}</span>
+          <span className={styles.sourceTitle}>
+            {c.title ?? t("chat.untitledSource")}
+            {isBareFekTitle(c.title) && <span className={styles.fekTag}>ΦΕΚ</span>}
+          </span>
           {(c.contact_phone || c.contact_email) && (
             <span className={styles.sourceMeta}>{[c.contact_phone, c.contact_email].filter(Boolean).join(", ")}</span>
           )}

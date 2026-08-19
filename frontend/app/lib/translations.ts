@@ -14,8 +14,6 @@ export const translations = {
     "common.noMatches": "No matches.",
     "common.paginationRange": "{{from}}–{{to}} of {{total}}",
     "common.searchPlaceholder": "Search here…",
-    "common.sessionExpiryWarning": "Your session expires in 2 minutes. Save any pending changes.",
-    "common.reLogin": "Log in again",
     "common.dismiss": "Dismiss",
     "common.close": "Close",
 
@@ -823,6 +821,7 @@ export const translations = {
     "register.firstName": "First name",
     "register.lastName": "Last name",
     "register.inviteCode": "Invite code",
+    "register.emailLockedByInvite": "This email comes from your invite and can't be changed here.",
     "register.joiningCompany": "You're joining:",
     "register.joiningVertical": "You'll be the founding admin of your own workspace in:",
     "register.yourCompanyName": "Your company name",
@@ -1561,8 +1560,6 @@ export const translations = {
     "common.noMatches": "Δεν βρέθηκαν αποτελέσματα.",
     "common.paginationRange": "{{from}}–{{to}} από {{total}}",
     "common.searchPlaceholder": "Αναζήτηση…",
-    "common.sessionExpiryWarning": "Η συνεδρία σας λήγει σε 2 λεπτά. Αποθηκεύστε τυχόν εκκρεμείς αλλαγές.",
-    "common.reLogin": "Σύνδεση ξανά",
     "common.dismiss": "Απόρριψη",
     "common.close": "Κλείσιμο",
 
@@ -2363,6 +2360,7 @@ export const translations = {
     "register.firstName": "Όνομα",
     "register.lastName": "Επώνυμο",
     "register.inviteCode": "Κωδικός πρόσκλησης",
+    "register.emailLockedByInvite": "Αυτό το email προέρχεται από την πρόσκλησή σας και δεν μπορεί να αλλάξει εδώ.",
     "register.joiningCompany": "Συμμετέχετε στην εταιρεία:",
     "register.joiningVertical": "Θα είστε ο/η ιδρυτικός/ή διαχειριστής/τρια του δικού σας χώρου εργασίας στον κλάδο:",
     "register.yourCompanyName": "Όνομα της εταιρείας σας",

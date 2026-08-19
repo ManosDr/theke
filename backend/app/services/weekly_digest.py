@@ -41,7 +41,7 @@ def _compute_stats(db: Session) -> dict:
         .select_from(ChatSession)
         .outerjoin(Company, Company.id == ChatSession.company_id)
         .where(
-            ChatSession.gap.is_(True),
+            ChatSession.true_gap(),
             ChatSession.created_at >= text("now() - interval '7 days'"),
             (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
             not_solo_super_admin,

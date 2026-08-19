@@ -5,6 +5,21 @@
   z-index: 40;
 }
 
+/* Below 640px the chat page swaps in its own fixed-height bottom composer
+   bar (chat.module.css's .composerMobile: 44px controls + 12px padding top
+   and bottom + a 1px border, ~69px total) - at the default bottom offset
+   above, this trigger's 52px circle sits almost exactly on top of the
+   composer's send button, both anchored to the same bottom-right corner.
+   Raised clear of that bar's height (with a margin) rather than moved
+   sideways, since this widget renders on every page (see AppShell.tsx),
+   not just chat - pages without a composer just get a bit more breathing
+   room above the bottom edge, which costs nothing. */
+@media (max-width: 640px) {
+  .wrapper {
+    bottom: 88px;
+  }
+}
+
 .trigger {
   width: 52px;
   height: 52px;
@@ -40,7 +55,7 @@
   display: flex;
   align-items: center;
   gap: var(--space-2);
-  max-width: 220px;
+  width: 240px;
   background: var(--color-surface);
   border: 1px solid var(--color-primary);
   border-radius: var(--radius-md);

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import { ProviderTypeBadge } from "./TypeBadge";
 import type {
@@ -135,7 +136,7 @@ export function RegionsProvidersPanel() {
                 <tr key={r.region_id}>
                   <td>{r.region_name_el}</td>
                   <td>{r.request_count}</td>
-                  <td>{new Date(r.last_requested_at).toLocaleDateString()}</td>
+                  <td>{parseApiDate(r.last_requested_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

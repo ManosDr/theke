@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
 import {
@@ -680,7 +681,7 @@ export function SuperAdminDashboard() {
                         {entry.company_id ? companyNameById.get(entry.company_id) ?? `#${entry.company_id}` : t("dash.super.platform")}
                       </td>
                       <td className="text-muted">{entry.resource_type ?? "—"}</td>
-                      <td className="text-muted">{new Date(entry.created_at).toLocaleString()}</td>
+                      <td className="text-muted">{parseApiDate(entry.created_at).toLocaleString()}</td>
                     </tr>
                   ))}
                 </tbody>

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { NotificationListResponse, NotificationSummary } from "../lib/types";
 import { BellIcon } from "./NavIcons";
@@ -13,7 +14,7 @@ import styles from "./NotificationBell.module.css";
 const POLL_INTERVAL_MS = 60_000;
 
 function timeAgo(iso: string, locale: string): string {
-  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  const diffMin = Math.round((Date.now() - parseApiDate(iso).getTime()) / 60000);
   const isGreek = locale.startsWith("el");
   if (diffMin < 1) return isGreek ? "τώρα" : "just now";
   if (diffMin < 60) return `${diffMin}${isGreek ? "λ" : "m"}`;

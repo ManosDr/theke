@@ -5,6 +5,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 import { StatCard } from "../dashboard/StatCard";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { FeedbackEntry, FeedbackListResponse, UserFeedbackEntry, UserFeedbackListResponse } from "../lib/types";
@@ -36,7 +37,7 @@ function UserFeedbackTable({ items, emptyKey }: { items: UserFeedbackEntry[]; em
             <td className="text-muted">{it.company_name ?? "—"}</td>
             <td className="text-muted">{it.user_name}</td>
             <td className="text-muted">{it.page_url ?? "—"}</td>
-            <td className="text-muted">{new Date(it.created_at).toLocaleDateString(locale)}</td>
+            <td className="text-muted">{parseApiDate(it.created_at).toLocaleDateString(locale)}</td>
           </tr>
         ))}
       </tbody>
@@ -150,7 +151,7 @@ export function FeedbackPanel() {
       if (statusFilter !== "all" && it.status !== statusFilter) return false;
       if (ratingFilter !== "all" && it.rating !== ratingFilter) return false;
       if (verticalFilter !== "all" && it.vertical !== verticalFilter) return false;
-      if (periodFilter !== "all" && now - new Date(it.created_at).getTime() > PERIOD_DAYS[periodFilter] * DAY_MS) {
+      if (periodFilter !== "all" && now - parseApiDate(it.created_at).getTime() > PERIOD_DAYS[periodFilter] * DAY_MS) {
         return false;
       }
       return true;
@@ -165,7 +166,7 @@ export function FeedbackPanel() {
   );
   const solved30dCount = useMemo(() => {
     const since = Date.now() - 30 * DAY_MS;
-    return items.filter((it) => it.status === "solved" && new Date(it.created_at).getTime() >= since).length;
+    return items.filter((it) => it.status === "solved" && parseApiDate(it.created_at).getTime() >= since).length;
   }, [items]);
   const positiveCount = useMemo(() => items.filter((it) => it.rating === "positive").length, [items]);
   const negativeCount = useMemo(() => items.filter((it) => it.rating === "negative").length, [items]);
@@ -260,7 +261,7 @@ export function FeedbackPanel() {
                   </td>
                   <td className="text-muted">{it.company_name ?? "—"}</td>
                   <td className="text-muted">{it.user_name}</td>
-                  <td className="text-muted">{new Date(it.created_at).toLocaleDateString(locale)}</td>
+                  <td className="text-muted">{parseApiDate(it.created_at).toLocaleDateString(locale)}</td>
                   <td>
                     <span className={`badge ${styles[`status-${it.status}`]}`}>
                       {t(`adminFeedback.status.${it.status}` as TranslationKey)}

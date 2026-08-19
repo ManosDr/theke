@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { AdminStatsByVertical, GapQueryEntry } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
@@ -64,7 +65,7 @@ export function ChatGapRatePanel() {
                 <tr key={q.id}>
                   <td>{q.message}</td>
                   <td className="text-muted">{q.company_name ?? t("dash.super.platform")}</td>
-                  <td className="text-muted">{new Date(q.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(q.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

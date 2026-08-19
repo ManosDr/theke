@@ -5,6 +5,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip as RechartsTooltip } from
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { SpendAlertsResponse } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
@@ -187,7 +188,7 @@ export function SpendAlertsPanel() {
             <tbody>
               {[...data.history].reverse().map((h) => (
                 <tr key={h.created_at}>
-                  <td className="text-muted">{new Date(h.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(h.created_at).toLocaleString()}</td>
                   <td>€{h.spend_24h_eur.toFixed(2)}</td>
                   <td>€{h.spend_7d_eur.toFixed(2)}</td>
                   <td

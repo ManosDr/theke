@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type { CompanySummary } from "../lib/types";
@@ -76,7 +77,7 @@ export function SuspendedTenantsPanel() {
                       {c.is_suspended ? t("dash.super.statusSuspended") : t("dash.super.statusActive")}
                     </span>
                   </td>
-                  <td className="text-muted">{new Date(c.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(c.created_at).toLocaleDateString()}</td>
                   <td>
                     <button className="btn btn-secondary" onClick={() => toggleSuspend(c)}>
                       {c.is_suspended ? t("dash.super.unsuspend") : t("dash.super.suspend")}

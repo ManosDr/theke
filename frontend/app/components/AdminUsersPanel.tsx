@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 
 import { ApiError, api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
+import { parseApiDate } from "../lib/datetime";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
@@ -240,7 +241,7 @@ export function AdminUsersPanel() {
                       </select>
                     )}
                   </td>
-                  <td className="text-muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}</td>
+                  <td className="text-muted">{u.last_login_at ? parseApiDate(u.last_login_at).toLocaleString() : "—"}</td>
                   <td>{u.messages_30d}</td>
                   <td>
                     <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>

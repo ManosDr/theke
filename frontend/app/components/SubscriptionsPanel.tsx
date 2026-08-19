@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { StatCard } from "../dashboard/StatCard";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import type {
@@ -301,10 +302,10 @@ function CompaniesTab() {
                   <td className="text-muted">
                     {item.status === "trial"
                       ? item.trial_ends_at
-                        ? new Date(item.trial_ends_at).toLocaleDateString(locale)
+                        ? parseApiDate(item.trial_ends_at).toLocaleDateString(locale)
                         : "—"
                       : item.current_period_end
-                        ? new Date(item.current_period_end).toLocaleDateString(locale)
+                        ? parseApiDate(item.current_period_end).toLocaleDateString(locale)
                         : "—"}
                   </td>
                   <td>
@@ -629,7 +630,7 @@ function InvoicesModal({
               {invoices.map((inv) => (
                 <tr key={inv.id}>
                   <td>{inv.invoice_number}</td>
-                  <td className="text-muted">{new Date(inv.issued_at).toLocaleDateString(locale)}</td>
+                  <td className="text-muted">{parseApiDate(inv.issued_at).toLocaleDateString(locale)}</td>
                   <td>€{inv.amount_total_eur.toFixed(2)}</td>
                   <td>
                     <button type="button" className="btn btn-secondary" onClick={() => downloadPdf(inv)}>

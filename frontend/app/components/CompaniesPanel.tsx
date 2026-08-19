@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
@@ -177,7 +178,7 @@ export function CompaniesPanel() {
                     </td>
                     <td>{c.active_projects_count}</td>
                     <td>{c.active_users_count}</td>
-                    <td className="text-muted">{new Date(c.created_at).toLocaleDateString()}</td>
+                    <td className="text-muted">{parseApiDate(c.created_at).toLocaleDateString()}</td>
                     <td>
                       <span className={`badge ${c.is_suspended ? "badge-danger" : "badge-success"}`}>
                         {c.is_suspended ? t("companies.statusSuspended") : t("companies.statusActive")}
@@ -608,7 +609,7 @@ function CompanyDetailModal({
         <div className={styles.modalSection}>
           <h4>{tUpper("companies.modal.info")}</h4>
           <p className="text-muted">
-            {t("companies.modal.created")}: {new Date(detail.created_at).toLocaleDateString()}
+            {t("companies.modal.created")}: {parseApiDate(detail.created_at).toLocaleDateString()}
           </p>
         </div>
 

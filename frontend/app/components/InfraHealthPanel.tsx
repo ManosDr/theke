@@ -5,6 +5,7 @@ import { Line, LineChart, ResponsiveContainer, Tooltip } from "recharts";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { InfraHealthLevel, InfraHealthResponse } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
@@ -121,7 +122,7 @@ export function InfraHealthPanel() {
             <tbody>
               {[...data.history].reverse().map((h) => (
                 <tr key={h.created_at}>
-                  <td className="text-muted">{new Date(h.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(h.created_at).toLocaleString()}</td>
                   <td>{h.total_chunks.toLocaleString()}</td>
                   <td>{h.index_size_mb.toFixed(1)} MB</td>
                   <td style={{ color: LEVEL_COLOR[h.threshold_level], fontWeight: 600 }}>

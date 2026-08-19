@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { AuditLogEntry, AuditLogListResponse, CompanySummary } from "../lib/types";
 import styles from "./AuditLogPanel.module.css";
@@ -133,7 +134,7 @@ export function AuditLogPanel() {
                       : "—"}
                   </td>
                   <td className="text-muted">{entry.actor_user_id ?? "—"}</td>
-                  <td className="text-muted">{new Date(entry.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(entry.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

@@ -6,6 +6,7 @@ import FieldError from "./FieldError";
 import { ApiError, api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { AdminInviteSummary, InviteSummary, SuperAdminInviteCreateRequest } from "../lib/types";
 import type { TranslationKey } from "../lib/translations";
@@ -167,8 +168,8 @@ export function AdminInvitesPanel() {
                   <td>{inv.email}</td>
                   <td>{inv.company_name ?? <span className="text-muted">{t("adminInvites.pendingCompanyLess")}</span>}</td>
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
-                  <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
-                  <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(inv.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(inv.expires_at).toLocaleDateString()}</td>
                   <td style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                     <button
                       className="btn btn-secondary"
@@ -226,7 +227,7 @@ export function AdminInvitesPanel() {
                           : t("invite.statusRevoked")}
                     </span>
                   </td>
-                  <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(inv.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>

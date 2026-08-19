@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useVertical } from "../lib/vertical";
@@ -27,7 +28,7 @@ const ACCENT_CLASS: Record<string, string> = {
 const FAILURE_BANNER_THRESHOLD = 3;
 
 function daysSince(iso: string): number {
-  return Math.max(0, Math.floor((Date.now() - new Date(iso).getTime()) / 86_400_000));
+  return Math.max(0, Math.floor((Date.now() - parseApiDate(iso).getTime()) / 86_400_000));
 }
 
 type Health = "healthy" | "overdue" | "failed" | "blocked" | "syncing" | "inactive" | "never_synced";
@@ -41,7 +42,7 @@ function healthOf(source: DataSourceSummary, syncing: boolean): Health {
   // doesn't fold into the ordinary "failed" bucket (see KNOWN_DECISIONS.md).
   if (source.last_crawl_status === "blocked") return "blocked";
   if (source.last_crawl_status && /fail|error/i.test(source.last_crawl_status)) return "failed";
-  if (source.next_crawl_at && new Date(source.next_crawl_at) < new Date()) return "overdue";
+  if (source.next_crawl_at && parseApiDate(source.next_crawl_at) < new Date()) return "overdue";
   return "healthy";
 }
 
@@ -272,8 +273,8 @@ function SourceCard({
 
       <div>
         {health !== "never_synced" && source.last_crawled_at && (
-          <div className="text-muted" style={{ fontSize: "0.8rem" }} title={new Date(source.last_crawled_at).toString()}>
-            {t("adminSources.lastSync", { when: new Date(source.last_crawled_at).toLocaleDateString() })}
+          <div className="text-muted" style={{ fontSize: "0.8rem" }} title={parseApiDate(source.last_crawled_at).toString()}>
+            {t("adminSources.lastSync", { when: parseApiDate(source.last_crawled_at).toLocaleDateString() })}
           </div>
         )}
         <div className={`${styles.statusLine} ${styles[health]}`}>
@@ -292,8 +293,8 @@ function SourceCard({
         {source.next_crawl_at && (
           <div className="text-muted" style={{ fontSize: "0.8rem" }}>
             {health === "overdue"
-              ? t("adminSources.overdueSince", { when: new Date(source.next_crawl_at).toLocaleDateString() })
-              : t("adminSources.nextSync", { when: new Date(source.next_crawl_at).toLocaleDateString() })}
+              ? t("adminSources.overdueSince", { when: parseApiDate(source.next_crawl_at).toLocaleDateString() })
+              : t("adminSources.nextSync", { when: parseApiDate(source.next_crawl_at).toLocaleDateString() })}
           </div>
         )}
         <span className={styles.freqPill}>{t(`adminSources.frequency.${source.crawl_frequency_type}` as TranslationKey)}</span>

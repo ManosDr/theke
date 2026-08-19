@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { InternalActivityResponse } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
@@ -54,7 +55,7 @@ export function InternalActivityPanel() {
                   <td className="text-muted">{row.actor_email}</td>
                   <td>{row.message ?? "—"}</td>
                   <td className="text-muted">{row.gap === null ? "—" : row.gap ? "✓" : ""}</td>
-                  <td className="text-muted">{new Date(row.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(row.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -92,7 +93,7 @@ export function InternalActivityPanel() {
                     {row.resource_type ?? "—"}
                     {row.resource_id !== null ? ` #${row.resource_id}` : ""}
                   </td>
-                  <td className="text-muted">{new Date(row.created_at).toLocaleString()}</td>
+                  <td className="text-muted">{parseApiDate(row.created_at).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>

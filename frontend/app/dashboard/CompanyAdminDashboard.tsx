@@ -6,6 +6,7 @@ import { Fragment, useEffect, useMemo, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useCustomerSearch } from "../lib/useCustomerSearch";
@@ -51,7 +52,7 @@ const TABS = ["overview", "users", "documents", "customers", "subscription"] as 
 type Tab = (typeof TABS)[number];
 
 function timeAgo(iso: string, locale: string): string {
-  const diffMin = Math.round((Date.now() - new Date(iso).getTime()) / 60000);
+  const diffMin = Math.round((Date.now() - parseApiDate(iso).getTime()) / 60000);
   const isGreek = locale.startsWith("el");
   if (diffMin < 1) return isGreek ? "τώρα" : "just now";
   if (diffMin < 60) return `${diffMin}${isGreek ? "λ" : "m"}`;
@@ -322,7 +323,7 @@ function OverviewTab({
                 <tr key={doc.id}>
                   <td>{doc.title}</td>
                   <td className="text-muted">{doc.reference_url ?? "—"}</td>
-                  <td className="text-muted">{new Date(doc.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(doc.created_at).toLocaleDateString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -595,7 +596,7 @@ function UsersTab({ token }: { token: string | null }) {
                       <option value="member">{t("role.member")}</option>
                     </select>
                   </td>
-                  <td className="text-muted">{u.last_login_at ? new Date(u.last_login_at).toLocaleString() : "—"}</td>
+                  <td className="text-muted">{u.last_login_at ? parseApiDate(u.last_login_at).toLocaleString() : "—"}</td>
                   <td>
                     <button
                       type="button"
@@ -676,8 +677,8 @@ function UsersTab({ token }: { token: string | null }) {
                 <tr key={inv.id}>
                   <td>{inv.email}</td>
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
-                  <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>
-                  <td className="text-muted">{new Date(inv.expires_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(inv.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(inv.expires_at).toLocaleDateString()}</td>
                   <td style={{ display: "flex", gap: "var(--space-2)", alignItems: "center" }}>
                     <button
                       className="btn btn-secondary"
@@ -749,7 +750,7 @@ function UserUsageModal({ user, onClose }: { user: UserSummary; onClose: () => v
           </div>
           <div className={tabStyles.listRow}>
             <span>{tUpper("dash.company.colLastLogin")}</span>
-            <strong>{user.last_login_at ? new Date(user.last_login_at).toLocaleString() : "—"}</strong>
+            <strong>{user.last_login_at ? parseApiDate(user.last_login_at).toLocaleString() : "—"}</strong>
           </div>
           <div className={tabStyles.listRow}>
             <span>{tUpper("dash.company.colMessages30d")}</span>
@@ -978,7 +979,7 @@ function DocumentsTab({ token, companyType }: { token: string | null; companyTyp
                       {d.extraction_status ? t(`docs.status.${d.extraction_status}` as TranslationKey) : "—"}
                     </span>
                   </td>
-                  <td className="text-muted">{new Date(d.created_at).toLocaleDateString()}</td>
+                  <td className="text-muted">{parseApiDate(d.created_at).toLocaleDateString()}</td>
                   <td>
                     {d.project_id ? (
                       <button className="btn btn-secondary" onClick={() => deleteDoc(d)}>
@@ -1024,8 +1025,8 @@ function DocumentsTab({ token, companyType }: { token: string | null; companyTyp
                 <tr key={i}>
                   <td>{s.source_name}</td>
                   <td>{s.document_count}</td>
-                  <td className="text-muted">{s.last_crawled_at ? new Date(s.last_crawled_at).toLocaleDateString() : "—"}</td>
-                  <td className="text-muted">{s.next_crawl_at ? new Date(s.next_crawl_at).toLocaleDateString() : "—"}</td>
+                  <td className="text-muted">{s.last_crawled_at ? parseApiDate(s.last_crawled_at).toLocaleDateString() : "—"}</td>
+                  <td className="text-muted">{s.next_crawl_at ? parseApiDate(s.next_crawl_at).toLocaleDateString() : "—"}</td>
                   <td>
                     <span
                       className={`badge ${s.health === "healthy" ? "badge-success" : s.health === "failed" ? "badge-danger" : "badge-warning"}`}
@@ -1071,7 +1072,7 @@ function SubscriptionTab({ token }: { token: string | null }) {
       ? Math.min(100, Math.round((status.storage_used_bytes / Math.max(status.storage_limit_bytes, 1)) * 100))
       : 0;
   const expiresAt = status.status === "trial" ? status.trial_ends_at : status.current_period_end;
-  const daysLeft = status.status === "trial" && status.trial_ends_at ? Math.ceil((new Date(status.trial_ends_at).getTime() - Date.now()) / 86_400_000) : null;
+  const daysLeft = status.status === "trial" && status.trial_ends_at ? Math.ceil((parseApiDate(status.trial_ends_at).getTime() - Date.now()) / 86_400_000) : null;
   const statusBadgeClass = status.status === "active" ? "badge-success" : status.status === "trial" ? "badge-warning" : "badge-danger";
 
   return (
@@ -1100,7 +1101,7 @@ function SubscriptionTab({ token }: { token: string | null }) {
         {expiresAt && (
           <p className="text-muted" style={{ fontSize: "0.85rem" }}>
             {status.status === "trial" ? t("dash.company.sub.trialEnds") : t("dash.company.sub.renewsOn")}:{" "}
-            {new Date(expiresAt).toLocaleDateString(locale)}
+            {parseApiDate(expiresAt).toLocaleDateString(locale)}
           </p>
         )}
 
@@ -1351,7 +1352,7 @@ function CustomersTab({ token }: { token: string | null }) {
                     <td>{c.phone ?? "—"}</td>
                     <td>{c.email ?? "—"}</td>
                     <td>{c.project_count}</td>
-                    <td className="text-muted">{c.last_project_at ? new Date(c.last_project_at).toLocaleDateString() : "—"}</td>
+                    <td className="text-muted">{c.last_project_at ? parseApiDate(c.last_project_at).toLocaleDateString() : "—"}</td>
                     <td>{expanded[c.id] ? "▾" : "▸"}</td>
                   </tr>
                   {expanded[c.id] && (
@@ -1378,7 +1379,7 @@ function CustomersTab({ token }: { token: string | null }) {
                                   <tr key={p.id}>
                                     <td>{p.name ?? "—"}</td>
                                     <td>{p.region_name_el ?? t("project.detail.customer")}</td>
-                                    <td className="text-muted">{new Date(p.created_at).toLocaleDateString()}</td>
+                                    <td className="text-muted">{parseApiDate(p.created_at).toLocaleDateString()}</td>
                                     <td>{p.document_count}</td>
                                     <td>
                                       <Link href={`/projects/${p.id}`} className="btn btn-secondary">

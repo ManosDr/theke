@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { WeeklyDigestEntry, WeeklyDigestsResponse } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
@@ -101,7 +102,7 @@ export function WeeklyDigestPanel() {
         {data?.latest && (
           <p className="text-muted" style={{ marginTop: "var(--space-3)", marginBottom: 0 }}>
             {t("admin.digest.sentAt", {
-              date: new Date(data.latest.created_at).toLocaleString(),
+              date: parseApiDate(data.latest.created_at).toLocaleString(),
               sent: String(data.latest.recipients_sent),
               total: String(data.latest.recipients_total),
             })}
@@ -126,7 +127,7 @@ export function WeeklyDigestPanel() {
               <tbody>
                 {data.history.map((h) => (
                   <tr key={h.created_at}>
-                    <td className="text-muted">{new Date(h.created_at).toLocaleString()}</td>
+                    <td className="text-muted">{parseApiDate(h.created_at).toLocaleString()}</td>
                     <td>{h.total_messages.toLocaleString()}</td>
                     <td>{h.gap_rate}%</td>
                     <td>€{h.spend_7d_eur.toFixed(2)}</td>

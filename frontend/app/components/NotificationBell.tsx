@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type CSSProperties } from "react";
 
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
@@ -34,6 +34,7 @@ export function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [open, setOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const [panelStyle, setPanelStyle] = useState<CSSProperties>({});
 
   useEffect(() => {
     if (!token) return;
@@ -66,6 +67,36 @@ export function NotificationBell() {
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [open]);
+
+  // .panel is `position: absolute; right: 0` by default (CSS), anchoring
+  // its right edge to .wrapper's right edge - correct as long as the
+  // wrapper sits flush against the viewport's right edge. On narrow
+  // viewports the bell isn't the last topbar control (the account menu
+  // sits to its right), so the wrapper can be well short of the right
+  // edge, and a 320px panel right-anchored to it runs off the LEFT edge
+  // of the screen instead. Same measure-and-clamp principle as Tooltip's
+  // flip logic: on open, read the trigger's real viewport position and
+  // override left/right with an explicit, clamped value so the panel
+  // always stays fully on-screen. Recomputed on resize (not just open)
+  // since, unlike Tooltip's portaled bubble, .panel is a normal
+  // position:absolute child that already scrolls correctly with the page -
+  // only its horizontal placement needs correcting.
+  useEffect(() => {
+    if (!open) return;
+    function reposition() {
+      const wrapper = menuRef.current;
+      if (!wrapper) return;
+      const margin = 12; // matches var(--space-3)
+      const wrapperRect = wrapper.getBoundingClientRect();
+      const panelWidth = Math.min(320, window.innerWidth - margin * 2);
+      const naturalLeft = wrapperRect.right - panelWidth;
+      const clampedLeft = Math.max(margin, Math.min(naturalLeft, window.innerWidth - panelWidth - margin));
+      setPanelStyle({ left: clampedLeft - wrapperRect.left, right: "auto", width: panelWidth });
+    }
+    reposition();
+    window.addEventListener("resize", reposition);
+    return () => window.removeEventListener("resize", reposition);
   }, [open]);
 
   async function markAllRead() {
@@ -101,7 +132,7 @@ export function NotificationBell() {
       </button>
 
       {open && (
-        <div className={styles.panel} role="menu">
+        <div className={styles.panel} role="menu" style={panelStyle}>
           <div className={styles.panelHeader}>
             <span>{t("notifications.title")}</span>
             {unreadCount > 0 && (

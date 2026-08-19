@@ -65,3 +65,11 @@
 # instead of sitting silently for a month. 08:15 UTC, right after the spend
 # check. See crawler/crawler/data_source_health_check.py.
 15 8 * * * python -m crawler.data_source_health_check
+
+# Daily invite-expiry sweep - finds every invite still 'pending' whose
+# expires_at has passed, flips it to 'expired', and notifies every active
+# super admin. Runs daily (not weekly) since an invite is only valid 7 days -
+# a week-long lag before the flip would mean it could sit stale for most of
+# its own validity window before anyone found out. 08:30 UTC, right after
+# the crawl-health check. See crawler/crawler/invite_expiry_check.py.
+30 8 * * * python -m crawler.invite_expiry_check

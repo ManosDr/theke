@@ -138,7 +138,12 @@ class Invite(Base):
     email: Mapped[str] = mapped_column(Text)
     token: Mapped[str] = mapped_column(Text, unique=True)
     role: Mapped[str] = mapped_column(Text, default="member")
-    status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'accepted', 'revoked'
+    # 'expired' is set only by crawler/crawler/invite_expiry_check.py's daily
+    # sweep (expires_at passed while still 'pending') - never by any
+    # endpoint. Terminal, same as 'revoked': neither is resendable (see
+    # admin_resend_invite's status != "pending" check) - the recovery path
+    # for both is a fresh invite, not reviving the old one.
+    status: Mapped[str] = mapped_column(Text, default="pending")  # 'pending', 'accepted', 'revoked', 'expired'
     invited_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     # Only set for a company-less invite - the company_type the invitee's
     # own company will get once they create it at acceptance time (same

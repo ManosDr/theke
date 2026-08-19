@@ -257,7 +257,7 @@ export interface InviteSummary {
   id: number;
   email: string;
   role: "admin" | "member";
-  status: "pending" | "accepted" | "revoked";
+  status: "pending" | "accepted" | "revoked" | "expired";
   token: string | null;
   created_at: string;
   expires_at: string;

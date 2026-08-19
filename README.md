@@ -71,11 +71,12 @@ another account's view without its credentials; use one of the demo
 accounts above for that.
 
 The crawler doesn't need to be started manually - `docker compose up` also
-starts a `scheduler` service that runs it, and six other scheduled jobs
+starts a `scheduler` service that runs it, and several other scheduled jobs
 (weekly staleness/company-document-staleness sweeps, the canary chat
 benchmark, infra-health snapshot, data-retention cleanup, and usage digest
-email, plus a daily AI-spend check), via supercronic on the schedule in
-`crawler/crontab`. To trigger an ingestion run on demand:
+email, plus daily AI-spend, data-source-health, and invite-expiry checks),
+via supercronic on the schedule in `crawler/crontab`. To trigger an
+ingestion run on demand:
 
 ```bash
 docker compose --profile crawler run --rm crawler

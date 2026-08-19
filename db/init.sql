@@ -51,7 +51,7 @@ CREATE TABLE IF NOT EXISTS invites (
     email TEXT NOT NULL,
     token TEXT NOT NULL UNIQUE,
     role VARCHAR NOT NULL DEFAULT 'member',  -- role the invitee will get on acceptance
-    status VARCHAR NOT NULL DEFAULT 'pending',  -- 'pending', 'accepted', 'revoked'
+    status VARCHAR NOT NULL DEFAULT 'pending',  -- 'pending', 'accepted', 'revoked', 'expired'
     invited_by INT NOT NULL REFERENCES users(id),
     created_at TIMESTAMP NOT NULL DEFAULT now(),
     expires_at TIMESTAMP NOT NULL DEFAULT (now() + interval '7 days'),

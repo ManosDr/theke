@@ -28,7 +28,7 @@ from app.schemas import (
 from app.security import create_access_token, create_refresh_token, hash_password, hash_refresh_token, verify_password
 from app.services.audit import log_action
 from app.services.email import send_password_reset_email, send_verification_email, send_welcome_email
-from app.services.notifications import notify
+from app.services.notifications import notify, notify_super_admins
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
 
 logger = logging.getLogger(__name__)
@@ -218,6 +218,26 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
             title=f"{payload.email} accepted your invite",
             body=f"They've joined as {role}.",
             link="/dashboard",
+        )
+        # Platform-wide, distinct from the notify() call above - the
+        # invite.invited_by super_admin already gets a personal notification;
+        # this reaches every OTHER active super_admin too, since acceptance
+        # is a platform-visibility event (a real prospect just came through),
+        # not just something the inviter alone should know about. Wording
+        # branches on payload.new_company_name (only ever set on the
+        # company-less path, see the required-field check above) rather than
+        # invite.company_id, which is already non-NULL by this point on both
+        # paths (see the backfill 3 lines above the branch this sits under).
+        if payload.new_company_name:
+            super_admin_body = f'{payload.email} accepted the invite and created "{company.name}".'
+        else:
+            super_admin_body = f'{payload.email} accepted the invite and joined "{company.name}".'
+        notify_super_admins(
+            db,
+            type="invite_accepted_platform",
+            title="New invite accepted",
+            body=super_admin_body,
+            link="/admin/invites",
         )
     else:
         if db.scalar(select(Company).where(Company.name == payload.company_name)):

@@ -210,8 +210,20 @@ export function AdminInvitesPanel() {
                   <td>{inv.company_name ?? <span className="text-muted">{t("adminInvites.pendingCompanyLess")}</span>}</td>
                   <td>{t(`role.${inv.role}` as TranslationKey)}</td>
                   <td>
-                    <span className={`badge ${inv.status === "accepted" ? "badge-success" : "badge-danger"}`}>
-                      {inv.status === "accepted" ? t("invite.statusAccepted") : t("invite.statusRevoked")}
+                    <span
+                      className={`badge ${
+                        inv.status === "accepted"
+                          ? "badge-success"
+                          : inv.status === "expired"
+                            ? "badge-warning"
+                            : "badge-danger"
+                      }`}
+                    >
+                      {inv.status === "accepted"
+                        ? t("invite.statusAccepted")
+                        : inv.status === "expired"
+                          ? t("invite.statusExpired")
+                          : t("invite.statusRevoked")}
                     </span>
                   </td>
                   <td className="text-muted">{new Date(inv.created_at).toLocaleDateString()}</td>

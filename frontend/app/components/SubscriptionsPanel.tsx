@@ -133,7 +133,14 @@ function CompaniesTab() {
   }
 
   async function cancelSub(item: SubscriptionEntry) {
-    await api.patch(`/admin/subscriptions/${item.company_id}/cancel`, undefined, token);
+    // null means the admin dismissed the prompt - treated as "don't cancel"
+    // rather than "cancel with no reason", since this action had no
+    // confirmation step at all before. An empty string (OK with nothing
+    // typed) still proceeds - the reason is optional, never a blocker on
+    // actually cancelling (see CancelSubscriptionRequest).
+    const reason = window.prompt(t("adminSubs.cancelReasonPrompt"));
+    if (reason === null) return;
+    await api.patch(`/admin/subscriptions/${item.company_id}/cancel`, reason.trim() ? { reason: reason.trim() } : undefined, token);
     setOpenMenuId(null);
     refresh();
   }

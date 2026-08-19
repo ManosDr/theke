@@ -220,6 +220,7 @@ export interface CompanyCreateWithAdminRequest {
   admin_phone?: string;
   is_test_account?: boolean;
   trial_days?: number;
+  acquisition_source?: string;
 }
 
 export interface CompanyCreateWithAdminResponse {

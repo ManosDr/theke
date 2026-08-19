@@ -249,6 +249,7 @@ function CreateCompanyModal({
   const [adminPhone, setAdminPhone] = useState("");
   const [isTestAccount, setIsTestAccount] = useState(false);
   const [trialDays, setTrialDays] = useState("30");
+  const [acquisitionSource, setAcquisitionSource] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<{
@@ -291,6 +292,7 @@ function CreateCompanyModal({
           admin_phone: adminPhone || undefined,
           is_test_account: isTestAccount,
           trial_days: trialDays.trim() ? Number(trialDays) : undefined,
+          acquisition_source: acquisitionSource.trim() || undefined,
         },
         token
       );
@@ -351,6 +353,15 @@ function CreateCompanyModal({
                 <option value="accounting">{t("companies.new.typeAccounting")}</option>
                 <option value="municipality">{t("companies.new.typeMunicipality")}</option>
               </select>
+            </label>
+            <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
+              {t("companies.new.acquisitionSource")}
+              <input
+                className="input"
+                value={acquisitionSource}
+                onChange={(e) => setAcquisitionSource(e.target.value)}
+                placeholder={t("companies.new.acquisitionSourcePlaceholder")}
+              />
             </label>
           </div>
         </div>

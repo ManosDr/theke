@@ -69,6 +69,11 @@ function RegisterContent() {
   // since that endpoint requires an authenticated company that doesn't
   // exist until this very form submits.
   const [logoFile, setLogoFile] = useState<File | null>(null);
+  // Optional "how did you hear about us" - only meaningful when this
+  // registration is creating a brand new company (either mode, since a
+  // company-less invite's requires_company_name branch also creates one).
+  // Never validated/required - see Company.acquisition_source.
+  const [acquisitionSource, setAcquisitionSource] = useState("");
   const [dpaAccepted, setDpaAccepted] = useState(false);
   const [legalStatus, setLegalStatus] = useState<LegalStatusResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -241,13 +246,16 @@ function RegisterContent() {
               invite_token: inviteToken,
               // Only meaningful (and only required server-side) for a
               // company-less invite - ignored by the backend otherwise.
-              ...(inviteInfo?.requires_company_name ? { new_company_name: companyName } : {}),
+              ...(inviteInfo?.requires_company_name
+                ? { new_company_name: companyName, acquisition_source: acquisitionSource.trim() || undefined }
+                : {}),
             }
           : {
               intended_tier: intendedTier || undefined,
               company_name: companyName,
               company_type: companyType,
               vertical_slug: companyType === "accounting" ? "tax_accounting" : "construction",
+              acquisition_source: acquisitionSource.trim() || undefined,
             }),
       });
 
@@ -454,6 +462,17 @@ function RegisterContent() {
                         onChange={(e) => setLogoFile(e.target.files?.[0] ?? null)}
                       />
                     </div>
+                    <div className={styles.field}>
+                      <label htmlFor="acquisitionSourceInvite">{t("register.acquisitionSource")}</label>
+                      <input
+                        id="acquisitionSourceInvite"
+                        type="text"
+                        className="input"
+                        value={acquisitionSource}
+                        placeholder={t("register.acquisitionSourcePlaceholder")}
+                        onChange={(e) => setAcquisitionSource(e.target.value)}
+                      />
+                    </div>
                   </>
                 )}
                 {inviteInfoError && <p className={styles.error}>{inviteInfoError}</p>}
@@ -487,6 +506,17 @@ function RegisterContent() {
                     <option value="municipality">{t("register.typeMunicipality")}</option>
                     <option value="accounting">{t("register.typeAccounting")}</option>
                   </select>
+                </div>
+                <div className={styles.field}>
+                  <label htmlFor="acquisitionSource">{t("register.acquisitionSource")}</label>
+                  <input
+                    id="acquisitionSource"
+                    type="text"
+                    className="input"
+                    value={acquisitionSource}
+                    placeholder={t("register.acquisitionSourcePlaceholder")}
+                    onChange={(e) => setAcquisitionSource(e.target.value)}
+                  />
                 </div>
               </>
             )}

@@ -39,6 +39,12 @@ class RegisterRequest(BaseModel):
     # for manual sales reference rather than inventing new schema for a
     # single free-text hint. Ignored on the invite_token path.
     intended_tier: str | None = None
+    # Optional free-text "how did you hear about us", only meaningful on a
+    # new-company path (company_name or new_company_name) - ignored when
+    # joining an existing company via a normal invite, since that company's
+    # acquisition_source was already captured when IT was created. Never a
+    # signup blocker - see Company.acquisition_source.
+    acquisition_source: str | None = None
     # No default - omitting this field entirely (not just sending false)
     # must also fail validation, so a client can't bypass the checkbox by
     # simply not sending the key. Enforced again in the endpoint itself
@@ -568,6 +574,9 @@ class CompanyCreateWithAdminRequest(BaseModel):
     # non-default trial length without marking them a test account.
     is_test_account: bool = False
     trial_days: int = 30  # matches app/services/subscription.py's TRIAL_DAYS_DEFAULT
+    # Optional free-text "how did you hear about us", filled by the
+    # super_admin creating this company - see Company.acquisition_source.
+    acquisition_source: str | None = None
 
     @field_validator("company_type")
     @classmethod
@@ -1631,6 +1640,16 @@ class AssignPlanRequest(BaseModel):
 
 class ExtendTrialRequest(BaseModel):
     days: int
+
+
+class CancelSubscriptionRequest(BaseModel):
+    # Optional (Item 3, churn capture) - free text, never a hard blocker on
+    # actually cancelling. NULL/omitted is a valid, expected value: a
+    # super_admin should always be able to cancel a subscription even with
+    # no reason on hand, same "don't force a taxonomy or a required field
+    # onto something that just needs to happen" reasoning as the
+    # acquisition-source field (Item 2).
+    reason: str | None = None
 
 
 class AddSubscriptionNoteRequest(BaseModel):

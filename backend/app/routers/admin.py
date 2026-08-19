@@ -59,6 +59,7 @@ from app.schemas import (
     BrowseResponse,
     BusinessHealthDayEntry,
     BusinessHealthResponse,
+    CancelSubscriptionRequest,
     CompanyCreateWithAdminRequest,
     CompanyCreateWithAdminResponse,
     CompanyDetail,
@@ -169,7 +170,7 @@ from app.services.politeness import CrawlBlocked, RobotsDisallowed
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
 from app.services.source_fetch import content_hash, extract_content, fetch_raw, fetch_url_content
 from app.services.sources import group_label
-from app.services.subscription import get_or_create_subscription, get_or_create_usage
+from app.services.subscription import get_or_create_subscription, get_or_create_usage, record_subscription_event
 from app.services.usage import company_token_usage
 from app.services.weekly_digest import run_weekly_digest
 
@@ -237,6 +238,7 @@ async def create_company_with_admin(
         type=payload.company_type,
         vertical_id=vertical.id,
         is_test_account=payload.is_test_account,
+        acquisition_source=payload.acquisition_source,
     )
     db.add(company)
     db.flush()
@@ -3882,6 +3884,12 @@ async def assign_plan(
     trial_ends_at = now + timedelta(days=payload.trial_days) if payload.trial_days else None
     period_days = 365 if payload.billing_cycle == "annual" else 30
 
+    # Captured before any mutation below - company_subscriptions is a single
+    # mutable row per company, so this is the only chance to see what it was
+    # about to stop being (see SubscriptionEvent's docstring in models.py).
+    from_plan_id = sub.plan_id if sub else None
+    from_status = sub.status if sub else None
+
     if sub:
         sub.plan_id = plan.id
         sub.billing_cycle = payload.billing_cycle
@@ -3905,6 +3913,16 @@ async def assign_plan(
         )
         db.add(sub)
     db.flush()  # populates sub.id for a brand-new row, before log_action references it
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="plan_assigned",
+        from_plan_id=from_plan_id,
+        to_plan_id=plan.id,
+        from_status=from_status,
+        to_status=new_status,
+        triggered_by=user.user_id,
+    )
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -3927,6 +3945,7 @@ async def extend_trial(
 ) -> SubscriptionEntry:
     require_super_admin(user)
     sub, company, plan = _get_subscription_or_404(db, company_id)
+    from_status = sub.status
     # Extends from the later of "now" and the existing trial_ends_at - a
     # trial that already expired gets N days from today, not N days added
     # onto a date already in the past.
@@ -3935,6 +3954,16 @@ async def extend_trial(
     sub.trial_ends_at = base + timedelta(days=payload.days)
     if sub.status == "expired":
         sub.status = "trial"
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="trial_extended",
+        from_plan_id=sub.plan_id,
+        to_plan_id=sub.plan_id,
+        from_status=from_status,
+        to_status=sub.status,
+        triggered_by=user.user_id,
+    )
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -3952,13 +3981,29 @@ async def extend_trial(
 @router.patch("/subscriptions/{company_id}/cancel", response_model=SubscriptionEntry)
 async def cancel_subscription(
     company_id: int,
+    # Optional body - existing frontend calls send none at all (see
+    # SubscriptionsPanel.tsx's api.patch(..., undefined, token)), and Item
+    # 3's reason capture must not become a hard requirement to cancel.
+    payload: CancelSubscriptionRequest | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> SubscriptionEntry:
     require_super_admin(user)
     sub, company, plan = _get_subscription_or_404(db, company_id)
+    from_status = sub.status
     sub.status = "cancelled"
     sub.cancelled_at = datetime.utcnow()
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="cancelled",
+        from_plan_id=sub.plan_id,
+        to_plan_id=sub.plan_id,
+        from_status=from_status,
+        to_status="cancelled",
+        triggered_by=user.user_id,
+        reason=payload.reason if payload else None,
+    )
     log_action(
         db,
         actor_user_id=user.user_id,
@@ -3980,8 +4025,19 @@ async def reactivate_subscription(
 ) -> SubscriptionEntry:
     require_super_admin(user)
     sub, company, plan = _get_subscription_or_404(db, company_id)
+    from_status = sub.status
     sub.status = "active"
     sub.cancelled_at = None
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="reactivated",
+        from_plan_id=sub.plan_id,
+        to_plan_id=sub.plan_id,
+        from_status=from_status,
+        to_status="active",
+        triggered_by=user.user_id,
+    )
     log_action(
         db,
         actor_user_id=user.user_id,

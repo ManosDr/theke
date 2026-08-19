@@ -115,6 +115,14 @@ class Company(Base):
     # internal/demo usage never inflates real numbers. A reporting
     # exclusion only - every feature still works normally for the company.
     is_test_account: Mapped[bool] = mapped_column(default=False)
+    # Free text, optional, captured once at company-creation time - "how did
+    # you hear about us". Filled by the super_admin for admin-created
+    # companies, or by the invitee themselves for self-serve/invite-based
+    # registration (see auth.py's register() and admin.py's
+    # create_company_with_admin()). Free text rather than an enum -
+    # deliberately no fixed taxonomy yet, same reasoning Finance already
+    # applied to needs_review reasons. Never a signup blocker.
+    acquisition_source: Mapped[str | None] = mapped_column(Text)
 
 
 class Invite(Base):
@@ -891,6 +899,47 @@ class CompanySubscription(Base):
     stripe_customer_id: Mapped[str | None] = mapped_column(Text)
     stripe_subscription_id: Mapped[str | None] = mapped_column(Text)
     notes: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
+class SubscriptionEvent(Base):
+    """Append-only - never updated, never deleted. CompanySubscription above
+    is a single mutable row per company (unique company_id) that every plan/
+    status change overwrites in place; before this table existed, that meant
+    every prior plan/status was permanently unrecoverable the instant the
+    next change committed. Every mutation site in admin.py's
+    assign_plan/extend_trial/cancel_subscription/reactivate, plus the
+    automatic trial-expiry flip in subscription.py and services/
+    subscription.py, must write one of these alongside its
+    CompanySubscription update - see record_subscription_event() in
+    services/subscription.py, the single place that actually inserts a row,
+    so no call site can accidentally update-in-place instead of appending.
+    See KNOWN_DECISIONS.md."""
+
+    __tablename__ = "subscription_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
+    # 'plan_assigned' | 'trial_extended' | 'cancelled' | 'reactivated' | 'trial_expired'
+    event_type: Mapped[str] = mapped_column(Text)
+    # NULL from_plan_id only for a brand-new company's very first
+    # assignment (there is no prior plan to record). to_plan_id is always
+    # set - even a pure status change (cancel/reactivate/extend-trial)
+    # still has a plan, just an unchanged one.
+    from_plan_id: Mapped[int | None] = mapped_column(ForeignKey("plans.id"))
+    to_plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
+    from_status: Mapped[str | None] = mapped_column(Text)
+    to_status: Mapped[str] = mapped_column(Text)
+    # NULL for a system-triggered event (the automatic trial->expired flip
+    # in subscription.py/services/subscription.py has no human actor) -
+    # every admin-initiated event (assign/extend/cancel/reactivate) sets
+    # this to the acting super_admin's user id.
+    triggered_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # Churn/cancellation reason (see Item 3) - only ever set on a
+    # 'cancelled' event, NULL on every other event_type. Lives here rather
+    # than as its own table specifically so it's naturally tied to the
+    # same event stream instead of a separate, harder-to-join record.
+    reason: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 

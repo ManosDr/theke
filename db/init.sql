@@ -1580,6 +1580,30 @@ CREATE TABLE IF NOT EXISTS company_subscriptions (
   created_at          timestamp NOT NULL DEFAULT now()
 );
 
+-- Append-only history alongside company_subscriptions above (which stays a
+-- single mutable current-state row per company, unchanged) - every plan
+-- assignment, trial extension, cancellation, reactivation, and automatic
+-- trial-expiry flip writes a new row here, never an update. Before this
+-- existed, every plan/status a company had ever been on except its current
+-- one was permanently unrecoverable the moment the next change committed -
+-- see KNOWN_DECISIONS.md and services/subscription.py's
+-- record_subscription_event(), the one place that actually inserts.
+CREATE TABLE IF NOT EXISTS subscription_events (
+  id                  serial PRIMARY KEY,
+  company_id          integer NOT NULL REFERENCES companies(id),
+  event_type          varchar NOT NULL,  -- 'plan_assigned', 'trial_extended', 'cancelled', 'reactivated', 'trial_expired'
+  from_plan_id        integer REFERENCES plans(id),
+  to_plan_id          integer NOT NULL REFERENCES plans(id),
+  from_status         varchar,
+  to_status           varchar NOT NULL,
+  triggered_by        integer REFERENCES users(id),  -- NULL for the automatic trial_expired flip (no human actor)
+  reason              text,  -- churn/cancellation reason (Item 3) - only ever set on event_type='cancelled'
+  created_at          timestamp NOT NULL DEFAULT now()
+);
+
+CREATE INDEX IF NOT EXISTS idx_subscription_events_company ON subscription_events(company_id);
+CREATE INDEX IF NOT EXISTS idx_subscription_events_created ON subscription_events(created_at);
+
 -- One row per company per calendar month - the message-pool counter
 -- chat.py increments on every successful completion. Not the same counter
 -- as the Redis hourly rate limit (chat_msg:{user_id}, see rate_limit.py) -
@@ -2369,3 +2393,10 @@ If you need a plan upgrade or an extra message pack, you can submit a request di
 ('data-privacy', 'Πού πηγαίνουν τα δεδομένα σας', 'Where your data goes', 'Τα ερωτήματά σας και τα έγγραφα που ανεβάζετε επεξεργάζονται με τη βοήθεια τεχνητής νοημοσύνης (OpenAI) για την παραγωγή απαντήσεων, και αποθηκεύονται με ασφάλεια στην υποδομή μας εντός ΕΕ. Τα έγγραφα της εταιρείας σας είναι απομονωμένα από άλλες εταιρείες. Η Πολιτική Απορρήτου και η Σύμβαση Επεξεργασίας Δεδομένων θα δημοσιευτούν σύντομα με πλήρεις λεπτομέρειες.', 'Your questions and uploaded documents are processed with AI assistance (OpenAI) to generate answers, and stored securely on our EU-based infrastructure. Your company''s documents are isolated from other companies. Our Privacy Policy and Data Processing Agreement will be published soon with full details.', '{member,admin,super_admin}', NULL, '16')
 
 ON CONFLICT (slug) DO NOTHING;
+
+-- Free text, optional, captured once at company-creation time - "how did
+-- you hear about us". Filled by the super_admin for admin-created companies,
+-- or by the invitee themselves for self-serve/invite-based registration
+-- (see auth.py's register() and admin.py's create_company_with_admin()).
+-- Never a signup blocker.
+ALTER TABLE companies ADD COLUMN IF NOT EXISTS acquisition_source text;

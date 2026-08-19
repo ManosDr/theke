@@ -10,7 +10,7 @@ from datetime import date, datetime, timedelta
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
-from app.models import ChatSession, Company, CompanySubscription, Document, Plan, Project, SubscriptionUsage
+from app.models import ChatSession, Company, CompanySubscription, Document, Plan, Project, SubscriptionEvent, SubscriptionUsage
 
 # Pace-based monthly-pool risk projection (replaces the old fixed
 # remaining-count threshold per UX/Finance guidance - a fixed "5 left"
@@ -69,6 +69,39 @@ def get_or_create_subscription(db: Session, company: Company) -> CompanySubscrip
     db.commit()
     db.refresh(sub)
     return sub
+
+
+def record_subscription_event(
+    db: Session,
+    *,
+    company_id: int,
+    event_type: str,
+    from_plan_id: int | None,
+    to_plan_id: int,
+    from_status: str | None,
+    to_status: str,
+    triggered_by: int | None,
+    reason: str | None = None,
+) -> None:
+    """The one place that inserts into subscription_events (see models.py's
+    docstring on that table) - append-only, called alongside every
+    CompanySubscription mutation, never instead of it. Doesn't commit; the
+    caller's own db.commit() (right after mutating the CompanySubscription
+    row) covers this insert too, so the event and the state change it
+    describes land in the same transaction and can never disagree about
+    whether the change actually happened."""
+    db.add(
+        SubscriptionEvent(
+            company_id=company_id,
+            event_type=event_type,
+            from_plan_id=from_plan_id,
+            to_plan_id=to_plan_id,
+            from_status=from_status,
+            to_status=to_status,
+            triggered_by=triggered_by,
+            reason=reason,
+        )
+    )
 
 
 def get_or_create_usage(db: Session, company_id: int, messages_limit: int) -> SubscriptionUsage:
@@ -159,6 +192,16 @@ def check_subscription(
 
     if sub.status == "trial" and sub.trial_ends_at and sub.trial_ends_at < datetime.utcnow():
         sub.status = "expired"
+        record_subscription_event(
+            db,
+            company_id=company.id,
+            event_type="trial_expired",
+            from_plan_id=sub.plan_id,
+            to_plan_id=sub.plan_id,
+            from_status="trial",
+            to_status="expired",
+            triggered_by=None,  # system-detected, no human actor
+        )
         db.commit()
 
     if sub.status in ("expired", "cancelled"):

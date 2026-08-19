@@ -14,6 +14,7 @@ from app.services.subscription import (
     get_company_storage_bytes,
     get_or_create_subscription,
     get_or_create_usage,
+    record_subscription_event,
 )
 
 router = APIRouter(prefix="/subscription", tags=["subscription"])
@@ -45,6 +46,16 @@ async def subscription_status(
     # immediately rather than waiting for the next chat call.
     if sub.status == "trial" and sub.trial_ends_at and sub.trial_ends_at < datetime.utcnow():
         sub.status = "expired"
+        record_subscription_event(
+            db,
+            company_id=company.id,
+            event_type="trial_expired",
+            from_plan_id=sub.plan_id,
+            to_plan_id=sub.plan_id,
+            from_status="trial",
+            to_status="expired",
+            triggered_by=None,
+        )
         db.commit()
 
     pool_at_risk, pool_days_until_exhaustion = (False, None) if plan.is_beta else compute_pool_risk_projection(db, company.id, usage)

@@ -196,6 +196,7 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
                 vertical_id=invite.vertical_id,
                 dpa_accepted_at=datetime.utcnow(),
                 dpa_version=str(dpa_version) if dpa_version is not None else None,
+                acquisition_source=payload.acquisition_source,
             )
             db.add(company)
             db.flush()
@@ -257,6 +258,7 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
             vertical_id=vertical.id,
             dpa_accepted_at=datetime.utcnow(),
             dpa_version=str(dpa_version) if dpa_version is not None else None,
+            acquisition_source=payload.acquisition_source,
         )
         db.add(company)
         db.flush()

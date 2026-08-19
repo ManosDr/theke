@@ -61,6 +61,7 @@
   background: var(--color-surface);
   max-height: 220px;
   overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .addressOption {
@@ -76,6 +77,7 @@
   text-align: left;
   cursor: pointer;
   font-size: 0.85rem;
+  overflow-wrap: anywhere;
 }
 
 .addressOption:last-child {

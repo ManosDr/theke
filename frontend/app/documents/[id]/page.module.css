@@ -18,10 +18,12 @@
 
 .content {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
   line-height: 1.6;
   font-size: 0.95rem;
   max-height: 70vh;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--space-5);
 }
 

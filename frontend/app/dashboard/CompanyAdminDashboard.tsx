@@ -10,6 +10,7 @@ import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useCustomerSearch } from "../lib/useCustomerSearch";
+import { useSortableData } from "../lib/useSortableData";
 import {
   BuildingIcon,
   ClockIcon,
@@ -21,6 +22,7 @@ import {
 import MessagePackUpsell from "../components/MessagePackUpsell";
 import MunicipalityDocumentUpload from "../components/MunicipalityDocumentUpload";
 import { ChatIcon, DocumentsIcon } from "../components/NavIcons";
+import { SortableTh } from "../components/SortableTh";
 import { DocTypeBadge } from "../components/TypeBadge";
 import { PersonIcon, PlusIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
@@ -452,6 +454,32 @@ function UsersTab({ token }: { token: string | null }) {
     });
   }, [users, q, roleFilter, statusFilter]);
 
+  const {
+    sorted: sortedUsers,
+    sortColumn: userSortColumn,
+    sortDirection: userSortDirection,
+    toggleSort: toggleUserSort,
+  } = useSortableData(filteredUsers, (u, column) => {
+    switch (column) {
+      case "name":
+        return u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : null;
+      case "email":
+        return u.email;
+      case "phone":
+        return u.phone;
+      case "role":
+        return u.role;
+      case "lastLogin":
+        return u.last_login_at ? parseApiDate(u.last_login_at).getTime() : null;
+      case "messages":
+        return u.messages_30d;
+      case "status":
+        return u.is_active ? 1 : 0;
+      default:
+        return null;
+    }
+  });
+
   const hasFilters = Boolean(q || roleFilter || statusFilter !== "all");
 
   function clearFilters() {
@@ -593,18 +621,18 @@ function UsersTab({ token }: { token: string | null }) {
           <table className={`${styles.table} ${styles.tableCompact}`}>
             <thead>
               <tr>
-                <th>{tUpper("dash.company.colName")}</th>
-                <th>{tUpper("dash.company.colEmail")}</th>
-                <th>{tUpper("dash.company.colPhone")}</th>
-                <th>{tUpper("dash.company.colRole")}</th>
-                <th>{tUpper("dash.company.colLastLogin")}</th>
-                <th>{tUpper("dash.company.colMessages30d")}</th>
-                <th>{tUpper("dash.company.colStatus")}</th>
+                <SortableTh label={tUpper("dash.company.colName")} column="name" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colEmail")} column="email" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colPhone")} column="phone" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colRole")} column="role" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colLastLogin")} column="lastLogin" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colMessages30d")} column="messages" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
+                <SortableTh label={tUpper("dash.company.colStatus")} column="status" activeColumn={userSortColumn} direction={userSortDirection} onSort={toggleUserSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filteredUsers.map((u) => (
+              {sortedUsers.map((u) => (
                 <tr key={u.id}>
                   <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                   <td>{u.email}</td>
@@ -836,9 +864,6 @@ function DocumentsTab({ token, companyType }: { token: string | null; companyTyp
     refresh();
   }
 
-  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
-  const pendingRemovals = removalRequests.filter((r) => r.status === "pending");
-
   const query = q.trim().toLowerCase();
   const filteredDocs = docs.filter((d) => {
     if (scopeFilter && d.scope_tier !== scopeFilter) return false;
@@ -849,6 +874,31 @@ function DocumentsTab({ token, companyType }: { token: string | null; companyTyp
     return true;
   });
   const hasDocFilters = Boolean(q || scopeFilter);
+
+  const {
+    sorted: sortedDocs,
+    sortColumn: docSortColumn,
+    sortDirection: docSortDirection,
+    toggleSort: toggleDocSort,
+  } = useSortableData(filteredDocs, (d, column) => {
+    switch (column) {
+      case "title":
+        return d.title;
+      case "project":
+        return d.project_name ?? d.customer_name;
+      case "type":
+        return d.doc_type;
+      case "extraction":
+        return d.extraction_status;
+      case "date":
+        return parseApiDate(d.created_at).getTime();
+      default:
+        return null;
+    }
+  });
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
+  const pendingRemovals = removalRequests.filter((r) => r.status === "pending");
 
   return (
     <div className={tabStyles.scrollPane}>
@@ -972,17 +1022,17 @@ function DocumentsTab({ token, companyType }: { token: string | null; companyTyp
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{tUpper("dash.company.colDocument")}</th>
+                <SortableTh label={tUpper("dash.company.colDocument")} column="title" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
                 <th>{tUpper("docs.colScope")}</th>
-                <th>{tUpper("dash.company.colProject")}</th>
-                <th>{tUpper("dash.company.colType")}</th>
-                <th>{tUpper("dash.company.colExtraction")}</th>
-                <th>{tUpper("dash.company.colDate")}</th>
+                <SortableTh label={tUpper("dash.company.colProject")} column="project" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                <SortableTh label={tUpper("dash.company.colType")} column="type" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                <SortableTh label={tUpper("dash.company.colExtraction")} column="extraction" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                <SortableTh label={tUpper("dash.company.colDate")} column="date" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
                 <th>{tUpper("dash.company.colActions")}</th>
               </tr>
             </thead>
             <tbody>
-              {filteredDocs.map((d) => (
+              {sortedDocs.map((d) => (
                 <tr key={d.id}>
                   <td>{d.title ?? "—"}</td>
                   <td>
@@ -1305,6 +1355,30 @@ function CustomersTab({ token }: { token: string | null }) {
     refresh();
   }
 
+  const {
+    sorted: sortedCustomers,
+    sortColumn: customerSortColumn,
+    sortDirection: customerSortDirection,
+    toggleSort: toggleCustomerSort,
+  } = useSortableData(visibleCustomers, (c, column) => {
+    switch (column) {
+      case "name":
+        return c.name;
+      case "afm":
+        return c.afm;
+      case "phone":
+        return c.phone;
+      case "email":
+        return c.email;
+      case "projectsCount":
+        return c.project_count;
+      case "lastProject":
+        return c.last_project_at ? parseApiDate(c.last_project_at).getTime() : null;
+      default:
+        return null;
+    }
+  });
+
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
 
   return (
@@ -1358,17 +1432,17 @@ function CustomersTab({ token }: { token: string | null }) {
           <table className={styles.table}>
             <thead>
               <tr>
-                <th>{tUpper("dash.company.colName")}</th>
-                <th>{tUpper("dash.company.colAfm")}</th>
-                <th>{tUpper("dash.company.colPhone")}</th>
-                <th>{tUpper("dash.company.colEmail")}</th>
-                <th>{tUpper("dash.company.colProjectsCount")}</th>
-                <th>{tUpper("dash.company.colLastProject")}</th>
+                <SortableTh label={tUpper("dash.company.colName")} column="name" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
+                <SortableTh label={tUpper("dash.company.colAfm")} column="afm" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
+                <SortableTh label={tUpper("dash.company.colPhone")} column="phone" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
+                <SortableTh label={tUpper("dash.company.colEmail")} column="email" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
+                <SortableTh label={tUpper("dash.company.colProjectsCount")} column="projectsCount" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
+                <SortableTh label={tUpper("dash.company.colLastProject")} column="lastProject" activeColumn={customerSortColumn} direction={customerSortDirection} onSort={toggleCustomerSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {visibleCustomers.map((c) => (
+              {sortedCustomers.map((c) => (
                 <Fragment key={c.id}>
                   <tr onClick={() => toggleExpand(c)} style={{ cursor: "pointer" }}>
                     <td>{c.name}</td>

@@ -6,6 +6,8 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
+import { SortableTh } from "./SortableTh";
+import { useSortableData } from "../lib/useSortableData";
 import type { AdminStatsByVertical, GapQueryEntry } from "../lib/types";
 import styles from "../dashboard/dashboard.module.css";
 
@@ -15,6 +17,7 @@ export function ChatGapRatePanel() {
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [queries, setQueries] = useState<GapQueryEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
 
   useEffect(() => {
     if (!user?.token) return;
@@ -28,6 +31,27 @@ export function ChatGapRatePanel() {
       })
       .finally(() => setLoading(false));
   }, [user?.token]);
+
+  const filteredQueries = queries.filter((q) => {
+    if (!search) return true;
+    const s = search.toLowerCase();
+    return q.message.toLowerCase().includes(s) || (q.company_name ?? "").toLowerCase().includes(s);
+  });
+  const {
+    sorted: sortedQueries,
+    sortColumn,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredQueries, (q, column) => {
+    switch (column) {
+      case "company":
+        return q.company_name ?? null;
+      case "when":
+        return parseApiDate(q.created_at).getTime();
+      default:
+        return null;
+    }
+  });
 
   return (
     <div>
@@ -52,24 +76,38 @@ export function ChatGapRatePanel() {
         ) : queries.length === 0 ? (
           <p className={styles.emptyState}>{t("admin.chatGapRate.noGaps")}</p>
         ) : (
-          <table className={styles.table}>
-            <thead>
-              <tr>
-                <th>{tUpper("admin.chatGapRate.colQuestion")}</th>
-                <th>{tUpper("dash.super.colCompany")}</th>
-                <th>{tUpper("dash.super.colWhen")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {queries.map((q) => (
-                <tr key={q.id}>
-                  <td>{q.message}</td>
-                  <td className="text-muted">{q.company_name ?? t("dash.super.platform")}</td>
-                  <td className="text-muted">{parseApiDate(q.created_at).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <input
+              className="input"
+              type="text"
+              placeholder={t("admin.chatGapRate.searchPlaceholder")}
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              style={{ marginBottom: "var(--space-3)", maxWidth: 320 }}
+            />
+            {sortedQueries.length === 0 ? (
+              <p className={styles.emptyState}>{t("chat.context.noResults")}</p>
+            ) : (
+              <table className={styles.table}>
+                <thead>
+                  <tr>
+                    <th>{tUpper("admin.chatGapRate.colQuestion")}</th>
+                    <SortableTh label={tUpper("dash.super.colCompany")} column="company" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                    <SortableTh label={tUpper("dash.super.colWhen")} column="when" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedQueries.map((q) => (
+                    <tr key={q.id}>
+                      <td>{q.message}</td>
+                      <td className="text-muted">{q.company_name ?? t("dash.super.platform")}</td>
+                      <td className="text-muted">{parseApiDate(q.created_at).toLocaleString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </section>
     </div>

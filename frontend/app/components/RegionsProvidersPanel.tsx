@@ -6,7 +6,9 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
+import { SortableTh } from "./SortableTh";
 import { ProviderTypeBadge } from "./TypeBadge";
+import { useSortableData } from "../lib/useSortableData";
 import type {
   RegionAdminSummary,
   RegionContactCandidateSummary,
@@ -16,6 +18,7 @@ import type {
   UtilityProviderAdminSummary,
 } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
+import styles from "./RegionsProvidersPanel.module.css";
 
 const CADENCES: RegionDiscoverySettingsSummary["cadence_type"][] = ["manual", "weekly", "monthly"];
 
@@ -34,6 +37,9 @@ export function RegionsProvidersPanel() {
   const [editingRegion, setEditingRegion] = useState<string | null>(null);
   const [editingProvider, setEditingProvider] = useState<string | null>(null);
   const [regionQuery, setRegionQuery] = useState("");
+  const [providerQuery, setProviderQuery] = useState("");
+  const [providerTypeFilter, setProviderTypeFilter] = useState("");
+  const [requestQuery, setRequestQuery] = useState("");
 
   async function refresh() {
     if (!token) return;
@@ -62,10 +68,76 @@ export function RegionsProvidersPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [token]);
 
-  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
-
   const q = regionQuery.trim().toLowerCase();
-  const filteredRegions = q ? regions.filter((r) => r.region_name_el.toLowerCase().includes(q)) : regions;
+  const filteredRegionsRaw = q ? regions.filter((r) => r.region_name_el.toLowerCase().includes(q)) : regions;
+  const {
+    sorted: filteredRegions,
+    sortColumn: regionSortColumn,
+    sortDirection: regionSortDirection,
+    toggleSort: toggleRegionSort,
+  } = useSortableData(filteredRegionsRaw, (r, column) => {
+    switch (column) {
+      case "region":
+        return r.region_name_el;
+      case "ydom":
+        return r.ydom_authority_name;
+      case "status":
+        return r.status;
+      default:
+        return null;
+    }
+  });
+
+  const providerQ = providerQuery.trim().toLowerCase();
+  const filteredProvidersRaw = providers.filter((p) => {
+    if (providerQ && !p.provider_name.toLowerCase().includes(providerQ)) return false;
+    if (providerTypeFilter && p.provider_type !== providerTypeFilter) return false;
+    return true;
+  });
+  const {
+    sorted: filteredProviders,
+    sortColumn: providerSortColumn,
+    sortDirection: providerSortDirection,
+    toggleSort: toggleProviderSort,
+  } = useSortableData(filteredProvidersRaw, (p, column) => {
+    switch (column) {
+      case "provider":
+        return p.provider_name;
+      case "type":
+        return p.provider_type;
+      case "coverage":
+        return p.coverage_region_ids.length;
+      default:
+        return null;
+    }
+  });
+  const hasProviderFilters = Boolean(providerQuery || providerTypeFilter);
+  function clearProviderFilters() {
+    setProviderQuery("");
+    setProviderTypeFilter("");
+  }
+
+  const requestQ = requestQuery.trim().toLowerCase();
+  const filteredRequestsRaw = requestQ ? requests.filter((r) => r.region_name_el.toLowerCase().includes(requestQ)) : requests;
+  const {
+    sorted: filteredRequests,
+    sortColumn: requestSortColumn,
+    sortDirection: requestSortDirection,
+    toggleSort: toggleRequestSort,
+  } = useSortableData(filteredRequestsRaw, (r, column) => {
+    switch (column) {
+      case "region":
+        return r.region_name_el;
+      case "count":
+        return r.request_count;
+      case "lastRequested":
+        return parseApiDate(r.last_requested_at).getTime();
+      default:
+        return null;
+    }
+  });
+
+  if (loading) return <p className="text-muted">{t("common.loading")}</p>;
 
   return (
     <div>
@@ -123,24 +195,38 @@ export function RegionsProvidersPanel() {
         {requests.length === 0 ? (
           <p className={dashStyles.emptyState}>{t("adminRegions.noRequests")}</p>
         ) : (
-          <table className={dashStyles.table}>
-            <thead>
-              <tr>
-                <th>{tUpper("adminRegions.colRegion")}</th>
-                <th>{tUpper("adminRegions.colRequestCount")}</th>
-                <th>{tUpper("adminRegions.colLastRequested")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {requests.map((r) => (
-                <tr key={r.region_id}>
-                  <td>{r.region_name_el}</td>
-                  <td>{r.request_count}</td>
-                  <td>{parseApiDate(r.last_requested_at).toLocaleDateString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+          <>
+            <input
+              className="input"
+              type="text"
+              value={requestQuery}
+              onChange={(e) => setRequestQuery(e.target.value)}
+              placeholder={t("adminRegions.regionsSearchPlaceholder")}
+              style={{ marginBottom: "var(--space-3)", maxWidth: 320 }}
+            />
+            {filteredRequests.length === 0 ? (
+              <p className={dashStyles.emptyState}>{t("chat.context.noResults")}</p>
+            ) : (
+              <table className={dashStyles.table}>
+                <thead>
+                  <tr>
+                    <SortableTh label={tUpper("adminRegions.colRegion")} column="region" activeColumn={requestSortColumn} direction={requestSortDirection} onSort={toggleRequestSort} />
+                    <SortableTh label={tUpper("adminRegions.colRequestCount")} column="count" activeColumn={requestSortColumn} direction={requestSortDirection} onSort={toggleRequestSort} />
+                    <SortableTh label={tUpper("adminRegions.colLastRequested")} column="lastRequested" activeColumn={requestSortColumn} direction={requestSortDirection} onSort={toggleRequestSort} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredRequests.map((r) => (
+                    <tr key={r.region_id}>
+                      <td>{r.region_name_el}</td>
+                      <td>{r.request_count}</td>
+                      <td>{parseApiDate(r.last_requested_at).toLocaleDateString()}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </section>
 
@@ -160,11 +246,11 @@ export function RegionsProvidersPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{tUpper("adminRegions.colRegion")}</th>
-                <th>{tUpper("adminRegions.colYdom")}</th>
+                <SortableTh label={tUpper("adminRegions.colRegion")} column="region" activeColumn={regionSortColumn} direction={regionSortDirection} onSort={toggleRegionSort} />
+                <SortableTh label={tUpper("adminRegions.colYdom")} column="ydom" activeColumn={regionSortColumn} direction={regionSortDirection} onSort={toggleRegionSort} />
                 <th>{tUpper("adminRegions.colPhone")}</th>
                 <th>{tUpper("adminRegions.colEmail")}</th>
-                <th>{tUpper("adminRegions.colStatus")}</th>
+                <SortableTh label={tUpper("adminRegions.colStatus")} column="status" activeColumn={regionSortColumn} direction={regionSortDirection} onSort={toggleRegionSort} />
                 <th>{tUpper("adminRegions.colActions")}</th>
               </tr>
             </thead>
@@ -208,51 +294,76 @@ export function RegionsProvidersPanel() {
         {providers.length === 0 ? (
           <p className={dashStyles.emptyState}>{t("adminRegions.empty")}</p>
         ) : (
-          <table className={dashStyles.table}>
-            <thead>
-              <tr>
-                <th>{tUpper("adminRegions.colProvider")}</th>
-                <th>{tUpper("adminRegions.colType")}</th>
-                <th>{tUpper("adminRegions.colCoverage")}</th>
-                <th>{tUpper("adminRegions.colPhone")}</th>
-                <th>{tUpper("adminRegions.colEmail")}</th>
-                <th>{tUpper("adminRegions.colActions")}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {providers.map((p) =>
-                editingProvider === p.provider_id ? (
-                  <ProviderEditRow
-                    key={p.provider_id}
-                    provider={p}
-                    token={token}
-                    onCancel={() => setEditingProvider(null)}
-                    onSaved={() => {
-                      setEditingProvider(null);
-                      refresh();
-                    }}
-                  />
-                ) : (
-                  <tr key={p.provider_id}>
-                    <td>{p.provider_name}</td>
-                    <td>
-                      <ProviderTypeBadge providerType={p.provider_type}>
-                        {p.provider_type === "water" ? t("adminRegions.typeWater") : t("adminRegions.typeElectric")}
-                      </ProviderTypeBadge>
-                    </td>
-                    <td>{p.coverage_region_ids.map((id) => regionsById[id] ?? id).join(", ") || "—"}</td>
-                    <td>{p.contact_phone ?? <span className="text-muted">{t("adminRegions.notSet")}</span>}</td>
-                    <td>{p.contact_email ?? <span className="text-muted">{t("adminRegions.notSet")}</span>}</td>
-                    <td>
-                      <button className="btn btn-secondary" onClick={() => setEditingProvider(p.provider_id)}>
-                        {t("adminRegions.edit")}
-                      </button>
-                    </td>
-                  </tr>
-                )
+          <>
+            <div className={`card ${styles.filterBar}`}>
+              <input
+                className={`input ${styles.searchInput}`}
+                type="text"
+                value={providerQuery}
+                onChange={(e) => setProviderQuery(e.target.value)}
+                placeholder={t("adminRegions.providersSearchPlaceholder")}
+              />
+              <select className={`input ${styles.filterSelect}`} value={providerTypeFilter} onChange={(e) => setProviderTypeFilter(e.target.value)}>
+                <option value="">{t("adminRegions.colType")}</option>
+                <option value="water">{t("adminRegions.typeWater")}</option>
+                <option value="electric">{t("adminRegions.typeElectric")}</option>
+              </select>
+              {hasProviderFilters && (
+                <button type="button" className={styles.clearFilters} onClick={clearProviderFilters}>
+                  {t("docs.clearFilters")}
+                </button>
               )}
-            </tbody>
-          </table>
+            </div>
+            {filteredProviders.length === 0 ? (
+              <p className={dashStyles.emptyState}>{t("chat.context.noResults")}</p>
+            ) : (
+              <table className={dashStyles.table}>
+                <thead>
+                  <tr>
+                    <SortableTh label={tUpper("adminRegions.colProvider")} column="provider" activeColumn={providerSortColumn} direction={providerSortDirection} onSort={toggleProviderSort} />
+                    <SortableTh label={tUpper("adminRegions.colType")} column="type" activeColumn={providerSortColumn} direction={providerSortDirection} onSort={toggleProviderSort} />
+                    <SortableTh label={tUpper("adminRegions.colCoverage")} column="coverage" activeColumn={providerSortColumn} direction={providerSortDirection} onSort={toggleProviderSort} />
+                    <th>{tUpper("adminRegions.colPhone")}</th>
+                    <th>{tUpper("adminRegions.colEmail")}</th>
+                    <th>{tUpper("adminRegions.colActions")}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filteredProviders.map((p) =>
+                    editingProvider === p.provider_id ? (
+                      <ProviderEditRow
+                        key={p.provider_id}
+                        provider={p}
+                        token={token}
+                        onCancel={() => setEditingProvider(null)}
+                        onSaved={() => {
+                          setEditingProvider(null);
+                          refresh();
+                        }}
+                      />
+                    ) : (
+                      <tr key={p.provider_id}>
+                        <td>{p.provider_name}</td>
+                        <td>
+                          <ProviderTypeBadge providerType={p.provider_type}>
+                            {p.provider_type === "water" ? t("adminRegions.typeWater") : t("adminRegions.typeElectric")}
+                          </ProviderTypeBadge>
+                        </td>
+                        <td>{p.coverage_region_ids.map((id) => regionsById[id] ?? id).join(", ") || "—"}</td>
+                        <td>{p.contact_phone ?? <span className="text-muted">{t("adminRegions.notSet")}</span>}</td>
+                        <td>{p.contact_email ?? <span className="text-muted">{t("adminRegions.notSet")}</span>}</td>
+                        <td>
+                          <button className="btn btn-secondary" onClick={() => setEditingProvider(p.provider_id)}>
+                            {t("adminRegions.edit")}
+                          </button>
+                        </td>
+                      </tr>
+                    )
+                  )}
+                </tbody>
+              </table>
+            )}
+          </>
         )}
       </section>
     </div>

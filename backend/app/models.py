@@ -770,6 +770,22 @@ class EmailSettings(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
 
 
+class PlatformSettings(Base):
+    """Singleton row (id always 1) - the first real setting Γενικές
+    Ρυθμίσεις (System Settings) persists, replacing that section's
+    placeholder-pointed-at-Verticals state (see Sidebar.tsx). beta_ended is
+    Phase 3 of the beta/trial rollout: False means self-serve registration
+    produces beta_pending (see auth.py's register()); True means trial
+    instead, no approval gate. Existing accounts are never touched by
+    flipping this - it only changes what NEW self-serve signups get."""
+
+    __tablename__ = "platform_settings"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    beta_ended: Mapped[bool] = mapped_column(default=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+
+
 class HelpSection(Base):
     """Admin-editable Help page content - replaces the hardcoded sections/
     notes that used to live in frontend/app/help/page.tsx's component

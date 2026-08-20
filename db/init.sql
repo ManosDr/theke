@@ -2200,6 +2200,27 @@ INSERT INTO email_settings (id, test_email_address)
 VALUES (1, 'manos_drams@hotmail.com')
 ON CONFLICT (id) DO NOTHING;
 
+-- Singleton row (id always 1), same pattern as email_settings above - the
+-- first row in what Γενικές Ρυθμίσεις (System Settings) actually needs to
+-- persist, replacing that section's placeholder-pointed-at-Verticals state
+-- (see Sidebar.tsx's own comment on this). beta_ended is Phase 3 of the
+-- beta/trial rollout: false means self-serve registration produces
+-- beta_pending (pending super_admin approval, no expiration once
+-- approved); true means it produces trial instead (30-day countdown, no
+-- approval gate - see auth.py's register()). Existing beta/beta_pending
+-- accounts are never touched by this flag - it only changes what NEW
+-- self-serve signups get.
+CREATE TABLE IF NOT EXISTS platform_settings (
+  id          integer PRIMARY KEY DEFAULT 1,
+  beta_ended  boolean NOT NULL DEFAULT false,
+  updated_at  timestamp NOT NULL DEFAULT now(),
+  CONSTRAINT platform_settings_singleton CHECK (id = 1)
+);
+
+INSERT INTO platform_settings (id, beta_ended)
+VALUES (1, false)
+ON CONFLICT (id) DO NOTHING;
+
 -- Admin-editable Help page content, replacing the hardcoded sections/notes
 -- that used to live in frontend/app/help/page.tsx's component logic.
 -- visible_to_roles/vertical_scope/is_active are read at GET /help-sections

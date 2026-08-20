@@ -108,6 +108,8 @@ from app.schemas import (
     PlanCreateRequest,
     PlanSummary,
     PlanUpdateRequest,
+    PlatformSettingsEntry,
+    PlatformSettingsUpdateRequest,
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
@@ -167,6 +169,7 @@ from app.services.email_templates import (
 from app.services.embeddings import embed_document
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
+from app.services.platform_settings import get_or_create_platform_settings
 from app.services.politeness import CrawlBlocked, RobotsDisallowed
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
 from app.services.source_fetch import content_hash, extract_content, fetch_raw, fetch_url_content
@@ -3261,6 +3264,45 @@ async def update_email_settings(
     db.commit()
     db.refresh(row)
     return EmailSettingsEntry(test_email_address=row.test_email_address, updated_at=row.updated_at)
+
+
+@router.get("/platform-settings", response_model=PlatformSettingsEntry)
+async def get_platform_settings(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PlatformSettingsEntry:
+    require_super_admin(user)
+    row = get_or_create_platform_settings(db)
+    return PlatformSettingsEntry(beta_ended=row.beta_ended, updated_at=row.updated_at)
+
+
+@router.patch("/platform-settings", response_model=PlatformSettingsEntry)
+async def update_platform_settings(
+    payload: PlatformSettingsUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> PlatformSettingsEntry:
+    """Flips beta_ended - Phase 3 of the beta/trial rollout. Only ever
+    changes what a NEW self-serve registration produces from this point
+    forward (see auth.py's register()); existing beta/beta_pending/trial
+    accounts are read from CompanySubscription directly and are never
+    touched by this flag."""
+    require_super_admin(user)
+    row = get_or_create_platform_settings(db)
+    row.beta_ended = payload.beta_ended
+    row.updated_at = datetime.utcnow()
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="platform_settings_updated",
+        resource_type="platform_settings",
+        resource_id=row.id,
+        metadata={"beta_ended": payload.beta_ended},
+    )
+    db.commit()
+    db.refresh(row)
+    return PlatformSettingsEntry(beta_ended=row.beta_ended, updated_at=row.updated_at)
 
 
 @router.post("/email-templates/{template_key}/test-send", response_model=EmailTestSendResponse)

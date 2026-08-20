@@ -29,8 +29,9 @@ from app.security import create_access_token, create_refresh_token, hash_passwor
 from app.services.audit import log_action
 from app.services.email import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.notifications import notify, notify_super_admins
+from app.services.platform_settings import get_or_create_platform_settings
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
-from app.services.subscription import create_registration_subscription
+from app.services.subscription import TRIAL_DAYS_DEFAULT, create_registration_subscription
 
 logger = logging.getLogger(__name__)
 
@@ -297,22 +298,29 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         db.add(company)
         db.flush()
         role = "admin"
-        # 'beta_pending' - open self-serve signups are gated behind a real
-        # super_admin approval (see dependencies.py's centralized block and
-        # admin.py's approve/reject actions), unlike an invite: nobody has
-        # personally vetted this signup yet. Phase 3 will branch this on
-        # the "beta ended" platform flag once that exists (post-launch
-        # self-serve should land on 'trial' instead, with no approval
-        # gate) - always 'beta_pending' for now.
-        new_company_status = "beta_pending"
-        create_registration_subscription(db, company, status=new_company_status)
-        notify_super_admins(
-            db,
-            type="self_serve_registered",
-            title="New self-serve signup awaiting approval",
-            body=f'{payload.email} registered "{company.name}" and is pending beta approval.',
-            link=f"/admin/companies?company={company.id}",
-        )
+        # Phase 3 of the beta/trial rollout: before "beta ended" is flipped
+        # in Γενικές Ρυθμίσεις, self-serve signups are gated behind a real
+        # super_admin approval (beta_pending - see dependencies.py's
+        # centralized block and admin.py's approve/reject actions), unlike
+        # an invite where nobody has personally vetted the signup yet.
+        # Once flipped, self-serve is meant to be frictionless post-launch:
+        # straight to 'trial' with a real countdown, no approval gate at
+        # all - existing beta/beta_pending accounts are read from their own
+        # CompanySubscription row and are never touched by this flag.
+        platform_settings = get_or_create_platform_settings(db)
+        if platform_settings.beta_ended:
+            new_company_status = "trial"
+            create_registration_subscription(db, company, status="trial", trial_days=TRIAL_DAYS_DEFAULT)
+        else:
+            new_company_status = "beta_pending"
+            create_registration_subscription(db, company, status="beta_pending")
+            notify_super_admins(
+                db,
+                type="self_serve_registered",
+                title="New self-serve signup awaiting approval",
+                body=f'{payload.email} registered "{company.name}" and is pending beta approval.',
+                link=f"/admin/companies?company={company.id}",
+            )
 
     # Self-serve (company_name path) registrations start unverified and get
     # a real verification email below, once the row has an id to send it

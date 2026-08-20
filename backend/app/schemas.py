@@ -1826,6 +1826,15 @@ class EmailSettingsUpdateRequest(BaseModel):
     test_email_address: str = Field(min_length=3)
 
 
+class PlatformSettingsEntry(BaseModel):
+    beta_ended: bool
+    updated_at: datetime
+
+
+class PlatformSettingsUpdateRequest(BaseModel):
+    beta_ended: bool
+
+
 HELP_ROLES = ("member", "admin", "super_admin")
 HELP_VERTICALS = ("construction", "tax_accounting")
 

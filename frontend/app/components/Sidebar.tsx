@@ -46,8 +46,10 @@ const NAV_ITEMS = [
 // (Theke Admin.dc.html). "Χρήστες"/"Προσκλήσεις" now route to their own
 // screens (GET /admin/users, /admin/invites - see AdminUsersPanel/
 // AdminInvitesPanel), matching the company-level Χρήστες tab's pattern.
-// "Γενικές Ρυθμίσεις" still has no spec of its own (see KNOWN_DECISIONS.md)
-// and stays pointed at Verticals as a placeholder.
+// "Γενικές Ρυθμίσεις" now has a real page (/admin/settings,
+// SystemSettingsPanel.tsx) - the beta/trial rollout's Phase 3 "beta ended"
+// flag is its first real setting, replacing the old placeholder-pointed-
+// at-Verticals stub.
 const ADMIN_SECTIONS = [
   {
     key: "kb",
@@ -84,14 +86,14 @@ const ADMIN_SECTIONS = [
     key: "settings",
     labelKey: "nav.systemSettings",
     Icon: SettingsIcon,
-    match: (p: string) => p === "/admin/verticals" || p === "/admin/content",
+    match: (p: string) => p === "/admin/verticals" || p === "/admin/content" || p === "/admin/settings",
     children: [
       { href: "/admin/verticals", labelKey: "nav.verticalsContent", match: (p: string) => p === "/admin/verticals" },
       // Replaces the previous separate Legal Documents / Email Templates
       // entries - both now live as tabs inside one page, alongside the new
       // Help Sections editor (see ContentPanel.tsx).
       { href: "/admin/content", labelKey: "nav.content", match: (p: string) => p === "/admin/content" },
-      { href: "/admin/verticals", labelKey: "nav.generalSettings", match: () => false },
+      { href: "/admin/settings", labelKey: "nav.generalSettings", match: (p: string) => p === "/admin/settings" },
     ],
   },
 ] as const;

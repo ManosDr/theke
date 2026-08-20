@@ -15,7 +15,7 @@ import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import jwt
-from sqlalchemy import select
+from sqlalchemy import select, text
 
 from app.config import settings
 from app.models import Company, CompanySubscription, Invite, PasswordResetToken, User, Vertical
@@ -117,6 +117,69 @@ def test_register_new_company(client, db_session):
             # leaving it to the old lazy get_or_create_subscription
             # fallback - same FK cleanup requirement as the user-side rows
             # above, or the company delete below 500s on the FK.
+            db_session.execute(text("DELETE FROM subscription_events WHERE company_id = :id"), {"id": company.id})
+            db_session.execute(text("DELETE FROM company_subscriptions WHERE company_id = :id"), {"id": company.id})
+            db_session.commit()
+            db_session.delete(company)
+            db_session.commit()
+
+
+def test_register_new_company_after_beta_ended(client, db_session):
+    """Phase 3 of the beta/trial rollout - once platform_settings.beta_ended
+    is true, the exact same self-serve registration request that produces
+    beta_pending in test_register_new_company above must instead produce a
+    real 30-day trial, with no approval gate. Flips the flag back to False
+    in `finally` regardless of outcome - this is a real, global, singleton
+    setting, not a per-test fixture, so a failure here must not leave it
+    stuck true for every test/manual session that runs after."""
+    db_session.execute(text("UPDATE platform_settings SET beta_ended = true WHERE id = 1"))
+    db_session.commit()
+
+    unique = uuid.uuid4().hex[:8]
+    email = f"post-beta-{unique}@example.test"
+    company_name = f"Post Beta Test Co {unique}"
+    try:
+        resp = client.post(
+            "/auth/register",
+            json={
+                "email": email,
+                "password": "supersecret1",
+                "first_name": "PostBeta",
+                "last_name": "Registrant",
+                "company_name": company_name,
+                "company_type": "construction",
+                "vertical_slug": "construction",
+                "dpa_accepted": True,
+            },
+        )
+        assert resp.status_code == 201
+        token = resp.json()["token"]
+        company = db_session.scalar(select(Company).where(Company.name == company_name))
+        assert company is not None
+        sub = db_session.scalar(select(CompanySubscription).where(CompanySubscription.company_id == company.id))
+        assert sub is not None
+        assert sub.status == "trial"
+        assert sub.trial_ends_at is not None
+
+        # No approval gate for trial - the centralized block in
+        # dependencies.py only blocks beta_pending/rejected, so this must
+        # succeed immediately, unlike the beta_pending case.
+        chat_resp = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert chat_resp.status_code == 200
+    finally:
+        db_session.execute(text("UPDATE platform_settings SET beta_ended = false WHERE id = 1"))
+        db_session.commit()
+
+        user = db_session.scalar(select(User).where(User.email == email))
+        company = db_session.scalar(select(Company).where(Company.name == company_name))
+        if user:
+            db_session.execute(text("DELETE FROM audit_log WHERE actor_user_id = :id"), {"id": user.id})
+            db_session.execute(text("DELETE FROM email_verification_tokens WHERE user_id = :id"), {"id": user.id})
+            db_session.execute(text("DELETE FROM refresh_tokens WHERE user_id = :id"), {"id": user.id})
+            db_session.commit()
+            db_session.delete(user)
+            db_session.commit()
+        if company:
             db_session.execute(text("DELETE FROM subscription_events WHERE company_id = :id"), {"id": company.id})
             db_session.execute(text("DELETE FROM company_subscriptions WHERE company_id = :id"), {"id": company.id})
             db_session.commit()

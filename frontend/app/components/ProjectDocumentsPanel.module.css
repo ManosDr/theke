@@ -76,6 +76,10 @@
   color: var(--color-info);
   font-size: 0.72rem;
   font-weight: 600;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .table {

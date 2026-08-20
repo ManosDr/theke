@@ -115,6 +115,10 @@
   color: var(--admin-navy);
   font-size: 0.8rem;
   font-weight: 600;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .footer {

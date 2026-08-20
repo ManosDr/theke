@@ -258,6 +258,10 @@
   font-weight: 600;
   background: var(--admin-chip-bg);
   color: var(--color-text-muted);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* Modal shell, same values as CompaniesPanel.module.css's own copy - used by

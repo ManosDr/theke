@@ -157,6 +157,10 @@
   color: var(--color-info);
   font-size: 0.68rem;
   font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .rowMenuWrap {

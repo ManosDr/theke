@@ -534,6 +534,15 @@ button {
   border-radius: 999px;
   font-size: 0.75rem;
   font-weight: 600;
+  /* Never wrap to a second line - a pill that breaks mid-word reads as
+     broken layout, not a real UI state. Sized to its content by default
+     (max-width:100% is a no-op unless some ancestor genuinely constrains
+     the badge narrower than its text, e.g. a fixed-width sidebar tile) -
+     only in that fallback case does it ellipsize instead of wrapping. */
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .badge-success {

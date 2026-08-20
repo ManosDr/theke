@@ -63,6 +63,10 @@
   color: var(--admin-stone);
   font-size: 0.68rem;
   font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .verticalBadge {
@@ -73,6 +77,10 @@
   font-weight: 700;
   background: var(--admin-neutral-bg);
   color: var(--admin-neutral);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .verticalBadge.accentConstruction {
@@ -198,6 +206,10 @@
   color: var(--admin-navy);
   font-size: 0.7rem;
   font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .usageStats {

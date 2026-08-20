@@ -128,6 +128,10 @@
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.03em;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .failureBannerName {
@@ -161,6 +165,10 @@
   color: var(--admin-stone);
   font-size: 0.72rem;
   font-weight: 700;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sourceCard {
@@ -243,6 +251,10 @@
   font-weight: 700;
   background: var(--admin-neutral-bg);
   color: var(--admin-neutral);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .pill.accentConstruction {
@@ -279,6 +291,10 @@
   background: var(--admin-chip-bg);
   color: var(--admin-stone);
   font-size: 0.7rem;
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .actionsCol {

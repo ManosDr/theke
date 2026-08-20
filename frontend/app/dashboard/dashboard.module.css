@@ -230,6 +230,10 @@
   font-weight: 700;
   background: var(--admin-neutral-bg);
   color: var(--admin-neutral);
+  white-space: nowrap;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .verticalPill.accentConstruction {

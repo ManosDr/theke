@@ -57,24 +57,65 @@
   color: var(--color-text-muted);
 }
 
-.editor {
-  margin-top: var(--space-5);
+/* Editor relocated from bottom-of-page expansion into a centered modal -
+   same modalScrim/modal/modalHeader/modalBody/modalActions shape as
+   HelpSectionsPanel's and LegalDocumentsPanel's own conversions (see
+   HelpSectionsPanel.module.css's comment) - header/scrollable-body/pinned-
+   footer so Save stays visible without scrolling on a real laptop screen
+   even with this file's two content textareas (rows=12/rows=8) plus the
+   subject fields and variable list above them. */
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 42, 74, 0.3);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
 }
 
-.editorHeader {
+.modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--admin-shadow-modal);
+  overflow: hidden;
+}
+
+.modalHeader {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: var(--space-2);
-  margin-bottom: var(--space-3);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
-.editorHeader h2 {
+.modalHeader h2 {
   margin: 0;
+}
+
+.modalBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .label {
@@ -122,12 +163,4 @@
   margin-top: var(--space-3);
   font-size: 0.85rem;
   color: var(--admin-success);
-}
-
-.actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
 }

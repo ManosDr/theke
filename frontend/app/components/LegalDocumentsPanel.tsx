@@ -177,72 +177,76 @@ export function LegalDocumentsPanel() {
       )}
 
       {selected && (
-        <div className={styles.editor}>
-          <div className={styles.editorHeader}>
-            <h2>{selected.title}</h2>
-            <button type="button" className="btn btn-secondary" onClick={close}>
-              {t("common.close")}
-            </button>
-          </div>
-
-          <label className={styles.label}>{t("adminLegal.titleLabel")}</label>
-          <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
-
-          <label className={styles.label}>{t("adminLegal.contentLabel")}</label>
-          <textarea
-            className={`input ${styles.contentArea}`}
-            value={editContent}
-            onChange={(e) => setEditContent(e.target.value)}
-            rows={20}
-          />
-
-          <div className={styles.placeholderCount}>
-            {editingPlaceholders.length > 0
-              ? t("adminLegal.placeholdersRemaining", { count: editingPlaceholders.length })
-              : t("adminLegal.noPlaceholders")}
-          </div>
-
-          {publishBlockers && publishBlockers.length > 0 && (
-            <div className={styles.blockError}>
-              <strong>{t("adminLegal.publishBlocked")}</strong>
-              <ul>
-                {publishBlockers.map((p, i) => (
-                  <li key={i}>{p}</li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {error && <div className={styles.blockError}>{error}</div>}
-          {savedMessage && <div className={styles.savedMessage}>{savedMessage}</div>}
-
-          <div className={styles.actions}>
-            <button type="button" className="btn btn-secondary" disabled={busy} onClick={save}>
-              {t("adminLegal.save")}
-            </button>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
-              {t("adminLegal.publish")}
-            </button>
-            {selected.is_published && !confirmingUnpublish && (
-              <button
-                type="button"
-                className="btn btn-secondary"
-                disabled={busy}
-                onClick={() => setConfirmingUnpublish(true)}
-              >
-                {t("adminLegal.unpublish")}
+        <div className={styles.modalScrim} onClick={close}>
+          <div className={styles.modal} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>{selected.title}</h2>
+              <button type="button" className="btn btn-secondary" onClick={close}>
+                {t("common.close")}
               </button>
-            )}
-            {confirmingUnpublish && (
-              <>
-                <span className={styles.confirmText}>{t("adminLegal.confirmUnpublish")}</span>
-                <button type="button" className="btn btn-secondary" disabled={busy} onClick={unpublish}>
-                  {t("adminLegal.confirmUnpublishButton")}
+            </div>
+
+            <div className={styles.modalBody}>
+              <label className={styles.label}>{t("adminLegal.titleLabel")}</label>
+              <input className="input" value={editTitle} onChange={(e) => setEditTitle(e.target.value)} />
+
+              <label className={styles.label}>{t("adminLegal.contentLabel")}</label>
+              <textarea
+                className={`input ${styles.contentArea}`}
+                value={editContent}
+                onChange={(e) => setEditContent(e.target.value)}
+                rows={20}
+              />
+
+              <div className={styles.placeholderCount}>
+                {editingPlaceholders.length > 0
+                  ? t("adminLegal.placeholdersRemaining", { count: editingPlaceholders.length })
+                  : t("adminLegal.noPlaceholders")}
+              </div>
+
+              {publishBlockers && publishBlockers.length > 0 && (
+                <div className={styles.blockError}>
+                  <strong>{t("adminLegal.publishBlocked")}</strong>
+                  <ul>
+                    {publishBlockers.map((p, i) => (
+                      <li key={i}>{p}</li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {error && <div className={styles.blockError}>{error}</div>}
+              {savedMessage && <div className={styles.savedMessage}>{savedMessage}</div>}
+            </div>
+
+            <div className={styles.modalActions}>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={save}>
+                {t("adminLegal.save")}
+              </button>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={publish}>
+                {t("adminLegal.publish")}
+              </button>
+              {selected.is_published && !confirmingUnpublish && (
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={busy}
+                  onClick={() => setConfirmingUnpublish(true)}
+                >
+                  {t("adminLegal.unpublish")}
                 </button>
-                <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setConfirmingUnpublish(false)}>
-                  {t("common.cancel")}
-                </button>
-              </>
-            )}
+              )}
+              {confirmingUnpublish && (
+                <>
+                  <span className={styles.confirmText}>{t("adminLegal.confirmUnpublish")}</span>
+                  <button type="button" className="btn btn-secondary" disabled={busy} onClick={unpublish}>
+                    {t("adminLegal.confirmUnpublishButton")}
+                  </button>
+                  <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setConfirmingUnpublish(false)}>
+                    {t("common.cancel")}
+                  </button>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

@@ -215,84 +215,88 @@ export function HelpSectionsPanel() {
       {savedMessage && !selectedId && <div className={styles.savedMessage}>{savedMessage}</div>}
 
       {selectedId !== null && (
-        <div className={styles.editor}>
-          <div className={styles.editorHeader}>
-            <h2>{selectedId === "new" ? t("adminHelpSections.addNew") : form.titleEl}</h2>
-            <button type="button" className="btn btn-secondary" onClick={close}>
-              {t("common.close")}
-            </button>
-          </div>
+        <div className={styles.modalScrim} onClick={close}>
+          <div className={styles.modal} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>{selectedId === "new" ? t("adminHelpSections.addNew") : form.titleEl}</h2>
+              <button type="button" className="btn btn-secondary" onClick={close}>
+                {t("common.close")}
+              </button>
+            </div>
 
-          <label className={styles.label}>{t("adminHelpSections.slugLabel")}</label>
-          <input className="input" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} />
+            <div className={styles.modalBody}>
+              <label className={styles.label}>{t("adminHelpSections.slugLabel")}</label>
+              <input className="input" value={form.slug} onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))} />
 
-          <label className={styles.label}>{t("adminHelpSections.titleElLabel")}</label>
-          <input className="input" value={form.titleEl} onChange={(e) => setForm((f) => ({ ...f, titleEl: e.target.value }))} />
+              <label className={styles.label}>{t("adminHelpSections.titleElLabel")}</label>
+              <input className="input" value={form.titleEl} onChange={(e) => setForm((f) => ({ ...f, titleEl: e.target.value }))} />
 
-          <label className={styles.label}>{t("adminHelpSections.titleEnLabel")}</label>
-          <input className="input" value={form.titleEn} onChange={(e) => setForm((f) => ({ ...f, titleEn: e.target.value }))} />
+              <label className={styles.label}>{t("adminHelpSections.titleEnLabel")}</label>
+              <input className="input" value={form.titleEn} onChange={(e) => setForm((f) => ({ ...f, titleEn: e.target.value }))} />
 
-          <label className={styles.label}>{t("adminHelpSections.bodyElLabel")}</label>
-          <textarea
-            className={`input ${styles.contentArea}`}
-            value={form.bodyEl}
-            onChange={(e) => setForm((f) => ({ ...f, bodyEl: e.target.value }))}
-            rows={10}
-          />
+              <label className={styles.label}>{t("adminHelpSections.bodyElLabel")}</label>
+              <textarea
+                className={`input ${styles.contentArea}`}
+                value={form.bodyEl}
+                onChange={(e) => setForm((f) => ({ ...f, bodyEl: e.target.value }))}
+                rows={10}
+              />
 
-          <label className={styles.label}>{t("adminHelpSections.bodyEnLabel")}</label>
-          <textarea
-            className={`input ${styles.contentArea}`}
-            value={form.bodyEn}
-            onChange={(e) => setForm((f) => ({ ...f, bodyEn: e.target.value }))}
-            rows={10}
-          />
+              <label className={styles.label}>{t("adminHelpSections.bodyEnLabel")}</label>
+              <textarea
+                className={`input ${styles.contentArea}`}
+                value={form.bodyEn}
+                onChange={(e) => setForm((f) => ({ ...f, bodyEn: e.target.value }))}
+                rows={10}
+              />
 
-          <div className={styles.fieldRow}>
-            <div>
-              <label className={styles.label}>{t("adminHelpSections.rolesLabel")}</label>
-              <div className={styles.checkboxGroup}>
-                {ALL_ROLES.map((role) => (
-                  <label key={role} className={styles.checkboxLabel}>
-                    <input type="checkbox" checked={form.roles.has(role)} onChange={() => toggleRole(role)} />
-                    {t(ROLE_LABEL_KEY[role])}
+              <div className={styles.fieldRow}>
+                <div>
+                  <label className={styles.label}>{t("adminHelpSections.rolesLabel")}</label>
+                  <div className={styles.checkboxGroup}>
+                    {ALL_ROLES.map((role) => (
+                      <label key={role} className={styles.checkboxLabel}>
+                        <input type="checkbox" checked={form.roles.has(role)} onChange={() => toggleRole(role)} />
+                        {t(ROLE_LABEL_KEY[role])}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+
+                <div>
+                  <label className={styles.label}>{t("adminHelpSections.verticalLabel")}</label>
+                  <select
+                    className="input"
+                    value={form.vertical}
+                    onChange={(e) => setForm((f) => ({ ...f, vertical: e.target.value as HelpVertical | "" }))}
+                  >
+                    <option value="">{t("adminHelpSections.verticalAll")}</option>
+                    <option value="construction">{t("adminHelpSections.verticalConstruction")}</option>
+                    <option value="tax_accounting">{t("adminHelpSections.verticalTax")}</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className={styles.label}>{t("adminHelpSections.activeLabel")}</label>
+                  <label className={styles.checkboxLabel}>
+                    <input
+                      type="checkbox"
+                      checked={form.isActive}
+                      onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
+                    />
+                    {t("adminHelpSections.activeLabel")}
                   </label>
-                ))}
+                </div>
               </div>
+
+              {error && <div className={styles.blockError}>{error}</div>}
             </div>
 
-            <div>
-              <label className={styles.label}>{t("adminHelpSections.verticalLabel")}</label>
-              <select
-                className="input"
-                value={form.vertical}
-                onChange={(e) => setForm((f) => ({ ...f, vertical: e.target.value as HelpVertical | "" }))}
-              >
-                <option value="">{t("adminHelpSections.verticalAll")}</option>
-                <option value="construction">{t("adminHelpSections.verticalConstruction")}</option>
-                <option value="tax_accounting">{t("adminHelpSections.verticalTax")}</option>
-              </select>
+            <div className={styles.modalActions}>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
+                {t("adminHelpSections.save")}
+              </button>
             </div>
-
-            <div>
-              <label className={styles.label}>{t("adminHelpSections.activeLabel")}</label>
-              <label className={styles.checkboxLabel}>
-                <input
-                  type="checkbox"
-                  checked={form.isActive}
-                  onChange={(e) => setForm((f) => ({ ...f, isActive: e.target.checked }))}
-                />
-                {t("adminHelpSections.activeLabel")}
-              </label>
-            </div>
-          </div>
-
-          {error && <div className={styles.blockError}>{error}</div>}
-
-          <div className={styles.actions}>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
-              {t("adminHelpSections.save")}
-            </button>
           </div>
         </div>
       )}

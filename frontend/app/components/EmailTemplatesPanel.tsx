@@ -195,54 +195,58 @@ export function EmailTemplatesPanel() {
       )}
 
       {selected && (
-        <div className={styles.editor}>
-          <div className={styles.editorHeader}>
-            <h2>{t(KEY_LABEL_KEY[selected.template_key])}</h2>
-            <button type="button" className="btn btn-secondary" onClick={close}>
-              {t("common.close")}
-            </button>
-          </div>
+        <div className={styles.modalScrim} onClick={close}>
+          <div className={styles.modal} role="dialog" aria-modal="true" onClick={(e) => e.stopPropagation()}>
+            <div className={styles.modalHeader}>
+              <h2>{t(KEY_LABEL_KEY[selected.template_key])}</h2>
+              <button type="button" className="btn btn-secondary" onClick={close}>
+                {t("common.close")}
+              </button>
+            </div>
 
-          <div className={styles.variableList}>
-            <strong>{t("adminEmailTemplates.availableVariables")}:</strong>
-            {selected.available_variables.map((v) => (
-              <code key={v} className={styles.variableChip}>{`{{${v}}}`}</code>
-            ))}
-          </div>
+            <div className={styles.modalBody}>
+              <div className={styles.variableList}>
+                <strong>{t("adminEmailTemplates.availableVariables")}:</strong>
+                {selected.available_variables.map((v) => (
+                  <code key={v} className={styles.variableChip}>{`{{${v}}}`}</code>
+                ))}
+              </div>
 
-          <label className={styles.label}>{t("adminEmailTemplates.subjectElLabel")}</label>
-          <input className="input" value={subjectEl} onChange={(e) => setSubjectEl(e.target.value)} />
+              <label className={styles.label}>{t("adminEmailTemplates.subjectElLabel")}</label>
+              <input className="input" value={subjectEl} onChange={(e) => setSubjectEl(e.target.value)} />
 
-          <label className={styles.label}>{t("adminEmailTemplates.subjectEnLabel")}</label>
-          <input className="input" value={subjectEn} onChange={(e) => setSubjectEn(e.target.value)} />
+              <label className={styles.label}>{t("adminEmailTemplates.subjectEnLabel")}</label>
+              <input className="input" value={subjectEn} onChange={(e) => setSubjectEn(e.target.value)} />
 
-          <label className={styles.label}>{t("adminEmailTemplates.bodyElLabel")}</label>
-          <textarea
-            className={`input ${styles.contentArea}`}
-            value={bodyEl}
-            onChange={(e) => setBodyEl(e.target.value)}
-            rows={12}
-          />
+              <label className={styles.label}>{t("adminEmailTemplates.bodyElLabel")}</label>
+              <textarea
+                className={`input ${styles.contentArea}`}
+                value={bodyEl}
+                onChange={(e) => setBodyEl(e.target.value)}
+                rows={12}
+              />
 
-          <label className={styles.label}>{t("adminEmailTemplates.bodyEnLabel")}</label>
-          <textarea
-            className={`input ${styles.contentArea}`}
-            value={bodyEn}
-            onChange={(e) => setBodyEn(e.target.value)}
-            rows={8}
-          />
+              <label className={styles.label}>{t("adminEmailTemplates.bodyEnLabel")}</label>
+              <textarea
+                className={`input ${styles.contentArea}`}
+                value={bodyEn}
+                onChange={(e) => setBodyEn(e.target.value)}
+                rows={8}
+              />
 
-          {error && <div className={styles.blockError}>{error}</div>}
-          {savedMessage && <div className={styles.savedMessage}>{savedMessage}</div>}
-          {testSendMessage && <div className={styles.savedMessage}>{testSendMessage}</div>}
+              {error && <div className={styles.blockError}>{error}</div>}
+              {savedMessage && <div className={styles.savedMessage}>{savedMessage}</div>}
+              {testSendMessage && <div className={styles.savedMessage}>{testSendMessage}</div>}
+            </div>
 
-          <div className={styles.actions}>
-            <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
-              {t("adminEmailTemplates.save")}
-            </button>
-            <button type="button" className="btn btn-secondary" disabled={testSendBusy} onClick={sendTest}>
-              {t("adminEmailTemplates.testSend")}
-            </button>
+            <div className={styles.modalActions}>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={save}>
+                {t("adminEmailTemplates.save")}
+              </button>
+              <button type="button" className="btn btn-secondary" disabled={testSendBusy} onClick={sendTest}>
+                {t("adminEmailTemplates.testSend")}
+              </button>
+            </div>
           </div>
         </div>
       )}

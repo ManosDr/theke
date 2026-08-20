@@ -84,22 +84,6 @@
   cursor: default;
 }
 
-.actions {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-  margin-top: var(--space-4);
-}
-
-.editor {
-  margin-top: var(--space-5);
-  padding: var(--space-4);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-md);
-  background: var(--color-surface);
-}
-
 .editorHeader {
   display: flex;
   align-items: center;
@@ -110,6 +94,69 @@
 
 .editorHeader h2 {
   margin: 0;
+}
+
+/* Editor relocated from bottom-of-page expansion into a centered modal -
+   same modalScrim/modal/modalHeader/modalActions shape already used by
+   CompaniesPanel/CompanyAdminDashboard's bigger modals (max-width 640px,
+   height-capped), not a new component. modal/modalBody/modalActions split
+   into header/scrollable-body/pinned-footer (flex column, body is the only
+   flex:1 + overflow-y:auto piece) so Save always stays visible without
+   scrolling regardless of viewport height - none of the existing modals
+   needed this since their forms already fit; this one (2 large textareas +
+   role/vertical/active fields) doesn't reliably on a real laptop screen. */
+.modalScrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(27, 42, 74, 0.3);
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+}
+
+.modal {
+  width: 100%;
+  max-width: 640px;
+  max-height: 85vh;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-surface);
+  border-radius: var(--radius-md);
+  box-shadow: var(--admin-shadow-modal);
+  overflow: hidden;
+}
+
+.modalHeader {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  padding: var(--space-4) var(--space-5) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.modalHeader h2 {
+  margin: 0;
+}
+
+.modalBody {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-4) var(--space-5);
+}
+
+.modalActions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
 }
 
 .label {

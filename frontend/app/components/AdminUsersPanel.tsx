@@ -8,7 +8,9 @@ import dashStyles from "../dashboard/dashboard.module.css";
 import { parseApiDate } from "../lib/datetime";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { SortableTh } from "./SortableTh";
 import type { TranslationKey } from "../lib/translations";
+import { useSortableData } from "../lib/useSortableData";
 import type { AdminUserSummary, CompanySummary, EmailStatusResponse, VerticalSummary } from "../lib/types";
 import ResetPasswordModal from "./ResetPasswordModal";
 import styles from "./AdminUsersPanel.module.css";
@@ -91,6 +93,32 @@ export function AdminUsersPanel() {
       return true;
     });
   }, [byTab, q, roleFilter, companyFilter, verticalFilter, statusFilter]);
+
+  const {
+    sorted: sortedUsers,
+    sortColumn,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtered, (u, column) => {
+    switch (column) {
+      case "name":
+        return u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : null;
+      case "email":
+        return u.email;
+      case "company":
+        return u.company_name;
+      case "role":
+        return u.role;
+      case "lastLogin":
+        return u.last_login_at ? parseApiDate(u.last_login_at).getTime() : null;
+      case "messages":
+        return u.messages_30d;
+      case "status":
+        return u.is_active ? 1 : 0;
+      default:
+        return null;
+    }
+  });
 
   const hasFilters = Boolean(q || roleFilter || companyFilter !== "" || verticalFilter || statusFilter !== "all");
 
@@ -210,18 +238,18 @@ export function AdminUsersPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{tUpper("dash.company.colName")}</th>
-                <th>{tUpper("dash.company.colEmail")}</th>
-                <th>{tUpper("dash.super.colCompany")}</th>
-                <th>{tUpper("dash.company.colRole")}</th>
-                <th>{tUpper("dash.company.colLastLogin")}</th>
-                <th>{tUpper("dash.company.colMessages30d")}</th>
-                <th>{tUpper("dash.company.colStatus")}</th>
+                <SortableTh label={tUpper("dash.company.colName")} column="name" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.company.colEmail")} column="email" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.super.colCompany")} column="company" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.company.colRole")} column="role" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.company.colLastLogin")} column="lastLogin" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.company.colMessages30d")} column="messages" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.company.colStatus")} column="status" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {filtered.map((u) => (
+              {sortedUsers.map((u) => (
                 <tr key={u.id}>
                   <td>{u.first_name || u.last_name ? `${u.first_name ?? ""} ${u.last_name ?? ""}`.trim() : "—"}</td>
                   <td>{u.email}</td>

@@ -6,7 +6,9 @@ import { useSearchParams } from "next/navigation";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { SortableTh, SortToggleButton } from "./SortableTh";
 import type { TranslationKey } from "../lib/translations";
+import { useSortableData } from "../lib/useSortableData";
 import { useVertical } from "../lib/vertical";
 import type {
   BrowseResponse,
@@ -331,6 +333,30 @@ export function DocumentsPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bulkRunning, token]);
 
+  const {
+    sorted: sortedItems,
+    sortColumn: docSortColumn,
+    sortDirection: docSortDirection,
+    toggleSort: toggleDocSort,
+  } = useSortableData(result.items, (doc, column) => {
+    switch (column) {
+      case "title":
+        return doc.title;
+      case "vertical":
+        return doc.vertical_slug;
+      case "authority":
+        return doc.authority;
+      case "contentType":
+        return doc.content_type;
+      case "status":
+        return effectiveStatus(doc);
+      case "lastVerified":
+        return doc.last_verified_at ? new Date(doc.last_verified_at).getTime() : null;
+      default:
+        return null;
+    }
+  });
+
   async function undoSupersede(doc: DocumentSummary) {
     if (!token) return;
     await api.post(`/admin/documents/${doc.id}/undo-supersede`, { confirmed: true }, token);
@@ -466,23 +492,25 @@ export function DocumentsPanel() {
             <table className={styles.table}>
               <thead>
                 <tr>
-                  <th>{tUpper("docs.colTitle")}</th>
-                  <th>{tUpper("docs.colVertical")}</th>
-                  <th>{tUpper("docs.colAuthority")}</th>
-                  <th>{tUpper("docs.colContentType")}</th>
+                  <SortableTh label={tUpper("docs.colTitle")} column="title" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                  <SortableTh label={tUpper("docs.colVertical")} column="vertical" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                  <SortableTh label={tUpper("docs.colAuthority")} column="authority" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                  <SortableTh label={tUpper("docs.colContentType")} column="contentType" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
                   <th>
-                    {tUpper("docs.colStatus")}
-                    <Tooltip text={t("docs.colStatusTooltip")}>
-                      <InfoIcon size={12} />
-                    </Tooltip>
+                    <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+                      <SortToggleButton label={tUpper("docs.colStatus")} column="status" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
+                      <Tooltip text={t("docs.colStatusTooltip")}>
+                        <InfoIcon size={12} />
+                      </Tooltip>
+                    </span>
                   </th>
-                  <th>{tUpper("docs.colLastVerified")}</th>
+                  <SortableTh label={tUpper("docs.colLastVerified")} column="lastVerified" activeColumn={docSortColumn} direction={docSortDirection} onSort={toggleDocSort} />
                   <th>{tUpper("docs.colScope")}</th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
-                {result.items.map((doc) => {
+                {sortedItems.map((doc) => {
                   const eff = effectiveStatus(doc);
                   const accent = ACCENT_CLASS[doc.vertical_slug ?? ""] ?? "";
                   return (

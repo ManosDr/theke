@@ -1,16 +1,27 @@
 import logging
+import re
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
 from openai import OpenAI, OpenAIError
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.config import settings
 from app.database import get_db
 from app.dependencies import CurrentUser, get_current_user, get_vertical_scope
-from app.models import ChatSession, Company, MessageFeedback, Project, Region, SubscriptionUsage, UtilityProvider, Vertical
+from app.models import (
+    ChatSession,
+    Company,
+    Document,
+    MessageFeedback,
+    Project,
+    Region,
+    SubscriptionUsage,
+    UtilityProvider,
+    Vertical,
+)
 from app.schemas import (
     ChatCitation,
     ChatFeedbackRequest,
@@ -552,6 +563,117 @@ Add one final line in this exact format:
 - [question 1]
 - [question 2]"""
 
+# UX proposal Part 1: a structured, model-self-reported signal for "would a
+# project document have made this specific answer more precise" - only ever
+# appended to the prompt when the server has already confirmed (1b, see
+# _project_has_documents) the active project has zero documents, so the
+# model is never even asked the question in any other case. DOC_SUGGESTION_
+# MARKER must stay in sync with _extract_doc_suggestion()'s parsing below.
+# Single-line format (marker + content on the same line), deliberately
+# unlike FOLLOWUP_MARKER's multi-line block - extraction only needs to
+# remove the one matched line, so it's correct regardless of whether the
+# model places it before or after the follow-up block.
+DOC_SUGGESTION_MARKER = "ΠΡΟΤΑΣΗ_ΕΓΓΡΑΦΟΥ:"
+DOC_SUGGESTION_MARKER_EN = "DOCUMENT_SUGGESTION:"
+
+DOC_SUGGESTION_INSTRUCTION = f"""ΠΡΟΑΙΡΕΤΙΚΟ ΒΗΜΑ - ΕΞΑΙΡΕΤΙΚΑ ΣΠΑΝΙΟ, ΙΔΙΑ ΠΕΙΘΑΡΧΙΑ ΜΕ ΤΙΣ ΠΑΡΑΠΟΜΠΕΣ: ΠΡΟΤΑΣΗ ΕΓΓΡΑΦΟΥ
+Ο προεπιλεγμένος κανόνας είναι να ΜΗΝ κάνεις καμία πρόταση εγγράφου - όπως \
+ακριβώς δεν μαντεύεις ποτέ μια παραπομπή, μην "μαντεύεις" ποτέ ότι ένα \
+έγγραφο θα βοηθούσε. Αυτό το βήμα ενεργοποιείται ΜΟΝΟ στη σπάνια περίπτωση \
+όπου ΟΛΑ τα παρακάτω ισχύουν ταυτόχρονα:
+(α) η απάντησή σου βασίστηκε αποκλειστικά σε γενικό/ζωνικό περιεχόμενο της \
+δημόσιας βάσης γνώσης (π.χ. ένα εύρος τιμών ανά ζώνη, ένας γενικός κανόνας \
+νομοθεσίας) και όχι σε συγκεκριμένα στοιχεία του έργου ή του πελάτη,
+(β) η ερώτηση αφορά ρητά ένα συγκεκριμένο οικόπεδο, πελάτη ή περίπτωση - όχι \
+μια γενική ερώτηση νομοθεσίας ή διαδικασίας,
+(γ) υπάρχει ένας συγκεκριμένος, κατονομάσιμος τύπος εγγράφου (π.χ. \
+τοπογραφικό, βεβαίωση όρων δόμησης, δήλωση Ε9, προηγούμενη δήλωση πελάτη) \
+που, αν είχε ανέβει σε αυτό το έργο, θα έκανε την ΙΔΙΑ ερώτηση αντικειμενικά \
+πιο συγκεκριμένη - όχι απλώς "περισσότερο περιεχόμενο" γενικά.
+ΣΗΜΑΝΤΙΚΗ ΔΙΕΥΚΡΙΝΙΣΗ: δεν χρειάζεται η πηγή να αναφέρει ήδη έναν \
+συγκεκριμένο αριθμό (π.χ. "0,8") για να ισχύουν τα (α)-(γ) - αρκεί η πηγή \
+να δίνει έναν γενικό κανόνα, μια διαδικασία υπολογισμού, ή ένα εύρος, και η \
+απάντησή σου να καταλήγει να παραπέμπει στο συγκεκριμένο οικόπεδο/πελάτη σε \
+μηχανικό, λογιστή ή αρμόδια υπηρεσία για την τελική τιμή. Παράδειγμα \
+τυπικής περίπτωσης όπου ΙΣΧΥΟΥΝ τα (α)-(γ): η απάντησή σου εξηγεί πώς \
+υπολογίζεται ο συντελεστής δόμησης βάσει του ΓΠΣ (π.χ. μέσω μείωσης επί του \
+προϊσχύοντος συντελεστή) και καταλήγει "για τον ακριβή συντελεστή του \
+συγκεκριμένου οικοπέδου σας, συμβουλευτείτε τον μηχανικό σας/την ΥΔΟΜ" - \
+αυτό ΕΙΝΑΙ ήδη η περίπτωση που το βήμα αφορά, ακριβώς επειδή μια βεβαίωση \
+όρων δόμησης θα έδινε την τελική τιμή που η απάντηση ρητά παραπέμπει αλλού \
+για να βρεθεί.
+ΜΗΝ ενεργοποιήσεις αυτό το βήμα μόνο επειδή η απάντηση είναι σύνθετη, μόνο \
+επειδή η γενική σου εμπιστοσύνη στην απάντηση είναι χαμηλή, ή απλώς επειδή \
+η ερώτηση ή η απάντηση ανέφερε έναν τύπο εγγράφου παρεμπιπτόντως. Στην \
+αμφιβολία, ΜΗΝ το ενεργοποιήσεις - μια χαμένη ευκαιρία πρότασης είναι \
+προτιμότερη από μια πρόταση πάνω σε μια απάντηση που είναι ήδη όσο το \
+δυνατόν ακριβέστερη γίνεται χωρίς έγγραφο του χρήστη.
+Αν και μόνο αν όλα τα (α)-(γ) ισχύουν, πρόσθεσε ΜΙΑ επιπλέον γραμμή στο \
+τέλος της απάντησής σου (μετά από οτιδήποτε άλλο έχεις ήδη γράψει, \
+συμπεριλαμβανομένου του βήματος ΕΠΟΜΕΝΕΣ_ΕΡΩΤΗΣΕΙΣ αν υπάρχει) με ακριβώς \
+αυτή τη μορφή σε ΜΙΑ γραμμή, με τον τύπο εγγράφου σε φυσική γλώσσα χωρίς \
+αγκύλες ή markdown:
+{DOC_SUGGESTION_MARKER} [τύπος εγγράφου, π.χ. τοπογραφικό ή βεβαίωση όρων δόμησης]"""
+
+DOC_SUGGESTION_INSTRUCTION_EN = f"""OPTIONAL STEP - EXTREMELY RARE, SAME DISCIPLINE AS CITATIONS: DOCUMENT SUGGESTION
+The default rule is to make NO document suggestion at all - exactly as you
+never guess a citation, never "guess" that a document would help either.
+This step activates ONLY in the rare case where ALL of the following hold
+at once:
+(a) your answer relied solely on general/zone-level public-knowledge-base
+content (e.g. a range of values per zone, a general legislative rule) and
+not on specific project or client facts,
+(b) the question explicitly concerns a specific plot, client, or case - not
+a general legislation/procedure question,
+(c) there is one specific, nameable document type (e.g. a plot survey, a
+zoning-conditions certificate, a prior tax filing) that, if uploaded to
+this project, would make THIS SAME question objectively more precise - not
+just "more content" in general.
+IMPORTANT CLARIFICATION: the source does not need to already state a
+specific number (e.g. "0.8") for (a)-(c) to hold - it's enough that the
+source gives a general rule, a calculation procedure, or a range, and your
+answer ends up referring the specific plot/client to an engineer,
+accountant, or authority for the final figure. Example of a typical case
+where (a)-(c) DO hold: your answer explains how the building coefficient is
+calculated under the zoning plan (e.g. via a reduction applied to a prior
+coefficient) and concludes "for the exact coefficient of your specific
+plot, consult your engineer/the planning office" - this IS already the
+case this step is for, precisely because a zoning-conditions certificate
+would supply the final figure your answer explicitly points elsewhere to
+find.
+Do NOT trigger this step merely because the answer is complex, merely
+because your general confidence in the answer is low, or just because the
+question or answer happened to mention a document type in passing. When in
+doubt, do NOT trigger it - a missed suggestion is preferable to a
+suggestion attached to an answer that is already as precise as it can be
+without the user's own document.
+If and only if (a)-(c) all hold, add ONE extra line at the very end of your
+answer (after everything else you've already written, including the
+FOLLOWUP_QUESTIONS step if present) in exactly this single-line format,
+with the document type in plain language, no brackets or markdown:
+{DOC_SUGGESTION_MARKER_EN} [document type, e.g. a plot survey or zoning-conditions certificate]"""
+
+
+def _extract_doc_suggestion(raw_answer: str, locale: str | None) -> tuple[str, str | None]:
+    """Pulls DOC_SUGGESTION_MARKER's single-line suggestion (if the model
+    included one - the expected/default case, per its own instruction
+    above, is that it doesn't) out of raw_answer. Returns (answer with that
+    one line removed, suggested document type or None). Regex-based single-
+    line removal rather than FOLLOWUP_MARKER's partition-to-end-of-string
+    approach, since this marker isn't necessarily the last line the model
+    wrote (the follow-up block may come after it, or before it) - only the
+    matched line itself should disappear, not everything past it."""
+    marker = DOC_SUGGESTION_MARKER_EN if locale == "en" else DOC_SUGGESTION_MARKER
+    pattern = re.compile(rf"^[ \t]*{re.escape(marker)}[ \t]*(.+?)[ \t]*$", re.MULTILINE)
+    match = pattern.search(raw_answer)
+    if not match:
+        return raw_answer, None
+    suggested = match.group(1).strip() or None
+    cleaned = pattern.sub("", raw_answer, count=1)
+    # Collapse the blank-line gap the removed line leaves behind.
+    cleaned = re.sub(r"\n[ \t]*\n[ \t]*\n+", "\n\n", cleaned).strip()
+    return cleaned, suggested
+
 
 def _resolve_project(db: Session, user: CurrentUser, project_id: int | None) -> Project | None:
     """Raises rather than silently ignoring a bad project_id: a 404 if it
@@ -567,6 +689,23 @@ def _resolve_project(db: Session, user: CurrentUser, project_id: int | None) -> 
     if project.company_id != user.company_id:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Project belongs to a different company")
     return project
+
+
+def _project_has_documents(db: Session, project: Project) -> bool:
+    """True if the project itself, or its linked customer, has any active
+    document - 1b's server-side gate for the doc-suggestion signal. Checks
+    both scopes because customer-scoped documents are already pulled into
+    this project's own retrieval (see retrieve_bilingual's customer_id
+    param) - a project whose customer has uploaded documents already has
+    access to them, even with zero documents on the project row itself, so
+    it would be wrong to still offer the nudge in that case."""
+    conditions = [Document.project_id == project.id]
+    if project.customer_id is not None:
+        conditions.append(Document.customer_id == project.customer_id)
+    count = db.scalar(
+        select(func.count()).select_from(Document).where(Document.status == "active", or_(*conditions))
+    )
+    return bool(count)
 
 
 # Authorities that carry curated per-region contact info - ΥΔΟΜ lives
@@ -1000,6 +1139,13 @@ async def chat_message(
             h.distance > settings.rag_warn_distance for h in hits
         )
 
+        # UX proposal Part 1b: server-side gate, checked before the model is
+        # ever asked - the doc-suggestion instruction is only appended to
+        # the prompt when the active project genuinely has zero documents.
+        # No project at all (payload.project_id is None) also never offers
+        # it - there's no scoped place to send someone to upload to.
+        offer_doc_suggestion = project is not None and not _project_has_documents(db, project)
+
         system_prompt = get_system_prompt(vertical)
         if locale == "en":
             system_prompt = f"{system_prompt}\n\n{LANGUAGE_RULE_EN}"
@@ -1011,6 +1157,10 @@ async def chat_message(
         # specific answer, rather than padding to 2-3 with weaker ideas -
         # the frontend shows no chips at all in that case (see chat/page.tsx).
         system_prompt = f"{system_prompt}\n\n{FOLLOWUP_INSTRUCTION_EN if locale == 'en' else FOLLOWUP_INSTRUCTION}"
+        if offer_doc_suggestion:
+            system_prompt = (
+                f"{system_prompt}\n\n{DOC_SUGGESTION_INSTRUCTION_EN if locale == 'en' else DOC_SUGGESTION_INSTRUCTION}"
+            )
         if location_context:
             system_prompt = (
                 f"{system_prompt}\n\n"
@@ -1077,6 +1227,17 @@ async def chat_message(
         )
         return ChatMessageResponse(answer=gap_response, citations=[], gap=True)
 
+    # Extracted before followups regardless of relative order in the raw
+    # completion (see _extract_doc_suggestion's own docstring) - only run
+    # at all when the server-side gate (1b) actually offered the
+    # instruction, so a model that somehow emitted the marker text without
+    # ever being asked to (it's never appended to the prompt otherwise)
+    # still can't surface the signal. This is the same server-side
+    # enforcement point 1b requires, applied defensively on the way out too.
+    suggested_document_type: str | None = None
+    if offer_doc_suggestion:
+        raw_answer, suggested_document_type = _extract_doc_suggestion(raw_answer, locale)
+
     raw_answer, parsed_followups = _extract_followups(raw_answer, locale)
     # Spec is explicit: follow-ups only ever accompany a genuinely confident
     # answer, not a low-confidence one (is_low_confidence, this function's
@@ -1125,7 +1286,13 @@ async def chat_message(
         followups=followups,
     )
     return ChatMessageResponse(
-        answer=answer, citations=citations, gap=is_low_confidence, session_id=session_id, followups=followups
+        answer=answer,
+        citations=citations,
+        gap=is_low_confidence,
+        session_id=session_id,
+        followups=followups,
+        would_benefit_from_document=bool(suggested_document_type),
+        suggested_document_type=suggested_document_type,
     )
 
 

@@ -501,6 +501,8 @@ export interface ChatMessageResponse {
   gap: boolean;
   session_id: number | null;
   followups: string[];
+  would_benefit_from_document: boolean;
+  suggested_document_type: string | null;
 }
 
 export interface ChatHistoryItem {

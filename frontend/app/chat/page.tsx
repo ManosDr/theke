@@ -59,6 +59,18 @@ interface Message {
   // confident, cited assistant answer. See followupTexts' own comment for
   // how this replaces the old fully-static per-vertical chip set.
   followups?: string[];
+  // UX proposal Part 1 (document-upload nudge) - set only when the backend's
+  // conservative would_benefit_from_document signal fired for this specific
+  // answer. Not persisted server-side (no chat_sessions column - this is a
+  // live, in-the-moment nudge, not history), so it's undefined for any
+  // message restored from GET /chat/history, not just false. projectId is
+  // captured at send time (not read from selectedProjectId at render time)
+  // so the upload link stays correct even if the user switches the active
+  // project after this answer arrived. docNudgeDismissed is local-only,
+  // per-message - dismissing one answer's nudge doesn't affect any other.
+  suggestedDocumentType?: string | null;
+  projectId?: number | null;
+  docNudgeDismissed?: boolean;
   feedback?: FeedbackRating | null;
   feedbackError?: boolean;
   // Epoch ms - from ChatHistoryItem.created_at when restored, or Date.now()
@@ -601,6 +613,8 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
           gap: data.gap,
           sessionId: data.session_id,
           followups: data.followups,
+          suggestedDocumentType: data.would_benefit_from_document ? data.suggested_document_type : null,
+          projectId: selectedProjectId,
           createdAt: Date.now(),
         },
       ]);
@@ -703,6 +717,14 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
       // Clipboard access denied/unavailable - silently no-op, same as this
       // page's other best-effort UI conveniences.
     }
+  }
+
+  // UX proposal Part 1 - per-message, not persisted (no "don't show again"
+  // key): each nudge is tied to one specific answer, so dismissing it says
+  // nothing about whether the next answer that earns the signal should show
+  // it too.
+  function dismissDocNudge(messageIndex: number) {
+    setMessages((prev) => prev.map((m, idx) => (idx === messageIndex ? { ...m, docNudgeDismissed: true } : m)));
   }
 
   // Source-row rendering shared between the clickable (<a>, has a real
@@ -1298,6 +1320,24 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                       {m.citations.some((c) => c.authority === "ydom") && (
                         <p className={styles.zoneCaveat}>{t("chat.zoneCaveat")}</p>
                       )}
+                    </div>
+                  )}
+                  {m.suggestedDocumentType && !m.docNudgeDismissed && m.projectId != null && (
+                    <div className={styles.docSuggestionNudge}>
+                      <span>{t("chat.docSuggestionNudge", { documentType: m.suggestedDocumentType })}</span>
+                      <div className={styles.docSuggestionActions}>
+                        <Link href={`/projects/${m.projectId}`} className={styles.docSuggestionUploadLink}>
+                          {t("chat.docSuggestionUpload")}
+                        </Link>
+                        <button
+                          type="button"
+                          className={styles.docSuggestionDismiss}
+                          onClick={() => dismissDocNudge(i)}
+                          aria-label={t("common.dismiss")}
+                        >
+                          <CloseIcon size={14} />
+                        </button>
+                      </div>
                     </div>
                   )}
                   {m.citations && m.citations.length > 0 && m.sessionId != null && (

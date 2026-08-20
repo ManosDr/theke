@@ -243,6 +243,16 @@ class ChatMessageResponse(BaseModel):
     # included FOLLOWUP_MARKER's block. The frontend shows no chips at all
     # when this is empty, rather than falling back to generic defaults.
     followups: list[str] = []
+    # Document-upload nudge signal (UX proposal Part 1) - True only when the
+    # active project genuinely has zero documents (checked server-side
+    # before the model is even asked, see _project_has_documents) AND the
+    # model judged, under a deliberately conservative instruction, that its
+    # answer was general/zone-level specifically because no project
+    # document existed. Default False/None, same discipline as citations -
+    # a false positive here (telling a correct, precise answer "could be
+    # better") is worse than a missed nudge.
+    would_benefit_from_document: bool = False
+    suggested_document_type: str | None = None
 
 
 class ChatHistoryItem(BaseModel):

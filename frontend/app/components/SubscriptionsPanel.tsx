@@ -8,6 +8,8 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { useSortableData } from "../lib/useSortableData";
+import { SortableTh } from "./SortableTh";
 import type {
   CompanySummary,
   InvoiceEntry,
@@ -111,10 +113,6 @@ function CompaniesTab() {
     [items]
   );
 
-  function toggleStatusFilter(status: SubscriptionEntry["status"]) {
-    setStatusFilter((current) => (current === status ? "" : status));
-  }
-
   const query = q.trim().toLowerCase();
   const filteredItems = items.filter((i) => {
     if (statusFilter && i.status !== statusFilter) return false;
@@ -122,6 +120,34 @@ function CompaniesTab() {
     return true;
   });
   const hasFilters = Boolean(statusFilter || q);
+
+  const {
+    sorted: sortedItems,
+    sortColumn,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filteredItems, (item, column) => {
+    switch (column) {
+      case "company":
+        return item.company_name;
+      case "vertical":
+        return item.vertical_slug;
+      case "plan":
+        return item.plan_name;
+      case "status":
+        return item.status;
+      case "expires": {
+        const date = item.status === "trial" ? item.trial_ends_at : item.current_period_end;
+        return date ? parseApiDate(date).getTime() : null;
+      }
+      case "messages":
+        return item.messages_limit > 0 ? item.messages_used / item.messages_limit : null;
+      case "users":
+        return item.users_count;
+      default:
+        return null;
+    }
+  });
 
   async function extendTrial(item: SubscriptionEntry) {
     const daysStr = window.prompt(t("adminSubs.extendTrialPrompt"));
@@ -157,90 +183,58 @@ function CompaniesTab() {
   return (
     <div>
       <div className={dashStyles.grid} style={{ marginBottom: "var(--space-4)" }}>
-        <button
-          type="button"
-          className={`${styles.statCardButton} ${statusFilter === "trial" ? styles.statCardButtonActive : ""}`}
-          aria-pressed={statusFilter === "trial"}
-          title={t("adminSubs.statFilterHint")}
-          onClick={() => toggleStatusFilter("trial")}
-        >
-          <StatCard
-            tone="primary"
-            icon={<ClockIcon />}
-            value={`${counts.trial}`}
-            label={
-              <>
-                {t("adminSubs.statTrial")}
-                <Tooltip text={t("adminSubs.statTrialTooltip")}>
-                  <InfoIcon size={12} />
-                </Tooltip>
-              </>
-            }
-          />
-        </button>
-        <button
-          type="button"
-          className={`${styles.statCardButton} ${statusFilter === "active" ? styles.statCardButtonActive : ""}`}
-          aria-pressed={statusFilter === "active"}
-          title={t("adminSubs.statFilterHint")}
-          onClick={() => toggleStatusFilter("active")}
-        >
-          <StatCard
-            tone="info"
-            icon={<ShieldCheckIcon />}
-            value={`${counts.active}`}
-            label={
-              <>
-                {t("adminSubs.statActive")}
-                <Tooltip text={t("adminSubs.statActiveTooltip")}>
-                  <InfoIcon size={12} />
-                </Tooltip>
-              </>
-            }
-          />
-        </button>
-        <button
-          type="button"
-          className={`${styles.statCardButton} ${statusFilter === "expired" ? styles.statCardButtonActive : ""}`}
-          aria-pressed={statusFilter === "expired"}
-          title={t("adminSubs.statFilterHint")}
-          onClick={() => toggleStatusFilter("expired")}
-        >
-          <StatCard
-            tone="danger"
-            icon={<AlertIcon />}
-            value={`${counts.expired}`}
-            label={
-              <>
-                {t("adminSubs.statExpired")}
-                <Tooltip text={t("adminSubs.statExpiredTooltip")}>
-                  <InfoIcon size={12} />
-                </Tooltip>
-              </>
-            }
-          />
-        </button>
-        <button
-          type="button"
-          className={`${styles.statCardButton} ${statusFilter === "cancelled" ? styles.statCardButtonActive : ""}`}
-          aria-pressed={statusFilter === "cancelled"}
-          title={t("adminSubs.statFilterHint")}
-          onClick={() => toggleStatusFilter("cancelled")}
-        >
-          <StatCard
-            tone="purple"
-            icon={<UsersIcon />}
-            value={`${counts.cancelled}`}
-            label={
-              <>
-                {t("adminSubs.statCancelled")}
-                <Tooltip text={t("adminSubs.statCancelledTooltip")}>
-                  <InfoIcon size={12} />
-                </Tooltip>
-              </>
-            }
-          />
-        </button>
+        <StatCard
+          tone="primary"
+          icon={<ClockIcon />}
+          value={`${counts.trial}`}
+          label={
+            <>
+              {t("adminSubs.statTrial")}
+              <Tooltip text={t("adminSubs.statTrialTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="info"
+          icon={<ShieldCheckIcon />}
+          value={`${counts.active}`}
+          label={
+            <>
+              {t("adminSubs.statActive")}
+              <Tooltip text={t("adminSubs.statActiveTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="danger"
+          icon={<AlertIcon />}
+          value={`${counts.expired}`}
+          label={
+            <>
+              {t("adminSubs.statExpired")}
+              <Tooltip text={t("adminSubs.statExpiredTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
+        <StatCard
+          tone="purple"
+          icon={<UsersIcon />}
+          value={`${counts.cancelled}`}
+          label={
+            <>
+              {t("adminSubs.statCancelled")}
+              <Tooltip text={t("adminSubs.statCancelledTooltip")}>
+                <InfoIcon size={12} />
+              </Tooltip>
+            </>
+          }
+        />
       </div>
 
       <div className={styles.headerRow}>
@@ -251,6 +245,18 @@ function CompaniesTab() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
         />
+        <select
+          className={`input ${styles.filterSelect}`}
+          value={statusFilter}
+          onChange={(e) => setStatusFilter(e.target.value as "" | SubscriptionEntry["status"])}
+        >
+          <option value="">{t("docs.filterStatus")}</option>
+          <option value="trial">{t("adminSubs.status.trial")}</option>
+          <option value="active">{t("adminSubs.status.active")}</option>
+          <option value="expired">{t("adminSubs.status.expired")}</option>
+          <option value="cancelled">{t("adminSubs.status.cancelled")}</option>
+          <option value="suspended">{t("adminSubs.status.suspended")}</option>
+        </select>
         {hasFilters && (
           <button
             type="button"
@@ -276,18 +282,18 @@ function CompaniesTab() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>{tUpper("adminSubs.colCompany")}</th>
-              <th>{tUpper("adminSubs.colVertical")}</th>
-              <th>{tUpper("adminSubs.colPlan")}</th>
-              <th>{tUpper("adminSubs.colStatus")}</th>
-              <th>{tUpper("adminSubs.colExpires")}</th>
-              <th>{tUpper("adminSubs.colMessages")}</th>
-              <th>{tUpper("adminSubs.colUsers")}</th>
+              <SortableTh label={tUpper("adminSubs.colCompany")} column="company" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colVertical")} column="vertical" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colPlan")} column="plan" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colStatus")} column="status" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colExpires")} column="expires" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colMessages")} column="messages" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminSubs.colUsers")} column="users" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
               <th>{tUpper("adminSubs.colActions")}</th>
             </tr>
           </thead>
           <tbody>
-            {filteredItems.map((item) => {
+            {sortedItems.map((item) => {
               const pct = item.messages_limit > 0 ? Math.min(100, (item.messages_used / item.messages_limit) * 100) : 0;
               return (
                 <tr key={item.company_id}>

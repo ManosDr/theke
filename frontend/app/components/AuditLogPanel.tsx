@@ -7,6 +7,8 @@ import dashStyles from "../dashboard/dashboard.module.css";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
+import { SortableTh } from "./SortableTh";
+import { useSortableData } from "../lib/useSortableData";
 import type { AuditLogEntry, AuditLogListResponse, CompanySummary } from "../lib/types";
 import styles from "./AuditLogPanel.module.css";
 
@@ -54,6 +56,28 @@ export function AuditLogPanel() {
   const hasFilters = Boolean(q || companyFilter);
   const from = total === 0 ? 0 : page * PAGE_SIZE + 1;
   const to = Math.min(total, (page + 1) * PAGE_SIZE);
+
+  const {
+    sorted: sortedItems,
+    sortColumn,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(items, (entry, column) => {
+    switch (column) {
+      case "action":
+        return entry.action;
+      case "company":
+        return entry.company_id ? (companyNameById.get(entry.company_id) ?? String(entry.company_id)) : null;
+      case "resource":
+        return entry.resource_type;
+      case "actor":
+        return entry.actor_user_id;
+      case "when":
+        return parseApiDate(entry.created_at).getTime();
+      default:
+        return null;
+    }
+  });
 
   return (
     <div>
@@ -114,15 +138,15 @@ export function AuditLogPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{tUpper("dash.super.colAction")}</th>
-                <th>{tUpper("dash.super.colCompany")}</th>
-                <th>{tUpper("dash.super.colResource")}</th>
-                <th>{tUpper("adminAuditLog.colActor")}</th>
-                <th>{tUpper("dash.super.colWhen")}</th>
+                <SortableTh label={tUpper("dash.super.colAction")} column="action" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.super.colCompany")} column="company" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.super.colResource")} column="resource" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("adminAuditLog.colActor")} column="actor" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("dash.super.colWhen")} column="when" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
               </tr>
             </thead>
             <tbody>
-              {items.map((entry) => (
+              {sortedItems.map((entry) => (
                 <tr key={entry.id}>
                   <td>{entry.action}</td>
                   <td className="text-muted">

@@ -8,7 +8,9 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { useSortableData } from "../lib/useSortableData";
 import type { FeedbackEntry, FeedbackListResponse, UserFeedbackEntry, UserFeedbackListResponse } from "../lib/types";
+import { SortableTh } from "./SortableTh";
 import { ThumbDownIcon, ThumbUpIcon } from "./StatIcons";
 import { BookIcon } from "./UiIcons";
 import dashStyles from "../dashboard/dashboard.module.css";
@@ -171,6 +173,30 @@ export function FeedbackPanel() {
   const positiveCount = useMemo(() => items.filter((it) => it.rating === "positive").length, [items]);
   const negativeCount = useMemo(() => items.filter((it) => it.rating === "negative").length, [items]);
 
+  const {
+    sorted: sortedFeedback,
+    sortColumn,
+    sortDirection,
+    toggleSort,
+  } = useSortableData(filtered, (it, column) => {
+    switch (column) {
+      case "question":
+        return it.question;
+      case "rating":
+        return it.rating;
+      case "company":
+        return it.company_name;
+      case "user":
+        return it.user_name;
+      case "date":
+        return parseApiDate(it.created_at).getTime();
+      case "status":
+        return it.status;
+      default:
+        return null;
+    }
+  });
+
   async function updateStatus(id: number, status: "solved" | "rejected") {
     const updated = await api.patch<FeedbackEntry>(`/admin/feedback/${id}`, { status }, token);
     setItems((prev) => prev.map((it) => (it.id === id ? updated : it)));
@@ -232,18 +258,18 @@ export function FeedbackPanel() {
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>{tUpper("adminFeedback.colQuestion")}</th>
+              <SortableTh label={tUpper("adminFeedback.colQuestion")} column="question" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
               <th>{tUpper("adminFeedback.colComment")}</th>
-              <th>{tUpper("adminFeedback.colRating")}</th>
-              <th>{tUpper("adminFeedback.colCompany")}</th>
-              <th>{tUpper("adminFeedback.colUser")}</th>
-              <th>{tUpper("adminFeedback.colDate")}</th>
-              <th>{tUpper("adminFeedback.colStatus")}</th>
+              <SortableTh label={tUpper("adminFeedback.colRating")} column="rating" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminFeedback.colCompany")} column="company" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminFeedback.colUser")} column="user" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminFeedback.colDate")} column="date" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+              <SortableTh label={tUpper("adminFeedback.colStatus")} column="status" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
               <th>{tUpper("adminFeedback.colActions")}</th>
             </tr>
           </thead>
           <tbody>
-            {filtered.map((it) => (
+            {sortedFeedback.map((it) => (
               <Fragment key={it.id}>
                 <tr>
                   <td className={styles.questionCell}>{it.question}</td>

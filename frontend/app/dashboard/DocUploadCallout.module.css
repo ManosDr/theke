@@ -1,0 +1,40 @@
+.card {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-3);
+}
+
+.icon {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
+.body {
+  flex: 1;
+  margin: 0;
+  padding-right: var(--space-5);
+  font-size: 0.9rem;
+  color: var(--color-text);
+  overflow-wrap: anywhere;
+}
+
+.dismiss {
+  position: absolute;
+  top: var(--space-3);
+  right: var(--space-3);
+  background: none;
+  border: none;
+  padding: 0 4px;
+  font-size: 1.1rem;
+  line-height: 1;
+  color: var(--color-text-muted);
+  cursor: pointer;
+}

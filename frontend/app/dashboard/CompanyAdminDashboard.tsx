@@ -42,6 +42,7 @@ import type {
   UserSummary,
 } from "../lib/types";
 import { CompanyActivityChart } from "./CompanyActivityChart";
+import { DocUploadCallout } from "./DocUploadCallout";
 import { SentimentDonut } from "./SentimentDonut";
 import { StatCard, type StatTone } from "./StatCard";
 import { WelcomeCard } from "./WelcomeCard";
@@ -130,6 +131,20 @@ export function CompanyAdminDashboard() {
 
   const visibleTabs = isMunicipality ? TABS.filter((tKey) => tKey !== "customers") : TABS;
 
+  // UX proposal Part 2 - behavioral dashboard callout, built entirely from
+  // this same overview fetch (no new backend signal). Tax's primary unit is
+  // the client (customers_total), construction's is the project
+  // (projects_total) - matches how the rest of this dashboard already
+  // distinguishes the two (see isConstruction in WelcomeCard). Zero-
+  // documents check reuses private_documents_count, the same number
+  // already shown on this dashboard's own stat tile - a document uploaded
+  // only at the customer level (no project_id) isn't counted by it, a
+  // known, deliberate simplification rather than new aggregation logic.
+  const isTax = company?.type === "accounting";
+  const primaryUnitCount = overview ? (isTax ? overview.customers_total : overview.projects_total) : 0;
+  const showDocUploadCallout =
+    !isMunicipality && overview !== null && primaryUnitCount >= 2 && overview.private_documents_count === 0;
+
   return (
     <div className={tabStyles.wrapper}>
       <div className={tabStyles.header}>
@@ -148,6 +163,15 @@ export function CompanyAdminDashboard() {
           verticalDisplayName={company.vertical_display_name}
           isMunicipality={isMunicipality}
           show={isFirstRun}
+        />
+      )}
+
+      {company && (
+        <DocUploadCallout
+          companyId={company.id}
+          userEmail={user?.email ?? ""}
+          isTax={isTax}
+          show={showDocUploadCallout}
         />
       )}
 

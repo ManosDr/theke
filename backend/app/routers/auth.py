@@ -243,8 +243,13 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         # company-less path, see the required-field check above) rather than
         # invite.company_id, which is already non-NULL by this point on both
         # paths (see the backfill 3 lines above the branch this sits under).
+        # Phase 5 of the beta/trial rollout: "resulting status" only means
+        # something on the company-less path (it just eagerly created a
+        # real CompanySubscription, status='beta', a few lines up) -
+        # joining an existing company doesn't touch a subscription at all,
+        # so there's nothing new to report there.
         if payload.new_company_name:
-            super_admin_body = f'{payload.email} accepted the invite and created "{company.name}".'
+            super_admin_body = f'{payload.email} accepted the invite and created "{company.name}" (status: beta).'
         else:
             super_admin_body = f'{payload.email} accepted the invite and joined "{company.name}".'
         notify_super_admins(
@@ -314,13 +319,29 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         else:
             new_company_status = "beta_pending"
             create_registration_subscription(db, company, status="beta_pending")
-            notify_super_admins(
-                db,
-                type="self_serve_registered",
-                title="New self-serve signup awaiting approval",
-                body=f'{payload.email} registered "{company.name}" and is pending beta approval.',
-                link=f"/admin/companies?company={company.id}",
-            )
+
+        # Phase 5 of the beta/trial rollout: fires for every self-serve
+        # registration, not just the beta_pending case - the trial outcome
+        # (post "beta ended") is still a new signup a super_admin should
+        # see, just not one that needs action. Both branches link straight
+        # to the company (?company=<id> is CompaniesPanel.tsx's existing
+        # deep-link support, which auto-opens the detail modal - the
+        # Approve/Reject buttons there are conditional on beta_pending, so
+        # the same link is "go approve/reject this" for a pending signup
+        # and just "go look at this new signup" for a trial one).
+        if new_company_status == "beta_pending":
+            title = "New self-serve signup awaiting approval"
+            body = f'{payload.email} registered "{company.name}" (self-serve) - pending beta approval.'
+        else:
+            title = "New self-serve signup"
+            body = f'{payload.email} registered "{company.name}" (self-serve) - status: trial.'
+        notify_super_admins(
+            db,
+            type="self_serve_registered",
+            title=title,
+            body=body,
+            link=f"/admin/companies?company={company.id}",
+        )
 
     # Self-serve (company_name path) registrations start unverified and get
     # a real verification email below, once the row has an id to send it

@@ -18,7 +18,7 @@ from jose import jwt
 from sqlalchemy import select, text
 
 from app.config import settings
-from app.models import Company, CompanySubscription, Invite, PasswordResetToken, User, Vertical
+from app.models import Company, CompanySubscription, Invite, Notification, PasswordResetToken, User, Vertical
 from app.security import hash_password
 
 from .conftest import DEMO_EMAILS, DEMO_PASSWORD, TEST_CLIENT_IP, cleanup_company, make_company_and_user
@@ -90,9 +90,30 @@ def test_register_new_company(client, db_session):
         sub = db_session.scalar(select(CompanySubscription).where(CompanySubscription.company_id == company.id))
         assert sub is not None
         assert sub.status == "beta_pending"
+        # Phase 5 of the beta/trial rollout: every self-serve registration
+        # fires a super_admin notification with the detail needed to act on
+        # it - email, company name, resulting status, and a direct link to
+        # the approve/reject action (CompaniesPanel.tsx's existing
+        # ?company=<id> deep-link, which auto-opens the detail modal).
+        notif = db_session.scalar(
+            select(Notification).where(Notification.type == "self_serve_registered", Notification.body.contains(email))
+        )
+        assert notif is not None
+        assert company_name in notif.body
+        assert "pending beta approval" in notif.body
+        assert notif.link == f"/admin/companies?company={company.id}"
     finally:
         from sqlalchemy import text
 
+        # Scoped to this test's own unique email, not a blanket delete of
+        # every self_serve_registered notification - this DB is shared
+        # with real dev/demo usage (see conftest.py's module docstring),
+        # so a broad DELETE here could destroy a real notification.
+        db_session.execute(
+            text("DELETE FROM notifications WHERE type = 'self_serve_registered' AND body LIKE :pattern"),
+            {"pattern": f"%{email}%"},
+        )
+        db_session.commit()
         user = db_session.scalar(select(User).where(User.email == email))
         company = db_session.scalar(select(Company).where(Company.name == company_name))
         if user:
@@ -166,8 +187,21 @@ def test_register_new_company_after_beta_ended(client, db_session):
         # succeed immediately, unlike the beta_pending case.
         chat_resp = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
         assert chat_resp.status_code == 200
+
+        # Phase 5 - the trial outcome still notifies super_admins (every
+        # self-serve registration does, not just the beta_pending case),
+        # just with different wording and no approve/reject action needed.
+        notif = db_session.scalar(
+            select(Notification).where(Notification.type == "self_serve_registered", Notification.body.contains(email))
+        )
+        assert notif is not None
+        assert "status: trial" in notif.body
     finally:
         db_session.execute(text("UPDATE platform_settings SET beta_ended = false WHERE id = 1"))
+        db_session.execute(
+            text("DELETE FROM notifications WHERE type = 'self_serve_registered' AND body LIKE :pattern"),
+            {"pattern": f"%{email}%"},
+        )
         db_session.commit()
 
         user = db_session.scalar(select(User).where(User.email == email))

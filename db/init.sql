@@ -783,7 +783,8 @@ CREATE TABLE IF NOT EXISTS notifications (
     id SERIAL PRIMARY KEY,
     user_id INT NOT NULL REFERENCES users(id),
     type VARCHAR NOT NULL,   -- 'new_documents', 'municipality_content', 'invite_accepted',
-                              -- 'removal_requested', 'removal_decided'
+                              -- 'removal_requested', 'removal_decided', 'invite_accepted_platform',
+                              -- 'self_serve_registered' (Phase 5 of the beta/trial rollout)
     title VARCHAR NOT NULL,
     body TEXT,
     link VARCHAR,

@@ -411,6 +411,16 @@ class AdminUserSummary(UserSummary):
     # propagation pattern as is_test_account above - None for a company-less
     # user (every super_admin), who has no subscription to read from.
     subscription_status: SubscriptionStatus | None = None
+    # Same propagation, only meaningful for subscription_status='trial' -
+    # see CompanySummary.trial_ends_at.
+    trial_ends_at: datetime | None = None
+    # Surfaced from the owning Company.is_suspended - False for a
+    # company-less user. Phase 4 of the beta/trial rollout: without this,
+    # a user belonging to a suspended company would show that company's
+    # raw subscription_status (e.g. still "beta") in the Users list
+    # instead of Suspended, which is misleading - is_suspended always
+    # takes priority over subscription_status, same as in CompaniesPanel.
+    company_is_suspended: bool = False
 
 
 # Plain-text, shown once in the confirmation modal, never stored - see
@@ -571,6 +581,11 @@ class CompanySummary(BaseModel):
     # time (see auth.py/admin.py), and every pre-existing one was backfilled
     # (db/init.sql) - this should be unreachable in practice.
     subscription_status: SubscriptionStatus | None = None
+    # Only meaningful (non-null) for status='trial' - Phase 4 of the
+    # beta/trial rollout, so the Companies/Users list can show "Trial (N
+    # days)" instead of a bare "Trial" the way it can for every other
+    # status. beta_pending/beta genuinely have no expiration.
+    trial_ends_at: datetime | None = None
 
 
 class CompanyUserSummary(BaseModel):

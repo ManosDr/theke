@@ -29,6 +29,8 @@ export interface AdminUserSummary extends Omit<UserSummary, "role"> {
   // Propagated from the owning company's CompanySubscription.status - null
   // for a company-less user (every super_admin), who has no subscription.
   subscription_status: SubscriptionStatusValue | null;
+  trial_ends_at: string | null;
+  company_is_suspended: boolean;
 }
 
 export interface ActivityEventEntry {
@@ -134,6 +136,7 @@ export interface CompanySummary {
   active_users_count: number;
   active_projects_count: number;
   subscription_status: SubscriptionStatusValue | null;
+  trial_ends_at: string | null;
 }
 
 export interface CompanyUserSummary {

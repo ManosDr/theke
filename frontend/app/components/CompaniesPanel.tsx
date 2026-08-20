@@ -3,6 +3,7 @@
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { accountStatusDisplay } from "../lib/accountStatus";
 import { ApiError, api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
@@ -299,15 +300,14 @@ export function CompaniesPanel() {
                     <td>{c.active_users_count}</td>
                     <td className="text-muted">{parseApiDate(c.created_at).toLocaleDateString()}</td>
                     <td>
-                      {c.is_suspended ? (
-                        <span className="badge badge-danger">{t("companies.statusSuspended")}</span>
-                      ) : c.subscription_status === "beta_pending" ? (
-                        <span className="badge badge-warning">{t("companies.statusBetaPending")}</span>
-                      ) : c.subscription_status === "rejected" ? (
-                        <span className="badge badge-danger">{t("companies.statusRejected")}</span>
-                      ) : (
-                        <span className="badge badge-success">{t("companies.statusActive")}</span>
-                      )}
+                      {(() => {
+                        const display = accountStatusDisplay(t, {
+                          isSuspended: c.is_suspended,
+                          subscriptionStatus: c.subscription_status,
+                          trialEndsAt: c.trial_ends_at,
+                        });
+                        return <span className={`badge ${display.badgeClass}`}>{display.text}</span>;
+                      })()}
                     </td>
                     <td>
                       <div style={{ display: "flex", gap: "var(--space-2)" }}>
@@ -356,6 +356,8 @@ export function CompaniesPanel() {
               setDetail(data);
             }
           }}
+          onApprove={() => approveBeta(detail)}
+          onReject={(reason) => rejectBeta(detail, reason)}
         />
       )}
 
@@ -675,6 +677,8 @@ function CompanyDetailModal({
   onClose,
   onToggleSuspend,
   onReassigned,
+  onApprove,
+  onReject,
 }: {
   detail: CompanyDetail;
   verticals: VerticalSummary[];
@@ -683,6 +687,8 @@ function CompanyDetailModal({
   onClose: () => void;
   onToggleSuspend: () => void;
   onReassigned: () => void;
+  onApprove: () => void;
+  onReject: (reason: string | undefined) => void;
 }) {
   const { t, tUpper } = useLocale();
   const [reassigning, setReassigning] = useState(false);
@@ -744,6 +750,14 @@ function CompanyDetailModal({
             <span className={`${styles.verticalBadge} ${ACCENT_CLASS[detail.vertical_slug ?? ""] ?? ""}`}>
               {detail.vertical_slug ? t(`vertical.${detail.vertical_slug}` as TranslationKey) : "—"}
             </span>
+            {(() => {
+              const display = accountStatusDisplay(t, {
+                isSuspended: detail.is_suspended,
+                subscriptionStatus: detail.subscription_status,
+                trialEndsAt: detail.trial_ends_at,
+              });
+              return <span className={`badge ${display.badgeClass}`}>{display.text}</span>;
+            })()}
           </div>
           <button className="btn btn-secondary" onClick={onClose}>
             {t("companies.modal.close")}
@@ -905,6 +919,23 @@ function CompanyDetailModal({
         )}
 
         <div className={styles.modalFooter}>
+          {detail.subscription_status === "beta_pending" && (
+            <>
+              <button className="btn btn-primary" onClick={onApprove}>
+                {t("companies.approveBeta")}
+              </button>
+              <button
+                className="btn btn-secondary"
+                onClick={() => {
+                  const reason = window.prompt(t("companies.rejectBetaPrompt"));
+                  if (reason === null) return;
+                  onReject(reason.trim() || undefined);
+                }}
+              >
+                {t("companies.rejectBeta")}
+              </button>
+            </>
+          )}
           <button className="btn btn-secondary" onClick={() => setReassigning(true)}>
             {t("companies.modal.changeVertical")}
           </button>

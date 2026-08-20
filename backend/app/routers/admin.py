@@ -183,17 +183,32 @@ _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
+def _fetch_sub_summaries(db: Session) -> dict[int, tuple[str, datetime | None]]:
+    """company_id -> (status, trial_ends_at) for every CompanySubscription -
+    the one place this pair is fetched, reused by every list/detail
+    endpoint below that needs to show real account status (Phase 4 of the
+    beta/trial rollout) instead of a bare is_suspended-derived Active."""
+    return {
+        row[0]: (row[1], row[2])
+        for row in db.execute(
+            select(CompanySubscription.company_id, CompanySubscription.status, CompanySubscription.trial_ends_at)
+        )
+    }
+
+
 def _to_company_summary(
-    db: Session, c: Company, vertical_slugs: dict[int, str], sub_statuses: dict[int, str] | None = None
+    db: Session,
+    c: Company,
+    vertical_slugs: dict[int, str],
+    sub_summaries: dict[int, tuple[str, datetime | None]] | None = None,
 ) -> CompanySummary:
     users_count = db.scalar(
         select(func.count()).select_from(User).where(User.company_id == c.id, User.is_active.is_(True))
     ) or 0
     projects_count = db.scalar(select(func.count()).select_from(Project).where(Project.company_id == c.id)) or 0
-    if sub_statuses is None:
-        sub_statuses = {
-            row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
-        }
+    if sub_summaries is None:
+        sub_summaries = _fetch_sub_summaries(db)
+    status, trial_ends_at = sub_summaries.get(c.id, (None, None))
     return CompanySummary(
         id=c.id,
         name=c.name,
@@ -205,7 +220,8 @@ def _to_company_summary(
         vertical_slug=vertical_slugs.get(c.vertical_id),
         active_users_count=users_count,
         active_projects_count=projects_count,
-        subscription_status=sub_statuses.get(c.id),
+        subscription_status=status,
+        trial_ends_at=trial_ends_at,
     )
 
 
@@ -217,14 +233,12 @@ async def list_companies(
 ) -> list[CompanySummary]:
     require_super_admin(user)
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    sub_statuses = {
-        row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
-    }
+    sub_summaries = _fetch_sub_summaries(db)
     stmt = select(Company)
     if vertical_id is not None:
         stmt = stmt.where(Company.vertical_id == vertical_id)
     companies = db.scalars(stmt.order_by(Company.created_at.desc())).all()
-    return [_to_company_summary(db, c, vertical_slugs, sub_statuses) for c in companies]
+    return [_to_company_summary(db, c, vertical_slugs, sub_summaries) for c in companies]
 
 
 @router.post("/companies/create-with-admin", response_model=CompanyCreateWithAdminResponse, status_code=status.HTTP_201_CREATED)
@@ -321,8 +335,12 @@ async def get_company_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    sub_status = db.scalar(select(CompanySubscription.status).where(CompanySubscription.company_id == company.id))
-    summary = _to_company_summary(db, company, vertical_slugs, {company.id: sub_status} if sub_status else {})
+    sub_row = db.execute(
+        select(CompanySubscription.status, CompanySubscription.trial_ends_at).where(
+            CompanySubscription.company_id == company.id
+        )
+    ).first()
+    summary = _to_company_summary(db, company, vertical_slugs, {company.id: tuple(sub_row)} if sub_row else {})
 
     users = db.scalars(select(User).where(User.company_id == company.id).order_by(User.email)).all()
     projects = db.scalars(select(Project).where(Project.company_id == company.id).order_by(Project.created_at.desc())).all()
@@ -407,8 +425,12 @@ async def reassign_company_vertical(
     db.commit()
     db.refresh(company)
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    sub_status = db.scalar(select(CompanySubscription.status).where(CompanySubscription.company_id == company.id))
-    return _to_company_summary(db, company, vertical_slugs, {company.id: sub_status} if sub_status else {})
+    sub_row = db.execute(
+        select(CompanySubscription.status, CompanySubscription.trial_ends_at).where(
+            CompanySubscription.company_id == company.id
+        )
+    ).first()
+    return _to_company_summary(db, company, vertical_slugs, {company.id: tuple(sub_row)} if sub_row else {})
 
 
 @router.post("/companies/{company_id}/suspend", status_code=status.HTTP_204_NO_CONTENT)
@@ -455,9 +477,7 @@ async def list_all_users(
     users = db.scalars(select(User)).all()
     companies = {c.id: c for c in db.scalars(select(Company))}
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    sub_statuses = {
-        row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
-    }
+    sub_summaries = _fetch_sub_summaries(db)
 
     since_30d = datetime.utcnow() - timedelta(days=30)
     message_counts: dict[int, int] = {}
@@ -495,7 +515,15 @@ async def list_all_users(
                 if u.company_id in companies
                 else is_demo_seed_email(u.email)
             ),
-            subscription_status=sub_statuses.get(u.company_id) if u.company_id is not None else None,
+            subscription_status=(
+                sub_summaries.get(u.company_id, (None, None))[0] if u.company_id is not None else None
+            ),
+            trial_ends_at=(
+                sub_summaries.get(u.company_id, (None, None))[1] if u.company_id is not None else None
+            ),
+            company_is_suspended=(
+                companies[u.company_id].is_suspended if u.company_id in companies else False
+            ),
         )
         for u in users
     ]

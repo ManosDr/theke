@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+import { accountStatusDisplay } from "../lib/accountStatus";
 import { ApiError, api } from "../lib/api";
 import dashStyles from "../dashboard/dashboard.module.css";
 import { parseApiDate } from "../lib/datetime";
@@ -272,9 +273,23 @@ export function AdminUsersPanel() {
                   <td className="text-muted">{u.last_login_at ? parseApiDate(u.last_login_at).toLocaleString() : "—"}</td>
                   <td>{u.messages_30d}</td>
                   <td>
-                    <span className={`badge ${u.is_active ? "badge-success" : "badge-danger"}`}>
-                      {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
-                    </span>
+                    {!u.is_active ? (
+                      // Per-user revocation (POST /admin/users/{id}/revoke)
+                      // is a distinct, user-level fact from the owning
+                      // company's account status - takes priority the same
+                      // way is_suspended takes priority inside
+                      // accountStatusDisplay itself.
+                      <span className="badge badge-danger">{t("dash.company.statusRevoked")}</span>
+                    ) : (
+                      (() => {
+                        const display = accountStatusDisplay(t, {
+                          isSuspended: u.company_is_suspended,
+                          subscriptionStatus: u.subscription_status,
+                          trialEndsAt: u.trial_ends_at,
+                        });
+                        return <span className={`badge ${display.badgeClass}`}>{display.text}</span>;
+                      })()
+                    )}
                   </td>
                   <td className={styles.rowMenuWrap}>
                     {u.role !== "super_admin" && (

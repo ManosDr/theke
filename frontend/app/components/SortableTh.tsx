@@ -21,11 +21,41 @@ export function SortableTh({
 
   return (
     <th aria-sort={ariaSort}>
-      <button type="button" className={styles.button} onClick={() => onSort(column)}>
-        {label}
-        <SortIcon active={active} direction={direction} />
-      </button>
+      <SortToggleButton label={label} column={column} activeColumn={activeColumn} direction={direction} onSort={onSort} />
     </th>
+  );
+}
+
+// Same clickable label + chevron as SortableTh, without the <th> wrapper -
+// for card/grid screens (e.g. Data Sources) that have no table to hang a
+// column header off of, but still want the one shared sort control rather
+// than a bespoke variant.
+export function SortToggleButton({
+  label,
+  column,
+  activeColumn,
+  direction,
+  onSort,
+  className,
+}: {
+  label: string;
+  column: string;
+  activeColumn: string | null;
+  direction: SortDirection;
+  onSort: (column: string) => void;
+  className?: string;
+}) {
+  const active = activeColumn === column;
+  return (
+    <button
+      type="button"
+      className={`${styles.button} ${className ?? ""}`}
+      aria-pressed={active}
+      onClick={() => onSort(column)}
+    >
+      {label}
+      <SortIcon active={active} direction={direction} />
+    </button>
   );
 }
 

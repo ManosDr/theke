@@ -7,9 +7,11 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { sortItems, useSortState } from "../lib/useSortableData";
 import { useVertical } from "../lib/vertical";
 import type { DataSourceSummary, DataSourcesByVertical } from "../lib/types";
 import { ShieldIcon } from "./NavIcons";
+import { SortToggleButton } from "./SortableTh";
 import { InfoIcon } from "./StatIcons";
 import { CheckIcon, CloseIcon, DotIcon, LinkIcon, RefreshIcon, WarningIcon } from "./UiIcons";
 import Tooltip from "./Tooltip";
@@ -70,6 +72,9 @@ export function DataSourcesPanel() {
   const [syncingIds, setSyncingIds] = useState<Set<number>>(new Set());
   const [editingId, setEditingId] = useState<number | null>(null);
   const [showOnlyFailing, setShowOnlyFailing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [filterHealth, setFilterHealth] = useState<"" | Health>("");
+  const { sortColumn, sortDirection, toggleSort } = useSortState();
 
   async function refresh() {
     if (!token) return;
@@ -98,12 +103,52 @@ export function DataSourcesPanel() {
     [visibleGroups]
   );
 
+  const hasFilters = Boolean(search || filterHealth);
+  function clearFilters() {
+    setSearch("");
+    setFilterHealth("");
+  }
+
+  function sourceSortValue(source: DataSourceSummary, column: string): string | number | null {
+    switch (column) {
+      case "name":
+        return source.name;
+      case "lastSync":
+        return source.last_crawled_at ? parseApiDate(source.last_crawled_at).getTime() : null;
+      case "failures":
+        return source.consecutive_failures;
+      default:
+        return null;
+    }
+  }
+
   const displayGroups = useMemo(() => {
-    if (!showOnlyFailing) return visibleGroups;
-    return visibleGroups
-      .map((g) => ({ ...g, sources: g.sources.filter((s) => s.consecutive_failures >= FAILURE_BANNER_THRESHOLD) }))
-      .filter((g) => g.sources.length > 0);
-  }, [visibleGroups, showOnlyFailing]);
+    const failingOnly = showOnlyFailing
+      ? visibleGroups
+          .map((g) => ({ ...g, sources: g.sources.filter((s) => s.consecutive_failures >= FAILURE_BANNER_THRESHOLD) }))
+          .filter((g) => g.sources.length > 0)
+      : visibleGroups;
+
+    return failingOnly
+      .map((g) => ({
+        ...g,
+        sources: sortItems(
+          g.sources.filter((s) => {
+            if (search) {
+              const q = search.toLowerCase();
+              if (!s.name.toLowerCase().includes(q) && !s.base_url.toLowerCase().includes(q)) return false;
+            }
+            if (filterHealth && healthOf(s, syncingIds.has(s.id)) !== filterHealth) return false;
+            return true;
+          }),
+          sortColumn,
+          sortDirection,
+          sourceSortValue
+        ),
+      }))
+      .filter((g) => g.sources.length > 0 || (!search && !filterHealth && !showOnlyFailing));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [visibleGroups, showOnlyFailing, search, filterHealth, sortColumn, sortDirection, syncingIds]);
 
   async function syncNow(id: number) {
     if (!token) return;
@@ -164,6 +209,62 @@ export function DataSourcesPanel() {
             })}
           </ul>
         </div>
+      )}
+
+      <div className={`card ${styles.filterBar}`}>
+        <input
+          className={`input ${styles.searchInput}`}
+          type="text"
+          placeholder={t("adminSources.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <select className={`input ${styles.filterSelect}`} value={filterHealth} onChange={(e) => setFilterHealth(e.target.value as "" | Health)}>
+          <option value="">{t("docs.filterStatus")}</option>
+          {(Object.keys(HEALTH_ICON) as Health[]).map((h) => (
+            <option key={h} value={h}>
+              {t(`adminSources.health.${h}` as TranslationKey)}
+            </option>
+          ))}
+        </select>
+
+        <div className={styles.sortGroup}>
+          <SortToggleButton
+            label={t("adminSources.sortName")}
+            column="name"
+            activeColumn={sortColumn}
+            direction={sortDirection}
+            onSort={toggleSort}
+            className={styles.sortChip}
+          />
+          <SortToggleButton
+            label={t("adminSources.sortLastSync")}
+            column="lastSync"
+            activeColumn={sortColumn}
+            direction={sortDirection}
+            onSort={toggleSort}
+            className={styles.sortChip}
+          />
+          <SortToggleButton
+            label={t("adminSources.sortFailures")}
+            column="failures"
+            activeColumn={sortColumn}
+            direction={sortDirection}
+            onSort={toggleSort}
+            className={styles.sortChip}
+          />
+        </div>
+
+        {hasFilters && (
+          <button type="button" className={styles.clearFilters} onClick={clearFilters}>
+            {t("docs.clearFilters")}
+          </button>
+        )}
+      </div>
+
+      {displayGroups.length === 0 && (hasFilters || showOnlyFailing) && (
+        <p className={dashStyles.emptyState}>{t("chat.context.noResults")}</p>
       )}
 
       {displayGroups.map((group) => (

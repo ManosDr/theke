@@ -189,6 +189,20 @@
   --admin-shadow-modal: 0 20px 60px rgba(27, 42, 74, 0.3);
   --admin-shadow-drawer: -8px 0 24px rgba(27, 42, 74, 0.2);
 
+  /* Category series colors for ActivityChart's "Λοιπή δραστηριότητα"
+     breakdown (Item 2) - a validated categorical order (dataviz skill:
+     blue/orange/aqua/yellow/magenta/green, worst adjacent CVD ΔE 9.1 light
+     / 8.4 dark, both >= the 8.0 floor), not theke's own brand tokens
+     (--admin-tax, --admin-construction, etc.) - those are tuned for text/
+     badges and fail the chart-mark lightness/chroma checks. Logins keeps
+     its existing --color-info teal unchanged - not part of this ramp. */
+  --activity-documents: #2a78d6;
+  --activity-datasources: #eb6834;
+  --activity-users: #1baf7a;
+  --activity-companies: #eda100;
+  --activity-content: #e87ba4;
+  --activity-other: #008300;
+
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -293,6 +307,13 @@
   --admin-shadow-card: 0 1px 2px rgba(0, 0, 0, 0.35);
   --admin-shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.5);
   --admin-shadow-drawer: -8px 0 24px rgba(0, 0, 0, 0.4);
+
+  --activity-documents: #3987e5;
+  --activity-datasources: #d95926;
+  --activity-users: #199e70;
+  --activity-companies: #c98500;
+  --activity-content: #d55181;
+  --activity-other: #008300;
 }
 
 /* Deliberately no `@media (prefers-color-scheme: dark)` fallback: light is

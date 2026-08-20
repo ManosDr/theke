@@ -33,6 +33,7 @@ export function HelpSectionsPanel() {
 
   const [sections, setSections] = useState<HelpSectionAdminSummary[]>([]);
   const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState<number | "new" | null>(null);
   const [form, setForm] = useState(EMPTY_FORM);
   const [busy, setBusy] = useState(false);
@@ -156,28 +157,45 @@ export function HelpSectionsPanel() {
         </button>
       </div>
 
+      {!loading && sections.length > 0 && (
+        <input
+          className="input"
+          type="text"
+          placeholder={t("adminHelpSections.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          style={{ marginBottom: "var(--space-3)", maxWidth: 320 }}
+        />
+      )}
+
       {loading ? (
         <p className="text-muted">{t("common.loading")}</p>
       ) : (
         <div className={styles.list}>
-          {sections.map((section, i) => (
+          {sections
+            .filter((section) => !search || section.title_el.toLowerCase().includes(search.toLowerCase()))
+            .map((section) => {
+              const i = sections.indexOf(section);
+              return (
             <div key={section.id} className={`${styles.row} ${!section.is_active ? styles.rowInactive : ""}`}>
               <div className={styles.reorderCol}>
                 <button
                   type="button"
                   className={styles.reorderBtn}
-                  disabled={i === 0}
+                  disabled={!!search || i === 0}
                   onClick={() => move(i, -1)}
                   aria-label={t("adminHelpSections.moveUp")}
+                  title={search ? t("adminHelpSections.reorderDisabledWhileSearching") : undefined}
                 >
                   ▲
                 </button>
                 <button
                   type="button"
                   className={styles.reorderBtn}
-                  disabled={i === sections.length - 1}
+                  disabled={!!search || i === sections.length - 1}
                   onClick={() => move(i, 1)}
                   aria-label={t("adminHelpSections.moveDown")}
+                  title={search ? t("adminHelpSections.reorderDisabledWhileSearching") : undefined}
                 >
                   ▼
                 </button>
@@ -208,7 +226,11 @@ export function HelpSectionsPanel() {
                 </button>
               )}
             </div>
-          ))}
+              );
+            })}
+          {search && sections.every((s) => !s.title_el.toLowerCase().includes(search.toLowerCase())) && (
+            <p className="text-muted">{t("chat.context.noResults")}</p>
+          )}
         </div>
       )}
 

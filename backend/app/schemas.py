@@ -1362,7 +1362,9 @@ class VerticalUpdateRequest(BaseModel):
 class GapQueryEntry(BaseModel):
     id: int
     message: str
+    company_id: int | None
     company_name: str | None
+    user_id: int | None
     user_name: str | None
     created_at: datetime
     addressed: bool

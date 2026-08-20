@@ -286,12 +286,42 @@ def test_list_gap_queries_includes_user_and_status(client, db_session, superadmi
         assert resp.status_code == 200
         entry = next(e for e in resp.json() if e["id"] == session.id)
         assert entry["message"] == f"Gap question {unique}"
+        assert entry["company_id"] == company.id
         assert entry["company_name"] == company.name
+        assert entry["user_id"] == user.id
         assert entry["user_name"] == user.display_name
         assert entry["addressed"] is False
         assert entry["addressed_at"] is None
     finally:
         cleanup_company(db_session, company, user, project)
+
+
+def test_list_gap_queries_scoped_by_company_and_user(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    """The company_id/user_id query params are the deep-link target from
+    every place an aggregate gap-rate percentage is shown (company detail
+    modal, dashboard tile, Business Health) - scoping must actually narrow
+    the result set, not just annotate it."""
+    company_a, user_a, project_a, _ = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    company_b, user_b, project_b, _ = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session_a = _make_gap_session(db_session, company_id=company_a.id, user_id=user_a.id, message="Question from A")
+    session_b = _make_gap_session(db_session, company_id=company_b.id, user_id=user_b.id, message="Question from B")
+    try:
+        by_company = client.get(f"/admin/gap-queries?company_id={company_a.id}", headers=superadmin_headers)
+        assert by_company.status_code == 200
+        ids = {e["id"] for e in by_company.json()}
+        assert session_a.id in ids
+        assert session_b.id not in ids
+
+        by_user = client.get(f"/admin/gap-queries?user_id={user_b.id}", headers=superadmin_headers)
+        assert by_user.status_code == 200
+        ids = {e["id"] for e in by_user.json()}
+        assert session_b.id in ids
+        assert session_a.id not in ids
+    finally:
+        cleanup_company(db_session, company_a, user_a, project_a)
+        cleanup_company(db_session, company_b, user_b, project_b)
 
 
 def test_update_gap_query_status_marks_addressed_and_reverts(

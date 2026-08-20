@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useState } from "react";
 import {
   CartesianGrid,
@@ -195,6 +196,9 @@ export function BusinessHealthPanel() {
           <section className={`card ${styles.section}`}>
             <div className={styles.sectionHeader}>
               <h2>{t("admin.businessHealth.qualityTitle")}</h2>
+              <Link href="/admin/chat-gap-rate" className={styles.sectionHeaderLink}>
+                {t("admin.businessHealth.reviewGaps")}
+              </Link>
             </div>
             <p className="text-muted" style={{ marginTop: 0, fontSize: "0.85rem" }}>
               {t("admin.businessHealth.qualityDescription")}

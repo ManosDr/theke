@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
@@ -17,7 +18,20 @@ type StatusFilter = "all" | "unreviewed" | "addressed";
 export function ChatGapRatePanel() {
   const { user } = useAuth();
   const { t, tUpper, locale } = useLocale();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const token = user?.token ?? null;
+
+  // Deep-link scope (see CompaniesPanel's modal, the Business Health gap
+  // chart, and the dashboard gap-rate tile: every place an aggregate
+  // gap-rate percentage is shown links here with ?company_id=/?user_id= so
+  // "66.7%" always comes with an obvious next click to what actually
+  // failed). Read once - a real navigation (not just local state) is what
+  // changes the scope, matching CompaniesPanel's own ?company= pattern.
+  const scopeCompanyId = searchParams.get("company_id");
+  const scopeUserId = searchParams.get("user_id");
+  const isScoped = Boolean(scopeCompanyId || scopeUserId);
+
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [queries, setQueries] = useState<GapQueryEntry[]>([]);
   const [loading, setLoading] = useState(true);
@@ -27,9 +41,13 @@ export function ChatGapRatePanel() {
 
   function load() {
     if (!token) return;
+    const params = new URLSearchParams();
+    if (scopeCompanyId) params.set("company_id", scopeCompanyId);
+    if (scopeUserId) params.set("user_id", scopeUserId);
+    const qs = params.toString();
     return Promise.all([
       api.get<AdminStatsByVertical>("/admin/stats", token),
-      api.get<GapQueryEntry[]>("/admin/gap-queries", token),
+      api.get<GapQueryEntry[]>(`/admin/gap-queries${qs ? `?${qs}` : ""}`, token),
     ]).then(([statsData, gapData]) => {
       setStats(statsData);
       setQueries(gapData);
@@ -37,9 +55,19 @@ export function ChatGapRatePanel() {
   }
 
   useEffect(() => {
+    // A deep-linked visit is investigative ("why is this company/user at
+    // 66.7%?") - default to showing everything, not just what's still
+    // outstanding, so the full picture is visible without an extra click.
+    if (isScoped) setStatusFilter("all");
     load()?.finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [token]);
+  }, [token, scopeCompanyId, scopeUserId]);
+
+  const scopeLabel = isScoped ? (queries[0]?.company_name ?? queries[0]?.user_name ?? null) : null;
+
+  function clearScope() {
+    router.push("/admin/chat-gap-rate");
+  }
 
   const filteredQueries = queries.filter((q) => {
     if (statusFilter === "unreviewed" && q.addressed) return false;
@@ -83,10 +111,21 @@ export function ChatGapRatePanel() {
       <h1>{t("admin.chatGapRate.title")}</h1>
       <p className="text-muted">{t("admin.chatGapRate.description")}</p>
 
-      {stats && (
+      {stats && !isScoped && (
         <p style={{ marginTop: "var(--space-2)", fontWeight: 600, color: "var(--color-danger)" }}>
           {t("admin.chatGapRate.currentRate")}: {stats.total.gap_rate}%
         </p>
+      )}
+
+      {isScoped && (
+        <div className={styles.scopeChip}>
+          <span>
+            {t("admin.chatGapRate.scopedTo", { name: scopeLabel ?? t("admin.chatGapRate.scopedToUnknown") })}
+          </span>
+          <button type="button" className={styles.scopeClear} onClick={clearScope}>
+            {t("admin.chatGapRate.clearScope")}
+          </button>
+        </div>
       )}
 
       <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
@@ -99,7 +138,9 @@ export function ChatGapRatePanel() {
         {loading ? (
           <p className="text-muted">{t("common.loading")}</p>
         ) : queries.length === 0 ? (
-          <p className={dashStyles.emptyState}>{t("admin.chatGapRate.noGaps")}</p>
+          <p className={dashStyles.emptyState}>
+            {isScoped ? t("admin.chatGapRate.noGapsScoped") : t("admin.chatGapRate.noGaps")}
+          </p>
         ) : (
           <>
             <div className={styles.filterBar}>

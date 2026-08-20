@@ -743,7 +743,9 @@ export interface AdminStatsByVertical {
 export interface GapQueryEntry {
   id: number;
   message: string;
+  company_id: number | null;
   company_name: string | null;
+  user_id: number | null;
   user_name: string | null;
   created_at: string;
   addressed: boolean;

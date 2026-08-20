@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
@@ -834,7 +835,9 @@ function CompanyDetailModal({
               <span className={styles.usageLabel}>{t("companies.modal.messages30d")}</span>
             </div>
             <div className={styles.usageStat}>
-              <span className={styles.usageValue}>{detail.gap_rate}%</span>
+              <Link href={`/admin/chat-gap-rate?company_id=${detail.id}`} className={styles.usageValueLink}>
+                {detail.gap_rate}%
+              </Link>
               <span className={styles.usageLabel}>{t("companies.modal.gapRate")}</span>
             </div>
           </div>

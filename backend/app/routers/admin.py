@@ -3538,6 +3538,8 @@ async def deactivate_help_section(
 
 @router.get("/gap-queries", response_model=list[GapQueryEntry])
 async def list_gap_queries(
+    company_id: int | None = None,
+    user_id: int | None = None,
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[GapQueryEntry]:
@@ -3547,16 +3549,24 @@ async def list_gap_queries(
     with who asked it and whether a super_admin has already worked through
     it (see PATCH below). Gives the admin something concrete to act on
     beyond the aggregate gap-rate percentage: what people are actually
-    asking that the knowledge base doesn't cover yet. Capped at 500 rows
-    (newest first) rather than paginated - same order-of-magnitude
-    reasoning as GET /admin/feedback, which has no cap at all."""
+    asking that the knowledge base doesn't cover yet.
+
+    Optional company_id/user_id scope this to one company or user - the
+    deep-link target from every place an aggregate gap-rate percentage is
+    shown (company detail modal, dashboard stat tiles, Business Health).
+    Unscoped, results are capped at 500 rows (newest first) rather than
+    paginated - same order-of-magnitude reasoning as GET /admin/feedback,
+    which has no cap at all; scoped to one company/user the natural result
+    set is already small, so the cap is raised generously instead of
+    risking a real match falling outside the unscoped window's cutoff."""
     require_super_admin(user)
-    rows = db.scalars(
-        select(ChatSession)
-        .where(ChatSession.gap.is_(True), ChatSession.message.isnot(None))
-        .order_by(ChatSession.created_at.desc())
-        .limit(500)
-    ).all()
+    stmt = select(ChatSession).where(ChatSession.gap.is_(True), ChatSession.message.isnot(None))
+    if company_id is not None:
+        stmt = stmt.where(ChatSession.company_id == company_id)
+    if user_id is not None:
+        stmt = stmt.where(ChatSession.user_id == user_id)
+    limit = 2000 if (company_id is not None or user_id is not None) else 500
+    rows = db.scalars(stmt.order_by(ChatSession.created_at.desc()).limit(limit)).all()
     company_ids = {r.company_id for r in rows if r.company_id}
     company_names = {}
     if company_ids:
@@ -3569,7 +3579,9 @@ async def list_gap_queries(
         GapQueryEntry(
             id=r.id,
             message=r.message,
+            company_id=r.company_id,
             company_name=company_names.get(r.company_id) if r.company_id else None,
+            user_id=r.user_id,
             user_name=user_names.get(r.user_id) if r.user_id else None,
             created_at=r.created_at,
             addressed=r.gap_addressed,
@@ -3619,7 +3631,9 @@ async def update_gap_query_status(
     return GapQueryEntry(
         id=row.id,
         message=row.message,
+        company_id=row.company_id,
         company_name=company_name,
+        user_id=row.user_id,
         user_name=user_name,
         created_at=row.created_at,
         addressed=row.gap_addressed,

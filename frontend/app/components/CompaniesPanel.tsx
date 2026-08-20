@@ -8,9 +8,11 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
+import { useSortableData } from "../lib/useSortableData";
 import { useVertical } from "../lib/vertical";
 import FieldError from "./FieldError";
 import ResetPasswordModal from "./ResetPasswordModal";
+import { SortableTh } from "./SortableTh";
 import { PlusIcon } from "./UiIcons";
 import type {
   AdminStatsByVertical,
@@ -96,6 +98,28 @@ export function CompaniesPanel() {
     return tab === "municipalities" ? c.type === "municipality" : c.type !== "municipality";
   });
 
+  const { sorted: sortedCompanies, sortColumn, sortDirection, toggleSort } = useSortableData(
+    visibleCompanies,
+    (c, column) => {
+      switch (column) {
+        case "name":
+          return c.name;
+        case "vertical":
+          return c.vertical_slug ? t(`vertical.${c.vertical_slug}` as TranslationKey) : null;
+        case "projects":
+          return c.active_projects_count;
+        case "users":
+          return c.active_users_count;
+        case "created":
+          return parseApiDate(c.created_at).getTime();
+        case "status":
+          return c.is_suspended ? 1 : 0;
+        default:
+          return null;
+      }
+    }
+  );
+
   async function openDetail(company: CompanySummary) {
     if (!token) return;
     const data = await api.get<CompanyDetail>(`/admin/companies/${company.id}`, token);
@@ -173,17 +197,17 @@ export function CompaniesPanel() {
           <table className={dashStyles.table}>
             <thead>
               <tr>
-                <th>{tUpper("companies.colName")}</th>
-                <th>{tUpper("companies.colVertical")}</th>
-                <th>{tUpper("companies.colProjects")}</th>
-                <th>{tUpper("companies.colUsers")}</th>
-                <th>{tUpper("companies.colCreated")}</th>
-                <th>{tUpper("companies.colStatus")}</th>
+                <SortableTh label={tUpper("companies.colName")} column="name" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("companies.colVertical")} column="vertical" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("companies.colProjects")} column="projects" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("companies.colUsers")} column="users" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("companies.colCreated")} column="created" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
+                <SortableTh label={tUpper("companies.colStatus")} column="status" activeColumn={sortColumn} direction={sortDirection} onSort={toggleSort} />
                 <th></th>
               </tr>
             </thead>
             <tbody>
-              {visibleCompanies.map((c) => {
+              {sortedCompanies.map((c) => {
                 const isDemo = c.name.toLowerCase().includes("demo");
                 return (
                   <tr key={c.id}>

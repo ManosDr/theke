@@ -8,6 +8,8 @@ docstring for why it can't import backend.app.* either); every figure below
 mirrors the same already-established definition the crawler's version cites.
 """
 
+from datetime import datetime, timedelta
+
 import resend
 from sqlalchemy import func, select, text
 from sqlalchemy.orm import Session
@@ -90,6 +92,51 @@ def _compute_stats(db: Session) -> dict:
         .where(Document.company_id.is_(None), Document.status == "active", Document.needs_review.is_(True))
     ) or 0
 
+    # Phase 6 of the beta/trial rollout's gap-review workspace (GET/PATCH
+    # /admin/gap-queries) - the passive-awareness companion. "Since last
+    # digest" reuses weekly_digests' own history as the cutoff (no dedicated
+    # "last sent at" timestamp exists elsewhere - see KNOWN_DECISIONS.md-
+    # adjacent reasoning in that endpoint); falls back to the same 7-day
+    # window as every other stat above for the very first digest ever sent.
+    last_digest_at = db.scalar(select(func.max(WeeklyDigest.created_at)))
+    gap_since = last_digest_at or (datetime.utcnow() - timedelta(days=7))
+
+    new_gaps = db.scalar(
+        select(func.count())
+        .select_from(ChatSession)
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .where(
+            ChatSession.gap.is_(True),
+            ChatSession.created_at >= gap_since,
+            (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+            not_solo_super_admin,
+        )
+    ) or 0
+
+    # Top 5 askers by new-gap count, for the digest's "grouped by user"
+    # breakdown - not persisted structurally (weekly_digests only stores the
+    # total above), same as every other stat here being a bare count.
+    new_gaps_by_user_rows = db.execute(
+        select(ChatSession.user_id, func.count().label("cnt"))
+        .outerjoin(Company, Company.id == ChatSession.company_id)
+        .where(
+            ChatSession.gap.is_(True),
+            ChatSession.created_at >= gap_since,
+            (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
+            not_solo_super_admin,
+            ChatSession.user_id.isnot(None),
+        )
+        .group_by(ChatSession.user_id)
+        .order_by(func.count().desc())
+        .limit(5)
+    ).all()
+    asker_ids = [uid for uid, _ in new_gaps_by_user_rows]
+    askers_by_id = {u.id: u for u in db.scalars(select(User).where(User.id.in_(asker_ids)))} if asker_ids else {}
+    new_gaps_by_user = [
+        (askers_by_id[uid].display_name if uid in askers_by_id else f"user #{uid}", cnt)
+        for uid, cnt in new_gaps_by_user_rows
+    ]
+
     return {
         "total_messages": total_messages,
         "gap_rate": gap_rate,
@@ -97,7 +144,25 @@ def _compute_stats(db: Session) -> dict:
         "active_companies": active_companies,
         "open_feedback": open_feedback,
         "needs_review": needs_review,
+        "new_gaps": new_gaps,
+        "new_gaps_by_user": new_gaps_by_user,
     }
+
+
+def _new_gaps_breakdown_html(stats: dict) -> str:
+    rows = stats.get("new_gaps_by_user") or []
+    if not rows:
+        return ""
+    items = "".join(
+        f'<tr><td style="padding: 4px 0;">{name}</td><td style="text-align: right;">{count}</td></tr>'
+        for name, count in rows
+    )
+    return f"""
+      <p style="color: #444; line-height: 1.6; margin-top: 20px;">Νέα κενά ανά χρήστη (κορυφαίοι 5):</p>
+      <table style="width: 100%; border-collapse: collapse; color: #444; font-size: 14px;">
+        {items}
+      </table>
+    """
 
 
 def _digest_html(stats: dict) -> str:
@@ -112,7 +177,9 @@ def _digest_html(stats: dict) -> str:
         <tr><td style="padding: 6px 0;">Ενεργές εταιρείες</td><td style="text-align: right; font-weight: 600;">{stats["active_companies"]}</td></tr>
         <tr><td style="padding: 6px 0;">Ανοιχτά σχόλια (αρνητικά, εκκρεμή)</td><td style="text-align: right; font-weight: 600;">{stats["open_feedback"]}</td></tr>
         <tr><td style="padding: 6px 0;">Ουρά επανελέγχου εγγράφων</td><td style="text-align: right; font-weight: 600;">{stats["needs_review"]}</td></tr>
+        <tr><td style="padding: 6px 0;">Νέα κενά από την προηγούμενη σύνοψη</td><td style="text-align: right; font-weight: 600;">{stats["new_gaps"]}</td></tr>
       </table>
+      {_new_gaps_breakdown_html(stats)}
       <p style="color: #888; font-size: 13px; line-height: 1.5; margin-top: 24px;">
         Η ομάδα theke
       </p>
@@ -159,6 +226,7 @@ def run_weekly_digest(db: Session, *, triggered_manually: bool) -> WeeklyDigest:
         active_companies=stats["active_companies"],
         open_feedback=stats["open_feedback"],
         needs_review=stats["needs_review"],
+        new_gaps=stats["new_gaps"],
         recipients_sent=sent,
         recipients_total=len(emails),
         triggered_manually=triggered_manually,

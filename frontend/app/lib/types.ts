@@ -744,7 +744,10 @@ export interface GapQueryEntry {
   id: number;
   message: string;
   company_name: string | null;
+  user_name: string | null;
   created_at: string;
+  addressed: boolean;
+  addressed_at: string | null;
 }
 
 export interface InternalChatActivityEntry {
@@ -831,6 +834,7 @@ export interface WeeklyDigestEntry {
   active_companies: number;
   open_feedback: number;
   needs_review: number;
+  new_gaps: number;
   recipients_sent: number;
   recipients_total: number;
   triggered_manually: boolean;

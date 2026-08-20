@@ -2445,3 +2445,21 @@ ALTER TABLE companies ADD COLUMN IF NOT EXISTS acquisition_source text;
 -- content gap. See ChatSession.true_gap()'s updated definition in
 -- models.py, which now excludes these rows explicitly.
 ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS error_type text;
+
+-- Phase 6 of the beta/trial rollout's gap-review workspace (GET/PATCH
+-- /admin/gap-queries) - whether a super_admin has looked at a gap response
+-- (chat_sessions.gap=true) and either added KB content to cover it or
+-- decided it's genuinely out of scope. Mirrors documents.needs_review's
+-- boolean-plus-audit-trail shape rather than message_feedback's 3-value
+-- status, since there's no third "rejected" state here, just
+-- unreviewed/addressed. Meaningless on a non-gap row (gap_addressed stays
+-- false there, never surfaced).
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS gap_addressed boolean NOT NULL DEFAULT false;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS gap_addressed_at timestamp;
+ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS gap_addressed_by integer REFERENCES users(id);
+
+-- Count of new gap responses (chat_sessions.gap=true) since the previous
+-- weekly digest - the passive-awareness companion to the gap-review
+-- workspace above. See backend/app/services/weekly_digest.py and
+-- crawler/crawler/weekly_digest.py's _compute_stats/_fetch_stats.
+ALTER TABLE weekly_digests ADD COLUMN IF NOT EXISTS new_gaps integer NOT NULL DEFAULT 0;

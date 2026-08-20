@@ -605,6 +605,13 @@ class ChatSession(Base):
     # see below - or the message-pool counter (these calls pass usage=None,
     # since a system-side failure shouldn't cost the company a message).
     error_type: Mapped[str | None] = mapped_column(Text)
+    # Gap-review workspace (GET/PATCH /admin/gap-queries) - whether a
+    # super_admin has looked at this gap response and either added KB
+    # content to cover it or decided it's genuinely out of scope. Meaningless
+    # on a non-gap row (stays False, never surfaced there).
+    gap_addressed: Mapped[bool] = mapped_column(default=False)
+    gap_addressed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    gap_addressed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
     @classmethod
     def true_gap(cls) -> ColumnElement[bool]:
@@ -847,6 +854,9 @@ class WeeklyDigest(Base):
     active_companies: Mapped[int] = mapped_column(Integer)
     open_feedback: Mapped[int] = mapped_column(Integer)
     needs_review: Mapped[int] = mapped_column(Integer)
+    # New chat_sessions.gap=true rows since the previous digest (Phase 6 of
+    # the beta/trial rollout) - see weekly_digest.py's _compute_stats.
+    new_gaps: Mapped[int] = mapped_column(Integer, default=0)
     recipients_sent: Mapped[int] = mapped_column(Integer)
     recipients_total: Mapped[int] = mapped_column(Integer)
     triggered_manually: Mapped[bool] = mapped_column(default=False)

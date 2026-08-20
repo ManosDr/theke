@@ -21,7 +21,14 @@ than inventing a new one:
 - needs_review queue: public KB documents (company_id IS NULL, status=
   'active', needs_review=true) - the same query GET /admin/stale-documents
   uses for the review queue.
+- new_gaps: chat_sessions.gap=true rows since the previous digest (any run,
+  scheduled or manual - see _record_history) - the passive-awareness
+  companion to Phase 6's gap-review workspace (GET/PATCH
+  /admin/gap-queries). Falls back to the same 7-day window as everything
+  else above for the very first digest ever sent.
 """
+
+from datetime import datetime, timedelta
 
 import resend
 
@@ -90,6 +97,41 @@ def _fetch_stats(conn: psycopg.Connection) -> dict:
         )
         needs_review = cur.fetchone()[0]
 
+        cur.execute("SELECT MAX(created_at) FROM weekly_digests")
+        last_digest_at = cur.fetchone()[0]
+        gap_since = last_digest_at or (datetime.utcnow() - timedelta(days=7))
+
+        cur.execute(
+            "SELECT COUNT(*) FROM chat_sessions cs "
+            "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
+            "WHERE cs.gap IS TRUE AND cs.created_at >= %s "
+            "AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)",
+            (gap_since,),
+        )
+        new_gaps = cur.fetchone()[0]
+
+        # Top 5 askers by new-gap count, for the digest's "grouped by user"
+        # breakdown - not persisted structurally, same as every other stat
+        # here being a bare count in weekly_digests.
+        cur.execute(
+            "SELECT COALESCE(NULLIF(TRIM(COALESCE(u.first_name, '') || ' ' || COALESCE(u.last_name, '')), ''), u.email) AS display_name, "
+            "COUNT(*) AS cnt "
+            "FROM chat_sessions cs "
+            "LEFT JOIN companies c ON c.id = cs.company_id "
+            "LEFT JOIN users u ON u.id = cs.user_id "
+            "WHERE cs.gap IS TRUE AND cs.created_at >= %s "
+            "AND (c.id IS NULL OR c.is_test_account IS FALSE) "
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL) "
+            "AND cs.user_id IS NOT NULL "
+            "GROUP BY display_name "
+            "ORDER BY cnt DESC "
+            "LIMIT 5",
+            (gap_since,),
+        )
+        new_gaps_by_user = cur.fetchall()
+
     return {
         "total_messages": total_messages,
         "gap_rate": gap_rate,
@@ -97,6 +139,8 @@ def _fetch_stats(conn: psycopg.Connection) -> dict:
         "active_companies": active_companies,
         "open_feedback": open_feedback,
         "needs_review": needs_review,
+        "new_gaps": new_gaps,
+        "new_gaps_by_user": new_gaps_by_user,
     }
 
 
@@ -104,6 +148,22 @@ def _super_admin_emails(conn: psycopg.Connection) -> list[str]:
     with conn.cursor() as cur:
         cur.execute("SELECT email FROM users WHERE role = 'super_admin' AND is_active = true")
         return [row[0] for row in cur.fetchall()]
+
+
+def _new_gaps_breakdown_html(stats: dict) -> str:
+    rows = stats.get("new_gaps_by_user") or []
+    if not rows:
+        return ""
+    items = "".join(
+        f'<tr><td style="padding: 4px 0;">{name}</td><td style="text-align: right;">{count}</td></tr>'
+        for name, count in rows
+    )
+    return f"""
+      <p style="color: #444; line-height: 1.6; margin-top: 20px;">Νέα κενά ανά χρήστη (κορυφαίοι 5):</p>
+      <table style="width: 100%; border-collapse: collapse; color: #444; font-size: 14px;">
+        {items}
+      </table>
+    """
 
 
 def _send_digest(to_email: str, stats: dict) -> bool:
@@ -131,7 +191,9 @@ def _send_digest(to_email: str, stats: dict) -> bool:
                 <tr><td style="padding: 6px 0;">Ενεργές εταιρείες</td><td style="text-align: right; font-weight: 600;">{stats["active_companies"]}</td></tr>
                 <tr><td style="padding: 6px 0;">Ανοιχτά σχόλια (αρνητικά, εκκρεμή)</td><td style="text-align: right; font-weight: 600;">{stats["open_feedback"]}</td></tr>
                 <tr><td style="padding: 6px 0;">Ουρά επανελέγχου εγγράφων</td><td style="text-align: right; font-weight: 600;">{stats["needs_review"]}</td></tr>
+                <tr><td style="padding: 6px 0;">Νέα κενά από την προηγούμενη σύνοψη</td><td style="text-align: right; font-weight: 600;">{stats["new_gaps"]}</td></tr>
               </table>
+              {_new_gaps_breakdown_html(stats)}
               <p style="color: #888; font-size: 13px; line-height: 1.5; margin-top: 24px;">
                 Η ομάδα Theke
               </p>
@@ -152,8 +214,8 @@ def _record_history(conn: psycopg.Connection, stats: dict, sent: int, total: int
         cur.execute(
             "INSERT INTO weekly_digests "
             "(total_messages, gap_rate, spend_7d_eur, active_companies, open_feedback, "
-            "needs_review, recipients_sent, recipients_total, triggered_manually) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, false)",
+            "needs_review, new_gaps, recipients_sent, recipients_total, triggered_manually) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, false)",
             (
                 stats["total_messages"],
                 stats["gap_rate"],
@@ -161,6 +223,7 @@ def _record_history(conn: psycopg.Connection, stats: dict, sent: int, total: int
                 stats["active_companies"],
                 stats["open_feedback"],
                 stats["needs_review"],
+                stats["new_gaps"],
                 sent,
                 total,
             ),

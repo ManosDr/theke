@@ -89,6 +89,7 @@ from app.schemas import (
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
     GapQueryEntry,
+    GapStatusUpdateRequest,
     HelpSectionAdminDetail,
     HelpSectionAdminSummary,
     HelpSectionReorderRequest,
@@ -2195,6 +2196,7 @@ def _to_weekly_digest_entry(row: WeeklyDigest) -> WeeklyDigestEntry:
         active_companies=row.active_companies,
         open_feedback=row.open_feedback,
         needs_review=row.needs_review,
+        new_gaps=row.new_gaps,
         recipients_sent=row.recipients_sent,
         recipients_total=row.recipients_total,
         triggered_manually=row.triggered_manually,
@@ -3539,31 +3541,90 @@ async def list_gap_queries(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> list[GapQueryEntry]:
-    """Recent real questions the chat couldn't confidently answer
-    (ChatSession.gap=true - no relevant KB match, an off-topic guard, or a
-    low-confidence answer). Gives the admin something concrete to act on
+    """The gap-review workspace (Phase 6 of the beta/trial rollout): every
+    real question the chat couldn't confidently answer (ChatSession.gap=true
+    - no relevant KB match, an off-topic guard, or a low-confidence answer),
+    with who asked it and whether a super_admin has already worked through
+    it (see PATCH below). Gives the admin something concrete to act on
     beyond the aggregate gap-rate percentage: what people are actually
-    asking that the knowledge base doesn't cover yet."""
+    asking that the knowledge base doesn't cover yet. Capped at 500 rows
+    (newest first) rather than paginated - same order-of-magnitude
+    reasoning as GET /admin/feedback, which has no cap at all."""
     require_super_admin(user)
     rows = db.scalars(
         select(ChatSession)
         .where(ChatSession.gap.is_(True), ChatSession.message.isnot(None))
         .order_by(ChatSession.created_at.desc())
-        .limit(50)
+        .limit(500)
     ).all()
     company_ids = {r.company_id for r in rows if r.company_id}
     company_names = {}
     if company_ids:
         company_names = {c.id: c.name for c in db.scalars(select(Company).where(Company.id.in_(company_ids)))}
+    user_ids = {r.user_id for r in rows if r.user_id}
+    user_names = {}
+    if user_ids:
+        user_names = {u.id: u.display_name for u in db.scalars(select(User).where(User.id.in_(user_ids)))}
     return [
         GapQueryEntry(
             id=r.id,
             message=r.message,
             company_name=company_names.get(r.company_id) if r.company_id else None,
+            user_name=user_names.get(r.user_id) if r.user_id else None,
             created_at=r.created_at,
+            addressed=r.gap_addressed,
+            addressed_at=r.gap_addressed_at,
         )
         for r in rows
     ]
+
+
+@router.patch("/gap-queries/{session_id}", response_model=GapQueryEntry)
+async def update_gap_query_status(
+    session_id: int,
+    payload: GapStatusUpdateRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapQueryEntry:
+    """Marks a gap-review workspace row addressed (KB content added to cover
+    it, or determined genuinely out of scope) or reverts it to unreviewed.
+    Toggleable rather than one-way, unlike documents.needs_review's
+    mark-reviewed action - there's no equivalent "was it actually verified"
+    ambiguity here, so an accidental click is simply undoable."""
+    require_super_admin(user)
+    row = db.get(ChatSession, session_id)
+    if not row or not row.gap or row.message is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gap query not found")
+    row.gap_addressed = payload.addressed
+    row.gap_addressed_at = datetime.utcnow() if payload.addressed else None
+    row.gap_addressed_by = user.user_id if payload.addressed else None
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=row.company_id,
+        action="gap_marked_addressed" if payload.addressed else "gap_marked_unreviewed",
+        resource_type="chat_session",
+        resource_id=row.id,
+    )
+    db.commit()
+    db.refresh(row)
+    company_name = None
+    if row.company_id:
+        company = db.get(Company, row.company_id)
+        company_name = company.name if company else None
+    user_name = None
+    if row.user_id:
+        asker = db.get(User, row.user_id)
+        user_name = asker.display_name if asker else None
+    return GapQueryEntry(
+        id=row.id,
+        message=row.message,
+        company_name=company_name,
+        user_name=user_name,
+        created_at=row.created_at,
+        addressed=row.gap_addressed,
+        addressed_at=row.gap_addressed_at,
+    )
 
 
 @router.get("/internal-activity", response_model=InternalActivityResponse)

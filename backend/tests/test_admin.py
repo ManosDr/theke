@@ -19,7 +19,7 @@ from datetime import datetime, timedelta
 
 from sqlalchemy import select
 
-from app.models import CompanySubscription, Invite, Plan
+from app.models import ChatSession, CompanySubscription, Invite, Plan
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -264,6 +264,66 @@ def test_reject_beta_signup(client, db_session, superadmin_headers, construction
         # status.
     finally:
         cleanup_company(db_session, company, user, project)
+
+
+def _make_gap_session(db, *, company_id: int, user_id: int, message: str) -> ChatSession:
+    session = ChatSession(company_id=company_id, user_id=user_id, message=message, gap=True)
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def test_list_gap_queries_includes_user_and_status(client, db_session, superadmin_headers, construction_vertical_id):
+    """Phase 6 of the beta/trial rollout: the gap-review workspace
+    (GET /admin/gap-queries) must surface who asked, not just which
+    company - and every row starts unreviewed until acted on."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    unique = uuid.uuid4().hex[:8]
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message=f"Gap question {unique}")
+    try:
+        resp = client.get("/admin/gap-queries", headers=superadmin_headers)
+        assert resp.status_code == 200
+        entry = next(e for e in resp.json() if e["id"] == session.id)
+        assert entry["message"] == f"Gap question {unique}"
+        assert entry["company_name"] == company.name
+        assert entry["user_name"] == user.display_name
+        assert entry["addressed"] is False
+        assert entry["addressed_at"] is None
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_update_gap_query_status_marks_addressed_and_reverts(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Some unanswered question")
+    try:
+        addressed = client.patch(
+            f"/admin/gap-queries/{session.id}", json={"addressed": True}, headers=superadmin_headers
+        )
+        assert addressed.status_code == 200
+        body = addressed.json()
+        assert body["addressed"] is True
+        assert body["addressed_at"] is not None
+
+        db_session.refresh(session)
+        assert session.gap_addressed_by is not None
+
+        reverted = client.patch(
+            f"/admin/gap-queries/{session.id}", json={"addressed": False}, headers=superadmin_headers
+        )
+        assert reverted.status_code == 200
+        assert reverted.json()["addressed"] is False
+        assert reverted.json()["addressed_at"] is None
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_update_gap_query_status_not_found(client, superadmin_headers):
+    resp = client.patch("/admin/gap-queries/99999999", json={"addressed": True}, headers=superadmin_headers)
+    assert resp.status_code == 404
 
 
 def test_invite_info_endpoint(client, db_session, construction_company_id):

@@ -1232,6 +1232,7 @@ class WeeklyDigestEntry(BaseModel):
     active_companies: int
     open_feedback: int
     needs_review: int
+    new_gaps: int
     recipients_sent: int
     recipients_total: int
     triggered_manually: bool
@@ -1362,7 +1363,14 @@ class GapQueryEntry(BaseModel):
     id: int
     message: str
     company_name: str | None
+    user_name: str | None
     created_at: datetime
+    addressed: bool
+    addressed_at: datetime | None
+
+
+class GapStatusUpdateRequest(BaseModel):
+    addressed: bool
 
 
 class InternalChatActivityEntry(BaseModel):

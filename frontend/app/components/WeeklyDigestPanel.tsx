@@ -97,6 +97,10 @@ export function WeeklyDigestPanel() {
               <span className={styles.value}>{data.latest.needs_review}</span>
               <span className={styles.label}>{t("admin.digest.colNeedsReview")}</span>
             </div>
+            <div>
+              <span className={styles.value}>{data.latest.new_gaps}</span>
+              <span className={styles.label}>{t("admin.digest.colNewGaps")}</span>
+            </div>
           </div>
         )}
         {data?.latest && (

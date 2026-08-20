@@ -9,6 +9,17 @@ from pydantic import BaseModel, Field, field_validator
 # the existing Company.type value used throughout visibility/authorization.
 COMPANY_TYPES = ("construction", "architecture", "engineering", "contractor", "municipality", "accounting")
 
+# beta_pending: self-serve signup awaiting super_admin approval, no
+#   functional access (see dependencies.py's centralized block).
+# beta: approved (or invited, already vetted) - no expiration, feedback
+#   widget visible.
+# rejected: a beta_pending signup a super_admin declined - distinct from
+#   suspended on purpose, see KNOWN_DECISIONS.md.
+# suspended: declared, never assigned - see KNOWN_DECISIONS.md.
+SubscriptionStatus = Literal[
+    "beta_pending", "beta", "trial", "active", "expired", "cancelled", "rejected", "suspended"
+]
+
 
 class RegisterRequest(BaseModel):
     email: str
@@ -396,6 +407,10 @@ class AdminUserSummary(UserSummary):
     # the Users screen into real-users vs demo-accounts tabs without a
     # second flag.
     is_test_account: bool = False
+    # Surfaced from the owning company's CompanySubscription.status, same
+    # propagation pattern as is_test_account above - None for a company-less
+    # user (every super_admin), who has no subscription to read from.
+    subscription_status: SubscriptionStatus | None = None
 
 
 # Plain-text, shown once in the confirmation modal, never stored - see
@@ -551,6 +566,11 @@ class CompanySummary(BaseModel):
     vertical_slug: str | None = None
     active_users_count: int = 0
     active_projects_count: int = 0
+    # None only for a company somehow missing its CompanySubscription row -
+    # every company created after Phase 2 gets one eagerly at registration
+    # time (see auth.py/admin.py), and every pre-existing one was backfilled
+    # (db/init.sql) - this should be unreachable in practice.
+    subscription_status: SubscriptionStatus | None = None
 
 
 class CompanyUserSummary(BaseModel):
@@ -1471,7 +1491,7 @@ class SubscriptionStatusResponse(BaseModel):
     plan_name: str
     plan_slug: str
     is_beta: bool
-    status: Literal["trial", "active", "expired", "cancelled", "suspended"]
+    status: SubscriptionStatus
     trial_ends_at: datetime | None
     # started_at on the subscription row - the trial-day-count anchor for
     # TrialNudgeBanner's conversion nudge (Phase 4c; component renamed away
@@ -1598,7 +1618,7 @@ class PlansPublicResponse(BaseModel):
     # matches the requested `vertical` query param - viewing the OTHER
     # vertical's tab while logged in shows plain, unpersonalized pricing
     # (see Phase 2b: "don't hide the other tab, just don't default to it").
-    subscription_status: Literal["trial", "active", "expired", "cancelled", "suspended"] | None = None
+    subscription_status: SubscriptionStatus | None = None
     trial_ends_at: datetime | None = None
 
 
@@ -1619,7 +1639,7 @@ class SubscriptionEntry(BaseModel):
     plan_name: str
     plan_price_eur: float
     is_beta: bool
-    status: Literal["trial", "active", "expired", "cancelled", "suspended"]
+    status: SubscriptionStatus
     billing_cycle: str
     trial_ends_at: datetime | None
     current_period_end: datetime | None
@@ -1664,6 +1684,13 @@ class CancelSubscriptionRequest(BaseModel):
 
 class AddSubscriptionNoteRequest(BaseModel):
     notes: str
+
+
+class RejectBetaSignupRequest(BaseModel):
+    # Optional, same "never a hard blocker" reasoning as
+    # CancelSubscriptionRequest.reason above - stored on
+    # CompanySubscription.notes rather than a new column.
+    reason: str | None = None
 
 
 class InvoiceCreateRequest(BaseModel):

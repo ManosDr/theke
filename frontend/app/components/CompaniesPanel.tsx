@@ -155,6 +155,26 @@ export function CompaniesPanel() {
     }
   }
 
+  async function approveBeta(company: CompanySummary) {
+    if (!token) return;
+    await api.post(`/admin/subscriptions/${company.id}/approve-beta`, undefined, token);
+    await refresh();
+    if (detail && detail.id === company.id) {
+      const data = await api.get<CompanyDetail>(`/admin/companies/${company.id}`, token);
+      setDetail(data);
+    }
+  }
+
+  async function rejectBeta(company: CompanySummary, reason: string | undefined) {
+    if (!token) return;
+    await api.post(`/admin/subscriptions/${company.id}/reject-beta`, reason ? { reason } : undefined, token);
+    await refresh();
+    if (detail && detail.id === company.id) {
+      const data = await api.get<CompanyDetail>(`/admin/companies/${company.id}`, token);
+      setDetail(data);
+    }
+  }
+
   if (loading) return <p className="text-muted">{t("common.loading")}</p>;
 
   return (
@@ -279,14 +299,39 @@ export function CompaniesPanel() {
                     <td>{c.active_users_count}</td>
                     <td className="text-muted">{parseApiDate(c.created_at).toLocaleDateString()}</td>
                     <td>
-                      <span className={`badge ${c.is_suspended ? "badge-danger" : "badge-success"}`}>
-                        {c.is_suspended ? t("companies.statusSuspended") : t("companies.statusActive")}
-                      </span>
+                      {c.is_suspended ? (
+                        <span className="badge badge-danger">{t("companies.statusSuspended")}</span>
+                      ) : c.subscription_status === "beta_pending" ? (
+                        <span className="badge badge-warning">{t("companies.statusBetaPending")}</span>
+                      ) : c.subscription_status === "rejected" ? (
+                        <span className="badge badge-danger">{t("companies.statusRejected")}</span>
+                      ) : (
+                        <span className="badge badge-success">{t("companies.statusActive")}</span>
+                      )}
                     </td>
                     <td>
-                      <button className="btn btn-secondary" onClick={() => openDetail(c)}>
-                        {t("companies.view")}
-                      </button>
+                      <div style={{ display: "flex", gap: "var(--space-2)" }}>
+                        <button className="btn btn-secondary" onClick={() => openDetail(c)}>
+                          {t("companies.view")}
+                        </button>
+                        {c.subscription_status === "beta_pending" && (
+                          <>
+                            <button className="btn btn-primary" onClick={() => approveBeta(c)}>
+                              {t("companies.approveBeta")}
+                            </button>
+                            <button
+                              className="btn btn-secondary"
+                              onClick={() => {
+                                const reason = window.prompt(t("companies.rejectBetaPrompt"));
+                                if (reason === null) return;
+                                rejectBeta(c, reason.trim() || undefined);
+                              }}
+                            >
+                              {t("companies.rejectBeta")}
+                            </button>
+                          </>
+                        )}
+                      </div>
                     </td>
                   </tr>
                 );

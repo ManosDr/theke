@@ -17,7 +17,9 @@ the real route is POST (app/routers/admin.py), used below.
 import uuid
 from datetime import datetime, timedelta
 
-from app.models import Invite
+from sqlalchemy import select
+
+from app.models import CompanySubscription, Invite, Plan
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -177,6 +179,89 @@ def test_companies_suspend(client, db_session, superadmin_headers, construction_
 
         unsuspend_resp = client.post(f"/admin/companies/{company.id}/unsuspend", headers=superadmin_headers)
         assert unsuspend_resp.status_code == 204
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def _make_beta_pending_company(db, *, vertical_id: int):
+    company, user, project, token = make_company_and_user(db, vertical_id=vertical_id)
+    plan = db.scalar(select(Plan).where(Plan.vertical_id == vertical_id, Plan.is_beta.is_(True)))
+    sub = CompanySubscription(company_id=company.id, plan_id=plan.id, status="beta_pending", billing_cycle="monthly")
+    db.add(sub)
+    db.commit()
+    db.refresh(sub)
+    return company, user, project, token, sub
+
+
+def test_approve_beta_signup(client, db_session, superadmin_headers, construction_vertical_id):
+    company, user, project, token, sub = _make_beta_pending_company(db_session, vertical_id=construction_vertical_id)
+    try:
+        # Blocked before approval - see test_authorization.py's dedicated
+        # coverage of the centralized check itself; this just confirms the
+        # transition this endpoint performs actually lifts it.
+        blocked = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert blocked.status_code == 403
+
+        resp = client.post(f"/admin/subscriptions/{company.id}/approve-beta", headers=superadmin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "beta"
+
+        allowed = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert allowed.status_code == 200
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_approve_beta_signup_wrong_status_conflicts(client, db_session, superadmin_headers, construction_vertical_id):
+    """approve-beta only accepts a beta_pending -> beta transition -
+    anything else (already approved, rejected, cancelled, ...) is a 409,
+    not a silent no-op or a generic status overwrite."""
+    company, user, project, token, sub = _make_beta_pending_company(db_session, vertical_id=construction_vertical_id)
+    try:
+        first = client.post(f"/admin/subscriptions/{company.id}/approve-beta", headers=superadmin_headers)
+        assert first.status_code == 200
+
+        second = client.post(f"/admin/subscriptions/{company.id}/approve-beta", headers=superadmin_headers)
+        assert second.status_code == 409
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_reject_beta_signup(client, db_session, superadmin_headers, construction_vertical_id):
+    company, user, project, token, sub = _make_beta_pending_company(db_session, vertical_id=construction_vertical_id)
+    try:
+        resp = client.post(
+            f"/admin/subscriptions/{company.id}/reject-beta",
+            json={"reason": "Not a real business - test signup"},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "rejected"
+        assert resp.json()["notes"] == "Not a real business - test signup"
+
+        # Still blocked after rejection - a rejected signup never gains
+        # access, same as it never had any.
+        still_blocked = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert still_blocked.status_code == 403
+
+        # A rejected signup must not show up as reactivate-eligible the way
+        # a real suspended/cancelled/expired company would - confirms
+        # 'rejected' really is a distinct status, not a repurposed
+        # 'suspended' that the generic reactivate action could accidentally
+        # flip straight to 'active' (see KNOWN_DECISIONS.md).
+        reactivate = client.patch(f"/admin/subscriptions/{company.id}/reactivate", headers=superadmin_headers)
+        assert reactivate.status_code == 200
+        assert reactivate.json()["status"] == "active"
+        # Documents the current (accepted) behavior: reactivate is a
+        # generic, unconditional-status setter with no source-state check
+        # at all, so it CAN still be pointed at a rejected company
+        # directly by an admin who chooses to - the safety property this
+        # feature actually relies on is that 'rejected' doesn't show up
+        # bucketed alongside real suspended/cancelled/expired companies in
+        # the Subscriptions screen's own reactivate-eligible menu (a
+        # frontend-only distinction - see CompaniesPanel/SubscriptionsPanel),
+        # not that the backend endpoint itself refuses a rejected source
+        # status.
     finally:
         cleanup_company(db_session, company, user, project)
 

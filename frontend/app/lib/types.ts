@@ -26,6 +26,9 @@ export interface AdminUserSummary extends Omit<UserSummary, "role"> {
   company_name: string;
   vertical_slug: string | null;
   is_test_account: boolean;
+  // Propagated from the owning company's CompanySubscription.status - null
+  // for a company-less user (every super_admin), who has no subscription.
+  subscription_status: SubscriptionStatusValue | null;
 }
 
 export interface ActivityEventEntry {
@@ -130,6 +133,7 @@ export interface CompanySummary {
   vertical_slug: string | null;
   active_users_count: number;
   active_projects_count: number;
+  subscription_status: SubscriptionStatusValue | null;
 }
 
 export interface CompanyUserSummary {
@@ -535,7 +539,21 @@ export interface UserUsageSummary {
   messages_30d: number;
 }
 
-export type SubscriptionStatusValue = "trial" | "active" | "expired" | "cancelled" | "suspended";
+// beta_pending: self-serve signup awaiting super_admin approval, no
+//   functional access (see backend/app/dependencies.py's centralized block).
+// beta: approved (or invited, already vetted) - no expiration.
+// rejected: a beta_pending signup a super_admin declined - distinct from
+//   suspended on purpose, see KNOWN_DECISIONS.md.
+// suspended: declared, never assigned - see KNOWN_DECISIONS.md.
+export type SubscriptionStatusValue =
+  | "beta_pending"
+  | "beta"
+  | "trial"
+  | "active"
+  | "expired"
+  | "cancelled"
+  | "rejected"
+  | "suspended";
 
 export interface SubscriptionStatusResponse {
   plan_name: string;
@@ -1013,7 +1031,13 @@ export interface LegalDocumentAdminDetail extends LegalDocumentAdminSummary {
   placeholders: string[];
 }
 
-export type EmailTemplateKey = "invite" | "welcome" | "password_reset" | "email_verification" | "invite_no_company";
+export type EmailTemplateKey =
+  | "invite"
+  | "welcome"
+  | "password_reset"
+  | "email_verification"
+  | "invite_no_company"
+  | "beta_approved";
 
 export interface EmailTemplateSummary {
   template_key: EmailTemplateKey;

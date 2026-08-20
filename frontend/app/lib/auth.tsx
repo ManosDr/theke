@@ -1,9 +1,10 @@
 "use client";
 
 import { createContext, useContext, useEffect, useState, type ReactNode } from "react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 
 import { API_URL, api, setOnTokenRefreshed } from "./api";
+import type { SubscriptionStatusResponse } from "./types";
 
 export type CompanyType = "construction" | "municipality" | "accounting";
 export type Role = "super_admin" | "admin" | "member";
@@ -176,6 +177,7 @@ export function useAuth() {
 export function RequireAuth({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     if (!loading && !user) {
@@ -183,7 +185,47 @@ export function RequireAuth({ children }: { children: ReactNode }) {
     }
   }, [loading, user, router]);
 
-  if (loading || !user) {
+  // Frontend mirror of the backend's centralized beta_pending/rejected
+  // block (see backend/app/dependencies.py's get_current_user) - checked
+  // once here, in the one place every protected page already routes
+  // through (chat, documents, projects, account, dashboard, ...), rather
+  // than each page remembering to check its own subscription status.
+  // GET /subscription/status is itself the one endpoint reachable in
+  // either blocked state (get_current_user_allow_pending on the backend),
+  // so this call always succeeds even while everything else the page
+  // might go on to call would 403. A super_admin (companyId null) has no
+  // subscription to check.
+  const [statusChecked, setStatusChecked] = useState(false);
+  const [pendingBlocked, setPendingBlocked] = useState(false);
+
+  useEffect(() => {
+    if (loading || !user || user.companyId === null || pathname === "/pending-approval") {
+      setStatusChecked(true);
+      return;
+    }
+    let cancelled = false;
+    setStatusChecked(false);
+    api
+      .get<SubscriptionStatusResponse>("/subscription/status", user.token)
+      .then((data) => {
+        if (cancelled) return;
+        if (data.status === "beta_pending" || data.status === "rejected") {
+          setPendingBlocked(true);
+          router.replace("/pending-approval");
+        } else {
+          setPendingBlocked(false);
+          setStatusChecked(true);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) setStatusChecked(true);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [loading, user, pathname, router]);
+
+  if (loading || !user || !statusChecked || pendingBlocked) {
     return (
       <main style={{ display: "flex", alignItems: "center", justifyContent: "center", minHeight: "100dvh" }}>
         <p className="text-muted">Loading…</p>

@@ -912,7 +912,12 @@ class CompanySubscription(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"), unique=True)
     plan_id: Mapped[int] = mapped_column(ForeignKey("plans.id"))
-    status: Mapped[str] = mapped_column(Text, default="trial")  # 'trial','active','expired','cancelled','suspended'
+    # 'beta_pending','beta','trial','active','expired','cancelled','rejected','suspended'
+    # (suspended is declared but never assigned anywhere - see
+    # dependencies.py/admin.py's approve/reject actions and
+    # KNOWN_DECISIONS.md for why a rejected beta signup got its own
+    # 'rejected' value instead of reusing this one)
+    status: Mapped[str] = mapped_column(Text, default="trial")
     # Can diverge from the plan's own default billing_cycle - a company on
     # the Professional plan can be billed annually even though the plan
     # itself defaults to monthly.
@@ -946,7 +951,7 @@ class SubscriptionEvent(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     company_id: Mapped[int] = mapped_column(ForeignKey("companies.id"))
-    # 'plan_assigned' | 'trial_extended' | 'cancelled' | 'reactivated' | 'trial_expired'
+    # 'plan_assigned' | 'trial_extended' | 'cancelled' | 'reactivated' | 'trial_expired' | 'beta_approved' | 'beta_rejected'
     event_type: Mapped[str] = mapped_column(Text)
     # NULL from_plan_id only for a brand-new company's very first
     # assignment (there is no prior plan to record). to_plan_id is always

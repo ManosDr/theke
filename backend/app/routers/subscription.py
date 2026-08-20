@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.dependencies import CurrentUser, get_current_user
+from app.dependencies import CurrentUser, get_current_user, get_current_user_allow_pending
 from app.models import Company, Plan, User
 from app.schemas import SubscriptionStatusResponse
 from app.services.notifications import notify_super_admins
@@ -23,12 +23,19 @@ router = APIRouter(prefix="/subscription", tags=["subscription"])
 @router.get("/status", response_model=SubscriptionStatusResponse)
 async def subscription_status(
     db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
+    user: CurrentUser = Depends(get_current_user_allow_pending),
 ) -> SubscriptionStatusResponse:
     """Backs the trial banner and usage displays across the frontend
     (chat header, Account page, company admin Συνδρομή tab) - one call,
     same shape everywhere. super_admin has no company_id, so this 404s
-    for that role rather than pretending a subscription exists."""
+    for that role rather than pretending a subscription exists.
+
+    Deliberately the ONE endpoint exempted from the centralized
+    beta_pending block (get_current_user_allow_pending, not
+    get_current_user - see dependencies.py) - the frontend's pending-
+    approval screen needs exactly this call to show real status and detect
+    approval by polling, and nothing else should be reachable in that
+    state. Every other endpoint in the app keeps using get_current_user."""
     if user.company_id is None:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="No company associated with this user")
     company = db.get(Company, user.company_id)

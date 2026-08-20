@@ -119,6 +119,7 @@ from app.schemas import (
     RegionDiscoverySettingsSummary,
     RegionDiscoverySettingsUpdateRequest,
     RegionRequestSummary,
+    RejectBetaSignupRequest,
     RevalidateAllResponse,
     RevalidationStatusResponse,
     RoleChangeRequest,
@@ -157,7 +158,7 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
-from app.services.email import send_company_less_invite_email, send_invite_email, send_test_email
+from app.services.email import send_beta_approved_email, send_company_less_invite_email, send_invite_email, send_test_email
 from app.services.email_templates import (
     ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
     TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
@@ -179,11 +180,17 @@ _FREQUENCY_DAYS = {"daily": 1, "weekly": 7, "monthly": 30}
 router = APIRouter(prefix="/admin", tags=["admin"])
 
 
-def _to_company_summary(db: Session, c: Company, vertical_slugs: dict[int, str]) -> CompanySummary:
+def _to_company_summary(
+    db: Session, c: Company, vertical_slugs: dict[int, str], sub_statuses: dict[int, str] | None = None
+) -> CompanySummary:
     users_count = db.scalar(
         select(func.count()).select_from(User).where(User.company_id == c.id, User.is_active.is_(True))
     ) or 0
     projects_count = db.scalar(select(func.count()).select_from(Project).where(Project.company_id == c.id)) or 0
+    if sub_statuses is None:
+        sub_statuses = {
+            row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
+        }
     return CompanySummary(
         id=c.id,
         name=c.name,
@@ -195,6 +202,7 @@ def _to_company_summary(db: Session, c: Company, vertical_slugs: dict[int, str])
         vertical_slug=vertical_slugs.get(c.vertical_id),
         active_users_count=users_count,
         active_projects_count=projects_count,
+        subscription_status=sub_statuses.get(c.id),
     )
 
 
@@ -206,11 +214,14 @@ async def list_companies(
 ) -> list[CompanySummary]:
     require_super_admin(user)
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    sub_statuses = {
+        row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
+    }
     stmt = select(Company)
     if vertical_id is not None:
         stmt = stmt.where(Company.vertical_id == vertical_id)
     companies = db.scalars(stmt.order_by(Company.created_at.desc())).all()
-    return [_to_company_summary(db, c, vertical_slugs) for c in companies]
+    return [_to_company_summary(db, c, vertical_slugs, sub_statuses) for c in companies]
 
 
 @router.post("/companies/create-with-admin", response_model=CompanyCreateWithAdminResponse, status_code=status.HTTP_201_CREATED)
@@ -307,7 +318,8 @@ async def get_company_detail(
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Company not found")
 
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    summary = _to_company_summary(db, company, vertical_slugs)
+    sub_status = db.scalar(select(CompanySubscription.status).where(CompanySubscription.company_id == company.id))
+    summary = _to_company_summary(db, company, vertical_slugs, {company.id: sub_status} if sub_status else {})
 
     users = db.scalars(select(User).where(User.company_id == company.id).order_by(User.email)).all()
     projects = db.scalars(select(Project).where(Project.company_id == company.id).order_by(Project.created_at.desc())).all()
@@ -392,7 +404,8 @@ async def reassign_company_vertical(
     db.commit()
     db.refresh(company)
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
-    return _to_company_summary(db, company, vertical_slugs)
+    sub_status = db.scalar(select(CompanySubscription.status).where(CompanySubscription.company_id == company.id))
+    return _to_company_summary(db, company, vertical_slugs, {company.id: sub_status} if sub_status else {})
 
 
 @router.post("/companies/{company_id}/suspend", status_code=status.HTTP_204_NO_CONTENT)
@@ -439,6 +452,9 @@ async def list_all_users(
     users = db.scalars(select(User)).all()
     companies = {c.id: c for c in db.scalars(select(Company))}
     vertical_slugs = {v.id: v.slug for v in db.scalars(select(Vertical))}
+    sub_statuses = {
+        row[0]: row[1] for row in db.execute(select(CompanySubscription.company_id, CompanySubscription.status))
+    }
 
     since_30d = datetime.utcnow() - timedelta(days=30)
     message_counts: dict[int, int] = {}
@@ -476,6 +492,7 @@ async def list_all_users(
                 if u.company_id in companies
                 else is_demo_seed_email(u.email)
             ),
+            subscription_status=sub_statuses.get(u.company_id) if u.company_id is not None else None,
         )
         for u in users
     ]
@@ -4043,6 +4060,105 @@ async def reactivate_subscription(
         actor_user_id=user.user_id,
         company_id=company_id,
         action="subscription_reactivated",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+    )
+    db.commit()
+    db.refresh(sub)
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.post("/subscriptions/{company_id}/approve-beta", response_model=SubscriptionEntry)
+async def approve_beta_signup(
+    company_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    """Flips a beta_pending signup to beta - the one action that lifts the
+    centralized access block in dependencies.py (get_current_user only
+    blocks 'beta_pending' specifically, so any other status, including this
+    one, is unaffected by that check). 404s the same way _get_subscription_
+    or_404 does for a missing subscription, but rejects any other current
+    status with 409 rather than silently reusing the generic 'assign a
+    plan'/'reactivate' actions - approval is a one-way transition out of
+    beta_pending specifically, not a general status setter."""
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    if sub.status != "beta_pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Company is not pending beta approval (current status: {sub.status})",
+        )
+    from_status = sub.status
+    sub.status = "beta"
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="beta_approved",
+        from_plan_id=sub.plan_id,
+        to_plan_id=sub.plan_id,
+        from_status=from_status,
+        to_status="beta",
+        triggered_by=user.user_id,
+    )
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="beta_signup_approved",
+        resource_type="company_subscription",
+        resource_id=sub.id,
+    )
+    db.commit()
+    db.refresh(sub)
+
+    admin_user = db.scalar(select(User).where(User.company_id == company_id, User.role == "admin"))
+    if admin_user:
+        send_beta_approved_email(db, admin_user.email, company.name)
+
+    return _to_subscription_entry(db, sub, company, plan)
+
+
+@router.post("/subscriptions/{company_id}/reject-beta", response_model=SubscriptionEntry)
+async def reject_beta_signup(
+    company_id: int,
+    payload: RejectBetaSignupRequest | None = None,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SubscriptionEntry:
+    """Flips a beta_pending signup to rejected - a distinct terminal state
+    from suspended (see KNOWN_DECISIONS.md for why), so the existing
+    reactivate action (which targets cancelled/expired/suspended and jumps
+    straight to 'active' with no re-review) can't accidentally undo a
+    rejection. No email is sent - only approval has one, per the original
+    scope of this feature."""
+    require_super_admin(user)
+    sub, company, plan = _get_subscription_or_404(db, company_id)
+    if sub.status != "beta_pending":
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Company is not pending beta approval (current status: {sub.status})",
+        )
+    from_status = sub.status
+    sub.status = "rejected"
+    if payload and payload.reason:
+        sub.notes = payload.reason
+    record_subscription_event(
+        db,
+        company_id=company_id,
+        event_type="beta_rejected",
+        from_plan_id=sub.plan_id,
+        to_plan_id=sub.plan_id,
+        from_status=from_status,
+        to_status="rejected",
+        triggered_by=user.user_id,
+        reason=payload.reason if payload else None,
+    )
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=company_id,
+        action="beta_signup_rejected",
         resource_type="company_subscription",
         resource_id=sub.id,
     )

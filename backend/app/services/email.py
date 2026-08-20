@@ -393,6 +393,39 @@ def send_welcome_email(db: Session, to_email: str, vertical_slug: str) -> bool:
     return _send(to_email, subject, html_content, text)
 
 
+def send_beta_approved_email(db: Session, to_email: str, company_name: str) -> bool:
+    """Fires once, from admin.py's approve_beta_signup - the real "you're
+    in" moment for a self-serve signup that landed on beta_pending and had
+    no functional access until now (see dependencies.py's centralized
+    block). Deliberately separate from send_welcome_email, which is skipped
+    entirely for a beta_pending registration (see auth.py's register()) -
+    that email's "ask your first question" framing would be actively wrong
+    to send before this approval exists."""
+    row = get_template(db, "beta_approved")
+    if row is None:
+        logger.error("Email template 'beta_approved' missing from email_templates - skipping send")
+        return False
+
+    dashboard_url = f"{settings.frontend_url}/dashboard"
+    variables = {
+        "company_name": company_name,
+        "dashboard_button_html": _button_html(dashboard_url, "Μεταβείτε στο dashboard"),
+        "dashboard_button_html_en": _button_html(dashboard_url, "Go to dashboard"),
+    }
+
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
+    return _send(to_email, subject, html_content, text)
+
+
 def send_password_reset_email(db: Session, to_email: str, reset_url: str) -> bool:
     """Sends a password-reset email via Resend. Returns True on success,
     False if email is disabled or the send fails - never raises, so the
@@ -501,6 +534,13 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             "questions_html_en": _questions_html(_VERTICAL_QUESTIONS_EN["construction"]),
             "chat_button_html": _button_html(f"{settings.frontend_url}/chat", "Κάντε την πρώτη σας ερώτηση"),
             "chat_button_html_en": _button_html(f"{settings.frontend_url}/chat", "Ask your first question"),
+        }
+    if template_key == "beta_approved":
+        dashboard_url = f"{settings.frontend_url}/dashboard"
+        return {
+            "company_name": "Δοκιμαστική Εταιρεία ΑΕ",
+            "dashboard_button_html": _button_html(dashboard_url, "Μεταβείτε στο dashboard"),
+            "dashboard_button_html_en": _button_html(dashboard_url, "Go to dashboard"),
         }
     if template_key == "email_verification":
         expiry_days = settings.email_verification_token_expire_minutes // 1440

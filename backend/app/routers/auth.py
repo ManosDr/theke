@@ -30,6 +30,7 @@ from app.services.audit import log_action
 from app.services.email import send_password_reset_email, send_verification_email, send_welcome_email
 from app.services.notifications import notify, notify_super_admins
 from app.services.rate_limit import record_login_failure, reset_login_failures, seconds_until_login_unlocked
+from app.services.subscription import create_registration_subscription
 
 logger = logging.getLogger(__name__)
 
@@ -152,6 +153,13 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
     if db.scalar(select(User).where(User.email == payload.email)):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Email already registered")
 
+    # Set only on the self-serve (no invite_token) branch below, to
+    # 'beta_pending' - used after the transaction commits to decide whether
+    # to send the ordinary welcome email (skipped for a pending account
+    # that can't act on it yet - see the approve action's own email
+    # instead) or the notify_super_admins call further down.
+    new_company_status: str | None = None
+
     if bool(payload.invite_token) == bool(payload.company_name):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
@@ -205,6 +213,12 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
             # companies.py's recent_invites query), exactly like any other
             # invite - not left dangling at NULL now that a company exists.
             invite.company_id = company.id
+            # 'beta', not 'beta_pending' - this person was invited by
+            # someone who already vetted them personally, unlike a self-
+            # serve signup nobody has looked at yet (see the self-serve
+            # branch below). Immediate full access, same as it's always
+            # been for invite-based registration.
+            create_registration_subscription(db, company, status="beta")
         else:
             company = db.get(Company, invite.company_id)
 
@@ -283,6 +297,22 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         db.add(company)
         db.flush()
         role = "admin"
+        # 'beta_pending' - open self-serve signups are gated behind a real
+        # super_admin approval (see dependencies.py's centralized block and
+        # admin.py's approve/reject actions), unlike an invite: nobody has
+        # personally vetted this signup yet. Phase 3 will branch this on
+        # the "beta ended" platform flag once that exists (post-launch
+        # self-serve should land on 'trial' instead, with no approval
+        # gate) - always 'beta_pending' for now.
+        new_company_status = "beta_pending"
+        create_registration_subscription(db, company, status=new_company_status)
+        notify_super_admins(
+            db,
+            type="self_serve_registered",
+            title="New self-serve signup awaiting approval",
+            body=f'{payload.email} registered "{company.name}" and is pending beta approval.',
+            link=f"/admin/companies?company={company.id}",
+        )
 
     # Self-serve (company_name path) registrations start unverified and get
     # a real verification email below, once the row has an id to send it
@@ -327,10 +357,15 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
 
     # Fires for both paths (invite-accepted and self-serve) - company.vertical_id
     # is always set by this point either way (carried over from the inviting
-    # company, or set explicitly above on the new-company path).
-    company_vertical = db.get(Vertical, company.vertical_id)
-    if company_vertical:
-        send_welcome_email(db, user.email, company_vertical.slug)
+    # company, or set explicitly above on the new-company path). Skipped for
+    # a beta_pending signup specifically: "welcome, go ask your first
+    # question" is actively wrong for an account that can't do that yet -
+    # the real "you're in" moment is the approval email
+    # (send_beta_approved_email, admin.py's approve action), not this one.
+    if new_company_status != "beta_pending":
+        company_vertical = db.get(Vertical, company.vertical_id)
+        if company_vertical:
+            send_welcome_email(db, user.email, company_vertical.slug)
 
     if is_self_serve:
         _issue_and_send_verification(db, user)

@@ -18,7 +18,7 @@ from jose import jwt
 from sqlalchemy import select
 
 from app.config import settings
-from app.models import Company, Invite, PasswordResetToken, User, Vertical
+from app.models import Company, CompanySubscription, Invite, PasswordResetToken, User, Vertical
 from app.security import hash_password
 
 from .conftest import DEMO_EMAILS, DEMO_PASSWORD, TEST_CLIENT_IP, cleanup_company, make_company_and_user
@@ -84,6 +84,12 @@ def test_register_new_company(client, db_session):
         assert company is not None
         vertical = db_session.get(Vertical, company.vertical_id)
         assert vertical.slug == "construction"
+        # Phase 2 of the beta/trial rollout: self-serve (no invite_token)
+        # registration lands on beta_pending, not the old lazy trial
+        # default - see auth.py's register()/create_registration_subscription.
+        sub = db_session.scalar(select(CompanySubscription).where(CompanySubscription.company_id == company.id))
+        assert sub is not None
+        assert sub.status == "beta_pending"
     finally:
         from sqlalchemy import text
 
@@ -104,6 +110,16 @@ def test_register_new_company(client, db_session):
             db_session.delete(user)
             db_session.commit()
         if company:
+            # register()'s self-serve branch now eagerly creates a
+            # CompanySubscription row (Phase 2 of the beta/trial rollout -
+            # see auth.py's create_registration_subscription call and
+            # dependencies.py's centralized beta_pending block) instead of
+            # leaving it to the old lazy get_or_create_subscription
+            # fallback - same FK cleanup requirement as the user-side rows
+            # above, or the company delete below 500s on the FK.
+            db_session.execute(text("DELETE FROM subscription_events WHERE company_id = :id"), {"id": company.id})
+            db_session.execute(text("DELETE FROM company_subscriptions WHERE company_id = :id"), {"id": company.id})
+            db_session.commit()
             db_session.delete(company)
             db_session.commit()
 

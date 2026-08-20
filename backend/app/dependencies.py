@@ -2,10 +2,11 @@ from dataclasses import dataclass
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Company, User, Vertical
+from app.models import Company, CompanySubscription, User, Vertical
 from app.security import decode_access_token
 
 bearer_scheme = HTTPBearer()
@@ -26,9 +27,21 @@ class CurrentUser:
     email_verified: bool = True
 
 
-def get_current_user(
-    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
-    db: Session = Depends(get_db),
+# A company in either of these CompanySubscription statuses has no
+# functional access - never approved (beta_pending) or explicitly declined
+# (rejected, see admin.py's reject_beta_signup and KNOWN_DECISIONS.md for
+# why that's a distinct status from beta_pending, not the same one). Every
+# OTHER status (beta, trial, active, even expired/cancelled/suspended,
+# which are handled by check_subscription's 402 at the point of use, not
+# by blocking login/every endpoint outright) keeps ordinary access.
+_NO_ACCESS_STATUSES = {"beta_pending", "rejected"}
+
+
+def _resolve_current_user(
+    credentials: HTTPAuthorizationCredentials,
+    db: Session,
+    *,
+    block_unapproved: bool,
 ) -> CurrentUser:
     try:
         payload = decode_access_token(credentials.credentials)
@@ -50,6 +63,24 @@ def get_current_user(
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Company access suspended")
         company_type = company.type if company else None
 
+        # Every functional endpoint is blocked by default for a company
+        # that was never approved (beta_pending) or was declined
+        # (rejected) - a self-serve signup gets a real login token
+        # immediately (see auth.py's register()), but that token must not
+        # unlock chat/documents/projects/anything else until a super_admin
+        # approves it, and a rejected signup never gains access at all.
+        # block_unapproved=False is the single, deliberate exception (see
+        # get_current_user_allow_pending below), not a per-route opt-out -
+        # every other Depends(get_current_user) call site in the app is
+        # blocked here, uniformly, with no chance to forget the check on a
+        # new endpoint.
+        if block_unapproved and company:
+            sub = db.scalar(
+                select(CompanySubscription.status).where(CompanySubscription.company_id == company.id)
+            )
+            if sub in _NO_ACCESS_STATUSES:
+                raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Account pending approval")
+
     return CurrentUser(
         user_id=user.id,
         company_id=user.company_id,
@@ -58,6 +89,28 @@ def get_current_user(
         preferred_locale=user.preferred_locale,
         email_verified=user.email_verified,
     )
+
+
+def get_current_user(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> CurrentUser:
+    return _resolve_current_user(credentials, db, block_unapproved=True)
+
+
+def get_current_user_allow_pending(
+    credentials: HTTPAuthorizationCredentials = Depends(bearer_scheme),
+    db: Session = Depends(get_db),
+) -> CurrentUser:
+    """Identical to get_current_user, except a beta_pending or rejected
+    company is let through instead of 403ing. The ONE deliberate exception
+    to the block (see _resolve_current_user) - reserved for the single
+    endpoint (GET /subscription/status) the pending-approval screen needs
+    to reach in order to show its own status (pending OR declined) and
+    poll for approval, since that screen has to be reachable precisely in
+    the states everything else blocks. No other endpoint should depend on
+    this."""
+    return _resolve_current_user(credentials, db, block_unapproved=False)
 
 
 def get_current_user_optional(

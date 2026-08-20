@@ -7,7 +7,7 @@ bugs, not feature bugs).
 
 from sqlalchemy import select
 
-from app.models import Document, Vertical
+from app.models import CompanySubscription, Document, Plan, Vertical
 from app.services.embeddings import embed_document
 
 from .conftest import cleanup_company, make_company_and_user
@@ -119,3 +119,105 @@ def test_search_returns_only_own_company_docs(client, db_session, construction_v
         db_session.commit()
         cleanup_company(db_session, company_a, user_a, project_a)
         cleanup_company(db_session, company_b, user_b, project_b)
+
+
+# Phase 2 of the beta/trial rollout - the centralized beta_pending block in
+# app/dependencies.py's get_current_user. These three tests exist
+# specifically to prove the block is genuinely centralized (any protected
+# endpoint, not one hand-picked route) and that the one deliberate
+# exception (GET /subscription/status, via get_current_user_allow_pending)
+# stays reachable - see KNOWN_DECISIONS.md and dependencies.py's own
+# docstrings for why this shape was chosen.
+
+
+def _make_company_with_subscription_status(db, *, vertical_id: int, status: str):
+    company, user, project, token = make_company_and_user(db, vertical_id=vertical_id)
+    plan = db.scalar(select(Plan).where(Plan.vertical_id == vertical_id, Plan.is_beta.is_(True)))
+    sub = CompanySubscription(company_id=company.id, plan_id=plan.id, status=status, billing_cycle="monthly")
+    db.add(sub)
+    db.commit()
+    return company, user, project, token
+
+
+def test_beta_pending_blocked_from_chat(client, db_session, construction_vertical_id):
+    """Picks an arbitrary, unrelated protected endpoint (chat history) -
+    the point is that the block lives in get_current_user itself, not in
+    any specific route, so ANY endpoint using it is covered without having
+    to enumerate them all."""
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="beta_pending"
+    )
+    try:
+        resp = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_beta_pending_blocked_from_admin_style_action(client, db_session, construction_vertical_id):
+    """A second, unrelated endpoint (creating a project) - confirms the
+    block isn't specific to read-only routes either."""
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="beta_pending"
+    )
+    try:
+        resp = client.post("/projects", json={"name": "Should be blocked"}, headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_beta_pending_can_still_reach_subscription_status(client, db_session, construction_vertical_id):
+    """The one deliberate exception - GET /subscription/status must stay
+    reachable in the exact state everything else blocks, so the frontend's
+    pending-approval screen can show real status and poll for approval."""
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="beta_pending"
+    )
+    try:
+        resp = client.get("/subscription/status", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "beta_pending"
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_rejected_status_blocked_from_chat(client, db_session, construction_vertical_id):
+    """A declined signup never gains access, same as it never had any -
+    'rejected' is in the same no-access bucket as 'beta_pending', not a
+    status the ordinary access checks let through."""
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="rejected"
+    )
+    try:
+        resp = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 403
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_rejected_can_still_reach_subscription_status(client, db_session, construction_vertical_id):
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="rejected"
+    )
+    try:
+        resp = client.get("/subscription/status", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "rejected"
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_beta_status_not_blocked_from_chat_history(client, db_session, construction_vertical_id):
+    """Negative case for the block itself - an approved 'beta' company (the
+    status a beta_pending signup transitions to on approval) must NOT be
+    blocked, confirming the check is specific to 'beta_pending' and not
+    accidentally matching every non-active status."""
+    company, user, project, token = _make_company_with_subscription_status(
+        db_session, vertical_id=construction_vertical_id, status="beta"
+    )
+    try:
+        resp = client.get("/chat/history", headers={"Authorization": f"Bearer {token}"})
+        assert resp.status_code == 200
+    finally:
+        cleanup_company(db_session, company, user, project)

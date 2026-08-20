@@ -21,6 +21,7 @@ const KEY_LABEL_KEY: Record<EmailTemplateKey, TranslationKey> = {
   password_reset: "adminEmailTemplates.keyPasswordReset",
   email_verification: "adminEmailTemplates.keyEmailVerification",
   invite_no_company: "adminEmailTemplates.keyInviteNoCompany",
+  beta_approved: "adminEmailTemplates.keyBetaApproved",
 };
 
 const TEST_SEND_MESSAGE_KEY: Record<NonNullable<EmailTestSendResponse["reason"]> | "success", TranslationKey> = {

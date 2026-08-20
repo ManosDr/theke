@@ -1567,7 +1567,7 @@ CREATE TABLE IF NOT EXISTS company_subscriptions (
   id                  serial PRIMARY KEY,
   company_id          integer NOT NULL UNIQUE REFERENCES companies(id),
   plan_id             integer NOT NULL REFERENCES plans(id),
-  status              varchar NOT NULL DEFAULT 'trial',  -- 'trial', 'active', 'expired', 'cancelled', 'suspended'
+  status              varchar NOT NULL DEFAULT 'trial',  -- 'beta_pending', 'beta', 'trial', 'active', 'expired', 'cancelled', 'rejected', 'suspended' (suspended declared, never assigned - see KNOWN_DECISIONS.md)
   billing_cycle       varchar NOT NULL DEFAULT 'monthly',
   started_at          timestamp NOT NULL DEFAULT now(),
   trial_ends_at       timestamp,
@@ -1591,13 +1591,13 @@ CREATE TABLE IF NOT EXISTS company_subscriptions (
 CREATE TABLE IF NOT EXISTS subscription_events (
   id                  serial PRIMARY KEY,
   company_id          integer NOT NULL REFERENCES companies(id),
-  event_type          varchar NOT NULL,  -- 'plan_assigned', 'trial_extended', 'cancelled', 'reactivated', 'trial_expired'
+  event_type          varchar NOT NULL,  -- 'plan_assigned', 'trial_extended', 'cancelled', 'reactivated', 'trial_expired', 'beta_approved', 'beta_rejected'
   from_plan_id        integer REFERENCES plans(id),
   to_plan_id          integer NOT NULL REFERENCES plans(id),
   from_status         varchar,
   to_status           varchar NOT NULL,
   triggered_by        integer REFERENCES users(id),  -- NULL for the automatic trial_expired flip (no human actor)
-  reason              text,  -- churn/cancellation reason (Item 3) - only ever set on event_type='cancelled'
+  reason              text,  -- churn/cancellation reason (Item 3), or the beta-rejection reason - only ever set on event_type='cancelled'/'beta_rejected'
   created_at          timestamp NOT NULL DEFAULT now()
 );
 
@@ -2066,7 +2066,7 @@ ON CONFLICT (id) DO NOTHING;
 -- overwritten by a fresh init.sql apply, same discipline as legal_documents.
 CREATE TABLE IF NOT EXISTS email_templates (
   id            serial PRIMARY KEY,
-  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company')),
+  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved')),
   subject_el    text NOT NULL,
   subject_en    text NOT NULL,
   body_el       text NOT NULL,
@@ -2082,7 +2082,7 @@ CREATE TABLE IF NOT EXISTS email_templates (
 -- database).
 ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_check;
 ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
-  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company'));
+  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved'));
 
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
@@ -2168,6 +2168,20 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 {{accept_button_html_en}}
 <p>The link is valid for {{expiry_label_en}}.</p>
 <p>Questions? Write to us at {{email_from}}.</p>'
+),
+('beta_approved',
+ 'Εγκρίθηκε ο λογαριασμός σας στο theke',
+ 'Your theke account has been approved',
+ '<p>Γεια σας,</p>
+<p>Ο λογαριασμός της <b>{{company_name}}</b> στο theke εγκρίθηκε και έχετε πλέον πλήρη πρόσβαση.</p>
+<p>Μπορείτε να συνδεθείτε και να ξεκινήσετε αμέσως.</p>
+{{dashboard_button_html}}
+<p>Με εκτίμηση,<br>theke</p>',
+ '<p>Hello,</p>
+<p><b>{{company_name}}</b>''s theke account has been approved and now has full access.</p>
+<p>You can sign in and get started right away.</p>
+{{dashboard_button_html_en}}
+<p>theke</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 

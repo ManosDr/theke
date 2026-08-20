@@ -213,6 +213,12 @@ def cleanup_company(db, company: Company, user: User, project: Project | None = 
     # was created inside a request handler's own session), so clear both by
     # company_id before deleting the company or its FK blocks the delete.
     db.execute(text("DELETE FROM subscription_usage WHERE company_id = :cid"), {"cid": company.id})
+    # subscription_events (Phase 2 of the beta/trial rollout, and any other
+    # test that hits assign_plan/extend_trial/cancel/reactivate/approve-beta/
+    # reject-beta) is append-only and references company_id directly -
+    # must go before company_subscriptions/the company delete below or it
+    # blocks the FK the same way company_subscriptions itself does.
+    db.execute(text("DELETE FROM subscription_events WHERE company_id = :cid"), {"cid": company.id})
     db.execute(text("DELETE FROM company_subscriptions WHERE company_id = :cid"), {"cid": company.id})
     db.commit()
     if project:

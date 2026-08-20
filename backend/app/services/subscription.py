@@ -71,6 +71,31 @@ def get_or_create_subscription(db: Session, company: Company) -> CompanySubscrip
     return sub
 
 
+def create_registration_subscription(db: Session, company: Company, status: str) -> CompanySubscription:
+    """Eagerly creates the CompanySubscription row at registration time, for
+    the two account-status states a brand-new company can start in:
+    'beta_pending' (self-serve, awaiting approval) or 'beta' (invite-based,
+    already vetted by whoever sent the invite). Bypasses
+    get_or_create_subscription's lazy 'trial' fallback entirely - that
+    function's default is for pre-existing companies and any other creation
+    path that never calls this one, not for a brand-new self-serve/invite
+    signup, which must land in one of these two real states from the moment
+    its company exists, not the moment someone first calls
+    GET /subscription/status. No trial_ends_at is set for either status -
+    beta has no expiration by design (see the Phase 2 rollout notes)."""
+    beta_plan = db.scalar(select(Plan).where(Plan.vertical_id == company.vertical_id, Plan.is_beta.is_(True)))
+    if not beta_plan:
+        beta_plan = db.scalar(select(Plan).where(Plan.is_beta.is_(True)))
+    sub = CompanySubscription(
+        company_id=company.id,
+        plan_id=beta_plan.id,
+        status=status,
+        billing_cycle="monthly",
+    )
+    db.add(sub)
+    return sub
+
+
 def record_subscription_event(
     db: Session,
     *,

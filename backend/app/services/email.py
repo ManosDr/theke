@@ -426,6 +426,40 @@ def send_beta_approved_email(db: Session, to_email: str, company_name: str) -> b
     return _send(to_email, subject, html_content, text)
 
 
+def send_gap_source_found_email(db: Session, to_email: str, question: str, answer_text: str) -> bool:
+    """Fires once, from the "Ενημέρωση χρήστη" gap-discovery action (POST
+    /admin/gap-source-candidates/{id}/notify-user) - closes the loop with
+    the specific user whose question the chat couldn't confidently answer,
+    now that a confirmed source covers it. answer_text is the same
+    generated-answer text also inserted as a real ChatSession row in their
+    history (see admin.py) - this email is the passive-awareness echo of
+    that, not a separate generation."""
+    row = get_template(db, "gap_source_found")
+    if row is None:
+        logger.error("Email template 'gap_source_found' missing from email_templates - skipping send")
+        return False
+
+    chat_url = f"{settings.frontend_url}/chat"
+    variables = {
+        "question": question,
+        "answer_html": answer_text.replace("\n", "<br>"),
+        "chat_button_html": _button_html(chat_url, "Δείτε την απάντηση"),
+        "chat_button_html_en": _button_html(chat_url, "See the answer"),
+    }
+
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
+    return _send(to_email, subject, html_content, text)
+
+
 def send_password_reset_email(db: Session, to_email: str, reset_url: str) -> bool:
     """Sends a password-reset email via Resend. Returns True on success,
     False if email is disabled or the send fails - never raises, so the
@@ -541,6 +575,14 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             "company_name": "Δοκιμαστική Εταιρεία ΑΕ",
             "dashboard_button_html": _button_html(dashboard_url, "Μεταβείτε στο dashboard"),
             "dashboard_button_html_en": _button_html(dashboard_url, "Go to dashboard"),
+        }
+    if template_key == "gap_source_found":
+        chat_url = f"{settings.frontend_url}/chat"
+        return {
+            "question": "Ποιος είναι ο συντελεστής δόμησης εντός σχεδίου;",
+            "answer_html": "Σύμφωνα με τον Ν. 4067/2012, ο συντελεστής δόμησης καθορίζεται ανά περιοχή...",
+            "chat_button_html": _button_html(chat_url, "Δείτε την απάντηση"),
+            "chat_button_html_en": _button_html(chat_url, "See the answer"),
         }
     if template_key == "email_verification":
         expiry_days = settings.email_verification_token_expire_minutes // 1440

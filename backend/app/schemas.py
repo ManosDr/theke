@@ -274,6 +274,12 @@ class ChatHistoryItem(BaseModel):
     gap: bool | None = None  # NULL for rows written by the older POST /chat
     followups: list[str] = []
     created_at: datetime
+    # 'gap_resolution_notice' marks a system-generated follow-up inserted by
+    # the "Ενημέρωση χρήστη" gap-discovery action (see
+    # POST /admin/gap-source-candidates/{id}/notify-user) rather than a
+    # real user question - the frontend renders it without the usual
+    # question bubble. NULL/other values are ordinary Q&A turns.
+    tool_used: str | None = None
 
 
 class ChatFeedbackRequest(BaseModel):
@@ -1373,6 +1379,47 @@ class GapQueryEntry(BaseModel):
 
 class GapStatusUpdateRequest(BaseModel):
     addressed: bool
+
+
+class GapSourceCandidateEntry(BaseModel):
+    id: int
+    chat_session_id: int
+    question: str
+    candidate_title: str | None
+    candidate_content: str | None
+    source_url: str
+    authority: str | None
+    confidence: str | None
+    discovered_at: datetime
+    status: str
+    review_note: str | None
+    document_id: int | None
+    notified_at: datetime | None
+
+
+class GapDiscoveryResult(BaseModel):
+    # None when the search genuinely found nothing citable in the allowed
+    # authoritative domains - a real, expected outcome, not an error.
+    candidate: GapSourceCandidateEntry | None
+
+
+class GapSourceCandidateConfirmRequest(BaseModel):
+    # The frontend always sends the full current (possibly-edited) field
+    # state, same discipline as RegionContactCandidateConfirmRequest - no
+    # partial-override fallback to the original discovered values.
+    title: str = Field(min_length=1)
+    content: str = Field(min_length=1)
+    source_url: str = Field(min_length=1)
+    authority: str | None = None
+
+
+class GapSourceCandidateRejectRequest(BaseModel):
+    review_note: str | None = None
+
+
+class GapSourceNotifyResult(BaseModel):
+    notified_at: datetime
+    chat_session_id: int
 
 
 class InternalChatActivityEntry(BaseModel):

@@ -1326,6 +1326,7 @@ async def chat_history(
             gap=row.gap,
             followups=row.followups or [],
             created_at=row.created_at,
+            tool_used=row.tool_used,
         )
         for row in reversed(rows)
     ]

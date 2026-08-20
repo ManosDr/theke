@@ -1,3 +1,44 @@
+.candidateList {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+.candidateCard {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  padding: var(--space-3) var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.candidateHeader {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.candidateQuestion {
+  font-weight: 600;
+  margin: 0;
+}
+
+.candidateField {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-text-muted);
+}
+
+.candidateField textarea {
+  font-family: inherit;
+  resize: vertical;
+}
+
 .scopeChip {
   display: inline-flex;
   align-items: center;

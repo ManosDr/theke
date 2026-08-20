@@ -19,7 +19,15 @@ from sqlalchemy.orm import Session
 
 from app.models import EmailTemplate
 
-TEMPLATE_KEYS = ("invite", "welcome", "password_reset", "email_verification", "invite_no_company", "beta_approved")
+TEMPLATE_KEYS = (
+    "invite",
+    "welcome",
+    "password_reset",
+    "email_verification",
+    "invite_no_company",
+    "beta_approved",
+    "gap_source_found",
+)
 
 # Union of variable names the send code may substitute into ANY of a
 # template's four fields (subject_el/en, body_el/en) - not split per-field,
@@ -80,6 +88,12 @@ ALLOWED_VARIABLES: dict[str, set[str]] = {
         "company_name",
         "dashboard_button_html",
         "dashboard_button_html_en",
+    },
+    "gap_source_found": {
+        "question",
+        "answer_html",
+        "chat_button_html",
+        "chat_button_html_en",
     },
 }
 

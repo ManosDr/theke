@@ -784,7 +784,9 @@ CREATE TABLE IF NOT EXISTS notifications (
     user_id INT NOT NULL REFERENCES users(id),
     type VARCHAR NOT NULL,   -- 'new_documents', 'municipality_content', 'invite_accepted',
                               -- 'removal_requested', 'removal_decided', 'invite_accepted_platform',
-                              -- 'self_serve_registered' (Phase 5 of the beta/trial rollout)
+                              -- 'self_serve_registered' (Phase 5 of the beta/trial rollout),
+                              -- 'gap_source_found' (gap-triggered source discovery - a regular
+                              -- user's original gap now has a confirmed answer)
     title VARCHAR NOT NULL,
     body TEXT,
     link VARCHAR,
@@ -2067,7 +2069,7 @@ ON CONFLICT (id) DO NOTHING;
 -- overwritten by a fresh init.sql apply, same discipline as legal_documents.
 CREATE TABLE IF NOT EXISTS email_templates (
   id            serial PRIMARY KEY,
-  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved')),
+  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found')),
   subject_el    text NOT NULL,
   subject_en    text NOT NULL,
   body_el       text NOT NULL,
@@ -2083,7 +2085,7 @@ CREATE TABLE IF NOT EXISTS email_templates (
 -- database).
 ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_check;
 ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
-  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved'));
+  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found'));
 
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
@@ -2183,6 +2185,22 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p>You can sign in and get started right away.</p>
 {{dashboard_button_html_en}}
 <p>theke</p>'
+),
+('gap_source_found',
+ 'Βρήκαμε πηγή για την ερώτησή σας — theke',
+ 'We found a source for your question — theke',
+ '<p>Γεια σας,</p>
+<p>Δεν είχαμε επαρκή πηγή για μια ερώτησή σας νωρίτερα — τώρα την προσθέσαμε στη βάση γνώσης.</p>
+<p><b>Η ερώτησή σας:</b> {{question}}</p>
+<p><b>Η απάντηση:</b><br>{{answer_html}}</p>
+{{chat_button_html}}
+<p>Ευχαριστούμε για την υπομονή σας.<br>theke</p>',
+ '<p>Hello,</p>
+<p>We didn''t have enough of a source for one of your questions earlier — we''ve now added it to the knowledge base.</p>
+<p><b>Your question:</b> {{question}}</p>
+<p><b>The answer:</b><br>{{answer_html}}</p>
+{{chat_button_html_en}}
+<p>Thank you for your patience.<br>theke</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 
@@ -2463,3 +2481,38 @@ ALTER TABLE chat_sessions ADD COLUMN IF NOT EXISTS gap_addressed_by integer REFE
 -- workspace above. See backend/app/services/weekly_digest.py and
 -- crawler/crawler/weekly_digest.py's _compute_stats/_fetch_stats.
 ALTER TABLE weekly_digests ADD COLUMN IF NOT EXISTS new_gaps integer NOT NULL DEFAULT 0;
+
+-- Gap-triggered source discovery (see GET/POST /admin/gap-queries/{id}/
+-- discover-source, backend/app/services/gap_discovery.py) - a staged
+-- candidate document a super_admin manually triggered a web search for,
+-- never auto-published. Same Confirm/Edit/Reject review-queue shape as
+-- region_contact_candidates above: status 'pending_review'/'confirmed'/
+-- 'rejected', reviewed_by/reviewed_at set on either resolution. Confirm
+-- creates a real Document row (see document_id) via the same
+-- embed_document() call POST /admin/documents uses - genuinely ingested,
+-- not just staged text. notified_at is set once the "Ενημέρωση χρήστη"
+-- action has actually messaged the original asker - kept separate from
+-- confirming, since KB ingestion and telling the user are two different,
+-- separately-triggered steps.
+CREATE TABLE IF NOT EXISTS gap_source_candidates (
+  id                serial PRIMARY KEY,
+  chat_session_id   integer NOT NULL REFERENCES chat_sessions(id),
+  vertical_id       integer NOT NULL REFERENCES verticals(id),
+  question          text NOT NULL,
+  candidate_title   text,
+  candidate_content text,
+  source_url        text NOT NULL,
+  authority         varchar,
+  confidence        varchar, -- 'medium'/'high' - informational only, not a calibrated probability
+  discovered_at     timestamp NOT NULL DEFAULT now(),
+  status            varchar NOT NULL DEFAULT 'pending_review', -- 'pending_review', 'confirmed', 'rejected'
+  review_note       text,
+  reviewed_by       integer REFERENCES users(id),
+  reviewed_at       timestamp,
+  document_id       integer REFERENCES documents(id),
+  notified_at       timestamp,
+  notified_by       integer REFERENCES users(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_session ON gap_source_candidates(chat_session_id);
+CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_status ON gap_source_candidates(status);

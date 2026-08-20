@@ -77,6 +77,14 @@ interface Message {
   // when a message is added live. Session-separator grouping and "Νέα
   // Εκκίνηση" divider placement both key off this, not off array index.
   createdAt: number;
+  // Set when ChatHistoryItem.tool_used === "gap_resolution_notice" - a
+  // system-generated follow-up inserted by the admin "Ενημέρωση χρήστη"
+  // gap-discovery action (see backend/app/routers/admin.py's
+  // notify_gap_source_user), not a real live Q&A turn. No preceding user
+  // bubble is pushed for these (there was no new question), and the
+  // assistant bubble gets a small label so it doesn't read as a live answer
+  // to something the user just asked.
+  isFollowUpNotice?: boolean;
 }
 
 // Messages, not conversational turns - caps what's sent to the completion
@@ -539,7 +547,10 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
         const restored: Message[] = [];
         for (const item of data.items) {
           const createdAt = new Date(item.created_at).getTime();
-          restored.push({ role: "user", text: item.message, createdAt });
+          const isFollowUpNotice = item.tool_used === "gap_resolution_notice";
+          if (!isFollowUpNotice) {
+            restored.push({ role: "user", text: item.message, createdAt });
+          }
           restored.push({
             role: "assistant",
             text: item.response,
@@ -548,6 +559,7 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
             sessionId: item.id,
             followups: item.followups,
             createdAt,
+            isFollowUpNotice,
           });
         }
         setMessages(restored);
@@ -1291,6 +1303,9 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
                       <SparkleIcon size={15} />
                     </span>
                     <span className={styles.assistantName}>theke</span>
+                    {m.isFollowUpNotice && (
+                      <span className={styles.followUpNoticeTag}>{tUpper("chat.followUpNoticeLabel")}</span>
+                    )}
                     {/* Fires only for this specific answer's own gap signal
                         (the same low-confidence signal the old .gapBadge
                         used) - never a global/page-level indicator. Also

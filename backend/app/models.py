@@ -440,6 +440,39 @@ class RegionContactCandidate(Base):
     reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
+class GapSourceCandidate(Base):
+    """A staged source-document candidate found by the gap-triggered
+    discovery action (backend/app/services/gap_discovery.py, POST
+    /admin/gap-queries/{id}/discover-source) - never read by chat retrieval
+    until a super_admin's Confirm action turns it into a real Document (see
+    document_id, set only then). Same staging-table shape as
+    RegionContactCandidate above, for the same reason: a human reviews
+    before anything goes live."""
+
+    __tablename__ = "gap_source_candidates"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    chat_session_id: Mapped[int] = mapped_column(ForeignKey("chat_sessions.id"))
+    vertical_id: Mapped[int] = mapped_column(ForeignKey("verticals.id"))
+    question: Mapped[str] = mapped_column(Text)
+    candidate_title: Mapped[str | None] = mapped_column(Text)
+    candidate_content: Mapped[str | None] = mapped_column(Text)
+    source_url: Mapped[str] = mapped_column(Text)
+    authority: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[str | None] = mapped_column(Text)
+    discovered_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    status: Mapped[str] = mapped_column(Text, default="pending_review")  # 'pending_review', 'confirmed', 'rejected'
+    review_note: Mapped[str | None] = mapped_column(Text)
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+    document_id: Mapped[int | None] = mapped_column(ForeignKey("documents.id"))
+    # Set only once "Ενημέρωση χρήστη" has actually messaged the original
+    # asker - a separate, later step from confirming (KB ingestion and
+    # telling the user are two different admin-triggered actions).
+    notified_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+
+
 class RegionDiscoverySettings(Base):
     """Singleton row (id always 1), same pattern as SpendAlertThreshold -
     the admin-UI batch runner's cadence preference for region contact

@@ -520,6 +520,7 @@ export interface ChatHistoryItem {
   gap: boolean | null;
   followups: string[];
   created_at: string;
+  tool_used: string | null;
 }
 
 export type FeedbackRating = "positive" | "negative";
@@ -750,6 +751,31 @@ export interface GapQueryEntry {
   created_at: string;
   addressed: boolean;
   addressed_at: string | null;
+}
+
+export interface GapSourceCandidateEntry {
+  id: number;
+  chat_session_id: number;
+  question: string;
+  candidate_title: string | null;
+  candidate_content: string | null;
+  source_url: string;
+  authority: string | null;
+  confidence: string | null;
+  discovered_at: string;
+  status: "pending_review" | "confirmed" | "rejected";
+  review_note: string | null;
+  document_id: number | null;
+  notified_at: string | null;
+}
+
+export interface GapDiscoveryResult {
+  candidate: GapSourceCandidateEntry | null;
+}
+
+export interface GapSourceNotifyResult {
+  notified_at: string;
+  chat_session_id: number;
 }
 
 export interface InternalChatActivityEntry {

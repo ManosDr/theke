@@ -18,8 +18,10 @@ from a dedicated admin surface.
 ## Architecture
 
 - **Backend**: FastAPI (Python), PostgreSQL with the pgvector extension,
-  Redis (rate limiting), OpenAI GPT-4o (chat generation) and
-  text-embedding-3-small (retrieval embeddings)
+  Redis (rate limiting), OpenAI GPT-4o (chat generation), the Responses API's
+  web_search tool restricted to known authoritative domains (admin-triggered
+  gap-source discovery only - see `backend/app/services/gap_discovery.py`),
+  and text-embedding-3-small (retrieval embeddings)
 - **Frontend**: Next.js, bilingual (English/Greek, admin-extensible),
   light/dark theme
 - **Infrastructure**: Docker Compose for local development;

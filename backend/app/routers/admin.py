@@ -23,6 +23,7 @@ from app.models import (
     EmailSettings,
     EmailTemplate,
     Embedding,
+    GapSourceCandidate,
     HelpSection,
     InfraHealthCheck,
     Invite,
@@ -88,7 +89,12 @@ from app.schemas import (
     FeedbackEntry,
     FeedbackListResponse,
     FeedbackStatusUpdateRequest,
+    GapDiscoveryResult,
     GapQueryEntry,
+    GapSourceCandidateConfirmRequest,
+    GapSourceCandidateEntry,
+    GapSourceCandidateRejectRequest,
+    GapSourceNotifyResult,
     GapStatusUpdateRequest,
     HelpSectionAdminDetail,
     HelpSectionAdminSummary,
@@ -161,15 +167,23 @@ def _solo_super_admin_user_ids():
     users is ever deleted. GET /admin/internal-activity is where this
     excluded activity is still visible to a super_admin."""
     return select(User.id).where(User.role == "super_admin", User.company_id.is_(None)).scalar_subquery()
-from app.services.email import send_beta_approved_email, send_company_less_invite_email, send_invite_email, send_test_email
+from app.services.email import (
+    send_beta_approved_email,
+    send_company_less_invite_email,
+    send_gap_source_found_email,
+    send_invite_email,
+    send_test_email,
+)
 from app.services.email_templates import (
     ALLOWED_VARIABLES as EMAIL_TEMPLATE_VARIABLES,
     TEMPLATE_KEYS as EMAIL_TEMPLATE_KEYS,
     find_unknown_placeholders,
 )
 from app.services.embeddings import embed_document
+from app.services.gap_discovery import GapDiscoveryError, discover_source_candidate
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
+from app.services.notifications import notify
 from app.services.platform_settings import get_or_create_platform_settings
 from app.services.politeness import CrawlBlocked, RobotsDisallowed
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
@@ -3639,6 +3653,290 @@ async def update_gap_query_status(
         addressed=row.gap_addressed,
         addressed_at=row.gap_addressed_at,
     )
+
+
+def _to_gap_source_candidate_entry(row: GapSourceCandidate) -> GapSourceCandidateEntry:
+    return GapSourceCandidateEntry(
+        id=row.id,
+        chat_session_id=row.chat_session_id,
+        question=row.question,
+        candidate_title=row.candidate_title,
+        candidate_content=row.candidate_content,
+        source_url=row.source_url,
+        authority=row.authority,
+        confidence=row.confidence,
+        discovered_at=row.discovered_at,
+        status=row.status,
+        review_note=row.review_note,
+        document_id=row.document_id,
+        notified_at=row.notified_at,
+    )
+
+
+@router.post("/gap-queries/{session_id}/discover-source", response_model=GapDiscoveryResult)
+async def discover_gap_source(
+    session_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapDiscoveryResult:
+    """The "Αναζήτηση πηγής" gap-review-workspace action - a single,
+    admin-triggered web search (see gap_discovery.py) restricted to known
+    authoritative domains for the gap's vertical, looking for a real source
+    that answers the gapped question. Stages a GapSourceCandidate row if
+    something citable was found; never touches the live KB directly - see
+    the confirm action below for the only path that does. Explicitly not a
+    retry loop: calling this again on the same gap runs a fresh search and
+    stages another candidate, it does not resume or dedupe against a prior
+    attempt - repeated manual triggers are a human decision, not automated."""
+    require_super_admin(user)
+    row = db.get(ChatSession, session_id)
+    if not row or not row.gap or row.message is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gap query not found")
+    if row.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Gap has no associated company - cannot determine which vertical to search",
+        )
+    company = db.get(Company, row.company_id)
+    vertical = db.get(Vertical, company.vertical_id) if company else None
+    if not vertical:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not resolve vertical")
+
+    try:
+        result = discover_source_candidate(row.message, vertical.slug)
+    except GapDiscoveryError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"Source search failed: {exc}") from exc
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=row.company_id,
+        action="gap_source_discovery_run",
+        resource_type="chat_session",
+        resource_id=row.id,
+        metadata={"found": result is not None},
+    )
+    if result is None:
+        db.commit()
+        return GapDiscoveryResult(candidate=None)
+
+    candidate = GapSourceCandidate(
+        chat_session_id=row.id,
+        vertical_id=vertical.id,
+        question=row.message,
+        candidate_title=result["title"],
+        candidate_content=result["content"],
+        source_url=result["source_url"],
+        authority=result["authority"],
+        confidence=result["confidence"],
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return GapDiscoveryResult(candidate=_to_gap_source_candidate_entry(candidate))
+
+
+@router.get("/gap-source-candidates", response_model=list[GapSourceCandidateEntry])
+async def list_gap_source_candidates(
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+    status_filter: str = Query("pending_review", alias="status"),
+) -> list[GapSourceCandidateEntry]:
+    """Review queue for gap-triggered source discovery - same
+    Confirm/Edit/Reject shape as GET /admin/region-contact-candidates.
+    Nothing here is live in the KB until Confirm (see below)."""
+    require_super_admin(user)
+    query = select(GapSourceCandidate)
+    if status_filter != "all":
+        query = query.where(GapSourceCandidate.status == status_filter)
+    rows = db.scalars(query.order_by(GapSourceCandidate.discovered_at.desc())).all()
+    return [_to_gap_source_candidate_entry(r) for r in rows]
+
+
+@router.post("/gap-source-candidates/{candidate_id}/confirm", response_model=GapSourceCandidateEntry)
+async def confirm_gap_source_candidate(
+    candidate_id: int,
+    payload: GapSourceCandidateConfirmRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapSourceCandidateEntry:
+    """The only path that turns a staged candidate into a real, citable
+    Document - same embed_document() call POST /admin/documents uses, so
+    this document gets real embeddings and is genuinely retrievable, not
+    just recorded as staged text. Also marks the original gap
+    chat_session addressed (KB content now covers it - see Phase 6's own
+    gap_addressed semantics), independent of whether the user has been
+    told yet (see the separate notify-user action below)."""
+    require_super_admin(user)
+    candidate = db.get(GapSourceCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "pending_review":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate already reviewed")
+
+    was_edited = (
+        payload.title != candidate.candidate_title
+        or payload.content != candidate.candidate_content
+        or payload.source_url != candidate.source_url
+        or payload.authority != candidate.authority
+    )
+
+    doc = Document(
+        title=payload.title,
+        content=payload.content,
+        vertical_id=candidate.vertical_id,
+        source=payload.source_url,
+        authority=payload.authority,
+        content_type="faq",
+        extraction_status="gap_discovery",
+        scope="national",
+        status="active",
+    )
+    db.add(doc)
+    db.flush()
+    embed_document(db, doc)
+
+    candidate.status = "confirmed"
+    candidate.reviewed_by = user.user_id
+    candidate.reviewed_at = datetime.utcnow()
+    candidate.document_id = doc.id
+    if was_edited:
+        candidate.review_note = "Edited before confirming"
+
+    gap_session = db.get(ChatSession, candidate.chat_session_id)
+    if gap_session:
+        gap_session.gap_addressed = True
+        gap_session.gap_addressed_at = datetime.utcnow()
+        gap_session.gap_addressed_by = user.user_id
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="gap_source_candidate_confirmed",
+        resource_type="gap_source_candidate",
+        resource_id=candidate.id,
+        metadata={"document_id": doc.id},
+    )
+    db.commit()
+    db.refresh(candidate)
+    return _to_gap_source_candidate_entry(candidate)
+
+
+@router.post("/gap-source-candidates/{candidate_id}/reject", response_model=GapSourceCandidateEntry)
+async def reject_gap_source_candidate(
+    candidate_id: int,
+    payload: GapSourceCandidateRejectRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapSourceCandidateEntry:
+    require_super_admin(user)
+    candidate = db.get(GapSourceCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "pending_review":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate already reviewed")
+
+    candidate.status = "rejected"
+    candidate.reviewed_by = user.user_id
+    candidate.reviewed_at = datetime.utcnow()
+    candidate.review_note = payload.review_note
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="gap_source_candidate_rejected",
+        resource_type="gap_source_candidate",
+        resource_id=candidate.id,
+    )
+    db.commit()
+    db.refresh(candidate)
+    return _to_gap_source_candidate_entry(candidate)
+
+
+@router.post("/gap-source-candidates/{candidate_id}/notify-user", response_model=GapSourceNotifyResult)
+async def notify_gap_source_user(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapSourceNotifyResult:
+    """"Ενημέρωση χρήστη" - only available once a candidate is confirmed
+    (real Document, real embeddings). Inserts a real ChatSession row into
+    the original asker's own history (tool_used='gap_resolution_notice', so
+    the frontend renders it as a follow-up notice rather than a fresh
+    empty-question turn - see ChatHistoryItem's own comment), sends a
+    real in-app notification, and a real email. A separate, later step from
+    Confirm on purpose: KB ingestion and telling the user are two different
+    admin-triggered actions, not one."""
+    require_super_admin(user)
+    candidate = db.get(GapSourceCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "confirmed" or candidate.document_id is None:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate is not confirmed yet")
+    if candidate.notified_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already notified for this candidate")
+
+    gap_session = db.get(ChatSession, candidate.chat_session_id)
+    if not gap_session or gap_session.user_id is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Original gap session or asker not found")
+    asker = db.get(User, gap_session.user_id)
+    if not asker:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Original asker not found")
+    doc = db.get(Document, candidate.document_id)
+
+    answer_text = (
+        "Δεν είχαμε επαρκή πηγή για την ερώτησή σας νωρίτερα - τώρα την προσθέσαμε. "
+        f"Ορίστε η απάντηση: {candidate.candidate_content}\n\n"
+        "Ευχαριστούμε για την υπομονή σας."
+    )
+    follow_up = ChatSession(
+        company_id=gap_session.company_id,
+        user_id=gap_session.user_id,
+        project_id=gap_session.project_id,
+        message=None,
+        response=answer_text,
+        tool_used="gap_resolution_notice",
+        citations=[
+            {
+                "document_id": doc.id,
+                "title": doc.title,
+                "authority": doc.authority,
+                "source_url": doc.source,
+                "extraction_status": doc.extraction_status,
+            }
+        ]
+        if doc
+        else [],
+        gap=False,
+    )
+    db.add(follow_up)
+
+    notify(
+        db,
+        user_id=asker.id,
+        type="gap_source_found",
+        title="Βρήκαμε πηγή για την ερώτησή σας",
+        body=candidate.question,
+        link="/chat",
+    )
+    send_gap_source_found_email(db, asker.email, candidate.question, answer_text)
+
+    candidate.notified_at = datetime.utcnow()
+    candidate.notified_by = user.user_id
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=gap_session.company_id,
+        action="gap_source_user_notified",
+        resource_type="gap_source_candidate",
+        resource_id=candidate.id,
+        metadata={"notified_user_id": asker.id},
+    )
+    db.commit()
+    return GapSourceNotifyResult(notified_at=candidate.notified_at, chat_session_id=follow_up.id)
 
 
 @router.get("/internal-activity", response_model=InternalActivityResponse)

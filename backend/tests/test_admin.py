@@ -17,9 +17,9 @@ the real route is POST (app/routers/admin.py), used below.
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import select, text
 
-from app.models import ChatSession, CompanySubscription, Invite, Plan
+from app.models import ChatSession, CompanySubscription, GapSourceCandidate, Invite, Notification, Plan
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -354,6 +354,243 @@ def test_update_gap_query_status_marks_addressed_and_reverts(
 def test_update_gap_query_status_not_found(client, superadmin_headers):
     resp = client.patch("/admin/gap-queries/99999999", json={"addressed": True}, headers=superadmin_headers)
     assert resp.status_code == 404
+
+
+def _cleanup_gap_source_candidate(db, candidate_id: int) -> None:
+    candidate = db.get(GapSourceCandidate, candidate_id)
+    if not candidate:
+        return
+    doc_id = candidate.document_id
+    db.delete(candidate)
+    db.commit()
+    if doc_id:
+        db.execute(text("DELETE FROM embeddings WHERE document_id = :id"), {"id": doc_id})
+        db.execute(text("DELETE FROM documents WHERE id = :id"), {"id": doc_id})
+        db.commit()
+
+
+def test_discover_gap_source_stages_candidate(
+    client, db_session, superadmin_headers, construction_vertical_id, monkeypatch
+):
+    """POST /admin/gap-queries/{id}/discover-source stages a candidate when
+    the (mocked - a real web_search call is too slow/flaky/costly for an
+    automated unit test, see gap_discovery.py's own module docstring for why
+    this is a manual, human-reviewed action rather than an automated retry
+    loop) search finds something - and never touches the live KB itself."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Ποιος ο ΦΠΑ σε ΙΚΕ;")
+
+    import app.routers.admin as admin_module
+
+    monkeypatch.setattr(
+        admin_module,
+        "discover_source_candidate",
+        lambda question, vertical_slug: {
+            "title": "Mock law title",
+            "content": "Mock answer content citing the mock law.",
+            "source_url": "https://www.e-nomothesia.gr/mock-law.html",
+            "authority": "other",
+            "confidence": "medium",
+        },
+    )
+    candidate_id = None
+    try:
+        resp = client.post(f"/admin/gap-queries/{session.id}/discover-source", headers=superadmin_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["candidate"] is not None
+        candidate_id = body["candidate"]["id"]
+        assert body["candidate"]["source_url"] == "https://www.e-nomothesia.gr/mock-law.html"
+        assert body["candidate"]["status"] == "pending_review"
+        assert body["candidate"]["document_id"] is None
+
+        listed = client.get("/admin/gap-source-candidates?status=pending_review", headers=superadmin_headers)
+        assert listed.status_code == 200
+        assert any(c["id"] == candidate_id for c in listed.json())
+    finally:
+        if candidate_id:
+            _cleanup_gap_source_candidate(db_session, candidate_id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_discover_gap_source_no_result(client, db_session, superadmin_headers, construction_vertical_id, monkeypatch):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Some unanswered question")
+
+    import app.routers.admin as admin_module
+
+    monkeypatch.setattr(admin_module, "discover_source_candidate", lambda question, vertical_slug: None)
+    try:
+        resp = client.post(f"/admin/gap-queries/{session.id}/discover-source", headers=superadmin_headers)
+        assert resp.status_code == 200
+        assert resp.json()["candidate"] is None
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
+def test_discover_gap_source_requires_company(client, db_session, superadmin_headers):
+    """A gap session with no company_id has no vertical to search against -
+    422, not a silent guess."""
+    session = ChatSession(company_id=None, user_id=None, message="orphan gap", gap=True)
+    db_session.add(session)
+    db_session.commit()
+    db_session.refresh(session)
+    try:
+        resp = client.post(f"/admin/gap-queries/{session.id}/discover-source", headers=superadmin_headers)
+        assert resp.status_code == 422
+    finally:
+        db_session.delete(session)
+        db_session.commit()
+
+
+def _make_gap_source_candidate(db, *, chat_session_id: int, vertical_id: int, question: str) -> GapSourceCandidate:
+    candidate = GapSourceCandidate(
+        chat_session_id=chat_session_id,
+        vertical_id=vertical_id,
+        question=question,
+        candidate_title="Test candidate title",
+        candidate_content="Test candidate content answering the question.",
+        source_url="https://www.e-nomothesia.gr/test-candidate.html",
+        authority="other",
+        confidence="medium",
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
+def test_confirm_gap_source_candidate_ingests_document_and_marks_gap_addressed(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        resp = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/confirm",
+            json={
+                "title": candidate.candidate_title,
+                "content": candidate.candidate_content,
+                "source_url": candidate.source_url,
+                "authority": candidate.authority,
+            },
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "confirmed"
+        assert body["document_id"] is not None
+
+        db_session.refresh(session)
+        assert session.gap_addressed is True
+        assert session.gap_addressed_by is not None
+
+        # A second confirm on an already-reviewed candidate is rejected, not
+        # a silent no-op or a duplicate document.
+        again = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/confirm",
+            json={"title": "x", "content": "x", "source_url": "https://example.com", "authority": None},
+            headers=superadmin_headers,
+        )
+        assert again.status_code == 400
+    finally:
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_reject_gap_source_candidate(client, db_session, superadmin_headers, construction_vertical_id):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        resp = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/reject",
+            json={"review_note": "Not actually relevant"},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["status"] == "rejected"
+
+        # Notify is blocked on a rejected candidate the same as a pending one.
+        notify_resp = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/notify-user", headers=superadmin_headers
+        )
+        assert notify_resp.status_code == 400
+    finally:
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_notify_gap_source_user_inserts_followup_and_marks_notified(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        confirm = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/confirm",
+            json={
+                "title": candidate.candidate_title,
+                "content": candidate.candidate_content,
+                "source_url": candidate.source_url,
+                "authority": candidate.authority,
+            },
+            headers=superadmin_headers,
+        )
+        assert confirm.status_code == 200
+        db_session.refresh(candidate)
+
+        resp = client.post(f"/admin/gap-source-candidates/{candidate.id}/notify-user", headers=superadmin_headers)
+        assert resp.status_code == 200
+        follow_up_id = resp.json()["chat_session_id"]
+
+        follow_up = db_session.get(ChatSession, follow_up_id)
+        assert follow_up is not None
+        assert follow_up.user_id == user.id
+        assert follow_up.tool_used == "gap_resolution_notice"
+        assert follow_up.message is None
+        assert candidate.candidate_content in follow_up.response
+        assert follow_up.citations and follow_up.citations[0]["document_id"] == candidate.document_id
+
+        notif = db_session.scalar(
+            select(Notification).where(Notification.user_id == user.id, Notification.type == "gap_source_found")
+        )
+        assert notif is not None
+
+        db_session.refresh(candidate)
+        assert candidate.notified_at is not None
+
+        # A second notify on an already-notified candidate is a conflict,
+        # not a duplicate message/email.
+        again = client.post(f"/admin/gap-source-candidates/{candidate.id}/notify-user", headers=superadmin_headers)
+        assert again.status_code == 409
+    finally:
+        db_session.execute(text("DELETE FROM notifications WHERE user_id = :id AND type = 'gap_source_found'"), {"id": user.id})
+        db_session.commit()
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_notify_gap_source_user_requires_confirmed(client, db_session, superadmin_headers, construction_vertical_id):
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        resp = client.post(f"/admin/gap-source-candidates/{candidate.id}/notify-user", headers=superadmin_headers)
+        assert resp.status_code == 400
+    finally:
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
 
 
 def test_invite_info_endpoint(client, db_session, construction_company_id):

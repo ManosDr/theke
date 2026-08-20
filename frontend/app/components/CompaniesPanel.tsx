@@ -46,6 +46,9 @@ export function CompaniesPanel() {
   const searchParams = useSearchParams();
 
   const [tab, setTab] = useState<CompanyTab>("companies");
+  const [search, setSearch] = useState("");
+  const [filterVertical, setFilterVertical] = useState("");
+  const [filterStatus, setFilterStatus] = useState<"" | "active" | "suspended">("");
   const [companies, setCompanies] = useState<CompanySummary[]>([]);
   const [verticals, setVerticals] = useState<VerticalSummary[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,8 +101,23 @@ export function CompaniesPanel() {
     return tab === "municipalities" ? c.type === "municipality" : c.type !== "municipality";
   });
 
+  const hasFilters = Boolean(search || filterVertical || filterStatus);
+  function clearFilters() {
+    setSearch("");
+    setFilterVertical("");
+    setFilterStatus("");
+  }
+
+  const filteredCompanies = visibleCompanies.filter((c) => {
+    if (search && !c.name.toLowerCase().includes(search.toLowerCase())) return false;
+    if (filterVertical && c.vertical_slug !== filterVertical) return false;
+    if (filterStatus === "active" && c.is_suspended) return false;
+    if (filterStatus === "suspended" && !c.is_suspended) return false;
+    return true;
+  });
+
   const { sorted: sortedCompanies, sortColumn, sortDirection, toggleSort } = useSortableData(
-    visibleCompanies,
+    filteredCompanies,
     (c, column) => {
       switch (column) {
         case "name":
@@ -184,6 +202,41 @@ export function CompaniesPanel() {
         </button>
       </div>
 
+      <div className={`card ${styles.filterBar}`} style={{ marginTop: "var(--space-4)" }}>
+        <input
+          className={`input ${styles.searchInput}`}
+          type="text"
+          placeholder={t("companies.searchPlaceholder")}
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+
+        <select className={`input ${styles.filterSelect}`} value={filterVertical} onChange={(e) => setFilterVertical(e.target.value)}>
+          <option value="">{t("docs.filterVertical")}</option>
+          {verticals.map((v) => (
+            <option key={v.id} value={v.slug}>
+              {t(`vertical.${v.slug}` as TranslationKey)}
+            </option>
+          ))}
+        </select>
+
+        <select
+          className={`input ${styles.filterSelect}`}
+          value={filterStatus}
+          onChange={(e) => setFilterStatus(e.target.value as "" | "active" | "suspended")}
+        >
+          <option value="">{t("docs.filterStatus")}</option>
+          <option value="active">{t("companies.statusActive")}</option>
+          <option value="suspended">{t("companies.statusSuspended")}</option>
+        </select>
+
+        {hasFilters && (
+          <button type="button" className={styles.clearFilters} onClick={clearFilters}>
+            {t("docs.clearFilters")}
+          </button>
+        )}
+      </div>
+
       <section className={`card ${dashStyles.section}`}>
         {visibleCompanies.length === 0 ? (
           <p className={dashStyles.emptyState}>
@@ -193,6 +246,8 @@ export function CompaniesPanel() {
                 ? t("companies.emptyDemo")
                 : t("companies.empty")}
           </p>
+        ) : sortedCompanies.length === 0 ? (
+          <p className={dashStyles.emptyState}>{t("chat.context.noResults")}</p>
         ) : (
           <table className={dashStyles.table}>
             <thead>

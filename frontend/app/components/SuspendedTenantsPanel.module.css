@@ -1,0 +1,30 @@
+.filterBar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.searchInput {
+  flex: 1;
+  min-width: 200px;
+}
+
+.filterSelect {
+  flex: 0 1 auto;
+  width: auto;
+  min-width: 140px;
+  max-width: 190px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.clearFilters {
+  border: none;
+  background: none;
+  color: var(--color-link);
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 0;
+}

@@ -48,6 +48,14 @@ class Settings(BaseSettings):
     embedding_model: str = "text-embedding-3-small"
     chat_model: str = "gpt-4o"
 
+    # Forward-proxy URL for crawl/document-fetch traffic only (see
+    # app/services/politeness.py, crawler/crawler/config.py's identical
+    # CRAWLER_PROXY_URL, and KNOWN_DECISIONS.md's "Crawler egress
+    # decoupling" runbook) - never applied to openai_api_key/resend_api_key
+    # calls, which use their own SDKs unrelated to PoliteFetcher. Empty by
+    # default: unset means fetch directly, today's unchanged behavior.
+    crawler_proxy_url: str = ""
+
     # Published per-1K-token pricing, USD - used only to estimate
     # chat_sessions.estimated_cost_eur for the admin usage screens (see
     # app/routers/chat.py's _log_session). Not billing-accurate: OpenAI's

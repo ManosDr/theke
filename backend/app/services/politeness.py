@@ -14,6 +14,11 @@ own - a wholly separate HTTP call path from the crawler package's now-
 protected one, and the exact kind of unthrottled sequential-request
 pattern that got the crawler's IP banned by e-nomothesia.gr's Elxis CMS
 (see KNOWN_DECISIONS.md, "Crawler politeness controls").
+
+Also routes through settings.crawler_proxy_url when set, same as the
+crawler package's own PoliteFetcher - the admin-triggered "Sync now"/
+revalidate path was flagged as a known gap in the original egress-
+decoupling runbook (see KNOWN_DECISIONS.md) and closed here.
 """
 
 import asyncio
@@ -30,6 +35,8 @@ from theke_shared.politeness_shared import (
     CrawlBlocked,
     RobotsDisallowed,
 )
+
+from app.config import settings
 
 REQUEST_TIMEOUT = 30.0
 ROBOTS_TIMEOUT = 10.0
@@ -52,18 +59,28 @@ class PoliteFetcher:
     below). Tracks per-host last-request-time and cached robots.txt so
     repeated admin-triggered syncs against the same host stay spaced out."""
 
-    def __init__(self, min_delay: float = DEFAULT_MIN_DELAY_SECONDS, user_agent: str = USER_AGENT):
+    def __init__(
+        self,
+        min_delay: float = DEFAULT_MIN_DELAY_SECONDS,
+        user_agent: str = USER_AGENT,
+        proxy_url: str | None = None,
+    ):
         self.min_delay = min_delay
         self.user_agent = user_agent
         self._last_request_at: dict[str, float] = {}
         self._robots_cache: dict[str, urllib.robotparser.RobotFileParser | None] = {}
+        # Falls back to settings.crawler_proxy_url (read lazily here, not as
+        # a mutable default argument) so DEFAULT_FETCHER below picks up
+        # whatever's configured at import time - None/"" means "no proxy",
+        # today's direct-connection behavior, unchanged.
+        self.proxy_url = proxy_url if proxy_url is not None else (settings.crawler_proxy_url or None)
 
     async def _robots_for(self, host: str, scheme: str) -> urllib.robotparser.RobotFileParser | None:
         if host in self._robots_cache:
             return self._robots_cache[host]
         rfp = urllib.robotparser.RobotFileParser()
         try:
-            async with httpx.AsyncClient(timeout=ROBOTS_TIMEOUT) as client:
+            async with httpx.AsyncClient(timeout=ROBOTS_TIMEOUT, proxy=self.proxy_url) as client:
                 resp = await client.get(f"{scheme}://{host}/robots.txt", headers={"User-Agent": self.user_agent})
             # A 4xx/5xx robots.txt is treated as "no restrictions stated" -
             # the conventional crawler default.
@@ -139,7 +156,7 @@ class PoliteFetcher:
         headers.setdefault("User-Agent", self.user_agent)
         follow_redirects = kwargs.pop("follow_redirects", True)
         try:
-            async with httpx.AsyncClient(follow_redirects=follow_redirects) as client:
+            async with httpx.AsyncClient(follow_redirects=follow_redirects, proxy=self.proxy_url) as client:
                 resp = await client.get(url, headers=headers, **kwargs)
         finally:
             # Recorded even on exception (timeout/connection error) - a host

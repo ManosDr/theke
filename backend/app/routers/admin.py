@@ -4210,14 +4210,34 @@ async def list_gap_source_candidates(
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
     status_filter: str = Query("pending_review", alias="status"),
+    chat_session_id: int | None = None,
 ) -> list[GapSourceCandidateEntry]:
     """Review queue for gap-triggered source discovery - same
     Confirm/Edit/Reject shape as GET /admin/region-contact-candidates.
-    Nothing here is live in the KB until Confirm (see below)."""
+    Nothing here is live in the KB until Confirm (see below).
+
+    status=pending_review (the active "Χρειάζεται έλεγχο πηγής" queue)
+    excludes candidates whose originating gap has since been resolved
+    through a DIFFERENT candidate - a real case found 2026-08-21: session
+    30's candidate 23 stayed 'pending_review' and kept surfacing as an open
+    action item even after candidate 28 was confirmed and the gap marked
+    addressed, since this endpoint only ever looked at the candidate row's
+    own status, never the parent gap's resolution state. That row is stale
+    history at that point, not open work - still real data, never deleted,
+    just not an active queue item. chat_session_id lets a caller (the
+    per-gap history view) see everything regardless of that exclusion, the
+    same way status=all already does for every status.
+    """
     require_super_admin(user)
     query = select(GapSourceCandidate)
     if status_filter != "all":
         query = query.where(GapSourceCandidate.status == status_filter)
+    if status_filter == "pending_review" and chat_session_id is None:
+        query = query.join(ChatSession, ChatSession.id == GapSourceCandidate.chat_session_id).where(
+            ChatSession.gap_addressed.is_(False)
+        )
+    if chat_session_id is not None:
+        query = query.where(GapSourceCandidate.chat_session_id == chat_session_id)
     rows = db.scalars(query.order_by(GapSourceCandidate.discovered_at.desc())).all()
     return [_to_gap_source_candidate_entry(db, r) for r in rows]
 

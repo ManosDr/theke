@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import { ConfidenceBadge } from "./ConfidenceBadge";
+import { GapCandidateHistoryModal } from "./GapCandidateHistoryModal";
 import { GapResolutionModal } from "./GapResolutionModal";
 import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
@@ -76,6 +77,12 @@ export function ChatGapRatePanel() {
   // URL" flow (see proposeFromUrl below) rather than auto-running the
   // automated search.
   const [activeProposeFromUrl, setActiveProposeFromUrl] = useState(false);
+  // Read-only "what happened and why" history for one gap's full candidate
+  // trail (confirmed/rejected/pending) - separate from the active
+  // resolution modal above, since it never takes an action, just shows
+  // real evidence that stays reachable even after a gap is resolved and
+  // its stale pending_review candidates drop out of the active queue.
+  const [historySession, setHistorySession] = useState<{ id: number; message: string } | null>(null);
 
   function loadPendingDecisions() {
     if (!token) return Promise.resolve();
@@ -498,6 +505,15 @@ export function ChatGapRatePanel() {
                           <button className={styles.rowMenuItem} onClick={() => proposeFromUrl(q)}>
                             {t("admin.chatGapRate.proposeFromUrl")}
                           </button>
+                          <button
+                            className={styles.rowMenuItem}
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              setHistorySession({ id: q.id, message: q.message });
+                            }}
+                          >
+                            {t("admin.chatGapRate.history.menuAction")}
+                          </button>
                         </RowMenu>
                       </td>
                     </tr>
@@ -517,6 +533,15 @@ export function ChatGapRatePanel() {
           token={token}
           onClose={closeModal}
           onResolved={handleResolved}
+        />
+      )}
+
+      {historySession && (
+        <GapCandidateHistoryModal
+          sessionId={historySession.id}
+          question={historySession.message}
+          token={token}
+          onClose={() => setHistorySession(null)}
         />
       )}
     </div>

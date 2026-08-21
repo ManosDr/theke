@@ -577,6 +577,51 @@ def _make_gap_source_candidate(db, *, chat_session_id: int, vertical_id: int, qu
     return candidate
 
 
+def test_pending_review_excludes_candidates_of_already_addressed_gaps(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    """A real case found 2026-08-21: a gap can end up with more than one
+    pending_review candidate across separate discovery runs (e.g. an
+    earlier "Επανέλεγχος όλων" pass and a later "Πρόταση πηγής από URL"
+    one) - once the gap is actually resolved through ONE of them, the
+    others are stale history, not open work, and must stop surfacing in
+    the active status=pending_review queue. They must still be reachable
+    via chat_session_id (the read-only history view) and status=all -
+    real data, never deleted, just not an active action item anymore."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    stale = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        # Still active while the gap is open.
+        active_list = client.get("/admin/gap-source-candidates?status=pending_review", headers=superadmin_headers)
+        assert any(c["id"] == stale.id for c in active_list.json())
+
+        # Gap gets resolved some other way (a different candidate, or a
+        # manual "mark addressed") - `stale` itself is never touched.
+        session.gap_addressed = True
+        db_session.commit()
+
+        active_list_after = client.get(
+            "/admin/gap-source-candidates?status=pending_review", headers=superadmin_headers
+        )
+        assert all(c["id"] != stale.id for c in active_list_after.json())
+
+        # Still real, still reachable - both escape hatches.
+        history = client.get(
+            f"/admin/gap-source-candidates?status=pending_review&chat_session_id={session.id}",
+            headers=superadmin_headers,
+        )
+        assert any(c["id"] == stale.id for c in history.json())
+
+        everything = client.get("/admin/gap-source-candidates?status=all", headers=superadmin_headers)
+        assert any(c["id"] == stale.id for c in everything.json())
+    finally:
+        _cleanup_gap_source_candidate(db_session, stale.id)
+        cleanup_company(db_session, company, user, project)
+
+
 def test_confirm_gap_source_candidate_ingests_document_and_marks_gap_addressed(
     client, db_session, superadmin_headers, construction_vertical_id
 ):

@@ -26,22 +26,33 @@ def company_token_usage(db: Session, company_id: int, since_30d: datetime, users
     ).one()
     prompt_tokens, completion_tokens, total_tokens, estimated_cost_eur, priced_message_count = totals
 
-    # message_count here is "messages that contributed to this token total"
-    # (total_tokens IS NOT NULL), not every chat_sessions row for the user -
-    # a row with no GPT call (off-topic-guard) has nothing to attribute a
-    # token/cost figure to, so it's excluded rather than diluting the
-    # per-user average with a message that cost nothing to answer.
+    # message_count is every REAL user message (ChatSession.is_real_user_message()
+    # - same definition the company-level headline stat uses, see admin.py's
+    # get_company_detail/companies.py's company_overview), not just the ones
+    # that happened to trigger a priced GPT completion. Was previously
+    # scoped to total_tokens IS NOT NULL - looked plausible ("messages that
+    # contributed to this token total") but silently produced a smaller,
+    # differently-defined number than the company-level count directly
+    # above it in the same modal (e.g. off-topic-guard replies never call
+    # the model, so they were dropped from message_count but still counted
+    # as real activity everywhere else) - a single-user company could show
+    # "3 messages (30d)" at the top and "1" in this table for its only user,
+    # reading as a bug even though neither query was wrong in isolation. Two
+    # separate WHERE scopes below deliberately: tokens/cost still sum only
+    # priced rows (coalesce(sum(...)) already ignores NULL total_tokens on
+    # its own), while message_count now counts against the full company
+    # window via a FILTER clause, so a user with zero priced messages but
+    # real (unpriced) activity still shows up here instead of vanishing.
     by_user_rows = db.execute(
         select(
             ChatSession.user_id,
             func.coalesce(func.sum(ChatSession.total_tokens), 0),
             func.coalesce(func.sum(ChatSession.estimated_cost_eur), 0),
-            func.count(ChatSession.id),
+            func.count().filter(ChatSession.is_real_user_message()),
         )
         .where(
             ChatSession.company_id == company_id,
             ChatSession.created_at >= since_30d,
-            ChatSession.total_tokens.isnot(None),
         )
         .group_by(ChatSession.user_id)
     ).all()

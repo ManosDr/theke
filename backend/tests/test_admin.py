@@ -644,6 +644,17 @@ def test_system_generated_messages_excluded_from_gap_rate_and_usage(
         body = resp.json()
         assert body["messages_30d"] == 3
         assert body["gap_rate"] == 66.7
+        # Part C fix: the per-user token-usage table's message_count must
+        # equal the company-level count for a single-user company - it
+        # previously only counted messages with an actual priced GPT
+        # completion (total_tokens IS NOT NULL), silently excluding the two
+        # gap sessions and the system-generated row differently than
+        # messages_30d does, which could show a mismatched, lower number
+        # for the company's only user.
+        by_user = body["token_usage"]["by_user"]
+        assert len(by_user) == 1
+        assert by_user[0]["user_id"] == user.id
+        assert by_user[0]["message_count"] == 3
 
         usage_headers = {"Authorization": f"Bearer {token}"}
         usage_resp = client.get("/users/me/usage", headers=usage_headers)

@@ -746,103 +746,106 @@ function CompanyDetailModal({
     <div className={styles.modalScrim} onClick={onClose}>
       <div className={styles.modal} role="dialog" aria-modal="true" aria-labelledby="company-modal-title" onClick={(e) => e.stopPropagation()}>
         <div className={styles.modalHeader}>
-          <div className={styles.modalHeaderTitle}>
-            <h2 id="company-modal-title" style={{ margin: 0 }}>{detail.name}</h2>
-            <span className={`${styles.verticalBadge} ${ACCENT_CLASS[detail.vertical_slug ?? ""] ?? ""}`}>
-              {detail.vertical_slug ? t(`vertical.${detail.vertical_slug}` as TranslationKey) : "—"}
-            </span>
-            {(() => {
-              const display = accountStatusDisplay(t, {
-                isSuspended: detail.is_suspended,
-                subscriptionStatus: detail.subscription_status,
-                trialEndsAt: detail.trial_ends_at,
-              });
-              return <span className={`badge ${display.badgeClass}`}>{display.text}</span>;
-            })()}
+          <div>
+            <div className={styles.modalHeaderTitle}>
+              <h2 id="company-modal-title" style={{ margin: 0 }}>{detail.name}</h2>
+              <span className={`${styles.verticalBadge} ${ACCENT_CLASS[detail.vertical_slug ?? ""] ?? ""}`}>
+                {detail.vertical_slug ? t(`vertical.${detail.vertical_slug}` as TranslationKey) : "—"}
+              </span>
+              {(() => {
+                const display = accountStatusDisplay(t, {
+                  isSuspended: detail.is_suspended,
+                  subscriptionStatus: detail.subscription_status,
+                  trialEndsAt: detail.trial_ends_at,
+                });
+                return <span className={`badge ${display.badgeClass}`}>{display.text}</span>;
+              })()}
+            </div>
+            <p className={`text-muted ${styles.modalSubtitle}`}>
+              {t("companies.modal.created")}: {parseApiDate(detail.created_at).toLocaleDateString()}
+            </p>
           </div>
           <button className="btn btn-secondary" onClick={onClose}>
             {t("companies.modal.close")}
           </button>
         </div>
 
-        <div className={styles.modalSection}>
-          <h4>{tUpper("companies.modal.info")}</h4>
-          <p className="text-muted">
-            {t("companies.modal.created")}: {parseApiDate(detail.created_at).toLocaleDateString()}
-          </p>
+        {/* Promoted "at a glance" band - the two numbers a super admin
+            checks first (real 30d activity, gap rate), given their own
+            tinted zone right under the header rather than buried among
+            token/cost detail further down. */}
+        <div className={styles.summaryBand}>
+          <div className={styles.usageStat}>
+            <span className={styles.usageValue}>{detail.messages_30d}</span>
+            <span className={styles.usageLabel}>{t("companies.modal.messages30d")}</span>
+          </div>
+          <div className={styles.usageStat}>
+            <Link href={`/admin/chat-gap-rate?company_id=${detail.id}`} className={styles.usageValueLink}>
+              {detail.gap_rate}%
+            </Link>
+            <span className={styles.usageLabel}>{t("companies.modal.gapRate")}</span>
+          </div>
         </div>
 
-        <div className={styles.modalSection}>
-          <h4>{tUpper("companies.modal.users")}</h4>
-          {detail.users.length === 0 ? (
-            <p className="text-muted">{t("companies.noUsers")}</p>
-          ) : (
-            detail.users.map((u) => (
-              <div key={u.id} className={styles.listRow}>
-                <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
-                  <span>{u.email}</span>
-                  <span className={styles.rolePill}>{t(`role.${u.role}` as TranslationKey)}</span>
+        <div className={styles.rosterGrid}>
+          <div className={styles.card}>
+            <h4>{tUpper("companies.modal.users")}</h4>
+            {detail.users.length === 0 ? (
+              <p className="text-muted">{t("companies.noUsers")}</p>
+            ) : (
+              detail.users.map((u) => (
+                <div key={u.id} className={styles.listRow}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)" }}>
+                    <span>{u.email}</span>
+                    <span className={styles.rolePill}>{t(`role.${u.role}` as TranslationKey)}</span>
+                  </div>
+                  <div className={styles.rowMenuWrap}>
+                    <button
+                      type="button"
+                      className={styles.rowMenuButton}
+                      aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
+                      aria-haspopup="menu"
+                      aria-expanded={openUserMenuId === u.id}
+                      onClick={() => setOpenUserMenuId(openUserMenuId === u.id ? null : u.id)}
+                    >
+                      ⋯
+                    </button>
+                    {openUserMenuId === u.id && (
+                      <div className={styles.rowMenu} role="menu">
+                        <button
+                          className={styles.rowMenuItem}
+                          onClick={() => {
+                            setResetTarget(u);
+                            setOpenUserMenuId(null);
+                          }}
+                        >
+                          {t("companies.modal.resetPassword")}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
-                <div className={styles.rowMenuWrap}>
-                  <button
-                    type="button"
-                    className={styles.rowMenuButton}
-                    aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
-                    aria-haspopup="menu"
-                    aria-expanded={openUserMenuId === u.id}
-                    onClick={() => setOpenUserMenuId(openUserMenuId === u.id ? null : u.id)}
-                  >
-                    ⋯
-                  </button>
-                  {openUserMenuId === u.id && (
-                    <div className={styles.rowMenu} role="menu">
-                      <button
-                        className={styles.rowMenuItem}
-                        onClick={() => {
-                          setResetTarget(u);
-                          setOpenUserMenuId(null);
-                        }}
-                      >
-                        {t("companies.modal.resetPassword")}
-                      </button>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className={styles.modalSection}>
-          <h4>{tUpper("companies.modal.projects")}</h4>
-          {detail.projects.length === 0 ? (
-            <p className="text-muted">{t("companies.noProjects")}</p>
-          ) : (
-            detail.projects.map((p) => (
-              <div key={p.id} className={styles.listRow}>
-                <span>{p.name ?? "—"}</span>
-                <span className="text-muted">{p.is_client ? t("companies.isClientTag") : p.municipality ?? "—"}</span>
-              </div>
-            ))
-          )}
-        </div>
-
-        <div className={styles.modalSection}>
-          <h4>{tUpper("companies.modal.usage")}</h4>
-          <div className={styles.usageStats}>
-            <div className={styles.usageStat}>
-              <span className={styles.usageValue}>{detail.messages_30d}</span>
-              <span className={styles.usageLabel}>{t("companies.modal.messages30d")}</span>
-            </div>
-            <div className={styles.usageStat}>
-              <Link href={`/admin/chat-gap-rate?company_id=${detail.id}`} className={styles.usageValueLink}>
-                {detail.gap_rate}%
-              </Link>
-              <span className={styles.usageLabel}>{t("companies.modal.gapRate")}</span>
-            </div>
+              ))
+            )}
           </div>
 
-          <h4 style={{ marginTop: "var(--space-4)" }}>{t("companies.modal.tokenUsage")}</h4>
+          <div className={styles.card}>
+            <h4>{tUpper("companies.modal.projects")}</h4>
+            {detail.projects.length === 0 ? (
+              <p className="text-muted">{t("companies.noProjects")}</p>
+            ) : (
+              detail.projects.map((p) => (
+                <div key={p.id} className={styles.listRow}>
+                  <span>{p.name ?? "—"}</span>
+                  <span className="text-muted">{p.is_client ? t("companies.isClientTag") : p.municipality ?? "—"}</span>
+                </div>
+              ))
+            )}
+          </div>
+        </div>
+
+        <div className={`${styles.modalSection} ${styles.detailSection}`}>
+          <h4>{tUpper("companies.modal.tokenUsage")}</h4>
           <div className={styles.usageStats}>
             <div className={styles.usageStat}>
               <span className={styles.usageValue}>{detail.token_usage.total_tokens_30d.toLocaleString()}</span>

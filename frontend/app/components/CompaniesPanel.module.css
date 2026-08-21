@@ -140,6 +140,64 @@
   color: var(--admin-stone);
 }
 
+.modalSubtitle {
+  margin: 2px 0 0;
+  font-size: 0.82rem;
+}
+
+/* Promoted "at a glance" band - the two headline stats a super admin looks
+   at first (real activity, gap rate) get their own tinted zone right under
+   the header, distinct from the finer-grained token/cost detail further
+   down. See KNOWN_DECISIONS.md's company-detail-modal redesign entry. */
+.summaryBand {
+  display: flex;
+  gap: var(--space-6);
+  background: var(--admin-chip-bg);
+  border-radius: var(--radius-md);
+  padding: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+.summaryBand .usageValue,
+.summaryBand .usageValueLink {
+  font-size: 1.6rem;
+}
+
+/* Users/Projects rosters as side-by-side cards instead of two flat,
+   sequential h4 blocks - groups them as siblings (both "who/what belongs to
+   this company") rather than an undifferentiated vertical stack. Collapses
+   to stacked below the modal's own width for narrow viewports. */
+.rosterGrid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 560px) {
+  .rosterGrid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.card {
+  border: 1px solid var(--admin-row-border);
+  border-radius: var(--radius-md);
+  padding: var(--space-3) var(--space-4);
+}
+
+.card h4 {
+  margin: 0 0 var(--space-2);
+  font-size: 0.78rem;
+  letter-spacing: 0.03em;
+  color: var(--admin-stone);
+}
+
+.detailSection {
+  border-top: 1px solid var(--admin-row-border);
+  padding-top: var(--space-4);
+}
+
 .listRow {
   display: flex;
   align-items: center;

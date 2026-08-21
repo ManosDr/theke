@@ -771,6 +771,8 @@ export interface GapSourceCandidateEntry {
   notified_at: string | null;
   notify_skipped_at: string | null;
   origin: "external_search" | "recheck_recovery";
+  company_name: string | null;
+  user_name: string | null;
 }
 
 export interface GapDiscoveryResult {

@@ -4,6 +4,17 @@
   gap: var(--space-3);
 }
 
+/* Review cards (recovered/confirmed/needs-review) - up to 3 per row on a
+   normal admin viewport, reflowing to fewer as space tightens, rather than
+   one full-width stretched card per row (that read as one column of very
+   wide, mostly-empty cards for what's usually a short question + a couple
+   of badges). */
+.candidateGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: var(--space-3);
+}
+
 .candidateCard {
   border: 1px solid var(--color-border);
   border-radius: var(--radius-sm);
@@ -11,18 +22,29 @@
   display: flex;
   flex-direction: column;
   gap: var(--space-2);
+  align-items: flex-start;
+}
+
+.candidateCard .btn {
+  align-self: stretch;
 }
 
 .candidateHeader {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
 .candidateQuestion {
   font-weight: 600;
   margin: 0;
+}
+
+.candidateAsker {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--color-text-muted);
 }
 
 .candidateField {

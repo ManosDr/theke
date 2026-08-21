@@ -1,0 +1,35 @@
+/* Deliberately larger/bolder than the ordinary status .badge pill (see
+   globals.css) - confidence is a real success/risk signal on a source
+   candidate, not incidental metadata, so "high" gets to look like the win
+   it actually is (multiple independent authoritative sources agreed). */
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px var(--space-3);
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.sm {
+  padding: 2px var(--space-2);
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.high {
+  background: var(--color-success-bg);
+  color: var(--color-success);
+}
+
+.medium {
+  background: var(--color-warning-bg);
+  color: var(--color-warning);
+}
+
+.low {
+  background: var(--color-danger-bg);
+  color: var(--color-danger);
+}

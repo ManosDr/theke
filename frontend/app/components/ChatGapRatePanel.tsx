@@ -7,6 +7,7 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 import { GapResolutionModal } from "./GapResolutionModal";
 import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
@@ -197,6 +198,16 @@ export function ChatGapRatePanel() {
   const recoveredDecisions = pendingDecisions.filter((c) => c.origin === "recheck_recovery");
   const externalDecisions = pendingDecisions.filter((c) => c.origin !== "recheck_recovery");
 
+  // Same fallback semantics as the recent-gaps table's own company/user
+  // columns: no company means a company-less super admin's own chat
+  // ("Platform"), no user name just reads as "—" rather than repeating
+  // "Platform" for a person.
+  function askerLabel(c: GapSourceCandidateEntry): string {
+    const company = c.company_name ?? t("dash.super.platform");
+    const user = c.user_name ?? "—";
+    return `${user} · ${company}`;
+  }
+
   function closeModal() {
     setActiveQuery(null);
     setActivePendingCandidate(null);
@@ -267,16 +278,18 @@ export function ChatGapRatePanel() {
           <p className="text-muted" style={{ marginTop: 0, marginBottom: "var(--space-3)", fontSize: "0.85rem" }}>
             {t("admin.chatGapRate.candidates.recoveredHint")}
           </p>
-          <div className={styles.candidateList}>
+          <div className={styles.candidateGrid}>
             {recoveredDecisions.map((c) => (
               <div key={c.id} className={styles.candidateCard}>
                 <div className={styles.candidateHeader}>
-                  <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusRecovered")}</span>
-                  <span className="text-muted" style={{ fontSize: "0.82rem" }}>
-                    {t("admin.chatGapRate.candidates.pendingDecisionHint")}
-                  </span>
+                  <span className="badge badge-success">{t("admin.chatGapRate.candidates.statusRecovered")}</span>
+                  {c.confidence && <ConfidenceBadge confidence={c.confidence} size="sm" />}
                 </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
+                <p className={styles.candidateAsker}>{askerLabel(c)}</p>
+                <span className="text-muted" style={{ fontSize: "0.78rem" }}>
+                  {t("admin.chatGapRate.candidates.pendingDecisionHint")}
+                </span>
                 <button type="button" className="btn btn-primary" onClick={() => openPendingDecision(c)}>
                   {t("admin.chatGapRate.candidates.decide")}
                 </button>
@@ -291,16 +304,18 @@ export function ChatGapRatePanel() {
           <div className={dashStyles.sectionHeader}>
             <h2>{t("admin.chatGapRate.candidates.title")}</h2>
           </div>
-          <div className={styles.candidateList}>
+          <div className={styles.candidateGrid}>
             {externalDecisions.map((c) => (
               <div key={c.id} className={styles.candidateCard}>
                 <div className={styles.candidateHeader}>
-                  <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusConfirmed")}</span>
-                  <span className="text-muted" style={{ fontSize: "0.82rem" }}>
-                    {t("admin.chatGapRate.candidates.pendingDecisionHint")}
-                  </span>
+                  <span className="badge badge-info">{t("admin.chatGapRate.candidates.statusConfirmed")}</span>
+                  {c.confidence && <ConfidenceBadge confidence={c.confidence} size="sm" />}
                 </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
+                <p className={styles.candidateAsker}>{askerLabel(c)}</p>
+                <span className="text-muted" style={{ fontSize: "0.78rem" }}>
+                  {t("admin.chatGapRate.candidates.pendingDecisionHint")}
+                </span>
                 <button type="button" className="btn btn-primary" onClick={() => openPendingDecision(c)}>
                   {t("admin.chatGapRate.candidates.decide")}
                 </button>
@@ -318,10 +333,15 @@ export function ChatGapRatePanel() {
           <p className="text-muted" style={{ marginTop: 0, marginBottom: "var(--space-3)", fontSize: "0.85rem" }}>
             {t("admin.chatGapRate.candidates.needsReviewHint")}
           </p>
-          <div className={styles.candidateList}>
+          <div className={styles.candidateGrid}>
             {needsReview.map((c) => (
               <div key={c.id} className={styles.candidateCard}>
+                <div className={styles.candidateHeader}>
+                  <span className="badge badge-warning">{t("admin.chatGapRate.candidates.statusPending")}</span>
+                  {c.confidence && <ConfidenceBadge confidence={c.confidence} size="sm" />}
+                </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
+                <p className={styles.candidateAsker}>{askerLabel(c)}</p>
                 <button type="button" className="btn btn-secondary" onClick={() => openPendingDecision(c)}>
                   {t("admin.chatGapRate.candidates.review")}
                 </button>

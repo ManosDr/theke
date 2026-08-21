@@ -4015,7 +4015,23 @@ async def update_gap_query_status(
     )
 
 
-def _to_gap_source_candidate_entry(row: GapSourceCandidate) -> GapSourceCandidateEntry:
+def _to_gap_source_candidate_entry(db: Session, row: GapSourceCandidate) -> GapSourceCandidateEntry:
+    # Who actually asked this - the review cards (recovered/needs-review/
+    # awaiting-notify) show this alongside the question, same as GET
+    # /admin/gap-queries's own company_name/user_name. One extra lookup per
+    # candidate - this workspace is low-volume (staged candidates, not raw
+    # chat sessions), same "not a metrics pipeline" scale as the rest of
+    # this file.
+    company_name = None
+    user_name = None
+    gap_session = db.get(ChatSession, row.chat_session_id)
+    if gap_session:
+        if gap_session.company_id:
+            company = db.get(Company, gap_session.company_id)
+            company_name = company.name if company else None
+        if gap_session.user_id:
+            asker = db.get(User, gap_session.user_id)
+            user_name = asker.display_name if asker else None
     return GapSourceCandidateEntry(
         id=row.id,
         chat_session_id=row.chat_session_id,
@@ -4032,6 +4048,8 @@ def _to_gap_source_candidate_entry(row: GapSourceCandidate) -> GapSourceCandidat
         notified_at=row.notified_at,
         notify_skipped_at=row.notify_skipped_at,
         origin=row.origin,
+        company_name=company_name,
+        user_name=user_name,
     )
 
 
@@ -4095,7 +4113,7 @@ async def discover_gap_source(
     db.add(candidate)
     db.commit()
     db.refresh(candidate)
-    return GapDiscoveryResult(candidate=_to_gap_source_candidate_entry(candidate))
+    return GapDiscoveryResult(candidate=_to_gap_source_candidate_entry(db, candidate))
 
 
 @router.get("/gap-source-candidates", response_model=list[GapSourceCandidateEntry])
@@ -4112,7 +4130,7 @@ async def list_gap_source_candidates(
     if status_filter != "all":
         query = query.where(GapSourceCandidate.status == status_filter)
     rows = db.scalars(query.order_by(GapSourceCandidate.discovered_at.desc())).all()
-    return [_to_gap_source_candidate_entry(r) for r in rows]
+    return [_to_gap_source_candidate_entry(db, r) for r in rows]
 
 
 @router.post("/gap-source-candidates/{candidate_id}/confirm", response_model=GapSourceCandidateEntry)
@@ -4182,7 +4200,7 @@ async def confirm_gap_source_candidate(
     )
     db.commit()
     db.refresh(candidate)
-    return _to_gap_source_candidate_entry(candidate)
+    return _to_gap_source_candidate_entry(db, candidate)
 
 
 @router.post("/gap-source-candidates/{candidate_id}/reject", response_model=GapSourceCandidateEntry)
@@ -4214,7 +4232,7 @@ async def reject_gap_source_candidate(
     )
     db.commit()
     db.refresh(candidate)
-    return _to_gap_source_candidate_entry(candidate)
+    return _to_gap_source_candidate_entry(db, candidate)
 
 
 @router.post("/gap-source-candidates/{candidate_id}/notify-user", response_model=GapSourceNotifyResult)
@@ -4361,7 +4379,7 @@ async def skip_notify_gap_source_user(
     )
     db.commit()
     db.refresh(candidate)
-    return _to_gap_source_candidate_entry(candidate)
+    return _to_gap_source_candidate_entry(db, candidate)
 
 
 @router.get("/internal-activity", response_model=InternalActivityResponse)

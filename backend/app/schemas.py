@@ -1432,6 +1432,11 @@ class GapSourceCandidateEntry(BaseModel):
     # Frontend groups on this so a recovered-from-KB batch isn't mixed in
     # with genuinely-new external sources, which need heavier scrutiny.
     origin: str = "external_search"
+    # Who actually asked the original question - same fields GapQueryEntry
+    # already carries, resolved here too so every review card can show it
+    # alongside the question itself, not just the "recent gaps" table.
+    company_name: str | None = None
+    user_name: str | None = None
 
 
 class GapDiscoveryResult(BaseModel):

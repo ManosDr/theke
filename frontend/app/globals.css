@@ -560,6 +560,11 @@ button {
   color: var(--color-danger);
 }
 
+.badge-info {
+  background: var(--color-info-bg);
+  color: var(--color-info);
+}
+
 .text-muted {
   color: var(--color-text-muted);
 }

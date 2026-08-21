@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { api } from "../lib/api";
 import { useLocale } from "../lib/i18n";
 import type { GapDiscoveryResult, GapSourceCandidateEntry } from "../lib/types";
+import { ConfidenceBadge } from "./ConfidenceBadge";
 import styles from "./GapResolutionModal.module.css";
 
 type ModalState = "searching" | "not_found" | "reviewing" | "confirmed_choice" | "error";
@@ -101,6 +102,13 @@ export function GapResolutionModal({
       );
       setCandidate(updated);
       setState("confirmed_choice");
+      // Confirming already changed real state (a live Document, and the
+      // originating gap's addressed flag - see the confirm endpoint) even
+      // though this modal stays open for the separate notify decision, so
+      // the page behind it (the "Πρόσφατες αναπάντητες ερωτήσεις" table,
+      // the candidate lists) should reflect that now, not only once the
+      // modal eventually closes after notify/skip.
+      onResolved();
     } catch {
       setError(t("admin.chatGapRate.candidates.actionFailed"));
     } finally {
@@ -175,9 +183,9 @@ export function GapResolutionModal({
         {state === "reviewing" && candidate && (
           <>
             {candidate.confidence && (
-              <p className="text-muted" style={{ fontSize: "0.78rem", marginBottom: "var(--space-2)" }}>
-                {t("admin.chatGapRate.candidates.confidence")}: {candidate.confidence}
-              </p>
+              <div style={{ marginBottom: "var(--space-3)" }}>
+                <ConfidenceBadge confidence={candidate.confidence} />
+              </div>
             )}
             <label className={styles.field}>
               {t("admin.chatGapRate.candidates.fieldTitle")}
@@ -222,6 +230,7 @@ export function GapResolutionModal({
 
         {state === "confirmed_choice" && candidate && (
           <div className={styles.choiceBlock}>
+            {candidate.confidence && <ConfidenceBadge confidence={candidate.confidence} />}
             <p className="text-muted">{t("admin.chatGapRate.candidates.postConfirmHint")}</p>
             {error && <p style={{ color: "var(--color-danger)", fontSize: "0.82rem" }}>{error}</p>}
             <div className={styles.choiceButtons}>

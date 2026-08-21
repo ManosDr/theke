@@ -1410,6 +1410,7 @@ class GapSourceCandidateEntry(BaseModel):
     review_note: str | None
     document_id: int | None
     notified_at: datetime | None
+    notify_skipped_at: datetime | None
 
 
 class GapDiscoveryResult(BaseModel):

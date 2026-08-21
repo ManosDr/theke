@@ -471,6 +471,17 @@ class GapSourceCandidate(Base):
     # telling the user are two different admin-triggered actions).
     notified_at: Mapped[datetime | None] = mapped_column(DateTime)
     notified_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # The other resolution of the same post-confirm choice - "Ολοκλήρωση
+    # χωρίς ειδοποίηση" (mark done, KB updated, no message sent). Mutually
+    # exclusive with notified_at in practice (the UI only ever sets one),
+    # but deliberately its own column rather than a shared enum: both are
+    # independent facts worth its own timestamp/actor, and "which one, if
+    # either, happened" reads more clearly as two nullable columns than as
+    # a single tri-state field. Part E of the same-night batch - see
+    # KNOWN_DECISIONS.md for why this choice was added (previously
+    # notify-user was the only visible action after confirming).
+    notify_skipped_at: Mapped[datetime | None] = mapped_column(DateTime)
+    notify_skipped_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
 
 
 class RegionDiscoverySettings(Base):

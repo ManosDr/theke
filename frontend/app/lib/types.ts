@@ -769,6 +769,7 @@ export interface GapSourceCandidateEntry {
   review_note: string | null;
   document_id: number | null;
   notified_at: string | null;
+  notify_skipped_at: string | null;
 }
 
 export interface GapDiscoveryResult {

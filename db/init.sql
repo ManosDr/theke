@@ -2539,11 +2539,19 @@ CREATE TABLE IF NOT EXISTS gap_source_candidates (
   reviewed_at       timestamp,
   document_id       integer REFERENCES documents(id),
   notified_at       timestamp,
-  notified_by       integer REFERENCES users(id)
+  notified_by       integer REFERENCES users(id),
+  notify_skipped_at timestamp,
+  notify_skipped_by integer REFERENCES users(id)
 );
 
 CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_session ON gap_source_candidates(chat_session_id);
 CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_status ON gap_source_candidates(status);
+
+-- Part E of the same-night batch: an explicit "mark done, no message sent"
+-- resolution alongside notify_at/notified_by - see models.py's
+-- GapSourceCandidate docstring.
+ALTER TABLE gap_source_candidates ADD COLUMN IF NOT EXISTS notify_skipped_at timestamp;
+ALTER TABLE gap_source_candidates ADD COLUMN IF NOT EXISTS notify_skipped_by integer REFERENCES users(id);
 
 -- Debounce timestamp for the "OpenAI credits exhausted" super-admin alert
 -- (see backend/app/routers/chat.py's _maybe_alert_openai_quota_exhausted) -

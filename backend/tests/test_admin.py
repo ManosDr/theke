@@ -17,7 +17,7 @@ the real route is POST (app/routers/admin.py), used below.
 import uuid
 from datetime import datetime, timedelta
 
-from sqlalchemy import select, text
+from sqlalchemy import func, select, text
 
 from app.models import ChatSession, CompanySubscription, GapSourceCandidate, Invite, Notification, Plan
 
@@ -609,6 +609,64 @@ def test_notify_gap_source_user_inserts_followup_and_marks_notified(
     finally:
         db_session.execute(text("DELETE FROM notifications WHERE user_id = :id AND type = 'gap_source_found'"), {"id": user.id})
         db_session.commit()
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_skip_notify_gap_source_user_marks_resolved_without_messaging(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    """Part E of the same-night batch: "Ολοκλήρωση χωρίς ειδοποίηση" - the
+    other resolution of the post-confirm choice, alongside notify-user.
+    Must never touch ChatSession/notifications/email (gap_addressed was
+    already set at confirm time), and must be mutually exclusive with
+    notify-user in both directions."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    try:
+        # Blocked before confirming - same guard as notify-user.
+        too_early = client.post(f"/admin/gap-source-candidates/{candidate.id}/skip-notify", headers=superadmin_headers)
+        assert too_early.status_code == 400
+
+        confirm = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/confirm",
+            json={
+                "title": candidate.candidate_title,
+                "content": candidate.candidate_content,
+                "source_url": candidate.source_url,
+                "authority": candidate.authority,
+            },
+            headers=superadmin_headers,
+        )
+        assert confirm.status_code == 200
+
+        resp = client.post(f"/admin/gap-source-candidates/{candidate.id}/skip-notify", headers=superadmin_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["notify_skipped_at"] is not None
+        assert body["notified_at"] is None
+
+        # No ChatSession follow-up, no notification - this path is silent.
+        follow_up_count = db_session.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .where(ChatSession.tool_used == "gap_resolution_notice", ChatSession.user_id == user.id)
+        )
+        assert follow_up_count == 0
+        notif = db_session.scalar(
+            select(Notification).where(Notification.user_id == user.id, Notification.type == "gap_source_found")
+        )
+        assert notif is None
+
+        # Mutually exclusive in both directions.
+        again_skip = client.post(f"/admin/gap-source-candidates/{candidate.id}/skip-notify", headers=superadmin_headers)
+        assert again_skip.status_code == 409
+        now_notify = client.post(f"/admin/gap-source-candidates/{candidate.id}/notify-user", headers=superadmin_headers)
+        assert now_notify.status_code == 409
+    finally:
         _cleanup_gap_source_candidate(db_session, candidate.id)
         cleanup_company(db_session, company, user, project)
 

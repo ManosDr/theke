@@ -7,153 +7,14 @@ import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
+import { GapResolutionModal } from "./GapResolutionModal";
 import { SortableTh } from "./SortableTh";
 import { useSortableData } from "../lib/useSortableData";
-import type { AdminStatsByVertical, GapDiscoveryResult, GapQueryEntry, GapSourceCandidateEntry } from "../lib/types";
+import type { AdminStatsByVertical, GapQueryEntry, GapSourceCandidateEntry } from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./ChatGapRatePanel.module.css";
 
 type StatusFilter = "all" | "unreviewed" | "addressed";
-
-function GapSourceCandidateRow({
-  candidate,
-  token,
-  onResolved,
-  onNotified,
-}: {
-  candidate: GapSourceCandidateEntry;
-  token: string | null;
-  onResolved: () => void;
-  onNotified: () => void;
-}) {
-  const { t } = useLocale();
-  const [title, setTitle] = useState(candidate.candidate_title ?? "");
-  const [content, setContent] = useState(candidate.candidate_content ?? "");
-  const [sourceUrl, setSourceUrl] = useState(candidate.source_url);
-  const [authority, setAuthority] = useState(candidate.authority ?? "");
-  const [rejectNote, setRejectNote] = useState("");
-  const [showRejectNote, setShowRejectNote] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-
-  async function confirm() {
-    if (!token) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(
-        `/admin/gap-source-candidates/${candidate.id}/confirm`,
-        { title, content, source_url: sourceUrl, authority: authority || null },
-        token
-      );
-      onResolved();
-    } catch {
-      setError(t("admin.chatGapRate.candidates.actionFailed"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function reject() {
-    if (!token) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(`/admin/gap-source-candidates/${candidate.id}/reject`, { review_note: rejectNote || null }, token);
-      onResolved();
-    } catch {
-      setError(t("admin.chatGapRate.candidates.actionFailed"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  async function notifyUser() {
-    if (!token) return;
-    setBusy(true);
-    setError(null);
-    try {
-      await api.post(`/admin/gap-source-candidates/${candidate.id}/notify-user`, {}, token);
-      onNotified();
-    } catch {
-      setError(t("admin.chatGapRate.candidates.actionFailed"));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (candidate.status === "confirmed") {
-    return (
-      <div className={styles.candidateCard}>
-        <div className={styles.candidateHeader}>
-          <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusConfirmed")}</span>
-          <a href={candidate.source_url} target="_blank" rel="noreferrer" className="text-muted">
-            {candidate.source_url}
-          </a>
-        </div>
-        <p className={styles.candidateQuestion}>{candidate.question}</p>
-        {error && <p style={{ color: "var(--color-danger)", fontSize: "0.82rem" }}>{error}</p>}
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={notifyUser}>
-          {t("admin.chatGapRate.candidates.notifyUser")}
-        </button>
-      </div>
-    );
-  }
-
-  return (
-    <div className={styles.candidateCard}>
-      <div className={styles.candidateHeader}>
-        <span className={`badge ${styles["status-unreviewed"]}`}>
-          {t("admin.chatGapRate.candidates.statusPending")}
-        </span>
-        {candidate.confidence && (
-          <span className="text-muted" style={{ fontSize: "0.78rem" }}>
-            {t("admin.chatGapRate.candidates.confidence")}: {candidate.confidence}
-          </span>
-        )}
-      </div>
-      <p className={styles.candidateQuestion}>{candidate.question}</p>
-      <label className={styles.candidateField}>
-        {t("admin.chatGapRate.candidates.fieldTitle")}
-        <input className="input" value={title} onChange={(e) => setTitle(e.target.value)} />
-      </label>
-      <label className={styles.candidateField}>
-        {t("admin.chatGapRate.candidates.fieldContent")}
-        <textarea className="input" rows={4} value={content} onChange={(e) => setContent(e.target.value)} />
-      </label>
-      <label className={styles.candidateField}>
-        {t("admin.chatGapRate.candidates.fieldSourceUrl")}
-        <input className="input" value={sourceUrl} onChange={(e) => setSourceUrl(e.target.value)} />
-      </label>
-      <label className={styles.candidateField}>
-        {t("admin.chatGapRate.candidates.fieldAuthority")}
-        <input className="input" value={authority} onChange={(e) => setAuthority(e.target.value)} />
-      </label>
-      {error && <p style={{ color: "var(--color-danger)", fontSize: "0.82rem" }}>{error}</p>}
-      <div style={{ display: "flex", gap: "var(--space-2)", flexWrap: "wrap" }}>
-        <button type="button" className="btn btn-primary" disabled={busy} onClick={confirm}>
-          {t("admin.chatGapRate.candidates.confirm")}
-        </button>
-        <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => setShowRejectNote((v) => !v)}>
-          {t("admin.chatGapRate.candidates.reject")}
-        </button>
-      </div>
-      {showRejectNote && (
-        <div style={{ display: "flex", gap: "var(--space-2)", marginTop: "var(--space-2)" }}>
-          <input
-            className="input"
-            placeholder={t("admin.chatGapRate.candidates.rejectNotePlaceholder")}
-            value={rejectNote}
-            onChange={(e) => setRejectNote(e.target.value)}
-          />
-          <button type="button" className="btn btn-secondary" disabled={busy} onClick={reject}>
-            {t("admin.chatGapRate.candidates.confirmReject")}
-          </button>
-        </div>
-      )}
-    </div>
-  );
-}
 
 export function ChatGapRatePanel() {
   const { user } = useAuth();
@@ -174,18 +35,26 @@ export function ChatGapRatePanel() {
 
   const [stats, setStats] = useState<AdminStatsByVertical | null>(null);
   const [queries, setQueries] = useState<GapQueryEntry[]>([]);
-  const [candidates, setCandidates] = useState<GapSourceCandidateEntry[]>([]);
+  // Confirmed candidates still awaiting a notify/don't-notify decision -
+  // NOT pending_review ones, which only exist transiently while a modal
+  // session is open (see discoverSource below - each "discover source"
+  // click now starts a fresh search inside the modal rather than staging a
+  // row a separate page section has to track).
+  const [pendingDecisions, setPendingDecisions] = useState<GapSourceCandidateEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("unreviewed");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
-  const [discoveringId, setDiscoveringId] = useState<number | null>(null);
-  const [discoveryMessage, setDiscoveryMessage] = useState<string | null>(null);
+  // Drives the resolution modal - either a fresh search (query set,
+  // pendingCandidate null) or resuming an already-confirmed candidate that
+  // still needs a notify decision (pendingCandidate set).
+  const [activeQuery, setActiveQuery] = useState<{ id: number; message: string } | null>(null);
+  const [activePendingCandidate, setActivePendingCandidate] = useState<GapSourceCandidateEntry | null>(null);
 
-  function loadCandidates() {
+  function loadPendingDecisions() {
     if (!token) return Promise.resolve();
-    return api.get<GapSourceCandidateEntry[]>("/admin/gap-source-candidates?status=all", token).then((all) =>
-      setCandidates(all.filter((c) => c.status === "pending_review" || (c.status === "confirmed" && !c.notified_at)))
+    return api.get<GapSourceCandidateEntry[]>("/admin/gap-source-candidates?status=confirmed", token).then((all) =>
+      setPendingDecisions(all.filter((c) => !c.notified_at && !c.notify_skipped_at))
     );
   }
 
@@ -198,7 +67,7 @@ export function ChatGapRatePanel() {
     return Promise.all([
       api.get<AdminStatsByVertical>("/admin/stats", token),
       api.get<GapQueryEntry[]>(`/admin/gap-queries${qs ? `?${qs}` : ""}`, token),
-      loadCandidates(),
+      loadPendingDecisions(),
     ]).then(([statsData, gapData]) => {
       setStats(statsData);
       setQueries(gapData);
@@ -257,23 +126,24 @@ export function ChatGapRatePanel() {
     setOpenMenuId(null);
   }
 
-  async function discoverSource(id: number) {
+  function discoverSource(q: GapQueryEntry) {
     setOpenMenuId(null);
-    setDiscoveringId(id);
-    setDiscoveryMessage(null);
-    try {
-      const result = await api.post<GapDiscoveryResult>(`/admin/gap-queries/${id}/discover-source`, {}, token);
-      if (result.candidate) {
-        setCandidates((prev) => [result.candidate as GapSourceCandidateEntry, ...prev]);
-        setDiscoveryMessage(t("admin.chatGapRate.candidates.foundOne"));
-      } else {
-        setDiscoveryMessage(t("admin.chatGapRate.candidates.foundNone"));
-      }
-    } catch {
-      setDiscoveryMessage(t("admin.chatGapRate.candidates.searchFailed"));
-    } finally {
-      setDiscoveringId(null);
-    }
+    setActivePendingCandidate(null);
+    setActiveQuery({ id: q.id, message: q.message });
+  }
+
+  function openPendingDecision(c: GapSourceCandidateEntry) {
+    setActivePendingCandidate(c);
+    setActiveQuery({ id: c.chat_session_id, message: c.question });
+  }
+
+  function closeModal() {
+    setActiveQuery(null);
+    setActivePendingCandidate(null);
+  }
+
+  function handleResolved() {
+    load();
   }
 
   return (
@@ -298,23 +168,25 @@ export function ChatGapRatePanel() {
         </div>
       )}
 
-      {candidates.length > 0 && (
+      {pendingDecisions.length > 0 && (
         <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
           <div className={dashStyles.sectionHeader}>
             <h2>{t("admin.chatGapRate.candidates.title")}</h2>
           </div>
-          <p className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
-            {t("admin.chatGapRate.candidates.hint")}
-          </p>
           <div className={styles.candidateList}>
-            {candidates.map((c) => (
-              <GapSourceCandidateRow
-                key={c.id}
-                candidate={c}
-                token={token}
-                onResolved={() => loadCandidates()}
-                onNotified={() => loadCandidates()}
-              />
+            {pendingDecisions.map((c) => (
+              <div key={c.id} className={styles.candidateCard}>
+                <div className={styles.candidateHeader}>
+                  <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusConfirmed")}</span>
+                  <span className="text-muted" style={{ fontSize: "0.82rem" }}>
+                    {t("admin.chatGapRate.candidates.pendingDecisionHint")}
+                  </span>
+                </div>
+                <p className={styles.candidateQuestion}>{c.question}</p>
+                <button type="button" className="btn btn-primary" onClick={() => openPendingDecision(c)}>
+                  {t("admin.chatGapRate.candidates.decide")}
+                </button>
+              </div>
             ))}
           </div>
         </section>
@@ -327,11 +199,6 @@ export function ChatGapRatePanel() {
         <p className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
           {t("admin.chatGapRate.recentGapsHint")}
         </p>
-        {discoveryMessage && (
-          <p className="text-muted" style={{ marginBottom: "var(--space-3)" }}>
-            {discoveryMessage}
-          </p>
-        )}
         {loading ? (
           <p className="text-muted">{t("common.loading")}</p>
         ) : queries.length === 0 ? (
@@ -399,10 +266,9 @@ export function ChatGapRatePanel() {
                           aria-label={t("admin.chatGapRate.menuActionsFor", { id: q.id })}
                           aria-haspopup="menu"
                           aria-expanded={openMenuId === q.id}
-                          disabled={discoveringId === q.id}
                           onClick={() => setOpenMenuId(openMenuId === q.id ? null : q.id)}
                         >
-                          {discoveringId === q.id ? "…" : "⋯"}
+                          ⋯
                         </button>
                         {openMenuId === q.id && (
                           <div className={styles.rowMenu} role="menu">
@@ -415,7 +281,7 @@ export function ChatGapRatePanel() {
                                 {t("admin.chatGapRate.markAddressed")}
                               </button>
                             )}
-                            <button className={styles.rowMenuItem} onClick={() => discoverSource(q.id)}>
+                            <button className={styles.rowMenuItem} onClick={() => discoverSource(q)}>
                               {t("admin.chatGapRate.discoverSource")}
                             </button>
                           </div>
@@ -429,6 +295,16 @@ export function ChatGapRatePanel() {
           </>
         )}
       </section>
+
+      {activeQuery && (
+        <GapResolutionModal
+          query={activeQuery}
+          existingCandidate={activePendingCandidate}
+          token={token}
+          onClose={closeModal}
+          onResolved={handleResolved}
+        />
+      )}
     </div>
   );
 }

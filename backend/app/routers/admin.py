@@ -3718,6 +3718,7 @@ def _to_gap_source_candidate_entry(row: GapSourceCandidate) -> GapSourceCandidat
         review_note=row.review_note,
         document_id=row.document_id,
         notified_at=row.notified_at,
+        notify_skipped_at=row.notify_skipped_at,
     )
 
 
@@ -3925,6 +3926,8 @@ async def notify_gap_source_user(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate is not confirmed yet")
     if candidate.notified_at is not None:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already notified for this candidate")
+    if candidate.notify_skipped_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already resolved without notifying - can't also notify")
 
     gap_session = db.get(ChatSession, candidate.chat_session_id)
     if not gap_session or gap_session.user_id is None:
@@ -3995,6 +3998,51 @@ async def notify_gap_source_user(
     )
     db.commit()
     return GapSourceNotifyResult(notified_at=candidate.notified_at, chat_session_id=follow_up.id)
+
+
+@router.post("/gap-source-candidates/{candidate_id}/skip-notify", response_model=GapSourceCandidateEntry)
+async def skip_notify_gap_source_user(
+    candidate_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapSourceCandidateEntry:
+    """"Ολοκλήρωση χωρίς ειδοποίηση" - the other resolution of the same
+    post-confirm choice notify-user offers, for when the KB fix is genuinely
+    enough and no message to the original asker is warranted (e.g. the
+    question was too vague/one-off to justify reaching back out, or the
+    asker is inactive). Part E of the same-night batch - before this,
+    notify-user was the only available action after confirming, with no way
+    to close a candidate out silently; a confirmed-but-undecided candidate
+    just sat in the review queue forever. Never touches ChatSession/
+    notifications/email - gap_addressed was already set at confirm time
+    (see confirm_gap_source_candidate), so there's nothing left to do here
+    but record that a human deliberately chose not to notify, not that the
+    decision was skipped by omission."""
+    require_super_admin(user)
+    candidate = db.get(GapSourceCandidate, candidate_id)
+    if not candidate:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Candidate not found")
+    if candidate.status != "confirmed":
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Candidate is not confirmed yet")
+    if candidate.notified_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="User already notified for this candidate")
+    if candidate.notify_skipped_at is not None:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="Already resolved without notifying")
+
+    candidate.notify_skipped_at = datetime.utcnow()
+    candidate.notify_skipped_by = user.user_id
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=None,
+        action="gap_source_notify_skipped",
+        resource_type="gap_source_candidate",
+        resource_id=candidate.id,
+    )
+    db.commit()
+    db.refresh(candidate)
+    return _to_gap_source_candidate_entry(candidate)
 
 
 @router.get("/internal-activity", response_model=InternalActivityResponse)

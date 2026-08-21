@@ -120,6 +120,7 @@ from app.schemas import (
     PlanUpdateRequest,
     PlatformSettingsEntry,
     PlatformSettingsUpdateRequest,
+    PriorRejectionSummary,
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
@@ -4034,6 +4035,27 @@ def _to_gap_source_candidate_entry(db: Session, row: GapSourceCandidate) -> GapS
         if gap_session.user_id:
             asker = db.get(User, gap_session.user_id)
             user_name = asker.display_name if asker else None
+
+    # Every OTHER already-rejected candidate for this same question - so a
+    # freshly-queued candidate (from "Αναζήτηση πηγής" or the recheck-all
+    # fallback) never reads as if this is the first time anyone's looked at
+    # it, when it's actually already been investigated and turned down.
+    prior_rejected_rows = db.scalars(
+        select(GapSourceCandidate)
+        .where(
+            GapSourceCandidate.chat_session_id == row.chat_session_id,
+            GapSourceCandidate.status == "rejected",
+            GapSourceCandidate.id != row.id,
+        )
+        .order_by(GapSourceCandidate.reviewed_at.desc())
+    ).all()
+    prior_rejections = [
+        PriorRejectionSummary(
+            id=r.id, source_url=r.source_url, review_note=r.review_note, reviewed_at=r.reviewed_at
+        )
+        for r in prior_rejected_rows
+    ]
+
     return GapSourceCandidateEntry(
         id=row.id,
         chat_session_id=row.chat_session_id,
@@ -4052,6 +4074,7 @@ def _to_gap_source_candidate_entry(db: Session, row: GapSourceCandidate) -> GapS
         origin=row.origin,
         company_name=company_name,
         user_name=user_name,
+        prior_rejections=prior_rejections,
     )
 
 

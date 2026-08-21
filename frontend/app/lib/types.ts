@@ -773,6 +773,14 @@ export interface GapSourceCandidateEntry {
   origin: "external_search" | "recheck_recovery";
   company_name: string | null;
   user_name: string | null;
+  prior_rejections: PriorRejectionSummary[];
+}
+
+export interface PriorRejectionSummary {
+  id: number;
+  source_url: string;
+  review_note: string | null;
+  reviewed_at: string | null;
 }
 
 export interface GapDiscoveryResult {

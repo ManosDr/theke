@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../lib/api";
+import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { GapDiscoveryResult, GapSourceCandidateEntry } from "../lib/types";
 import { ConfidenceBadge } from "./ConfidenceBadge";
@@ -32,7 +33,7 @@ export function GapResolutionModal({
   onClose: () => void;
   onResolved: () => void;
 }) {
-  const { t } = useLocale();
+  const { t, locale } = useLocale();
   // existingCandidate covers two entry points now: a confirmed candidate
   // still awaiting its notify/don't-notify decision (-> confirmed_choice,
   // the original case), or a pending_review candidate someone else already
@@ -185,6 +186,18 @@ export function GapResolutionModal({
             {candidate.confidence && (
               <div style={{ marginBottom: "var(--space-3)" }}>
                 <ConfidenceBadge confidence={candidate.confidence} />
+              </div>
+            )}
+            {candidate.prior_rejections.length > 0 && (
+              <div className={styles.priorRejectionBox}>
+                {candidate.prior_rejections.map((r) => (
+                  <p key={r.id}>
+                    {t("admin.chatGapRate.candidates.priorRejection", {
+                      date: r.reviewed_at ? parseApiDate(r.reviewed_at).toLocaleDateString(locale) : "",
+                    })}
+                    {r.review_note ? `: ${r.review_note}` : ""}
+                  </p>
+                ))}
               </div>
             )}
             <label className={styles.field}>

@@ -559,6 +559,51 @@ def test_reject_gap_source_candidate(client, db_session, superadmin_headers, con
         cleanup_company(db_session, company, user, project)
 
 
+def test_new_candidate_surfaces_prior_rejection_history(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    """A freshly-queued candidate for a question that was already
+    investigated and rejected should carry that history with it
+    (prior_rejections) - a reviewer opening it shouldn't have to rediscover
+    "this was already looked at and turned down" from scratch."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    first = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    second = None
+    try:
+        reject_resp = client.post(
+            f"/admin/gap-source-candidates/{first.id}/reject",
+            json={"review_note": "Citation cites the wrong paragraph - real content is at §9, not §1"},
+            headers=superadmin_headers,
+        )
+        assert reject_resp.status_code == 200
+
+        second = _make_gap_source_candidate(
+            db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+        )
+        listed = client.get("/admin/gap-source-candidates?status=pending_review", headers=superadmin_headers)
+        assert listed.status_code == 200
+        entry = next(c for c in listed.json() if c["id"] == second.id)
+        assert len(entry["prior_rejections"]) == 1
+        prior = entry["prior_rejections"][0]
+        assert prior["id"] == first.id
+        assert prior["review_note"] == "Citation cites the wrong paragraph - real content is at §9, not §1"
+        assert prior["source_url"] == first.source_url
+
+        # The rejected candidate itself must never appear in its own
+        # prior_rejections list.
+        first_refetched = client.get("/admin/gap-source-candidates?status=all", headers=superadmin_headers)
+        first_entry = next(c for c in first_refetched.json() if c["id"] == first.id)
+        assert all(r["id"] != first.id for r in first_entry["prior_rejections"])
+    finally:
+        _cleanup_gap_source_candidate(db_session, first.id)
+        if second:
+            _cleanup_gap_source_candidate(db_session, second.id)
+        cleanup_company(db_session, company, user, project)
+
+
 def test_notify_gap_source_user_inserts_followup_and_marks_notified(
     client, db_session, superadmin_headers, construction_vertical_id
 ):

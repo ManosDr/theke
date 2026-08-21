@@ -224,6 +224,26 @@ export function ChatGapRatePanel() {
     return `${user} · ${company}`;
   }
 
+  // A freshly-queued candidate for a question that's already been
+  // investigated and turned down shouldn't read as if this is the first
+  // time anyone's looked at it - surfaces every prior rejection's own
+  // documented reason right on the card, before a reviewer opens it.
+  function PriorRejectionNote({ candidate }: { candidate: GapSourceCandidateEntry }) {
+    if (candidate.prior_rejections.length === 0) return null;
+    return (
+      <div className={styles.priorRejectionNote}>
+        {candidate.prior_rejections.map((r) => (
+          <p key={r.id}>
+            {t("admin.chatGapRate.candidates.priorRejection", {
+              date: r.reviewed_at ? parseApiDate(r.reviewed_at).toLocaleDateString(locale) : "",
+            })}
+            {r.review_note ? `: ${r.review_note}` : ""}
+          </p>
+        ))}
+      </div>
+    );
+  }
+
   function closeModal() {
     setActiveQuery(null);
     setActivePendingCandidate(null);
@@ -303,6 +323,7 @@ export function ChatGapRatePanel() {
                 </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
                 <p className={styles.candidateAsker}>{askerLabel(c)}</p>
+                <PriorRejectionNote candidate={c} />
                 <span className="text-muted" style={{ fontSize: "0.78rem" }}>
                   {t("admin.chatGapRate.candidates.pendingDecisionHint")}
                 </span>
@@ -329,6 +350,7 @@ export function ChatGapRatePanel() {
                 </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
                 <p className={styles.candidateAsker}>{askerLabel(c)}</p>
+                <PriorRejectionNote candidate={c} />
                 <span className="text-muted" style={{ fontSize: "0.78rem" }}>
                   {t("admin.chatGapRate.candidates.pendingDecisionHint")}
                 </span>
@@ -358,6 +380,7 @@ export function ChatGapRatePanel() {
                 </div>
                 <p className={styles.candidateQuestion}>{c.question}</p>
                 <p className={styles.candidateAsker}>{askerLabel(c)}</p>
+                <PriorRejectionNote candidate={c} />
                 <button type="button" className="btn btn-secondary" onClick={() => openPendingDecision(c)}>
                   {t("admin.chatGapRate.candidates.review")}
                 </button>

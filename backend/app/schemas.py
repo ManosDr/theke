@@ -1414,6 +1414,19 @@ class GapStatusUpdateRequest(BaseModel):
     addressed: bool
 
 
+class PriorRejectionSummary(BaseModel):
+    """One earlier rejected candidate for the same gap question - see
+    GapSourceCandidateEntry.prior_rejections. Deliberately lean (just enough
+    to show why it was rejected and what it pointed at) - the full
+    candidate_content isn't included, this is a warning label, not a second
+    full review."""
+
+    id: int
+    source_url: str
+    review_note: str | None
+    reviewed_at: datetime | None
+
+
 class GapSourceCandidateEntry(BaseModel):
     id: int
     chat_session_id: int
@@ -1441,6 +1454,11 @@ class GapSourceCandidateEntry(BaseModel):
     # alongside the question itself, not just the "recent gaps" table.
     company_name: str | None = None
     user_name: str | None = None
+    # Every OTHER candidate already rejected for this same chat_session_id -
+    # so a reviewer opening a freshly-queued candidate immediately sees "this
+    # question was already investigated and rejected, here's why" instead of
+    # re-discovering that from scratch. Never includes this row itself.
+    prior_rejections: list[PriorRejectionSummary] = []
 
 
 class GapDiscoveryResult(BaseModel):

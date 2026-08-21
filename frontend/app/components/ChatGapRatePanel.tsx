@@ -8,6 +8,7 @@ import { useAuth } from "../lib/auth";
 import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import { GapResolutionModal } from "./GapResolutionModal";
+import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
 import { useSortableData } from "../lib/useSortableData";
 import type { AdminStatsByVertical, GapQueryEntry, GapSourceCandidateEntry } from "../lib/types";
@@ -259,33 +260,25 @@ export function ChatGapRatePanel() {
                           {t(q.addressed ? "admin.chatGapRate.status.addressed" : "admin.chatGapRate.status.unreviewed")}
                         </span>
                       </td>
-                      <td className={styles.rowMenuWrap}>
-                        <button
-                          type="button"
-                          className={styles.rowMenuButton}
-                          aria-label={t("admin.chatGapRate.menuActionsFor", { id: q.id })}
-                          aria-haspopup="menu"
-                          aria-expanded={openMenuId === q.id}
-                          onClick={() => setOpenMenuId(openMenuId === q.id ? null : q.id)}
+                      <td>
+                        <RowMenu
+                          open={openMenuId === q.id}
+                          onToggle={() => setOpenMenuId(openMenuId === q.id ? null : q.id)}
+                          label={t("admin.chatGapRate.menuActionsFor", { id: q.id })}
                         >
-                          ⋯
-                        </button>
-                        {openMenuId === q.id && (
-                          <div className={styles.rowMenu} role="menu">
-                            {q.addressed ? (
-                              <button className={styles.rowMenuItem} onClick={() => updateStatus(q.id, false)}>
-                                {t("admin.chatGapRate.markUnreviewed")}
-                              </button>
-                            ) : (
-                              <button className={styles.rowMenuItem} onClick={() => updateStatus(q.id, true)}>
-                                {t("admin.chatGapRate.markAddressed")}
-                              </button>
-                            )}
-                            <button className={styles.rowMenuItem} onClick={() => discoverSource(q)}>
-                              {t("admin.chatGapRate.discoverSource")}
+                          {q.addressed ? (
+                            <button className={styles.rowMenuItem} onClick={() => updateStatus(q.id, false)}>
+                              {t("admin.chatGapRate.markUnreviewed")}
                             </button>
-                          </div>
-                        )}
+                          ) : (
+                            <button className={styles.rowMenuItem} onClick={() => updateStatus(q.id, true)}>
+                              {t("admin.chatGapRate.markAddressed")}
+                            </button>
+                          )}
+                          <button className={styles.rowMenuItem} onClick={() => discoverSource(q)}>
+                            {t("admin.chatGapRate.discoverSource")}
+                          </button>
+                        </RowMenu>
                       </td>
                     </tr>
                   ))}

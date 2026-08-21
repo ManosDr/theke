@@ -14,6 +14,7 @@ import { useSortableData } from "../lib/useSortableData";
 import { useVertical } from "../lib/vertical";
 import FieldError from "./FieldError";
 import ResetPasswordModal from "./ResetPasswordModal";
+import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
 import { PlusIcon } from "./UiIcons";
 import type {
@@ -799,31 +800,21 @@ function CompanyDetailModal({
                     <span>{u.email}</span>
                     <span className={styles.rolePill}>{t(`role.${u.role}` as TranslationKey)}</span>
                   </div>
-                  <div className={styles.rowMenuWrap}>
+                  <RowMenu
+                    open={openUserMenuId === u.id}
+                    onToggle={() => setOpenUserMenuId(openUserMenuId === u.id ? null : u.id)}
+                    label={t("companies.modal.menuActionsFor", { email: u.email })}
+                  >
                     <button
-                      type="button"
-                      className={styles.rowMenuButton}
-                      aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
-                      aria-haspopup="menu"
-                      aria-expanded={openUserMenuId === u.id}
-                      onClick={() => setOpenUserMenuId(openUserMenuId === u.id ? null : u.id)}
+                      className={styles.rowMenuItem}
+                      onClick={() => {
+                        setResetTarget(u);
+                        setOpenUserMenuId(null);
+                      }}
                     >
-                      ⋯
+                      {t("companies.modal.resetPassword")}
                     </button>
-                    {openUserMenuId === u.id && (
-                      <div className={styles.rowMenu} role="menu">
-                        <button
-                          className={styles.rowMenuItem}
-                          onClick={() => {
-                            setResetTarget(u);
-                            setOpenUserMenuId(null);
-                          }}
-                        >
-                          {t("companies.modal.resetPassword")}
-                        </button>
-                      </div>
-                    )}
-                  </div>
+                  </RowMenu>
                 </div>
               ))
             )}

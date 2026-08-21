@@ -6,6 +6,7 @@ import { useSearchParams } from "next/navigation";
 import { api } from "../lib/api";
 import { useAuth } from "../lib/auth";
 import { useLocale } from "../lib/i18n";
+import { RowMenu } from "./RowMenu";
 import { SortableTh, SortToggleButton } from "./SortableTh";
 import type { TranslationKey } from "../lib/translations";
 import { useSortableData } from "../lib/useSortableData";
@@ -559,77 +560,69 @@ export function DocumentsPanel() {
                       <td className="text-muted">
                         {doc.region_id ? t("docs.scopeRegion", { region: doc.region_id }) : t("docs.scopeNational")}
                       </td>
-                      <td className={styles.rowMenuWrap}>
-                        <button
-                          type="button"
-                          className={styles.rowMenuButton}
-                          aria-label={t("docs.menuActionsFor", { title: doc.title ?? `#${doc.id}` })}
-                          aria-haspopup="menu"
-                          aria-expanded={openMenuId === doc.id}
-                          onClick={() => {
+                      <td>
+                        <RowMenu
+                          open={openMenuId === doc.id}
+                          onToggle={() => {
                             setOpenMenuId(openMenuId === doc.id ? null : doc.id);
                             setUndoConfirmId(null);
                             setUndoChecked(false);
                           }}
+                          label={t("docs.menuActionsFor", { title: doc.title ?? `#${doc.id}` })}
                         >
-                          ⋯
-                        </button>
-                        {openMenuId === doc.id && (
-                          <div className={styles.rowMenu} role="menu">
-                            <button className={styles.rowMenuItem} onClick={() => { setDrawerDoc(doc); setOpenMenuId(null); }}>
-                              {t("docs.menuView")}
+                          <button className={styles.rowMenuItem} onClick={() => { setDrawerDoc(doc); setOpenMenuId(null); }}>
+                            {t("docs.menuView")}
+                          </button>
+                          {doc.needs_review && (
+                            <button className={styles.rowMenuItem} onClick={() => startRevalidation(doc)}>
+                              {t("docs.menuRevalidateAi")}
                             </button>
-                            {doc.needs_review && (
-                              <button className={styles.rowMenuItem} onClick={() => startRevalidation(doc)}>
-                                {t("docs.menuRevalidateAi")}
-                              </button>
-                            )}
-                            {doc.needs_review && (
-                              <button className={styles.rowMenuItem} onClick={() => markReviewed(doc)}>
-                                {t("docs.menuMarkReviewed")}
-                              </button>
-                            )}
-                            {doc.status === "active" && (
-                              <button className={styles.rowMenuItem} onClick={() => { setSupersedeTarget(doc); setOpenMenuId(null); }}>
-                                {t("docs.menuMarkSuperseded")}
-                              </button>
-                            )}
-                            {eff === "superseded" && (
-                              undoConfirmId === doc.id ? (
-                                <div className={styles.rowMenuConfirm}>
-                                  <label>
-                                    <input
-                                      type="checkbox"
-                                      checked={undoChecked}
-                                      onChange={(e) => setUndoChecked(e.target.checked)}
-                                    />
-                                    {t("docs.confirmUndo")}
-                                  </label>
-                                  <button
-                                    className={styles.rowMenuItem}
-                                    disabled={!undoChecked}
-                                    onClick={() => undoSupersede(doc)}
-                                  >
-                                    {t("docs.menuUndoSupersede")}
-                                  </button>
-                                </div>
-                              ) : (
+                          )}
+                          {doc.needs_review && (
+                            <button className={styles.rowMenuItem} onClick={() => markReviewed(doc)}>
+                              {t("docs.menuMarkReviewed")}
+                            </button>
+                          )}
+                          {doc.status === "active" && (
+                            <button className={styles.rowMenuItem} onClick={() => { setSupersedeTarget(doc); setOpenMenuId(null); }}>
+                              {t("docs.menuMarkSuperseded")}
+                            </button>
+                          )}
+                          {eff === "superseded" && (
+                            undoConfirmId === doc.id ? (
+                              <div className={styles.rowMenuConfirm}>
+                                <label>
+                                  <input
+                                    type="checkbox"
+                                    checked={undoChecked}
+                                    onChange={(e) => setUndoChecked(e.target.checked)}
+                                  />
+                                  {t("docs.confirmUndo")}
+                                </label>
                                 <button
                                   className={styles.rowMenuItem}
-                                  onClick={() => { setUndoConfirmId(doc.id); setUndoChecked(false); }}
+                                  disabled={!undoChecked}
+                                  onClick={() => undoSupersede(doc)}
                                 >
                                   {t("docs.menuUndoSupersede")}
                                 </button>
-                              )
-                            )}
-                            <button
-                              className={`${styles.rowMenuItem} ${styles.rowMenuItemDanger}`}
-                              onClick={() => { setRemoveTarget(doc); setOpenMenuId(null); }}
-                            >
-                              {t("docs.menuRemove")}
-                            </button>
-                          </div>
-                        )}
+                              </div>
+                            ) : (
+                              <button
+                                className={styles.rowMenuItem}
+                                onClick={() => { setUndoConfirmId(doc.id); setUndoChecked(false); }}
+                              >
+                                {t("docs.menuUndoSupersede")}
+                              </button>
+                            )
+                          )}
+                          <button
+                            className={`${styles.rowMenuItem} ${styles.rowMenuItemDanger}`}
+                            onClick={() => { setRemoveTarget(doc); setOpenMenuId(null); }}
+                          >
+                            {t("docs.menuRemove")}
+                          </button>
+                        </RowMenu>
                       </td>
                     </tr>
                     {revalidatingId === doc.id && (

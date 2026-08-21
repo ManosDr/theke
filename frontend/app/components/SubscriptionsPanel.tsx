@@ -9,6 +9,7 @@ import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useSortableData } from "../lib/useSortableData";
+import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
 import type {
   CompanySummary,
@@ -331,61 +332,53 @@ function CompaniesTab() {
                   <td>
                     {item.users_count}/{item.user_limit}
                   </td>
-                  <td className={styles.rowMenuWrap}>
-                    <button
-                      type="button"
-                      className={styles.rowMenuButton}
-                      aria-label={t("adminSubs.menuActionsFor", { company: item.company_name })}
-                      aria-haspopup="menu"
-                      aria-expanded={openMenuId === item.company_id}
-                      onClick={() => setOpenMenuId(openMenuId === item.company_id ? null : item.company_id)}
+                  <td>
+                    <RowMenu
+                      open={openMenuId === item.company_id}
+                      onToggle={() => setOpenMenuId(openMenuId === item.company_id ? null : item.company_id)}
+                      label={t("adminSubs.menuActionsFor", { company: item.company_name })}
                     >
-                      ⋯
-                    </button>
-                    {openMenuId === item.company_id && (
-                      <div className={styles.rowMenu} role="menu">
-                        <button
-                          className={styles.rowMenuItem}
-                          onClick={() => {
-                            setChangePlanTarget(item);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("adminSubs.menuChangePlan")}
+                      <button
+                        className={styles.rowMenuItem}
+                        onClick={() => {
+                          setChangePlanTarget(item);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("adminSubs.menuChangePlan")}
+                      </button>
+                      <button className={styles.rowMenuItem} onClick={() => extendTrial(item)}>
+                        {t("adminSubs.menuExtendTrial")}
+                      </button>
+                      {item.status !== "cancelled" && (
+                        <button className={styles.rowMenuItem} onClick={() => cancelSub(item)}>
+                          {t("adminSubs.menuCancel")}
                         </button>
-                        <button className={styles.rowMenuItem} onClick={() => extendTrial(item)}>
-                          {t("adminSubs.menuExtendTrial")}
+                      )}
+                      {(item.status === "cancelled" || item.status === "expired" || item.status === "suspended") && (
+                        <button className={styles.rowMenuItem} onClick={() => reactivateSub(item)}>
+                          {t("adminSubs.menuReactivate")}
                         </button>
-                        {item.status !== "cancelled" && (
-                          <button className={styles.rowMenuItem} onClick={() => cancelSub(item)}>
-                            {t("adminSubs.menuCancel")}
-                          </button>
-                        )}
-                        {(item.status === "cancelled" || item.status === "expired" || item.status === "suspended") && (
-                          <button className={styles.rowMenuItem} onClick={() => reactivateSub(item)}>
-                            {t("adminSubs.menuReactivate")}
-                          </button>
-                        )}
-                        <button
-                          className={styles.rowMenuItem}
-                          onClick={() => {
-                            setNotesTarget(item);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("adminSubs.menuAddNote")}
-                        </button>
-                        <button
-                          className={styles.rowMenuItem}
-                          onClick={() => {
-                            setInvoicesTarget(item);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("adminSubs.menuInvoices")}
-                        </button>
-                      </div>
-                    )}
+                      )}
+                      <button
+                        className={styles.rowMenuItem}
+                        onClick={() => {
+                          setNotesTarget(item);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("adminSubs.menuAddNote")}
+                      </button>
+                      <button
+                        className={styles.rowMenuItem}
+                        onClick={() => {
+                          setInvoicesTarget(item);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("adminSubs.menuInvoices")}
+                      </button>
+                    </RowMenu>
                   </td>
                 </tr>
               );

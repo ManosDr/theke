@@ -162,32 +162,9 @@
   white-space: nowrap;
 }
 
-.rowMenuWrap {
-  position: relative;
-}
-
-.rowMenuButton {
-  border: none;
-  background: none;
-  font-size: 1.1rem;
-  color: var(--admin-stone);
-  padding: 2px var(--space-2);
-}
-
-.rowMenu {
-  position: absolute;
-  right: 0;
-  top: 100%;
-  z-index: 10;
-  min-width: 200px;
-  background: var(--color-surface);
-  border: 1px solid var(--admin-card-border);
-  border-radius: var(--radius-sm);
-  box-shadow: var(--admin-shadow-card);
-  padding: var(--space-1);
-  display: flex;
-  flex-direction: column;
-}
+/* The wrap/button/dropdown-container trio moved to the shared RowMenu
+   component (components/RowMenu.tsx) - portaled + position:fixed, fixing a
+   clipping bug from .card's overflow-x:auto (see that file's comment). */
 
 .rowMenuItem {
   text-align: left;

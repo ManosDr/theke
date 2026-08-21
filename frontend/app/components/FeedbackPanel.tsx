@@ -10,6 +10,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { useSortableData } from "../lib/useSortableData";
 import type { FeedbackEntry, FeedbackListResponse, UserFeedbackEntry, UserFeedbackListResponse } from "../lib/types";
+import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
 import { ThumbDownIcon, ThumbUpIcon } from "./StatIcons";
 import { BookIcon } from "./UiIcons";
@@ -293,40 +294,32 @@ export function FeedbackPanel() {
                       {t(`adminFeedback.status.${it.status}` as TranslationKey)}
                     </span>
                   </td>
-                  <td className={styles.rowMenuWrap}>
-                    <button
-                      type="button"
-                      className={styles.rowMenuButton}
-                      aria-label={t("adminFeedback.menuActionsFor", { id: it.id })}
-                      aria-haspopup="menu"
-                      aria-expanded={openMenuId === it.id}
-                      onClick={() => setOpenMenuId(openMenuId === it.id ? null : it.id)}
+                  <td>
+                    <RowMenu
+                      open={openMenuId === it.id}
+                      onToggle={() => setOpenMenuId(openMenuId === it.id ? null : it.id)}
+                      label={t("adminFeedback.menuActionsFor", { id: it.id })}
                     >
-                      ⋯
-                    </button>
-                    {openMenuId === it.id && (
-                      <div className={styles.rowMenu} role="menu">
-                        <button
-                          className={styles.rowMenuItem}
-                          onClick={() => {
-                            setDetailId(detailId === it.id ? null : it.id);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("adminFeedback.menuFullView")}
+                      <button
+                        className={styles.rowMenuItem}
+                        onClick={() => {
+                          setDetailId(detailId === it.id ? null : it.id);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("adminFeedback.menuFullView")}
+                      </button>
+                      {it.status !== "solved" && (
+                        <button className={styles.rowMenuItem} onClick={() => updateStatus(it.id, "solved")}>
+                          {t("adminFeedback.menuMarkSolved")}
                         </button>
-                        {it.status !== "solved" && (
-                          <button className={styles.rowMenuItem} onClick={() => updateStatus(it.id, "solved")}>
-                            {t("adminFeedback.menuMarkSolved")}
-                          </button>
-                        )}
-                        {it.status !== "rejected" && (
-                          <button className={styles.rowMenuItem} onClick={() => updateStatus(it.id, "rejected")}>
-                            {t("adminFeedback.menuReject")}
-                          </button>
-                        )}
-                      </div>
-                    )}
+                      )}
+                      {it.status !== "rejected" && (
+                        <button className={styles.rowMenuItem} onClick={() => updateStatus(it.id, "rejected")}>
+                          {t("adminFeedback.menuReject")}
+                        </button>
+                      )}
+                    </RowMenu>
                   </td>
                 </tr>
                 {detailId === it.id && (

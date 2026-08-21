@@ -14,6 +14,7 @@ import type { TranslationKey } from "../lib/translations";
 import { useSortableData } from "../lib/useSortableData";
 import type { AdminUserSummary, CompanySummary, EmailStatusResponse, VerticalSummary } from "../lib/types";
 import ResetPasswordModal from "./ResetPasswordModal";
+import { RowMenu } from "./RowMenu";
 import styles from "./AdminUsersPanel.module.css";
 
 type Tab = "real" | "demo";
@@ -291,47 +292,37 @@ export function AdminUsersPanel() {
                       })()
                     )}
                   </td>
-                  <td className={styles.rowMenuWrap}>
+                  <td>
                     {u.role !== "super_admin" && (
-                      <>
+                      <RowMenu
+                        open={openMenuId === u.id}
+                        onToggle={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                        label={t("companies.modal.menuActionsFor", { email: u.email })}
+                      >
                         <button
-                          type="button"
-                          className={styles.rowMenuButton}
-                          aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
-                          aria-haspopup="menu"
-                          aria-expanded={openMenuId === u.id}
-                          onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                          className={styles.rowMenuItem}
+                          onClick={() => {
+                            setResetTarget(u);
+                            setOpenMenuId(null);
+                          }}
                         >
-                          ⋯
+                          {t("companies.modal.resetPassword")}
                         </button>
-                        {openMenuId === u.id && (
-                          <div className={styles.rowMenu} role="menu">
-                            <button
-                              className={styles.rowMenuItem}
-                              onClick={() => {
-                                setResetTarget(u);
-                                setOpenMenuId(null);
-                              }}
-                            >
-                              {t("companies.modal.resetPassword")}
-                            </button>
-                            {u.company_id != null && (
-                              <button
-                                className={styles.rowMenuItem}
-                                onClick={() => {
-                                  setOpenMenuId(null);
-                                  router.push(`/admin/companies?company=${u.company_id}`);
-                                }}
-                              >
-                                {t("adminUsers.menuUsage")}
-                              </button>
-                            )}
-                            <button className={styles.rowMenuItem} onClick={() => toggleActive(u)}>
-                              {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
-                            </button>
-                          </div>
+                        {u.company_id != null && (
+                          <button
+                            className={styles.rowMenuItem}
+                            onClick={() => {
+                              setOpenMenuId(null);
+                              router.push(`/admin/companies?company=${u.company_id}`);
+                            }}
+                          >
+                            {t("adminUsers.menuUsage")}
+                          </button>
                         )}
-                      </>
+                        <button className={styles.rowMenuItem} onClick={() => toggleActive(u)}>
+                          {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
+                        </button>
+                      </RowMenu>
                     )}
                   </td>
                 </tr>

@@ -27,6 +27,7 @@ import { DocTypeBadge } from "../components/TypeBadge";
 import { PersonIcon, PlusIcon } from "../components/UiIcons";
 import FieldError from "../components/FieldError";
 import ResetPasswordModal from "../components/ResetPasswordModal";
+import { RowMenu } from "../components/RowMenu";
 import Tooltip from "../components/Tooltip";
 import type {
   ActivityEventEntry,
@@ -663,42 +664,34 @@ function UsersTab({ token }: { token: string | null }) {
                       {u.is_active ? t("dash.company.statusActive") : t("dash.company.statusRevoked")}
                     </span>
                   </td>
-                  <td className={tabStyles.rowMenuWrap}>
-                    <button
-                      type="button"
-                      className={tabStyles.rowMenuButton}
-                      aria-label={t("companies.modal.menuActionsFor", { email: u.email })}
-                      aria-haspopup="menu"
-                      aria-expanded={openMenuId === u.id}
-                      onClick={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                  <td>
+                    <RowMenu
+                      open={openMenuId === u.id}
+                      onToggle={() => setOpenMenuId(openMenuId === u.id ? null : u.id)}
+                      label={t("companies.modal.menuActionsFor", { email: u.email })}
                     >
-                      ⋯
-                    </button>
-                    {openMenuId === u.id && (
-                      <div className={tabStyles.rowMenu} role="menu">
-                        <button
-                          className={tabStyles.rowMenuItem}
-                          onClick={() => {
-                            setResetTarget(u);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("companies.modal.resetPassword")}
-                        </button>
-                        <button
-                          className={tabStyles.rowMenuItem}
-                          onClick={() => {
-                            setUsageTarget(u);
-                            setOpenMenuId(null);
-                          }}
-                        >
-                          {t("adminUsers.menuUsage")}
-                        </button>
-                        <button className={tabStyles.rowMenuItem} onClick={() => toggleActive(u)}>
-                          {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
-                        </button>
-                      </div>
-                    )}
+                      <button
+                        className={tabStyles.rowMenuItem}
+                        onClick={() => {
+                          setResetTarget(u);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("companies.modal.resetPassword")}
+                      </button>
+                      <button
+                        className={tabStyles.rowMenuItem}
+                        onClick={() => {
+                          setUsageTarget(u);
+                          setOpenMenuId(null);
+                        }}
+                      >
+                        {t("adminUsers.menuUsage")}
+                      </button>
+                      <button className={tabStyles.rowMenuItem} onClick={() => toggleActive(u)}>
+                        {u.is_active ? t("dash.company.revoke") : t("dash.company.restore")}
+                      </button>
+                    </RowMenu>
                   </td>
                 </tr>
               ))}

@@ -73,3 +73,12 @@
 # its own validity window before anyone found out. 08:30 UTC, right after
 # the crawl-health check. See crawler/crawler/invite_expiry_check.py.
 30 8 * * * python -m crawler.invite_expiry_check
+
+# Nightly full backup - real pg_dump (custom format) + a tar.gz of the
+# uploaded-documents volume, both uploaded to Hetzner Object Storage (see
+# crawler/config.py's HETZNER_S3_* vars and crawler/crawler/nightly_backup.py).
+# 02:00 UTC - off-peak, and before the 03:00 monthly crawl / weekly jobs
+# above so a backup never runs concurrently with either. 30-run retention
+# with automatic pruning of older runs; failure notifies every active super
+# admin in-app (same pattern as the other daily checks in this file).
+0 2 * * * python -m crawler.nightly_backup

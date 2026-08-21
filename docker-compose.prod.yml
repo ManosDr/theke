@@ -102,6 +102,15 @@ services:
     env_file: .env
     command: ["supercronic", "/app/crontab"]
     restart: unless-stopped
+    # Same uploads_data volume the backend service mounts, at the same
+    # /app/uploads path (see docker-compose.yml's dev version of this
+    # service, which already has this). Two real jobs in this crontab need
+    # it: retention_cleanup.py's physical file deletion (was silently
+    # orphaning files on disk in production - it deleted the DB rows fine,
+    # this mount was just missing here) and nightly_backup.py's
+    # uploads-volume archive (would otherwise back up nothing every night).
+    volumes:
+      - uploads_data:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

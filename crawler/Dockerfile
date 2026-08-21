@@ -3,7 +3,17 @@ FROM python:3.11-slim
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    libpq-dev gcc curl \
+    libpq-dev gcc curl gnupg lsb-release \
+    && rm -rf /var/lib/apt/lists/*
+
+# postgresql-client-16 specifically (not Debian's stock postgresql-client,
+# which trails the current major version) - nightly_backup.py's pg_dump
+# needs to match docker-compose.yml's pgvector/pgvector:pg16 server, since
+# an older client dumping a newer server's catalog is exactly the kind of
+# gap you don't want to discover the day you actually need to restore.
+RUN curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | gpg --dearmor -o /usr/share/keyrings/postgresql.gpg \
+    && echo "deb [signed-by=/usr/share/keyrings/postgresql.gpg] http://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+    && apt-get update && apt-get install -y --no-install-recommends postgresql-client-16 \
     && rm -rf /var/lib/apt/lists/*
 
 # supercronic: cron built for containers (stdout/stderr logging, no syslog,

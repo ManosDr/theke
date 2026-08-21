@@ -76,9 +76,13 @@ The crawler doesn't need to be started manually - `docker compose up` also
 starts a `scheduler` service that runs it, and several other scheduled jobs
 (weekly staleness/company-document-staleness sweeps, the canary chat
 benchmark, infra-health snapshot, data-retention cleanup, and usage digest
-email, plus daily AI-spend, data-source-health, and invite-expiry checks),
-via supercronic on the schedule in `crawler/crontab`. To trigger an
-ingestion run on demand:
+email, plus daily AI-spend, data-source-health, invite-expiry, and nightly
+full-backup checks), via supercronic on the schedule in `crawler/crontab`.
+The nightly backup (`crawler/crawler/nightly_backup.py`) needs real Hetzner
+Object Storage credentials in `.env` (`HETZNER_S3_*` - see `.env.example`)
+to actually run; without them it fails loudly with a super-admin
+notification rather than silently skipping. To trigger an ingestion run on
+demand:
 
 ```bash
 docker compose --profile crawler run --rm crawler
@@ -90,7 +94,7 @@ docker compose --profile crawler run --rm crawler
 docker exec theke-backend-1 python -m pytest tests/ -v
 ```
 
-All tests should pass (95 passed, 0 skipped as of this writing).
+All tests should pass (125 passed, 0 skipped as of this writing).
 
 ## Production deployment
 

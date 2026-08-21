@@ -213,9 +213,10 @@ function RegisterContent() {
     if (!firstName.trim()) errors.firstName = t("validation.fieldRequired");
     if (!lastName.trim()) errors.lastName = t("validation.fieldRequired");
     if (mode === "invite" && !inviteToken.trim()) errors.inviteToken = t("validation.fieldRequired");
-    if (mode === "new_company" && !companyName.trim()) errors.companyName = t("validation.fieldRequired");
-    if (mode === "invite" && inviteInfo?.requires_company_name && !companyName.trim())
-      errors.companyName = t("validation.fieldRequired");
+    // Company name is optional on both new-company paths - left blank, the
+    // backend defaults the company's display name to the founding admin's
+    // own name (first + last) rather than forcing a placeholder value like
+    // "." into a real field (see KNOWN_DECISIONS.md).
     if (!dpaAccepted) errors.dpaAccepted = t("register.dpaRequired");
     setFieldErrors(errors);
     if (Object.keys(errors).length > 0) return;
@@ -247,12 +248,12 @@ function RegisterContent() {
               // Only meaningful (and only required server-side) for a
               // company-less invite - ignored by the backend otherwise.
               ...(inviteInfo?.requires_company_name
-                ? { new_company_name: companyName, acquisition_source: acquisitionSource.trim() || undefined }
+                ? { new_company_name: companyName.trim() || undefined, acquisition_source: acquisitionSource.trim() || undefined }
                 : {}),
             }
           : {
               intended_tier: intendedTier || undefined,
-              company_name: companyName,
+              company_name: companyName.trim() || undefined,
               company_type: companyType,
               vertical_slug: companyType === "accounting" ? "tax_accounting" : "construction",
               acquisition_source: acquisitionSource.trim() || undefined,

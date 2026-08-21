@@ -145,6 +145,58 @@ def test_register_new_company(client, db_session):
             db_session.commit()
 
 
+def test_register_new_company_blank_name_defaults_to_founder_name(client, db_session):
+    """Part B of the same-night batch: company_name is now optional on the
+    self-serve path - left blank (omitted entirely here, matching what the
+    frontend now sends via `companyName.trim() || undefined`), the new
+    company's display name must default to the founding admin's own real
+    name rather than staying blank or forcing a placeholder like "." (which
+    is exactly what happened to a real production company before this fix -
+    see KNOWN_DECISIONS.md)."""
+    unique = uuid.uuid4().hex[:8]
+    email = f"blank-name-{unique}@example.test"
+    expected_name = f"Νίκος{unique} Δοκιμαστικός{unique}"
+    resp = client.post(
+        "/auth/register",
+        json={
+            "email": email,
+            "password": "supersecret1",
+            "first_name": f"Νίκος{unique}",
+            "last_name": f"Δοκιμαστικός{unique}",
+            "company_type": "construction",
+            "vertical_slug": "construction",
+            "dpa_accepted": True,
+        },
+    )
+    try:
+        assert resp.status_code == 201
+        company = db_session.scalar(select(Company).where(Company.name == expected_name))
+        assert company is not None
+    finally:
+        from sqlalchemy import text
+
+        db_session.execute(
+            text("DELETE FROM notifications WHERE type = 'self_serve_registered' AND body LIKE :pattern"),
+            {"pattern": f"%{email}%"},
+        )
+        db_session.commit()
+        user = db_session.scalar(select(User).where(User.email == email))
+        company = db_session.scalar(select(Company).where(Company.name == expected_name))
+        if user:
+            db_session.execute(text("DELETE FROM audit_log WHERE actor_user_id = :id"), {"id": user.id})
+            db_session.execute(text("DELETE FROM email_verification_tokens WHERE user_id = :id"), {"id": user.id})
+            db_session.execute(text("DELETE FROM refresh_tokens WHERE user_id = :id"), {"id": user.id})
+            db_session.commit()
+            db_session.delete(user)
+            db_session.commit()
+        if company:
+            db_session.execute(text("DELETE FROM subscription_events WHERE company_id = :id"), {"id": company.id})
+            db_session.execute(text("DELETE FROM company_subscriptions WHERE company_id = :id"), {"id": company.id})
+            db_session.commit()
+            db_session.delete(company)
+            db_session.commit()
+
+
 def test_register_new_company_after_beta_ended(client, db_session):
     """Phase 3 of the beta/trial rollout - once platform_settings.beta_ended
     is true, the exact same self-serve registration request that produces

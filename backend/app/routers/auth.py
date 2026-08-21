@@ -161,10 +161,17 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
     # instead) or the notify_super_admins call further down.
     new_company_status: str | None = None
 
-    if bool(payload.invite_token) == bool(payload.company_name):
+    # company_name is optional on the new-company path now (see
+    # KNOWN_DECISIONS.md - defaults to the founding admin's own name below
+    # when blank), so its presence/absence can no longer be used to infer
+    # which path the caller means - invite_token alone does that (see the
+    # `if payload.invite_token: ... else: ...` branch further down). The
+    # only thing still genuinely invalid here is supplying both signals at
+    # once, which would be ambiguous about which path is actually meant.
+    if payload.invite_token and payload.company_name:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide exactly one of invite_token (join) or company_name (create a new company)",
+            detail="Provide either invite_token (join) or company_name (create a new company), not both",
         )
 
     if payload.invite_token:
@@ -177,18 +184,29 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         ):
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Invalid, expired, or used invite")
 
+        # Captured before the backfill below sets invite.company_id, and
+        # used further down (super_admin_body) instead of
+        # payload.new_company_name - that field is now optional (can be
+        # blank on this exact path), so it can no longer double as the
+        # "was this the company-less path" signal.
+        is_company_less_invite = invite.company_id is None
         if invite.company_id is None:
             # Company-less invite (see admin.py's create_super_admin_invite)
             # - the invitee creates their own company right here, in the
             # same transaction as their account, rather than a separate
             # follow-up call: leaves no window where an account exists
             # without a company. See KNOWN_DECISIONS.md.
-            if not payload.new_company_name or not payload.new_company_name.strip():
-                raise HTTPException(
-                    status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                    detail="new_company_name is required to accept this invite",
-                )
-            if db.scalar(select(Company).where(Company.name == payload.new_company_name)):
+            # Optional - defaults to the founding admin's own real name
+            # (first + last) when left blank, rather than forcing a
+            # placeholder value into a real field (see KNOWN_DECISIONS.md -
+            # this is exactly what produced Nikos's company record showing
+            # "." before that fix).
+            new_company_name = (
+                payload.new_company_name.strip()
+                if payload.new_company_name and payload.new_company_name.strip()
+                else f"{payload.first_name.strip()} {payload.last_name.strip()}"
+            )
+            if db.scalar(select(Company).where(Company.name == new_company_name)):
                 raise HTTPException(
                     status_code=status.HTTP_409_CONFLICT,
                     detail="A company with this name already exists - choose a different name",
@@ -200,7 +218,7 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
             # recorded here too, not skipped.
             dpa_version = db.scalar(select(LegalDocument.version).where(LegalDocument.slug == "dpa"))
             company = Company(
-                name=payload.new_company_name,
+                name=new_company_name,
                 type=invite.company_type or "construction",
                 vertical_id=invite.vertical_id,
                 dpa_accepted_at=datetime.utcnow(),
@@ -239,16 +257,16 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         # this reaches every OTHER active super_admin too, since acceptance
         # is a platform-visibility event (a real prospect just came through),
         # not just something the inviter alone should know about. Wording
-        # branches on payload.new_company_name (only ever set on the
-        # company-less path, see the required-field check above) rather than
-        # invite.company_id, which is already non-NULL by this point on both
-        # paths (see the backfill 3 lines above the branch this sits under).
+        # branches on is_company_less_invite (captured before the backfill,
+        # since invite.company_id is already non-NULL by this point on both
+        # paths - and payload.new_company_name can no longer be used for
+        # this, now that it's optional and may be blank on this exact path).
         # Phase 5 of the beta/trial rollout: "resulting status" only means
         # something on the company-less path (it just eagerly created a
         # real CompanySubscription, status='beta', a few lines up) -
         # joining an existing company doesn't touch a subscription at all,
         # so there's nothing new to report there.
-        if payload.new_company_name:
+        if is_company_less_invite:
             super_admin_body = f'{payload.email} accepted the invite and created "{company.name}" (status: beta).'
         else:
             super_admin_body = f'{payload.email} accepted the invite and joined "{company.name}".'
@@ -260,7 +278,16 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
             link="/admin/invites",
         )
     else:
-        if db.scalar(select(Company).where(Company.name == payload.company_name)):
+        # Optional - defaults to the founding admin's own real name (first +
+        # last) when left blank, rather than forcing a placeholder value
+        # into a real field (see KNOWN_DECISIONS.md - this is exactly what
+        # produced Nikos's company record showing "." before that fix).
+        company_display_name = (
+            payload.company_name.strip()
+            if payload.company_name and payload.company_name.strip()
+            else f"{payload.first_name.strip()} {payload.last_name.strip()}"
+        )
+        if db.scalar(select(Company).where(Company.name == company_display_name)):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail="A company with this name already exists - ask an admin there for an invite",
@@ -293,7 +320,7 @@ async def register(payload: RegisterRequest, response: Response, db: Session = D
         # the text is publicly viewable yet (see KNOWN_DECISIONS.md).
         dpa_version = db.scalar(select(LegalDocument.version).where(LegalDocument.slug == "dpa"))
         company = Company(
-            name=payload.company_name,
+            name=company_display_name,
             type=payload.company_type,
             vertical_id=vertical.id,
             dpa_accepted_at=datetime.utcnow(),

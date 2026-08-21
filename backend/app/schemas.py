@@ -27,8 +27,14 @@ class RegisterRequest(BaseModel):
     first_name: str = Field(min_length=1)
     last_name: str = Field(min_length=1)
     # Provide EITHER invite_token (join an existing company - the invite
-    # determines which company and role) OR company_name (create a new one,
-    # becoming its founding admin). Providing both / neither is rejected.
+    # determines which company and role) OR nothing (create a new company,
+    # becoming its founding admin - invite_token's own absence is what
+    # selects this path, not company_name's presence). Providing both is
+    # rejected as ambiguous - see auth.py's register(). company_name itself
+    # is optional on the new-company path: left blank, the new company's
+    # display name defaults to the founding admin's own first+last name
+    # rather than forcing a placeholder into a real field (see
+    # KNOWN_DECISIONS.md).
     invite_token: str | None = None
     company_name: str | None = None
     company_type: str = "construction"
@@ -36,6 +42,8 @@ class RegisterRequest(BaseModel):
     # create_super_admin_invite / auth.py's register()) - the invitee names
     # their own company right here, in the same registration call, rather
     # than a separate follow-up request. Ignored on every other path.
+    # Optional, same as company_name above - blank defaults to the founding
+    # admin's own name.
     new_company_name: str | None = None
     # Required only on the company_name (new-company) path - validated
     # against the verticals table in the endpoint itself (not here), since

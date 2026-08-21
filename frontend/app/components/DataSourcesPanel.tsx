@@ -146,9 +146,21 @@ export function DataSourcesPanel() {
     [groups, selectedVertical]
   );
 
+  // is_active=false sources (deactivated, including broken placeholder
+  // rows like id 19 "manual_entry" - base_url literally "unknown") are
+  // never touched by the real health-check job (see crawler/crawler/
+  // data_source_health_check.py's own WHERE is_active = true), so a stale
+  // consecutive_failures streak from before deactivation must not count
+  // here - the source isn't being checked, so it can't be "currently
+  // failing." GET /admin/data-sources itself deliberately still returns
+  // every source regardless of is_active (a super admin needs to see and
+  // manage inactive ones too) - the exclusion belongs here, in what counts
+  // as a real, live failure worth flagging.
   const failingSources = useMemo(
     () =>
-      visibleGroups.flatMap((g) => g.sources.filter((s) => s.consecutive_failures >= FAILURE_BANNER_THRESHOLD)),
+      visibleGroups.flatMap((g) =>
+        g.sources.filter((s) => s.is_active && s.consecutive_failures >= FAILURE_BANNER_THRESHOLD)
+      ),
     [visibleGroups]
   );
 

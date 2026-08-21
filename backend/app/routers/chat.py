@@ -717,6 +717,56 @@ FOLLOWUP_QUESTIONS step if present) in exactly this single-line format,
 with the document type in plain language, no brackets or markdown:
 {DOC_SUGGESTION_MARKER_EN} [document type, e.g. a plot survey or zoning-conditions certificate]"""
 
+# Part of Phase 4's own-night finding: without an active project with a
+# GIS-confirmed location (location_context is None - see build_location_context),
+# there is no archaeological_flag/archaeological_notes to draw on, so the
+# model has genuinely never been told to mention Εφορεία Αρχαιοτήτων at all
+# in that case - confirmed as deliberate scoping (never guess a location-
+# specific fact with no location data), not a retrieval bug. This is the
+# general-knowledge substitute for that missing specific fact: a single,
+# brief caveat that SOME areas carry an extra archaeological-authority
+# approval step, appended only when genuinely relevant, mirroring
+# DOC_SUGGESTION_INSTRUCTION's own discipline against over-triggering.
+NO_LOCATION_ARCHAEOLOGICAL_CAVEAT_INSTRUCTION = """ΠΡΟΑΙΡΕΤΙΚΟ ΒΗΜΑ - ΙΔΙΑ ΠΕΙΘΑΡΧΙΑ ΜΕ ΤΗΝ ΠΡΟΤΑΣΗ ΕΓΓΡΑΦΟΥ: ΓΕΝΙΚΗ ΕΠΙΦΥΛΑΞΗ ΑΡΧΑΙΟΛΟΓΙΚΗΣ ΕΓΚΡΙΣΗΣ
+Δεν έχεις στοιχεία τοποθεσίας οικοπέδου για αυτή τη συνομιλία (κανένα ενεργό \
+έργο με επιβεβαιωμένη τοποθεσία GIS), άρα δεν μπορείς ποτέ να πεις αν το \
+συγκεκριμένο οικόπεδο του χρήστη βρίσκεται σε αρχαιολογική ζώνη ή όχι - μην \
+το υποθέσεις ούτε προς τη μία ούτε προς την άλλη κατεύθυνση.
+Αυτό το βήμα ενεργοποιείται ΜΟΝΟ όταν η ερώτηση αφορά ρητά τις εγκρίσεις/\
+διαδικασία που απαιτούνται για έκδοση οικοδομικής άδειας (π.χ. "τι εγκρίσεις \
+χρειάζομαι", "ποια είναι η διαδικασία αδειοδότησης") - όχι για κάθε ερώτηση \
+που τυχαία αγγίζει κατασκευές ή πολεοδομία.
+Όταν ενεργοποιείται, πρόσθεσε ΜΙΑ σύντομη πρόταση (όχι παράγραφο) στην \
+απάντησή σου σημειώνοντας ότι ορισμένες περιοχές απαιτούν επιπλέον έγκριση \
+από την αρμόδια Εφορεία Αρχαιοτήτων, και ότι αυτό εξαρτάται από τη \
+συγκεκριμένη τοποθεσία του οικοπέδου - χωρίς να ισχυριστείς ότι ισχύει ή δεν \
+ισχύει για τον χρήστη. Αν το έργο του χρήστη αποκτήσει αργότερα επιβεβαιωμένη \
+τοποθεσία GIS, το σύστημα θα του πει ρητά αν ισχύει ή όχι - ανέφερε αυτό \
+συνοπτικά αν βοηθά.
+ΜΗΝ ενεργοποιήσεις αυτό το βήμα για ερωτήσεις που δεν αφορούν εγκρίσεις/\
+διαδικασία αδειοδότησης (π.χ. τεχνικές προδιαγραφές, φορολογικά θέματα, \
+συντελεστές δόμησης) - μόνο επειδή κάτι αφορά κατασκευές δεν σημαίνει ότι \
+αφορά τη διαδικασία έγκρισης."""
+
+NO_LOCATION_ARCHAEOLOGICAL_CAVEAT_INSTRUCTION_EN = """OPTIONAL STEP - SAME DISCIPLINE AS THE DOCUMENT SUGGESTION: GENERAL ARCHAEOLOGICAL-APPROVAL CAVEAT
+You have no plot location data for this conversation (no active project with \
+a GIS-confirmed location), so you can never say whether the user's specific \
+plot is in an archaeological zone or not - do not assume either way.
+This step activates ONLY when the question explicitly concerns the \
+approvals/process required to obtain a building permit (e.g. "what approvals \
+do I need", "what is the permitting process") - not every question that \
+happens to touch construction or zoning.
+When it activates, add ONE brief sentence (not a paragraph) to your answer \
+noting that some areas require an additional approval from the competent \
+Archaeological Authority (Εφορεία Αρχαιοτήτων), and that this depends on the \
+plot's specific location - without claiming it does or doesn't apply to the \
+user. If the user's project later gets a confirmed GIS location, the system \
+will tell them explicitly whether it applies - mention this briefly if it helps.
+Do NOT trigger this step for questions unrelated to permitting approvals/\
+process (e.g. technical specifications, tax matters, building coefficients) -
+just because something touches construction doesn't mean it touches the \
+approval process."""
+
 
 def _extract_doc_suggestion(raw_answer: str, locale: str | None) -> tuple[str, str | None]:
     """Pulls DOC_SUGGESTION_MARKER's single-line suggestion (if the model
@@ -1247,6 +1297,11 @@ async def chat_message(
                 "ΣΩΣΤΟ: \"...όπως η Εφορεία Αρχαιοτήτων για συγκεκριμένες περιπτώσεις που αφορούν "
                 "αρχαιολογικούς χώρους, με βάση τα στοιχεία τοποθεσίας του έργου.\"\n"
                 f"{location_context}"
+            )
+        else:
+            system_prompt = (
+                f"{system_prompt}\n\n"
+                f"{NO_LOCATION_ARCHAEOLOGICAL_CAVEAT_INSTRUCTION_EN if locale == 'en' else NO_LOCATION_ARCHAEOLOGICAL_CAVEAT_INSTRUCTION}"
             )
         messages: list[dict] = [{"role": "system", "content": system_prompt}]
         for turn in payload.conversation_history:

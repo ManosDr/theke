@@ -35,9 +35,29 @@ def _get_client() -> OpenAI:
 # known authoritative sources" the discovery action restricts itself to,
 # instead of an open web search. Format per OpenAI's filters.allowed_domains
 # requirement: no protocol prefix, subdomains included automatically.
+#
+# taxheaven.gr and lawspot.gr added the same night George (a real domain
+# expert) reported a real gap: e-nomothesia.gr's copy of Ν.4067/2012 (ΝΟΚ)
+# is indexed at whole-document granularity only, so web_search can't cite a
+# specific article from it - a fencing-height question needing Άρθρο 17 §1
+# came back empty. Reproduced live: the identical search with taxheaven.gr
+# added found that exact article (taxheaven.gr/law/4067/2012/arthro/17/
+# paragrafos/1), confirming the allowlist, not the search mechanism, was
+# the cause. lawspot.gr added on separate, independent evidence - it's
+# already the real source of 37 active documents in production (36
+# tax_accounting, 1 construction), so it was already implicitly trusted by
+# this system, just never added here. Both domains added to both verticals
+# since taxheaven.gr covers general legislation beyond tax topics (its name
+# notwithstanding - confirmed by the construction-law citation above) and
+# lawspot.gr already backs documents in both. kodiko.gr/nomotelia.gr/
+# dsanet.gr were considered too (also reputable Greek legal-reference
+# sites) but not added - no concrete evidence (an existing document, or a
+# real search reproduction) supports them the way it does for these two;
+# revisit if/when such evidence turns up rather than adding on reputation
+# alone.
 AUTHORITATIVE_DOMAINS: dict[str, list[str]] = {
-    "construction": ["e-nomothesia.gr", "et.gr", "ypen.gov.gr", "tee.gr", "ktimatologio.gr"],
-    "tax_accounting": ["e-nomothesia.gr", "et.gr", "aade.gr", "minfin.gr", "efka.gov.gr"],
+    "construction": ["e-nomothesia.gr", "et.gr", "ypen.gov.gr", "tee.gr", "ktimatologio.gr", "taxheaven.gr", "lawspot.gr"],
+    "tax_accounting": ["e-nomothesia.gr", "et.gr", "aade.gr", "minfin.gr", "efka.gov.gr", "taxheaven.gr", "lawspot.gr"],
 }
 _DEFAULT_DOMAINS = ["e-nomothesia.gr", "et.gr"]
 

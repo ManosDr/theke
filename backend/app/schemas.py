@@ -1467,6 +1467,14 @@ class GapDiscoveryResult(BaseModel):
     candidate: GapSourceCandidateEntry | None
 
 
+class ProposeCandidateFromUrlRequest(BaseModel):
+    # A specific, human-supplied URL - "Πρόταση πηγής από URL", the manual
+    # counterpart to "Αναζήτηση πηγής" for a real-world lead a human already
+    # found (news article, a government one-stop-shop page, etc.) rather
+    # than hoping the automated search eventually turns up the same thing.
+    url: str = Field(min_length=1)
+
+
 class GapRecheckAllResponse(BaseModel):
     queued: int
     estimated_minutes: int

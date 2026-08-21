@@ -72,6 +72,10 @@ export function ChatGapRatePanel() {
   // still needs a notify decision (pendingCandidate set).
   const [activeQuery, setActiveQuery] = useState<{ id: number; message: string } | null>(null);
   const [activePendingCandidate, setActivePendingCandidate] = useState<GapSourceCandidateEntry | null>(null);
+  // Whether the currently-open modal should start in the "Πρόταση πηγής από
+  // URL" flow (see proposeFromUrl below) rather than auto-running the
+  // automated search.
+  const [activeProposeFromUrl, setActiveProposeFromUrl] = useState(false);
 
   function loadPendingDecisions() {
     if (!token) return Promise.resolve();
@@ -198,6 +202,20 @@ export function ChatGapRatePanel() {
   function discoverSource(q: GapQueryEntry) {
     setOpenMenuId(null);
     setActivePendingCandidate(null);
+    setActiveProposeFromUrl(false);
+    setActiveQuery({ id: q.id, message: q.message });
+  }
+
+  // "Πρόταση πηγής από URL" - the manual counterpart to discoverSource
+  // above: opens the same modal, but straight into a URL-input step
+  // instead of auto-running the automated search, for a real-world lead a
+  // human already found (e.g. eugo.gov.gr's real one-stop-shop procedure
+  // page) rather than hoping the automated search eventually turns up the
+  // same thing.
+  function proposeFromUrl(q: GapQueryEntry) {
+    setOpenMenuId(null);
+    setActivePendingCandidate(null);
+    setActiveProposeFromUrl(true);
     setActiveQuery({ id: q.id, message: q.message });
   }
 
@@ -208,6 +226,7 @@ export function ChatGapRatePanel() {
   // picks the right starting state from existingCandidate.status itself.
   function openPendingDecision(c: GapSourceCandidateEntry) {
     setActivePendingCandidate(c);
+    setActiveProposeFromUrl(false);
     setActiveQuery({ id: c.chat_session_id, message: c.question });
   }
 
@@ -247,6 +266,7 @@ export function ChatGapRatePanel() {
   function closeModal() {
     setActiveQuery(null);
     setActivePendingCandidate(null);
+    setActiveProposeFromUrl(false);
   }
 
   function handleResolved() {
@@ -475,6 +495,9 @@ export function ChatGapRatePanel() {
                           <button className={styles.rowMenuItem} onClick={() => discoverSource(q)}>
                             {t("admin.chatGapRate.discoverSource")}
                           </button>
+                          <button className={styles.rowMenuItem} onClick={() => proposeFromUrl(q)}>
+                            {t("admin.chatGapRate.proposeFromUrl")}
+                          </button>
                         </RowMenu>
                       </td>
                     </tr>
@@ -490,6 +513,7 @@ export function ChatGapRatePanel() {
         <GapResolutionModal
           query={activeQuery}
           existingCandidate={activePendingCandidate}
+          proposeFromUrl={activeProposeFromUrl}
           token={token}
           onClose={closeModal}
           onResolved={handleResolved}

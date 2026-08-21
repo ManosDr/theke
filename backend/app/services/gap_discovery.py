@@ -20,6 +20,7 @@ from urllib.parse import parse_qsl, urlencode, urlparse, urlunparse
 from openai import OpenAI
 
 from app.config import settings
+from app.services.source_fetch import fetch_url_content
 
 _client: OpenAI | None = None
 
@@ -56,7 +57,17 @@ def _get_client() -> OpenAI:
 # revisit if/when such evidence turns up rather than adding on reputation
 # alone.
 AUTHORITATIVE_DOMAINS: dict[str, list[str]] = {
-    "construction": ["e-nomothesia.gr", "et.gr", "ypen.gov.gr", "tee.gr", "ktimatologio.gr", "taxheaven.gr", "lawspot.gr"],
+    # eugo.gov.gr added the same night a real, directly-verified case for it
+    # turned up: George's fire-safety-certificate gap (chat_session 30) -
+    # eugo.gov.gr/services/429354 is the real gov.gr "one-stop-shop"
+    # (Ενιαία Ψηφιακή Πύλη) procedure page for exactly that certificate,
+    # directly confirmed (paragraph-level, not by domain reputation alone)
+    # to state the exclusively-electronic e-Άδειες submission requirement,
+    # the real €20 fee, and the full 8-document checklist - genuine primary
+    # government infrastructure (Υπουργείο Κλιματικής Κρίσης και Πολιτικής
+    # Προστασίας / Πυροσβεστικό Σώμα, served through gov.gr's own portal),
+    # on par with ypen.gov.gr/aade.gr already trusted here.
+    "construction": ["e-nomothesia.gr", "et.gr", "ypen.gov.gr", "tee.gr", "ktimatologio.gr", "taxheaven.gr", "lawspot.gr", "eugo.gov.gr"],
     "tax_accounting": ["e-nomothesia.gr", "et.gr", "aade.gr", "minfin.gr", "efka.gov.gr", "taxheaven.gr", "lawspot.gr"],
 }
 _DEFAULT_DOMAINS = ["e-nomothesia.gr", "et.gr"]
@@ -71,6 +82,10 @@ _AUTHORITY_BY_DOMAIN: dict[str, str] = {
     "ypen.gov.gr": "ypen",
     "ktimatologio.gr": "ktimatologio",
     "tee.gr": "tee",
+    # eugo.gov.gr is a general gov.gr one-stop-shop portal spanning many
+    # ministries' procedures, not a single agency - no more specific slug
+    # fits, so this falls through to the same 'other' the dict's own .get()
+    # default already provides; not listed explicitly here for that reason.
 }
 
 
@@ -140,6 +155,79 @@ def discover_source_candidate(question: str, vertical_slug: str | None) -> dict 
         # stronger than a single lone source - a coarse, honest signal,
         # not a calibrated probability.
         "confidence": "high" if len({c["url"] for c in citations}) > 1 else "medium",
+    }
+
+
+async def evaluate_url_as_candidate(question: str, url: str) -> dict | None:
+    """"Propose candidate from URL" - the human-supplied-lead counterpart to
+    discover_source_candidate above: skips the automated web_search step
+    entirely and evaluates one SPECIFIC page a human already found (e.g. a
+    real government one-stop-shop page located by manual research, the way
+    eugo.gov.gr/services/429354 was found for George's fire-safety gap).
+    Fetches the real page content directly (app/services/source_fetch.py's
+    PoliteFetcher-backed fetch_url_content - the same politeness layer every
+    other production fetch goes through, not an unthrottled request) and
+    asks the model to judge, using ONLY that real fetched text, whether it
+    actually substantiates an answer - never a fresh search, never filling
+    gaps from general knowledge. Returns the same {title, content,
+    source_url, authority, confidence} shape discover_source_candidate does,
+    so both feed the identical staging/review pipeline (a super admin still
+    has to Confirm before anything goes live) - or None if the URL is
+    unreachable, has no extractable content, or the model judges the real
+    page doesn't actually answer the question.
+    """
+    if not settings.openai_api_key:
+        raise GapDiscoveryError("No OPENAI_API_KEY configured")
+
+    content = await fetch_url_content(url)
+    if not content:
+        return None
+
+    # Real pages (especially PDFs) can run long - cap what's fed to the
+    # model rather than truncating mid-sentence with no signal to the model
+    # that this happened.
+    trimmed = content[:15000]
+
+    client = _get_client()
+    try:
+        response = client.responses.create(
+            model=settings.chat_model,
+            input=(
+                "Ένας διαχειριστής βρήκε αυτή τη σελίδα με μη αυτοματοποιημένη "
+                "έρευνα και θέλει να ελέγξει αν πραγματικά τεκμηριώνει μια "
+                "απάντηση στην ερώτηση παρακάτω. Χρησιμοποίησε ΑΠΟΚΛΕΙΣΤΙΚΑ το "
+                "περιεχόμενο που δίνεται εδώ - μην αναζητήσεις αλλού, μην "
+                "συμπληρώσεις κενά με γενική γνώση σου. Αν το περιεχόμενο "
+                "πραγματικά απαντά στην ερώτηση, γράψε μια σύντομη, "
+                "συγκεκριμένη απάντηση στα Ελληνικά βασισμένη αποκλειστικά σε "
+                "αυτό, παραθέτοντας τα συγκεκριμένα σημεία (άρθρα, ποσά, "
+                "βήματα) που το υποστηρίζουν. Αν το περιεχόμενο ΔΕΝ απαντά "
+                "στην ερώτηση (άσχετο θέμα, ή δεν την καλύπτει επαρκώς), "
+                "απάντησε ΑΚΡΙΒΩΣ με τη λέξη 'ΑΣΧΕΤΟ' και τίποτα άλλο.\n\n"
+                f"Ερώτηση: {question}\n\n"
+                f"Περιεχόμενο σελίδας ({url}):\n{trimmed}"
+            ),
+        )
+    except Exception as exc:
+        raise GapDiscoveryError(str(exc)) from exc
+
+    text = (response.output_text or "").strip()
+    if not text or text.upper().startswith("ΑΣΧΕΤΟ"):
+        return None
+
+    domain = _domain_of(url)
+    return {
+        "title": question[:200],
+        "content": text,
+        "source_url": url,
+        "authority": _AUTHORITY_BY_DOMAIN.get(domain, "other"),
+        # Always 'medium', never auto-'high' - a single human-supplied URL
+        # doesn't have discover_source_candidate's multi-citation
+        # corroboration signal, and this path skips web_search's own
+        # cross-checking entirely. The human reviewer's own judgment (same
+        # paragraph-level verification as every other candidate) is what
+        # actually establishes confidence here, not this heuristic.
+        "confidence": "medium",
     }
 
 

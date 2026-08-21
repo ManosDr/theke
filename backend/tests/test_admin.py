@@ -476,6 +476,90 @@ def test_discover_gap_source_requires_company(client, db_session, superadmin_hea
         db_session.commit()
 
 
+def test_propose_gap_source_candidate_from_url_stages_candidate(
+    client, db_session, superadmin_headers, construction_vertical_id, monkeypatch
+):
+    """POST /admin/gap-queries/{id}/propose-candidate - "Πρόταση πηγής από
+    URL": same staging pipeline as discover-source, but skips the automated
+    web_search and evaluates one specific human-supplied URL instead (mocked
+    here - a real fetch+LLM call is too slow/costly for a unit test, same
+    reasoning as discover-source's own test)."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(
+        db_session, company_id=company.id, user_id=user.id, message="τι διαδικασια απαιτηται για πιστοποιητικο πυρασφαλειας"
+    )
+
+    import app.routers.admin as admin_module
+
+    captured = {}
+
+    async def fake_evaluate(question, url):
+        captured["question"] = question
+        captured["url"] = url
+        return {
+            "title": question[:200],
+            "content": "Πραγματικό περιεχόμενο από τη σελίδα που βρήκε ο διαχειριστής.",
+            "source_url": url,
+            "authority": "other",
+            "confidence": "medium",
+        }
+
+    monkeypatch.setattr(admin_module, "evaluate_url_as_candidate", fake_evaluate)
+    candidate_id = None
+    try:
+        resp = client.post(
+            f"/admin/gap-queries/{session.id}/propose-candidate",
+            json={"url": "https://eugo.gov.gr/services/429354"},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["candidate"] is not None
+        candidate_id = body["candidate"]["id"]
+        assert body["candidate"]["source_url"] == "https://eugo.gov.gr/services/429354"
+        assert body["candidate"]["status"] == "pending_review"
+        assert body["candidate"]["origin"] == "external_search"
+        assert body["candidate"]["document_id"] is None
+        # The real question text (not a search query) is what gets passed
+        # through to the evaluator - same question the gap itself has.
+        assert captured["question"] == session.message
+        assert captured["url"] == "https://eugo.gov.gr/services/429354"
+
+        listed = client.get("/admin/gap-source-candidates?status=pending_review", headers=superadmin_headers)
+        assert listed.status_code == 200
+        assert any(c["id"] == candidate_id for c in listed.json())
+    finally:
+        if candidate_id:
+            _cleanup_gap_source_candidate(db_session, candidate_id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_propose_gap_source_candidate_from_url_not_relevant(
+    client, db_session, superadmin_headers, construction_vertical_id, monkeypatch
+):
+    """A human-supplied URL that doesn't actually answer the question -
+    evaluate_url_as_candidate's own honest-null case - stages nothing."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Some unanswered question")
+
+    import app.routers.admin as admin_module
+
+    async def fake_evaluate(question, url):
+        return None
+
+    monkeypatch.setattr(admin_module, "evaluate_url_as_candidate", fake_evaluate)
+    try:
+        resp = client.post(
+            f"/admin/gap-queries/{session.id}/propose-candidate",
+            json={"url": "https://example.com/unrelated-page"},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        assert resp.json()["candidate"] is None
+    finally:
+        cleanup_company(db_session, company, user, project)
+
+
 def _make_gap_source_candidate(db, *, chat_session_id: int, vertical_id: int, question: str) -> GapSourceCandidate:
     candidate = GapSourceCandidate(
         chat_session_id=chat_session_id,

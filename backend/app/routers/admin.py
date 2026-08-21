@@ -121,6 +121,7 @@ from app.schemas import (
     PlatformSettingsEntry,
     PlatformSettingsUpdateRequest,
     PriorRejectionSummary,
+    ProposeCandidateFromUrlRequest,
     ReassignVerticalRequest,
     RegionAdminSummary,
     RegionAdminUpdateRequest,
@@ -186,7 +187,7 @@ from app.services.email_templates import (
     find_unknown_placeholders,
 )
 from app.services.embeddings import embed_document
-from app.services.gap_discovery import GapDiscoveryError, discover_source_candidate
+from app.services.gap_discovery import GapDiscoveryError, discover_source_candidate, evaluate_url_as_candidate
 from app.services.growth_alerts import check_company_count_thresholds, real_active_company_count
 from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
 from app.services.notifications import notify
@@ -4078,6 +4079,51 @@ def _to_gap_source_candidate_entry(db: Session, row: GapSourceCandidate) -> GapS
     )
 
 
+def _resolve_gap_session_and_vertical(db: Session, session_id: int) -> tuple[ChatSession, Vertical]:
+    """Shared guard logic for both discover-source and propose-candidate-
+    from-url below: the gap must be real, still have its message, and
+    resolve to a company with an assigned vertical (both the automated
+    search and the URL evaluation are scoped to that vertical's
+    authoritative-domain allowlist)."""
+    row = db.get(ChatSession, session_id)
+    if not row or not row.gap or row.message is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gap query not found")
+    if row.company_id is None:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Gap has no associated company - cannot determine which vertical to search",
+        )
+    company = db.get(Company, row.company_id)
+    vertical = db.get(Vertical, company.vertical_id) if company else None
+    if not vertical:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not resolve vertical")
+    return row, vertical
+
+
+def _stage_gap_source_candidate(
+    db: Session, row: ChatSession, vertical: Vertical, result: dict
+) -> GapSourceCandidate:
+    """Shared staging logic - a result dict from either
+    discover_source_candidate (automated search) or evaluate_url_as_candidate
+    (human-supplied URL) becomes an identical pending_review row either way,
+    so both paths get the exact same downstream Confirm/Reject/notify
+    handling - never touches the live KB directly."""
+    candidate = GapSourceCandidate(
+        chat_session_id=row.id,
+        vertical_id=vertical.id,
+        question=row.message,
+        candidate_title=result["title"],
+        candidate_content=result["content"],
+        source_url=result["source_url"],
+        authority=result["authority"],
+        confidence=result["confidence"],
+    )
+    db.add(candidate)
+    db.commit()
+    db.refresh(candidate)
+    return candidate
+
+
 @router.post("/gap-queries/{session_id}/discover-source", response_model=GapDiscoveryResult)
 async def discover_gap_source(
     session_id: int,
@@ -4094,18 +4140,7 @@ async def discover_gap_source(
     stages another candidate, it does not resume or dedupe against a prior
     attempt - repeated manual triggers are a human decision, not automated."""
     require_super_admin(user)
-    row = db.get(ChatSession, session_id)
-    if not row or not row.gap or row.message is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Gap query not found")
-    if row.company_id is None:
-        raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-            detail="Gap has no associated company - cannot determine which vertical to search",
-        )
-    company = db.get(Company, row.company_id)
-    vertical = db.get(Vertical, company.vertical_id) if company else None
-    if not vertical:
-        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail="Could not resolve vertical")
+    row, vertical = _resolve_gap_session_and_vertical(db, session_id)
 
     try:
         result = discover_source_candidate(row.message, vertical.slug)
@@ -4125,19 +4160,48 @@ async def discover_gap_source(
         db.commit()
         return GapDiscoveryResult(candidate=None)
 
-    candidate = GapSourceCandidate(
-        chat_session_id=row.id,
-        vertical_id=vertical.id,
-        question=row.message,
-        candidate_title=result["title"],
-        candidate_content=result["content"],
-        source_url=result["source_url"],
-        authority=result["authority"],
-        confidence=result["confidence"],
+    candidate = _stage_gap_source_candidate(db, row, vertical, result)
+    return GapDiscoveryResult(candidate=_to_gap_source_candidate_entry(db, candidate))
+
+
+@router.post("/gap-queries/{session_id}/propose-candidate", response_model=GapDiscoveryResult)
+async def propose_gap_source_candidate(
+    session_id: int,
+    payload: ProposeCandidateFromUrlRequest,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapDiscoveryResult:
+    """"Πρόταση πηγής από URL" - the manual counterpart to "Αναζήτηση πηγής"
+    above: skips the automated web_search step entirely and evaluates one
+    specific, human-supplied URL instead - real page content fetched
+    directly through the same PoliteFetcher every other production fetch
+    uses (see gap_discovery.evaluate_url_as_candidate), not a search. Feeds
+    the identical staging pipeline as discover-source - a fresh
+    pending_review candidate, never auto-confirmed - so a real-world lead a
+    human already found gets a direct path in rather than waiting on the
+    automated search to eventually turn up the same thing."""
+    require_super_admin(user)
+    row, vertical = _resolve_gap_session_and_vertical(db, session_id)
+
+    try:
+        result = await evaluate_url_as_candidate(row.message, payload.url)
+    except GapDiscoveryError as exc:
+        raise HTTPException(status_code=status.HTTP_502_BAD_GATEWAY, detail=f"URL evaluation failed: {exc}") from exc
+
+    log_action(
+        db,
+        actor_user_id=user.user_id,
+        company_id=row.company_id,
+        action="gap_source_proposed_from_url",
+        resource_type="chat_session",
+        resource_id=row.id,
+        metadata={"url": payload.url, "found": result is not None},
     )
-    db.add(candidate)
-    db.commit()
-    db.refresh(candidate)
+    if result is None:
+        db.commit()
+        return GapDiscoveryResult(candidate=None)
+
+    candidate = _stage_gap_source_candidate(db, row, vertical, result)
     return GapDiscoveryResult(candidate=_to_gap_source_candidate_entry(db, candidate))
 
 

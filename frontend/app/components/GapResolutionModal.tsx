@@ -9,7 +9,7 @@ import type { GapDiscoveryResult, GapSourceCandidateEntry } from "../lib/types";
 import { ConfidenceBadge } from "./ConfidenceBadge";
 import styles from "./GapResolutionModal.module.css";
 
-type ModalState = "searching" | "not_found" | "reviewing" | "confirmed_choice" | "error";
+type ModalState = "url_input" | "searching" | "not_found" | "reviewing" | "confirmed_choice" | "error";
 
 // Part E of the same-night batch: the whole search -> review -> confirm ->
 // notify/don't-notify flow, in one modal that opens wherever the admin
@@ -23,12 +23,18 @@ type ModalState = "searching" | "not_found" | "reviewing" | "confirmed_choice" |
 export function GapResolutionModal({
   query,
   existingCandidate,
+  proposeFromUrl,
   token,
   onClose,
   onResolved,
 }: {
   query: { id: number; message: string };
   existingCandidate?: GapSourceCandidateEntry | null;
+  // Opens straight into a URL-input step instead of auto-running the
+  // automated search - "Πρόταση πηγής από URL", for a real-world lead a
+  // human already found (see ChatGapRatePanel's proposeFromUrl action).
+  // Ignored when existingCandidate is set (that always wins).
+  proposeFromUrl?: boolean;
   token: string | null;
   onClose: () => void;
   onResolved: () => void;
@@ -40,22 +46,31 @@ export function GapResolutionModal({
   // discovered - e.g. "Επανέλεγχος όλων"'s external-search fallback, staged
   // in the background with no modal open at the time (-> reviewing, same
   // state a fresh manual search lands in, just skipping the search() call
-  // since a candidate already exists).
+  // since a candidate already exists). proposeFromUrl is the third entry
+  // point - a fresh URL-input step, only reachable when there's no
+  // existingCandidate to resume instead.
   const [state, setState] = useState<ModalState>(
-    existingCandidate ? (existingCandidate.status === "confirmed" ? "confirmed_choice" : "reviewing") : "searching"
+    existingCandidate
+      ? existingCandidate.status === "confirmed"
+        ? "confirmed_choice"
+        : "reviewing"
+      : proposeFromUrl
+        ? "url_input"
+        : "searching"
   );
   const [candidate, setCandidate] = useState<GapSourceCandidateEntry | null>(existingCandidate ?? null);
   const [title, setTitle] = useState(existingCandidate?.candidate_title ?? "");
   const [content, setContent] = useState(existingCandidate?.candidate_content ?? "");
   const [sourceUrl, setSourceUrl] = useState(existingCandidate?.source_url ?? "");
   const [authority, setAuthority] = useState(existingCandidate?.authority ?? "");
+  const [proposedUrl, setProposedUrl] = useState("");
   const [rejectNote, setRejectNote] = useState("");
   const [showRejectNote, setShowRejectNote] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    if (existingCandidate) return;
+    if (existingCandidate || proposeFromUrl) return;
     search();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -75,6 +90,32 @@ export function GapResolutionModal({
     setError(null);
     try {
       const result = await api.post<GapDiscoveryResult>(`/admin/gap-queries/${query.id}/discover-source`, {}, token);
+      if (result.candidate) {
+        setCandidate(result.candidate);
+        setTitle(result.candidate.candidate_title ?? "");
+        setContent(result.candidate.candidate_content ?? "");
+        setSourceUrl(result.candidate.source_url);
+        setAuthority(result.candidate.authority ?? "");
+        setState("reviewing");
+      } else {
+        setState("not_found");
+      }
+    } catch {
+      setError(t("admin.chatGapRate.candidates.searchFailed"));
+      setState("error");
+    }
+  }
+
+  async function submitProposedUrl() {
+    if (!token || !proposedUrl.trim()) return;
+    setState("searching");
+    setError(null);
+    try {
+      const result = await api.post<GapDiscoveryResult>(
+        `/admin/gap-queries/${query.id}/propose-candidate`,
+        { url: proposedUrl.trim() },
+        token
+      );
       if (result.candidate) {
         setCandidate(result.candidate);
         setTitle(result.candidate.candidate_title ?? "");
@@ -172,6 +213,35 @@ export function GapResolutionModal({
         </div>
 
         <p className={styles.question}>{query.message}</p>
+
+        {state === "url_input" && (
+          <>
+            <p className="text-muted" style={{ fontSize: "0.85rem", marginTop: 0 }}>
+              {t("admin.chatGapRate.candidates.proposeUrlHint")}
+            </p>
+            <label className={styles.field}>
+              {t("admin.chatGapRate.candidates.fieldSourceUrl")}
+              <input
+                className="input"
+                type="url"
+                placeholder="https://…"
+                value={proposedUrl}
+                onChange={(e) => setProposedUrl(e.target.value)}
+                autoFocus
+              />
+            </label>
+            {error && <p style={{ color: "var(--color-danger)", fontSize: "0.82rem" }}>{error}</p>}
+            <button
+              type="button"
+              className="btn btn-primary"
+              disabled={!proposedUrl.trim()}
+              onClick={submitProposedUrl}
+              style={{ marginTop: "var(--space-2)" }}
+            >
+              {t("admin.chatGapRate.candidates.proposeUrlSubmit")}
+            </button>
+          </>
+        )}
 
         {(state === "searching" || state === "not_found" || state === "error") && (
           <div className={styles.centeredStatus}>

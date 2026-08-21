@@ -22,6 +22,18 @@ manual verification) never double-notify.
 Reuses this package's own PoliteFetcher (see crawler/politeness.py) - not
 the backend's async version - since this runs as a separate cron-triggered
 process, same reasoning as every other script in this package.
+
+Also detects the reverse transition - a source coming back healthy after a
+notified failure streak - and fires a "source reachable again" super-admin
+notification. Deliberately keyed off data_source_failure_alerts (did we
+actually tell anyone this source was down?) rather than firing on every
+failed->healthy flip: a streak that never crossed FAILURE_THRESHOLD was
+never surfaced to anyone, so a "recovered" notice for it would reference a
+problem no admin ever heard about. No new table/column needed - the
+existing (data_source_id, failing_since) row is proof of a real streak, and
+this UPDATE's own reset of failing_since to NULL is what naturally prevents
+a second recovery notification on the next run (nothing to compare against
+once it's cleared).
 """
 
 from datetime import datetime
@@ -132,6 +144,47 @@ def _notify_super_admins(
     return True
 
 
+def _notify_recovery(
+    conn: psycopg.Connection,
+    *,
+    source_id: int,
+    name: str,
+    base_url: str,
+    failing_since,
+) -> bool:
+    """Returns True if a recovery notification was sent. Only fires when the
+    failure streak we're recovering from was itself notified (a row exists
+    in data_source_failure_alerts for this exact (source_id, failing_since)
+    pair) - a streak that never reached FAILURE_THRESHOLD was never reported
+    as down, so there's nothing to report as "back" either."""
+    with conn.cursor() as cur:
+        cur.execute(
+            "SELECT id FROM data_source_failure_alerts WHERE data_source_id = %s AND failing_since = %s",
+            (source_id, failing_since),
+        )
+        if cur.fetchone() is None:
+            return False
+
+        cur.execute("SELECT id FROM users WHERE role = 'super_admin' AND is_active = true")
+        user_ids = [row[0] for row in cur.fetchall()]
+        if not user_ids:
+            return False
+
+        since_label = failing_since.strftime("%d/%m/%Y")
+        title = f"Η πηγή είναι ξανά προσβάσιμη: {name}"
+        body = (
+            f"URL: {base_url}\n"
+            f"Ήταν μπλοκαρισμένη/εκτός λειτουργίας από {since_label} - "
+            "ο σημερινός έλεγχος υγείας τη βρήκε προσβάσιμη ξανά."
+        )
+        cur.executemany(
+            "INSERT INTO notifications (user_id, type, title, body, link) VALUES (%s, %s, %s, %s, %s)",
+            [(user_id, "data_source_recovered", title, body, "/admin/data-sources") for user_id in user_ids],
+        )
+    conn.commit()
+    return True
+
+
 def run() -> None:
     conninfo = DATABASE_URL.replace("postgresql+psycopg://", "postgresql://")
 
@@ -140,6 +193,7 @@ def run() -> None:
     failed = 0
     blocked = 0
     notified = 0
+    recovered = 0
 
     with psycopg.connect(conninfo) as conn:
         with conn.cursor() as cur:
@@ -164,6 +218,9 @@ def run() -> None:
                         (status, source_id),
                     )
                 conn.commit()
+                if failing_since is not None:
+                    if _notify_recovery(conn, source_id=source_id, name=name, base_url=base_url, failing_since=failing_since):
+                        recovered += 1
                 continue
 
             if status == "blocked":
@@ -208,7 +265,7 @@ def run() -> None:
 
     print(
         f"Data source health check complete: checked={checked}, healthy={healthy}, "
-        f"failed={failed}, blocked={blocked}, notify_attempts={notified}"
+        f"failed={failed}, blocked={blocked}, notify_attempts={notified}, recovered={recovered}"
     )
 
 

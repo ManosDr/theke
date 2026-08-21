@@ -788,7 +788,12 @@ CREATE TABLE IF NOT EXISTS notifications (
                               -- 'gap_source_found' (gap-triggered source discovery - a regular
                               -- user's original gap now has a confirmed answer),
                               -- 'openai_quota_exhausted' (fires immediately on the first
-                              -- insufficient_quota API failure - see chat.py)
+                              -- insufficient_quota API failure - see chat.py),
+                              -- 'data_source_failure' (a data source has failed its daily
+                              -- health check FAILURE_THRESHOLD times in a row - see
+                              -- crawler/crawler/data_source_health_check.py),
+                              -- 'data_source_recovered' (the reverse: a previously-notified
+                              -- failing source passed its health check again - same file)
     title VARCHAR NOT NULL,
     body TEXT,
     link VARCHAR,

@@ -10,8 +10,16 @@ import { useLocale } from "../lib/i18n";
 import { GapResolutionModal } from "./GapResolutionModal";
 import { RowMenu } from "./RowMenu";
 import { SortableTh } from "./SortableTh";
+import { InfoIcon } from "./StatIcons";
+import Tooltip from "./Tooltip";
 import { useSortableData } from "../lib/useSortableData";
-import type { AdminStatsByVertical, GapQueryEntry, GapSourceCandidateEntry } from "../lib/types";
+import type {
+  AdminStatsByVertical,
+  GapQueryEntry,
+  GapRecheckAllResponse,
+  GapRecheckStatusResponse,
+  GapSourceCandidateEntry,
+} from "../lib/types";
 import dashStyles from "../dashboard/dashboard.module.css";
 import styles from "./ChatGapRatePanel.module.css";
 
@@ -42,7 +50,19 @@ export function ChatGapRatePanel() {
   // click now starts a fresh search inside the modal rather than staging a
   // row a separate page section has to track).
   const [pendingDecisions, setPendingDecisions] = useState<GapSourceCandidateEntry[]>([]);
+  // pending_review candidates staged by "Επανέλεγχος όλων"'s external-search
+  // fallback (or left over from a manual "Αναζήτηση πηγής" whose modal was
+  // closed before Confirm/Reject) - never auto-confirmed, same discipline
+  // as every candidate created tonight.
+  const [needsReview, setNeedsReview] = useState<GapSourceCandidateEntry[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Επανέλεγχος όλων - same live-progress bulk-run pattern as Sync All /
+  // DocumentsPanel's bulk revalidation.
+  const [recheckRunning, setRecheckRunning] = useState(false);
+  const [recheckTotal, setRecheckTotal] = useState(0);
+  const [recheckStatus, setRecheckStatus] = useState<GapRecheckStatusResponse | null>(null);
+  const [recheckComplete, setRecheckComplete] = useState<{ recovered: number; stillGap: number } | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StatusFilter>("unreviewed");
   const [openMenuId, setOpenMenuId] = useState<number | null>(null);
@@ -59,6 +79,13 @@ export function ChatGapRatePanel() {
     );
   }
 
+  function loadNeedsReview() {
+    if (!token) return Promise.resolve();
+    return api
+      .get<GapSourceCandidateEntry[]>("/admin/gap-source-candidates?status=pending_review", token)
+      .then(setNeedsReview);
+  }
+
   function load() {
     if (!token) return;
     const params = new URLSearchParams();
@@ -69,11 +96,35 @@ export function ChatGapRatePanel() {
       api.get<AdminStatsByVertical>("/admin/stats", token),
       api.get<GapQueryEntry[]>(`/admin/gap-queries${qs ? `?${qs}` : ""}`, token),
       loadPendingDecisions(),
+      loadNeedsReview(),
     ]).then(([statsData, gapData]) => {
       setStats(statsData);
       setQueries(gapData);
     });
   }
+
+  async function runRecheckAll() {
+    if (!token) return;
+    const data = await api.post<GapRecheckAllResponse>("/admin/gap-queries/recheck-all", undefined, token);
+    setRecheckTotal(data.queued);
+    setRecheckComplete(null);
+    if (data.queued > 0) setRecheckRunning(true);
+  }
+
+  useEffect(() => {
+    if (!recheckRunning || !token) return;
+    const interval = setInterval(async () => {
+      const data = await api.get<GapRecheckStatusResponse>("/admin/gap-queries/recheck-all/status", token);
+      setRecheckStatus(data);
+      if (data.pending === 0) {
+        setRecheckRunning(false);
+        setRecheckComplete({ recovered: data.recovered, stillGap: data.still_gap });
+        load();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recheckRunning, token]);
 
   useEffect(() => {
     // A deep-linked visit is investigative ("why is this company/user at
@@ -133,10 +184,18 @@ export function ChatGapRatePanel() {
     setActiveQuery({ id: q.id, message: q.message });
   }
 
+  // Opens the resolution modal for an already-staged candidate - a
+  // confirmed one still awaiting notify/don't-notify, or a pending_review
+  // one (from "Επανέλεγχος όλων"'s external-search fallback, or a manual
+  // search left mid-review) still awaiting Confirm/Reject. GapResolutionModal
+  // picks the right starting state from existingCandidate.status itself.
   function openPendingDecision(c: GapSourceCandidateEntry) {
     setActivePendingCandidate(c);
     setActiveQuery({ id: c.chat_session_id, message: c.question });
   }
+
+  const recoveredDecisions = pendingDecisions.filter((c) => c.origin === "recheck_recovery");
+  const externalDecisions = pendingDecisions.filter((c) => c.origin !== "recheck_recovery");
 
   function closeModal() {
     setActiveQuery(null);
@@ -149,8 +208,39 @@ export function ChatGapRatePanel() {
 
   return (
     <div>
-      <h1>{t("admin.chatGapRate.title")}</h1>
-      <p className="text-muted">{t("admin.chatGapRate.description")}</p>
+      <div style={{ display: "flex", alignItems: "flex-start", flexWrap: "wrap", gap: "var(--space-3)" }}>
+        <div>
+          <h1>{t("admin.chatGapRate.title")}</h1>
+          <p className="text-muted">{t("admin.chatGapRate.description")}</p>
+        </div>
+        {!isScoped && (
+          <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginLeft: "auto" }}>
+            {recheckRunning && recheckStatus ? (
+              <span className="text-muted">
+                {t("admin.chatGapRate.recheckAll.progress", {
+                  total: recheckTotal,
+                  done: Math.max(0, recheckTotal - recheckStatus.pending),
+                })}
+              </span>
+            ) : recheckComplete ? (
+              <span className="text-muted">
+                {t("admin.chatGapRate.recheckAll.complete", {
+                  recovered: recheckComplete.recovered,
+                  stillGap: recheckComplete.stillGap,
+                })}
+              </span>
+            ) : null}
+            <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+              <button type="button" className="btn btn-secondary" disabled={recheckRunning} onClick={runRecheckAll}>
+                {recheckRunning ? t("admin.chatGapRate.recheckAll.running") : t("admin.chatGapRate.recheckAll.button")}
+              </button>
+              <Tooltip text={t("admin.chatGapRate.recheckAll.tooltip")}>
+                <InfoIcon size={13} />
+              </Tooltip>
+            </span>
+          </div>
+        )}
+      </div>
 
       {stats && !isScoped && (
         <p style={{ marginTop: "var(--space-2)", fontWeight: 600, color: "var(--color-danger)" }}>
@@ -169,13 +259,40 @@ export function ChatGapRatePanel() {
         </div>
       )}
 
-      {pendingDecisions.length > 0 && (
+      {recoveredDecisions.length > 0 && (
+        <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+          <div className={dashStyles.sectionHeader}>
+            <h2>{t("admin.chatGapRate.candidates.recoveredTitle")}</h2>
+          </div>
+          <p className="text-muted" style={{ marginTop: 0, marginBottom: "var(--space-3)", fontSize: "0.85rem" }}>
+            {t("admin.chatGapRate.candidates.recoveredHint")}
+          </p>
+          <div className={styles.candidateList}>
+            {recoveredDecisions.map((c) => (
+              <div key={c.id} className={styles.candidateCard}>
+                <div className={styles.candidateHeader}>
+                  <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusRecovered")}</span>
+                  <span className="text-muted" style={{ fontSize: "0.82rem" }}>
+                    {t("admin.chatGapRate.candidates.pendingDecisionHint")}
+                  </span>
+                </div>
+                <p className={styles.candidateQuestion}>{c.question}</p>
+                <button type="button" className="btn btn-primary" onClick={() => openPendingDecision(c)}>
+                  {t("admin.chatGapRate.candidates.decide")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {externalDecisions.length > 0 && (
         <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
           <div className={dashStyles.sectionHeader}>
             <h2>{t("admin.chatGapRate.candidates.title")}</h2>
           </div>
           <div className={styles.candidateList}>
-            {pendingDecisions.map((c) => (
+            {externalDecisions.map((c) => (
               <div key={c.id} className={styles.candidateCard}>
                 <div className={styles.candidateHeader}>
                   <span className="badge status-addressed">{t("admin.chatGapRate.candidates.statusConfirmed")}</span>
@@ -186,6 +303,27 @@ export function ChatGapRatePanel() {
                 <p className={styles.candidateQuestion}>{c.question}</p>
                 <button type="button" className="btn btn-primary" onClick={() => openPendingDecision(c)}>
                   {t("admin.chatGapRate.candidates.decide")}
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
+      {needsReview.length > 0 && (
+        <section className={`card ${dashStyles.section}`} style={{ marginTop: "var(--space-4)" }}>
+          <div className={dashStyles.sectionHeader}>
+            <h2>{t("admin.chatGapRate.candidates.needsReviewTitle")}</h2>
+          </div>
+          <p className="text-muted" style={{ marginTop: 0, marginBottom: "var(--space-3)", fontSize: "0.85rem" }}>
+            {t("admin.chatGapRate.candidates.needsReviewHint")}
+          </p>
+          <div className={styles.candidateList}>
+            {needsReview.map((c) => (
+              <div key={c.id} className={styles.candidateCard}>
+                <p className={styles.candidateQuestion}>{c.question}</p>
+                <button type="button" className="btn btn-secondary" onClick={() => openPendingDecision(c)}>
+                  {t("admin.chatGapRate.candidates.review")}
                 </button>
               </div>
             ))}

@@ -2553,6 +2553,11 @@ CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_status ON gap_source_candid
 ALTER TABLE gap_source_candidates ADD COLUMN IF NOT EXISTS notify_skipped_at timestamp;
 ALTER TABLE gap_source_candidates ADD COLUMN IF NOT EXISTS notify_skipped_by integer REFERENCES users(id);
 
+-- 'external_search' (default) or 'recheck_recovery' ("Επανέλεγχος όλων"
+-- found the question already answerable from the existing KB) - see
+-- models.py's GapSourceCandidate docstring.
+ALTER TABLE gap_source_candidates ADD COLUMN IF NOT EXISTS origin text NOT NULL DEFAULT 'external_search';
+
 -- Debounce timestamp for the "OpenAI credits exhausted" super-admin alert
 -- (see backend/app/routers/chat.py's _maybe_alert_openai_quota_exhausted) -
 -- fires immediately on the first insufficient_quota failure (this means

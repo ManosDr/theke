@@ -770,6 +770,7 @@ export interface GapSourceCandidateEntry {
   document_id: number | null;
   notified_at: string | null;
   notify_skipped_at: string | null;
+  origin: "external_search" | "recheck_recovery";
 }
 
 export interface GapDiscoveryResult {
@@ -961,6 +962,20 @@ export interface DataSourceSyncStatus {
   last_crawl_error: string | null;
 }
 
+export interface SyncAllResponse {
+  queued: number;
+  estimated_minutes: number;
+}
+
+export interface SyncAllStatusResponse {
+  pending: number;
+  healthy: number;
+  failed: number;
+  blocked: number;
+  current_source_name: string | null;
+  last_updated: string | null;
+}
+
 export interface RegionAdminSummary {
   region_id: string;
   region_name_el: string;
@@ -1036,6 +1051,19 @@ export interface RevalidationStatusResponse {
   failed: number;
   accurate: number;
   changed: number;
+  last_updated: string | null;
+}
+
+export interface GapRecheckAllResponse {
+  queued: number;
+  estimated_minutes: number;
+}
+
+export interface GapRecheckStatusResponse {
+  pending: number;
+  recovered: number;
+  still_gap: number;
+  failed: number;
   last_updated: string | null;
 }
 

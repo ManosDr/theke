@@ -9,7 +9,7 @@ import { useLocale } from "../lib/i18n";
 import type { TranslationKey } from "../lib/translations";
 import { sortItems, useSortState } from "../lib/useSortableData";
 import { useVertical } from "../lib/vertical";
-import type { DataSourceSummary, DataSourcesByVertical } from "../lib/types";
+import type { DataSourceSummary, DataSourcesByVertical, SyncAllResponse, SyncAllStatusResponse } from "../lib/types";
 import { ShieldIcon } from "./NavIcons";
 import { SortToggleButton } from "./SortableTh";
 import { InfoIcon } from "./StatIcons";
@@ -75,6 +75,37 @@ export function DataSourcesPanel() {
   const [search, setSearch] = useState("");
   const [filterHealth, setFilterHealth] = useState<"" | Health>("");
   const { sortColumn, sortDirection, toggleSort } = useSortState();
+
+  // Sync All - same live-progress bulk-run pattern as DocumentsPanel's
+  // "Επικύρωση όλων με AI" (see that component's bulkRunning/bulkStatus
+  // state and its own comment on the shared backend tracker).
+  const [syncAllRunning, setSyncAllRunning] = useState(false);
+  const [syncAllTotal, setSyncAllTotal] = useState(0);
+  const [syncAllStatus, setSyncAllStatus] = useState<SyncAllStatusResponse | null>(null);
+  const [syncAllComplete, setSyncAllComplete] = useState<{ healthy: number; failed: number; blocked: number } | null>(null);
+
+  async function runSyncAll() {
+    if (!token) return;
+    const data = await api.post<SyncAllResponse>("/admin/data-sources/sync-all", undefined, token);
+    setSyncAllTotal(data.queued);
+    setSyncAllComplete(null);
+    if (data.queued > 0) setSyncAllRunning(true);
+  }
+
+  useEffect(() => {
+    if (!syncAllRunning || !token) return;
+    const interval = setInterval(async () => {
+      const data = await api.get<SyncAllStatusResponse>("/admin/data-sources/sync-all/status", token);
+      setSyncAllStatus(data);
+      if (data.pending === 0) {
+        setSyncAllRunning(false);
+        setSyncAllComplete({ healthy: data.healthy, failed: data.failed, blocked: data.blocked });
+        refresh();
+      }
+    }, 5000);
+    return () => clearInterval(interval);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [syncAllRunning, token]);
 
   async function refresh() {
     if (!token) return;
@@ -169,12 +200,39 @@ export function DataSourcesPanel() {
 
   return (
     <div>
-      <h1>
-        {t("adminSources.title")}
-        <Tooltip text={t("adminSources.healthLegendTooltip")}>
-          <InfoIcon size={13} />
-        </Tooltip>
-      </h1>
+      <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: "var(--space-3)" }}>
+        <h1 style={{ marginBottom: 0 }}>
+          {t("adminSources.title")}
+          <Tooltip text={t("adminSources.healthLegendTooltip")}>
+            <InfoIcon size={13} />
+          </Tooltip>
+        </h1>
+        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-2)", marginLeft: "auto" }}>
+          {syncAllRunning && syncAllStatus ? (
+            <span className="text-muted">
+              {t("adminSources.syncAll.progress", {
+                total: syncAllTotal,
+                done: Math.max(0, syncAllTotal - syncAllStatus.pending),
+              })}
+              {syncAllStatus.current_source_name ? ` — ${syncAllStatus.current_source_name}` : ""}
+            </span>
+          ) : syncAllComplete ? (
+            <span className="text-muted">
+              {t("adminSources.syncAll.complete", { healthy: syncAllComplete.healthy })}
+              {syncAllComplete.failed + syncAllComplete.blocked > 0 &&
+                " " + t("adminSources.syncAll.stillFailing", { count: syncAllComplete.failed + syncAllComplete.blocked })}
+            </span>
+          ) : null}
+          <span style={{ display: "inline-flex", alignItems: "center", gap: "4px" }}>
+            <button type="button" className="btn btn-secondary" disabled={syncAllRunning} onClick={runSyncAll}>
+              {syncAllRunning ? t("adminSources.syncAll.running") : t("adminSources.syncAll.button")}
+            </button>
+            <Tooltip text={t("adminSources.syncAll.tooltip")}>
+              <InfoIcon size={13} />
+            </Tooltip>
+          </span>
+        </div>
+      </div>
 
       {failingSources.length > 0 && (
         <div className={styles.failureBanner}>

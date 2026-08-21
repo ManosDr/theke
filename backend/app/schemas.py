@@ -1312,6 +1312,20 @@ class DataSourceSyncStatus(BaseModel):
     last_crawl_error: str | None
 
 
+class SyncAllResponse(BaseModel):
+    queued: int
+    estimated_minutes: int
+
+
+class SyncAllStatusResponse(BaseModel):
+    pending: int
+    healthy: int
+    failed: int
+    blocked: int
+    current_source_name: str | None = None
+    last_updated: datetime | None = None
+
+
 class RegionAdminSummary(BaseModel):
     region_id: str
     region_name_el: str
@@ -1411,12 +1425,32 @@ class GapSourceCandidateEntry(BaseModel):
     document_id: int | None
     notified_at: datetime | None
     notify_skipped_at: datetime | None
+    # 'external_search' (the ordinary "Αναζήτηση πηγής" web-search flow) or
+    # 'recheck_recovery' ("Επανέλεγχος όλων" found the answer was already in
+    # the KB, just not retrieving with enough confidence before - no new
+    # Document was created, document_id points at the pre-existing one).
+    # Frontend groups on this so a recovered-from-KB batch isn't mixed in
+    # with genuinely-new external sources, which need heavier scrutiny.
+    origin: str = "external_search"
 
 
 class GapDiscoveryResult(BaseModel):
     # None when the search genuinely found nothing citable in the allowed
     # authoritative domains - a real, expected outcome, not an error.
     candidate: GapSourceCandidateEntry | None
+
+
+class GapRecheckAllResponse(BaseModel):
+    queued: int
+    estimated_minutes: int
+
+
+class GapRecheckStatusResponse(BaseModel):
+    pending: int
+    recovered: int
+    still_gap: int
+    failed: int
+    last_updated: datetime | None = None
 
 
 class GapSourceCandidateConfirmRequest(BaseModel):

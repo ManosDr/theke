@@ -75,6 +75,24 @@
   color: var(--color-danger);
 }
 
+.historicalNote {
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.trendLink {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--color-info);
+  margin-top: 4px;
+  width: fit-content;
+}
+
+.trendLink:hover {
+  text-decoration: underline;
+}
+
 .side {
   margin-left: auto;
   display: flex;

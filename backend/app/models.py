@@ -482,6 +482,14 @@ class GapSourceCandidate(Base):
     # notify-user was the only visible action after confirming).
     notify_skipped_at: Mapped[datetime | None] = mapped_column(DateTime)
     notify_skipped_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))
+    # 'external_search' (default - the "Αναζήτηση πηγής" web-search flow) or
+    # 'recheck_recovery' ("Επανέλεγχος όλων" found the question was already
+    # answerable from the existing KB via the real retrieval pipeline - no
+    # new Document, document_id points at the pre-existing one that now
+    # retrieves with enough confidence). Lets the review UI group the two
+    # apart - a recovery needs a notify/don't-notify decision, not the
+    # paragraph-level source verification a brand-new external source does.
+    origin: Mapped[str] = mapped_column(Text, default="external_search")
 
 
 class RegionDiscoverySettings(Base):

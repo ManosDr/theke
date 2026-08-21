@@ -32,7 +32,16 @@ export function GapResolutionModal({
   onResolved: () => void;
 }) {
   const { t } = useLocale();
-  const [state, setState] = useState<ModalState>(existingCandidate ? "confirmed_choice" : "searching");
+  // existingCandidate covers two entry points now: a confirmed candidate
+  // still awaiting its notify/don't-notify decision (-> confirmed_choice,
+  // the original case), or a pending_review candidate someone else already
+  // discovered - e.g. "Επανέλεγχος όλων"'s external-search fallback, staged
+  // in the background with no modal open at the time (-> reviewing, same
+  // state a fresh manual search lands in, just skipping the search() call
+  // since a candidate already exists).
+  const [state, setState] = useState<ModalState>(
+    existingCandidate ? (existingCandidate.status === "confirmed" ? "confirmed_choice" : "reviewing") : "searching"
+  );
   const [candidate, setCandidate] = useState<GapSourceCandidateEntry | null>(existingCandidate ?? null);
   const [title, setTitle] = useState(existingCandidate?.candidate_title ?? "");
   const [content, setContent] = useState(existingCandidate?.candidate_content ?? "");

@@ -14,12 +14,14 @@ One correction: the plan describes PATCH /admin/companies/{id}/suspend;
 the real route is POST (app/routers/admin.py), used below.
 """
 
+import time
 import uuid
 from datetime import datetime, timedelta
 
 from sqlalchemy import func, select, text
 
-from app.models import ChatSession, CompanySubscription, GapSourceCandidate, Invite, Notification, Plan
+from app.models import ChatSession, CompanySubscription, Document, GapSourceCandidate, Invite, Notification, Plan
+from app.services.embeddings import embed_document
 
 from .conftest import cleanup_company, make_company_and_user
 
@@ -748,6 +750,169 @@ def test_notify_gap_source_user_requires_confirmed(client, db_session, superadmi
         assert resp.status_code == 400
     finally:
         _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def test_sync_all_data_sources_reports_status(client, superadmin_headers, monkeypatch):
+    """POST /admin/data-sources/sync-all - tests the BULK ORCHESTRATION
+    (queueing, progress tracking, completion bookkeeping, the conflict
+    guard), not per-source fetch behavior - that's already covered by
+    test_data_sources_sync_updates_timestamp's real-fetch test. Mocks
+    _perform_source_sync itself rather than hitting real network for
+    however many data sources happen to be registered (59 in a real dev DB
+    at time of writing) - real per-source politeness delays would make this
+    one test take longer than the entire rest of the suite combined, for no
+    added coverage of the orchestration logic this test actually exists to
+    check. Starlette's TestClient also runs BackgroundTasks to completion
+    synchronously before a client.post() call returns, so - unlike a real
+    deployed server - there's no window to observe a genuinely in-flight
+    run via a second real request; the conflict guard is exercised directly
+    against the module's own tracker state instead."""
+    import app.routers.admin as admin_module
+
+    async def fake_sync(db, source, actor_user_id):
+        return "healthy"
+
+    monkeypatch.setattr(admin_module, "_perform_source_sync", fake_sync)
+
+    resp = client.post("/admin/data-sources/sync-all", headers=superadmin_headers)
+    assert resp.status_code == 200
+    queued = resp.json()["queued"]
+    assert queued > 0
+
+    status_body = client.get("/admin/data-sources/sync-all/status", headers=superadmin_headers).json()
+    assert status_body["pending"] == 0
+    assert status_body["healthy"] == queued
+    assert status_body["failed"] == 0
+    assert status_body["blocked"] == 0
+
+    # Conflict guard: a run "in progress" (started_at set, finished_at not)
+    # is rejected outright, since there is exactly one shared in-memory
+    # tracker (see admin.py's _sync_all_state) a concurrent run would
+    # corrupt. Set that state directly rather than racing a real background
+    # task, per this test's own docstring above.
+    admin_module._sync_all_state["started_at"] = datetime.utcnow()
+    admin_module._sync_all_state["finished_at"] = None
+    try:
+        conflict = client.post("/admin/data-sources/sync-all", headers=superadmin_headers)
+        assert conflict.status_code == 409
+    finally:
+        admin_module._sync_all_state["finished_at"] = datetime.utcnow()
+
+
+def test_recheck_all_recovers_answerable_gap_and_queues_still_open(
+    client, db_session, superadmin_headers, construction_vertical_id, monkeypatch
+):
+    """"Επανέλεγχος όλων" - two gaps at once, deliberately built to land in
+    each of the two real outcome branches:
+
+    - `marker` gap: a fresh, real, embedded document containing a unique
+      marker phrase, and a gap question that IS that phrase - guaranteed to
+      clear the hybrid threshold and rank first, so this exercises the real
+      search_regulation call end to end (no mocking retrieval itself,
+      matching test_critical_path.py's own philosophy), landing in the
+      'recovered' branch: a CONFIRMED GapSourceCandidate pointing at the
+      pre-existing document, origin='recheck_recovery', no new Document.
+    - `nonsense` gap: gibberish no real content could ever match, so it
+      falls through to the external-search fallback - discover_source_candidate
+      itself is mocked (same reasoning as test_discover_gap_source_stages_
+      candidate: a real web_search call is too slow/flaky/costly for a unit
+      test), landing in the 'still_gap' branch: a fresh pending_review
+      candidate, origin='external_search', never auto-confirmed.
+    """
+    import app.routers.admin as admin_module
+
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    marker = f"anaklisi{uuid.uuid4().hex[:10]}"
+    doc = Document(
+        title=f"Test recheck document {marker}",
+        content=f"Το μοναδικό αναγνωριστικό {marker} περιγράφεται αναλυτικά εδώ.",
+        vertical_id=construction_vertical_id,
+        source="https://example.test/recheck-doc",
+        authority="other",
+        content_type="faq",
+        extraction_status="manual",
+        scope="national",
+        status="active",
+    )
+    db_session.add(doc)
+    db_session.flush()
+    embed_document(db_session, doc)
+    db_session.commit()
+    doc_id = doc.id  # plain int - _cleanup_gap_source_candidate deletes this
+    # same document once it processes the recovered candidate below (its
+    # document_id points at doc, not a fresh one), so doc becomes a stale
+    # ORM instance after that - never touch the `doc` object again past
+    # this point, only doc_id.
+
+    marker_session = _make_gap_session(
+        db_session, company_id=company.id, user_id=user.id, message=f"μοναδικό αναγνωριστικό {marker}"
+    )
+    nonsense_session = _make_gap_session(
+        db_session, company_id=company.id, user_id=user.id,
+        message=f"xqzvywplkjh gibberish unrelated nonsense {uuid.uuid4().hex[:8]}",
+    )
+
+    monkeypatch.setattr(
+        admin_module,
+        "discover_source_candidate",
+        lambda question, vertical_slug: {
+            "title": "Mock law title",
+            "content": "Mock answer content citing the mock law.",
+            "source_url": "https://www.e-nomothesia.gr/mock-law.html",
+            "authority": "other",
+            "confidence": "medium",
+        },
+    )
+
+    candidate_ids: list[int] = []
+    try:
+        resp = client.post("/admin/gap-queries/recheck-all", headers=superadmin_headers)
+        assert resp.status_code == 200
+        queued = resp.json()["queued"]
+        assert queued >= 2
+
+        deadline = time.monotonic() + 120
+        status_body = None
+        while time.monotonic() < deadline:
+            status_body = client.get("/admin/gap-queries/recheck-all/status", headers=superadmin_headers).json()
+            if status_body["pending"] == 0:
+                break
+            time.sleep(2)
+        assert status_body is not None and status_body["pending"] == 0
+        assert status_body["recovered"] >= 1
+        assert status_body["still_gap"] >= 1
+
+        all_candidates = client.get("/admin/gap-source-candidates?status=all", headers=superadmin_headers).json()
+
+        recovered = next(c for c in all_candidates if c["chat_session_id"] == marker_session.id)
+        candidate_ids.append(recovered["id"])
+        assert recovered["origin"] == "recheck_recovery"
+        assert recovered["status"] == "confirmed"
+        assert recovered["document_id"] == doc_id
+        assert recovered["notified_at"] is None
+        assert recovered["notify_skipped_at"] is None
+        db_session.refresh(marker_session)
+        assert marker_session.gap_addressed is True
+
+        still_open = next(c for c in all_candidates if c["chat_session_id"] == nonsense_session.id)
+        candidate_ids.append(still_open["id"])
+        assert still_open["origin"] == "external_search"
+        assert still_open["status"] == "pending_review"
+        db_session.refresh(nonsense_session)
+        assert nonsense_session.gap_addressed is False
+    finally:
+        # _cleanup_gap_source_candidate already deletes the document a
+        # candidate's document_id points at - for `recovered` that's the
+        # same pre-existing doc created above (recheck_recovery reuses it,
+        # never creates a new one), so the explicit embeddings/documents
+        # delete below only needs to run as a fallback for whatever's left
+        # (e.g. if the 'recovered' lookup above never ran).
+        for cid in candidate_ids:
+            _cleanup_gap_source_candidate(db_session, cid)
+        db_session.execute(text("DELETE FROM embeddings WHERE document_id = :id"), {"id": doc_id})
+        db_session.execute(text("DELETE FROM documents WHERE id = :id"), {"id": doc_id})
+        db_session.commit()
         cleanup_company(db_session, company, user, project)
 
 

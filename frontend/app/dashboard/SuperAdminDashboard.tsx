@@ -389,6 +389,9 @@ export function SuperAdminDashboard() {
             </Tooltip>
           </>
         }
+        historicalNote={t("dash.super.gapRateHistoricalNote")}
+        trendHref="/admin/business-health"
+        trendLabel={t("dash.super.gapRateTrendLink")}
         unresolvedLabel={t("dash.super.unresolvedGaps")}
         cta={t("dash.super.reviewGaps")}
         onCtaClick={() => router.push("/admin/chat-gap-rate")}

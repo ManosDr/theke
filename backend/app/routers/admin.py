@@ -91,6 +91,8 @@ from app.schemas import (
     FeedbackStatusUpdateRequest,
     GapDiscoveryResult,
     GapQueryEntry,
+    GapRecheckAllResponse,
+    GapRecheckStatusResponse,
     GapSourceCandidateConfirmRequest,
     GapSourceCandidateEntry,
     GapSourceCandidateRejectRequest,
@@ -141,6 +143,8 @@ from app.schemas import (
     SubscriptionEntry,
     SubscriptionListResponse,
     SuperAdminInviteCreateRequest,
+    SyncAllResponse,
+    SyncAllStatusResponse,
     UndoSupersedeRequest,
     UserFeedbackEntry,
     UserFeedbackListResponse,
@@ -187,6 +191,7 @@ from app.services.legal_docs import SLUGS as LEGAL_SLUGS, find_placeholders
 from app.services.notifications import notify
 from app.services.platform_settings import get_or_create_platform_settings
 from app.services.politeness import CrawlBlocked, RobotsDisallowed
+from app.services.rag import search_regulation
 from app.services.region_contact_discovery import next_batch_region_ids, run_batch
 from app.services.source_fetch import content_hash, extract_content, fetch_raw, fetch_url_content
 from app.services.sources import group_label
@@ -2337,6 +2342,106 @@ async def list_data_sources(
     return result
 
 
+# Same in-memory bulk-run tracker pattern as _bulk_revalidation_state above
+# (see that variable's own comment for why this isn't a real task queue) -
+# single-process, doesn't survive a restart, not correct under multiple
+# uvicorn workers. Acceptable at this deployment's scale.
+_sync_all_state: dict = {
+    "total": 0, "completed": 0, "healthy": 0, "failed": 0, "blocked": 0,
+    "current_source_name": None, "started_at": None, "finished_at": None,
+}
+
+
+def _run_sync_all(source_ids: list[int], actor_user_id: int) -> None:
+    import asyncio
+
+    db = SessionLocal()
+    try:
+        for source_id in source_ids:
+            source = db.get(DataSource, source_id)
+            if not source:
+                _sync_all_state["completed"] += 1
+                continue
+            _sync_all_state["current_source_name"] = source.name
+            try:
+                outcome = asyncio.run(_perform_source_sync(db, source, actor_user_id))
+                if outcome == "healthy":
+                    _sync_all_state["healthy"] += 1
+                elif outcome == "blocked":
+                    _sync_all_state["blocked"] += 1
+                else:
+                    _sync_all_state["failed"] += 1
+            except Exception:  # noqa: BLE001 - one bad source must not stop the batch
+                _sync_all_state["failed"] += 1
+            _sync_all_state["completed"] += 1
+    finally:
+        _sync_all_state["current_source_name"] = None
+        _sync_all_state["finished_at"] = datetime.utcnow()
+        db.close()
+
+
+@router.post("/data-sources/sync-all", response_model=SyncAllResponse)
+async def sync_all_data_sources(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> SyncAllResponse:
+    """Bulk-triggers the same POST /data-sources/{id}/sync logic (see
+    _perform_source_sync) across every active data source, sequentially,
+    through the same Webshare-proxied PoliteFetcher a single manual sync
+    uses - not a separate, faster, unthrottled path. Registered before
+    PATCH/POST /data-sources/{source_id}/... deliberately: Starlette
+    matches by registration order and {source_id} has no int converter in
+    the route string, so "sync-all" would otherwise get swallowed as an
+    attempted source_id (same footgun as /documents/revalidation-status
+    vs /documents/{document_id}, see that endpoint's own comment)."""
+    require_super_admin(user)
+    if _sync_all_state["started_at"] and not _sync_all_state["finished_at"]:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A sync-all run is already in progress")
+
+    source_ids = list(db.scalars(select(DataSource.id).where(DataSource.is_active.is_(True))))
+    n = len(source_ids)
+    # ~20s/source (politeness delay + fetch), sequential.
+    estimated_minutes = max(1, round(n * 20 / 60)) if n else 0
+
+    now = datetime.utcnow()
+    _sync_all_state.update(
+        total=n, completed=0, healthy=0, failed=0, blocked=0,
+        current_source_name=None, started_at=now,
+        # Nothing queued means nothing will ever call finish - mark it
+        # finished immediately rather than leaving started_at set with no
+        # matching finished_at, which would permanently 409 every future
+        # trigger (there's no background task left to ever clear it).
+        finished_at=None if n else now,
+    )
+    if n:
+        background_tasks.add_task(_run_sync_all, source_ids, user.user_id)
+
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="data_source_sync_all_triggered", resource_type="data_source", resource_id=None,
+        metadata={"queued": n},
+    )
+    db.commit()
+    return SyncAllResponse(queued=n, estimated_minutes=estimated_minutes)
+
+
+@router.get("/data-sources/sync-all/status", response_model=SyncAllStatusResponse)
+async def sync_all_status(user: CurrentUser = Depends(get_current_user)) -> SyncAllStatusResponse:
+    require_super_admin(user)
+    state = _sync_all_state
+    pending = max(0, state["total"] - state["completed"])
+    last_updated = state["finished_at"] or state["started_at"]
+    return SyncAllStatusResponse(
+        pending=pending,
+        healthy=state["healthy"],
+        failed=state["failed"],
+        blocked=state["blocked"],
+        current_source_name=state["current_source_name"],
+        last_updated=last_updated,
+    )
+
+
 @router.patch("/data-sources/{source_id}", response_model=DataSourceSummary)
 async def update_data_source(
     source_id: int,
@@ -2388,17 +2493,20 @@ async def update_data_source(
     return _to_data_source_summary(source)
 
 
-@router.post("/data-sources/{source_id}/sync", response_model=DataSourceSyncStatus)
-async def sync_data_source(
-    source_id: int,
-    db: Session = Depends(get_db),
-    user: CurrentUser = Depends(get_current_user),
-) -> DataSourceSyncStatus:
-    """Fetches this source's base_url directly and content-hash-compares it
-    against the last sync, flagging linked documents for review on a real
-    change. Scope note, honestly stated: this fetches and hashes base_url
-    itself - it does NOT run the separate crawler/ package's per-source
-    scrapers (discovery of linked PDFs, ΦΕΚ parsing, etc; that package is a
+async def _perform_source_sync(db: Session, source: DataSource, actor_user_id: int) -> str:
+    """Shared core of POST /data-sources/{id}/sync - fetches this source's
+    base_url and content-hash-compares it against the last sync, flagging
+    linked documents for review on a real change. Factored out so the
+    single-source endpoint below and the Sync All bulk background task
+    (see _run_sync_all) go through the exact same fetch/hash/flag logic -
+    no separate "bulk" code path that could silently diverge from the one
+    behind a single manual sync click. Returns the resulting
+    last_crawl_status ('healthy', 'blocked', or 'failed'); source's other
+    fields are mutated in place, same as the original inline version.
+
+    Scope note, honestly stated: this fetches and hashes base_url itself -
+    it does NOT run the separate crawler/ package's per-source scrapers
+    (discovery of linked PDFs, ΦΕΚ parsing, etc; that package is a
     different deployable service with its own container - see
     docker-compose.yml - and there's still no per-row dispatch from a
     data_sources id to one of its scraper functions). What this DOES give a
@@ -2416,11 +2524,6 @@ async def sync_data_source(
     and doesn't keep re-triggering a sync against a host that's actively
     rejecting the traffic.
     """
-    require_super_admin(user)
-    source = db.get(DataSource, source_id)
-    if not source:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
-
     now = datetime.utcnow()
     try:
         resp = await fetch_raw(source.base_url)
@@ -2429,17 +2532,13 @@ async def sync_data_source(
         source.last_crawl_status = "blocked"
         source.last_crawl_error = f"Η πηγή απέκλεισε το αίτημα ({exc.reason}) - πιθανό μπλοκάρισμα IP, μην επαναλάβετε άμεσα"
         log_action(
-            db, actor_user_id=user.user_id, company_id=None,
+            db, actor_user_id=actor_user_id, company_id=None,
             action="data_source_sync_blocked", resource_type="data_source", resource_id=source.id,
             metadata={"host": exc.host, "status_code": exc.status_code, "reason": exc.reason},
         )
         db.commit()
         db.refresh(source)
-        return DataSourceSyncStatus(
-            id=source.id, last_crawled_at=source.last_crawled_at, next_crawl_at=source.next_crawl_at,
-            last_crawl_status=source.last_crawl_status, last_crawl_document_count=source.last_crawl_document_count,
-            last_crawl_error=source.last_crawl_error,
-        )
+        return "blocked"
     except (httpx.HTTPError, RobotsDisallowed):
         fetched_text = None
 
@@ -2452,16 +2551,12 @@ async def sync_data_source(
         source.last_crawl_status = "failed"
         source.last_crawl_error = "Η πηγή δεν ήταν προσβάσιμη ή δεν επέστρεψε εξαγώγιμο περιεχόμενο"
         log_action(
-            db, actor_user_id=user.user_id, company_id=None,
+            db, actor_user_id=actor_user_id, company_id=None,
             action="data_source_sync_failed", resource_type="data_source", resource_id=source.id,
         )
         db.commit()
         db.refresh(source)
-        return DataSourceSyncStatus(
-            id=source.id, last_crawled_at=source.last_crawled_at, next_crawl_at=source.next_crawl_at,
-            last_crawl_status=source.last_crawl_status, last_crawl_document_count=source.last_crawl_document_count,
-            last_crawl_error=source.last_crawl_error,
-        )
+        return "failed"
 
     new_hash = content_hash(fetched_text)
     # NULL previous hash means this is the first sync since the feature
@@ -2504,7 +2599,7 @@ async def sync_data_source(
 
     log_action(
         db,
-        actor_user_id=user.user_id,
+        actor_user_id=actor_user_id,
         company_id=None,
         action="data_source_sync_triggered",
         resource_type="data_source",
@@ -2513,6 +2608,20 @@ async def sync_data_source(
     )
     db.commit()
     db.refresh(source)
+    return "healthy"
+
+
+@router.post("/data-sources/{source_id}/sync", response_model=DataSourceSyncStatus)
+async def sync_data_source(
+    source_id: int,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> DataSourceSyncStatus:
+    require_super_admin(user)
+    source = db.get(DataSource, source_id)
+    if not source:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Data source not found")
+    await _perform_source_sync(db, source, user.user_id)
     return DataSourceSyncStatus(
         id=source.id,
         last_crawled_at=source.last_crawled_at,
@@ -3654,6 +3763,208 @@ async def list_gap_queries(
     ]
 
 
+# Same in-memory bulk-run tracker pattern as _bulk_revalidation_state /
+# _sync_all_state above - single-process, doesn't survive a restart, not
+# correct under multiple uvicorn workers. Acceptable at this deployment's
+# scale (see those variables' own comments for the full rationale).
+_gap_recheck_state: dict = {
+    "total": 0, "completed": 0, "recovered": 0, "still_gap": 0, "failed": 0,
+    "current_label": None, "started_at": None, "finished_at": None,
+}
+
+
+def _run_gap_recheck_all(session_ids: list[int], actor_user_id: int) -> None:
+    """Re-runs every currently-open gap's ORIGINAL question text through the
+    real retrieval pipeline (search_regulation - same hybrid vector+keyword
+    search, same RRF merge, same confidence threshold a live chat message
+    goes through), as the asker who originally asked it would see it - not
+    a fresh OpenAI web search. Two outcomes per gap:
+
+    - Now answerable (real citations, above threshold): stage a CONFIRMED
+      GapSourceCandidate pointing at the pre-existing document that now
+      retrieves - no new Document, no new embeddings, this is content that
+      was already live, just not ranking high enough before (a widened
+      allowlist, a content edit, or a KB addition since the gap was logged
+      can all cause this). origin='recheck_recovery' so the review UI can
+      group these apart from brand-new external sources. Marked confirmed
+      immediately (not pending_review) because there is nothing new to
+      verify - a human already reviewed this content when it first went
+      into the KB. Still requires an explicit notify/don't-notify decision
+      before the asker hears anything, same as every other resolution
+      path - this function NEVER calls notify itself.
+    - Still unanswerable: queued into the exact same discover_source_candidate
+      call "Αναζήτηση πηγής" uses, staged pending_review like any other -
+      never auto-confirmed, same human-review discipline as every other
+      external-search candidate.
+    """
+    db = SessionLocal()
+    try:
+        for session_id in session_ids:
+            gap_session = db.get(ChatSession, session_id)
+            if not gap_session or not gap_session.message:
+                _gap_recheck_state["failed"] += 1
+                _gap_recheck_state["completed"] += 1
+                continue
+            _gap_recheck_state["current_label"] = gap_session.message[:80]
+            try:
+                asker = db.get(User, gap_session.user_id) if gap_session.user_id else None
+                company = db.get(Company, gap_session.company_id) if gap_session.company_id else None
+                vertical = db.get(Vertical, company.vertical_id) if company else None
+                if not asker or not company or not vertical:
+                    _gap_recheck_state["failed"] += 1
+                    _gap_recheck_state["completed"] += 1
+                    continue
+
+                cu = CurrentUser(user_id=asker.id, company_id=asker.company_id, role=asker.role, company_type=company.type)
+                project = db.get(Project, gap_session.project_id) if gap_session.project_id else None
+                hits = search_regulation(
+                    db, cu, gap_session.message, vertical.id,
+                    project_id=gap_session.project_id,
+                    customer_id=project.customer_id if project else None,
+                    plot_in_plan=project.plot_in_plan if project else None,
+                )
+
+                if hits:
+                    top = hits[0]
+                    # Real excerpts from the chunks that now clear the bar -
+                    # not an AI paraphrase, so there's nothing here that
+                    # could misattribute a paragraph the way an external
+                    # web-search summary can (see candidates 8/11/12's own
+                    # review notes). Up to 3 distinct source documents.
+                    seen_docs: set[int] = set()
+                    excerpts = []
+                    for h in hits:
+                        if h.document_id in seen_docs:
+                            continue
+                        seen_docs.add(h.document_id)
+                        excerpts.append(f"[{h.title or h.source or 'Πηγή'}]\n{h.chunk_text}")
+                        if len(seen_docs) >= 3:
+                            break
+                    candidate = GapSourceCandidate(
+                        chat_session_id=gap_session.id,
+                        vertical_id=vertical.id,
+                        question=gap_session.message,
+                        candidate_title=top.title,
+                        candidate_content="\n\n".join(excerpts),
+                        source_url=top.source or "",
+                        authority=top.authority,
+                        confidence=None,
+                        status="confirmed",
+                        reviewed_by=actor_user_id,
+                        reviewed_at=datetime.utcnow(),
+                        document_id=top.document_id,
+                        origin="recheck_recovery",
+                    )
+                    db.add(candidate)
+                    gap_session.gap_addressed = True
+                    gap_session.gap_addressed_at = datetime.utcnow()
+                    gap_session.gap_addressed_by = actor_user_id
+                    log_action(
+                        db, actor_user_id=actor_user_id, company_id=gap_session.company_id,
+                        action="gap_recheck_recovered", resource_type="chat_session", resource_id=gap_session.id,
+                        metadata={"document_id": top.document_id, "hit_count": len(hits)},
+                    )
+                    db.commit()
+                    _gap_recheck_state["recovered"] += 1
+                else:
+                    try:
+                        result = discover_source_candidate(gap_session.message, vertical.slug)
+                    except GapDiscoveryError:
+                        result = None
+                    if result is not None:
+                        db.add(
+                            GapSourceCandidate(
+                                chat_session_id=gap_session.id,
+                                vertical_id=vertical.id,
+                                question=gap_session.message,
+                                candidate_title=result["title"],
+                                candidate_content=result["content"],
+                                source_url=result["source_url"],
+                                authority=result["authority"],
+                                confidence=result["confidence"],
+                                origin="external_search",
+                            )
+                        )
+                    log_action(
+                        db, actor_user_id=actor_user_id, company_id=gap_session.company_id,
+                        action="gap_recheck_still_open", resource_type="chat_session", resource_id=gap_session.id,
+                        metadata={"external_candidate_found": result is not None},
+                    )
+                    db.commit()
+                    _gap_recheck_state["still_gap"] += 1
+            except Exception:  # noqa: BLE001 - one bad gap must not stop the batch
+                db.rollback()
+                _gap_recheck_state["failed"] += 1
+            _gap_recheck_state["completed"] += 1
+    finally:
+        _gap_recheck_state["current_label"] = None
+        _gap_recheck_state["finished_at"] = datetime.utcnow()
+        db.close()
+
+
+@router.post("/gap-queries/recheck-all", response_model=GapRecheckAllResponse)
+async def recheck_all_gaps(
+    background_tasks: BackgroundTasks,
+    db: Session = Depends(get_db),
+    user: CurrentUser = Depends(get_current_user),
+) -> GapRecheckAllResponse:
+    """"Επανέλεγχος όλων" - distinct from the per-question "Αναζήτηση πηγής"
+    button: re-runs every currently-open gap's original question through
+    the real retrieval pipeline FIRST (search_regulation - the exact
+    mechanism a live chat message uses), only falling back to an external
+    web search for whatever still doesn't clear the confidence bar. Catches
+    gaps that were already fixed tonight by a widened allowlist or a KB
+    content edit but never got individually re-checked. Registered before
+    PATCH /gap-queries/{session_id} deliberately - same route-ordering
+    footgun as /data-sources/sync-all, see that endpoint's own comment."""
+    require_super_admin(user)
+    if _gap_recheck_state["started_at"] and not _gap_recheck_state["finished_at"]:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="A recheck-all run is already in progress")
+
+    session_ids = list(
+        db.scalars(
+            select(ChatSession.id).where(
+                ChatSession.true_gap(), ChatSession.gap_addressed.is_(False), ChatSession.message.isnot(None)
+            )
+        )
+    )
+    n = len(session_ids)
+    estimated_minutes = max(1, round(n * 5 / 60)) if n else 0  # ~5s/question (embedding + hybrid search)
+
+    now = datetime.utcnow()
+    _gap_recheck_state.update(
+        total=n, completed=0, recovered=0, still_gap=0, failed=0,
+        # Same "nothing queued -> finish immediately" reasoning as
+        # _sync_all_state above.
+        current_label=None, started_at=now, finished_at=None if n else now,
+    )
+    if n:
+        background_tasks.add_task(_run_gap_recheck_all, session_ids, user.user_id)
+
+    log_action(
+        db, actor_user_id=user.user_id, company_id=None,
+        action="gap_recheck_all_triggered", resource_type="chat_session", resource_id=None,
+        metadata={"queued": n},
+    )
+    db.commit()
+    return GapRecheckAllResponse(queued=n, estimated_minutes=estimated_minutes)
+
+
+@router.get("/gap-queries/recheck-all/status", response_model=GapRecheckStatusResponse)
+async def gap_recheck_all_status(user: CurrentUser = Depends(get_current_user)) -> GapRecheckStatusResponse:
+    require_super_admin(user)
+    state = _gap_recheck_state
+    pending = max(0, state["total"] - state["completed"])
+    last_updated = state["finished_at"] or state["started_at"]
+    return GapRecheckStatusResponse(
+        pending=pending,
+        recovered=state["recovered"],
+        still_gap=state["still_gap"],
+        failed=state["failed"],
+        last_updated=last_updated,
+    )
+
+
 @router.patch("/gap-queries/{session_id}", response_model=GapQueryEntry)
 async def update_gap_query_status(
     session_id: int,
@@ -3720,6 +4031,7 @@ def _to_gap_source_candidate_entry(row: GapSourceCandidate) -> GapSourceCandidat
         document_id=row.document_id,
         notified_at=row.notified_at,
         notify_skipped_at=row.notify_skipped_at,
+        origin=row.origin,
     )
 
 

@@ -16,6 +16,11 @@ backend/app/services/politeness.py via theke_shared.politeness_shared - see
 that module's docstring and KNOWN_DECISIONS.md for why PoliteFetcher itself
 (this class) stays separately implemented on each side rather than also
 being shared.
+
+Every outbound call this class makes - both the robots.txt probe and the
+actual fetch - routes through config.CRAWLER_PROXY_URL when set, so a ban
+lands on a disposable egress box instead of production's own IP. See
+KNOWN_DECISIONS.md's "Crawler egress decoupling" entry for the runbook.
 """
 
 import time
@@ -31,6 +36,8 @@ from theke_shared.politeness_shared import (
     CrawlBlocked,
     RobotsDisallowed,
 )
+
+from crawler.config import CRAWLER_PROXY_URL
 
 REQUEST_TIMEOUT = 30
 ROBOTS_TIMEOUT = 10
@@ -55,11 +62,21 @@ class PoliteFetcher:
     linked off one ΥΠΕΝ listing page, 35 sequential ΦΕΚ search-API calls,
     etc.) stay spaced out automatically - callers never sleep themselves."""
 
-    def __init__(self, min_delay: float = DEFAULT_MIN_DELAY_SECONDS, user_agent: str = USER_AGENT):
+    def __init__(
+        self,
+        min_delay: float = DEFAULT_MIN_DELAY_SECONDS,
+        user_agent: str = USER_AGENT,
+        proxy_url: str | None = CRAWLER_PROXY_URL,
+    ):
         self.min_delay = min_delay
         self.user_agent = user_agent
         self._last_request_at: dict[str, float] = {}
         self._robots_cache: dict[str, urllib.robotparser.RobotFileParser | None] = {}
+        # requests' own dict shape - same URL for both schemes, since a
+        # single forward proxy handles both http:// and https:// (CONNECT)
+        # targets. None (the default outside tests) means "no proxy set",
+        # i.e. today's direct-connection behavior, unchanged.
+        self.proxies = {"http": proxy_url, "https": proxy_url} if proxy_url else None
 
     def _robots_for(self, host: str, scheme: str) -> urllib.robotparser.RobotFileParser | None:
         if host in self._robots_cache:
@@ -67,7 +84,10 @@ class PoliteFetcher:
         rfp = urllib.robotparser.RobotFileParser()
         try:
             resp = requests.get(
-                f"{scheme}://{host}/robots.txt", timeout=ROBOTS_TIMEOUT, headers={"User-Agent": self.user_agent}
+                f"{scheme}://{host}/robots.txt",
+                timeout=ROBOTS_TIMEOUT,
+                headers={"User-Agent": self.user_agent},
+                proxies=self.proxies,
             )
             # A 4xx/5xx robots.txt is treated as "no restrictions stated" -
             # the conventional crawler default, and what every host in this
@@ -146,6 +166,7 @@ class PoliteFetcher:
 
         self._wait(host)
         kwargs.setdefault("timeout", REQUEST_TIMEOUT)
+        kwargs.setdefault("proxies", self.proxies)
         headers = kwargs.pop("headers", {}) or {}
         headers.setdefault("User-Agent", self.user_agent)
         try:

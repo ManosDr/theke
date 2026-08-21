@@ -1,0 +1,81 @@
+#cloud-config
+# Provisions a minimal, single-purpose forward proxy for crawler egress -
+# see KNOWN_DECISIONS.md's "Crawler egress decoupling" entry for the full
+# runbook (why this exists, how to point the crawler at it, how to destroy
+# and recreate it if it ever gets IP-banned).
+#
+# This box does exactly one thing: relay the crawler's outbound HTTP(S)
+# requests through its own IP instead of production's. It holds no crawl
+# data, no database, no secrets beyond its own proxy password - which is
+# exactly what makes "destroy and recreate" a real, low-risk recovery path
+# rather than something to fear.
+#
+# Usage (Hetzner Cloud CLI, cheapest shared-vCPU tier is enough - this does
+# almost no CPU/memory work, it's a network relay):
+#
+#   hcloud server create \
+#     --name theke-crawler-egress \
+#     --type cx22 \
+#     --image ubuntu-24.04 \
+#     --location nbg1 \
+#     --ssh-key <your-key-name> \
+#     --user-data-file infra/crawler-egress-cloud-init.yml
+#
+# Before running: replace CHANGEME_PROXY_PASSWORD below with a real
+# generated password (e.g. `openssl rand -base64 24`), and CHANGEME_PROD_IP
+# with production's real IP (178.105.106.29 as of this writing - confirm
+# it's still current before reusing this file). Then set
+# CRAWLER_PROXY_URL=http://theke:<the real password>@<box-ip>:3128 in
+# production's .env and restart the scheduler service (see runbook).
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - squid
+  - apache2-utils # htpasswd, for squid's basic-auth password file
+  - ufw
+
+write_files:
+  - path: /etc/squid/squid.conf
+    content: |
+      http_port 3128
+
+      # Basic auth is defense-in-depth, not the primary control - the real
+      # gate is the firewall rule below restricting port 3128 to production's
+      # IP alone. Both together mean a leaked proxy URL alone (e.g. in a log
+      # line) still isn't enough to abuse this box from elsewhere.
+      auth_param basic program /usr/lib/squid/basic_ncsa_auth /etc/squid/passwd
+      auth_param basic realm theke-crawler-egress
+      acl authenticated proxy_auth REQUIRED
+      http_access allow authenticated
+      http_access deny all
+
+      # No caching - this is a relay, not a cache. Every request should hit
+      # the real origin, matching PoliteFetcher's own per-host rate-limiting
+      # assumptions (a cached response would silently defeat the whole point
+      # of spacing requests out).
+      cache deny all
+
+      # Don't leak this box's own hostname/IP or the fact a proxy is in use
+      # any more than necessary.
+      via off
+      forwarded_for delete
+
+runcmd:
+  # Generate the htpasswd file. -c creates it fresh (single-user box, one
+  # shared crawler identity - not a multi-tenant proxy).
+  - htpasswd -cb /etc/squid/passwd theke CHANGEME_PROXY_PASSWORD
+  - chown proxy:proxy /etc/squid/passwd
+  - systemctl restart squid
+  - systemctl enable squid
+
+  # Firewall: only production's own IP may reach the proxy port. Everything
+  # else (including SSH from arbitrary IPs) stays default-deny other than
+  # what's explicitly opened here - adjust the SSH rule to your own
+  # management IP if it's static, or leave 22/tcp open if not.
+  - ufw default deny incoming
+  - ufw default allow outgoing
+  - ufw allow 22/tcp
+  - ufw allow from CHANGEME_PROD_IP to any port 3128 proto tcp
+  - ufw --force enable

@@ -1783,6 +1783,20 @@ async def platform_stats(
         or 0
     )
     gap_rate = round(gap_count / total_messages * 100, 1) if total_messages else 0.0
+    unresolved_gaps = (
+        db.scalar(
+            select(func.count())
+            .select_from(ChatSession)
+            .outerjoin(Company, Company.id == ChatSession.company_id)
+            .where(
+                ChatSession.true_gap(),
+                ChatSession.gap_addressed.is_(False),
+                not_test_company,
+                not_solo_super_admin,
+            )
+        )
+        or 0
+    )
     active_documents = (
         db.scalar(
             select(func.count())
@@ -1845,6 +1859,7 @@ async def platform_stats(
     total = AdminStatsResponse(
         total_messages=total_messages,
         gap_rate=gap_rate,
+        unresolved_gaps=unresolved_gaps,
         active_documents=active_documents,
         positive_feedback=positive_feedback,
         negative_feedback=negative_feedback,
@@ -1878,6 +1893,20 @@ async def platform_stats(
                 .select_from(ChatSession)
                 .join(Company, Company.id == ChatSession.company_id)
                 .where(Company.vertical_id == v.id, ChatSession.true_gap(), Company.is_test_account.is_(False))
+            )
+            or 0
+        )
+        v_unresolved_gaps = (
+            db.scalar(
+                select(func.count())
+                .select_from(ChatSession)
+                .join(Company, Company.id == ChatSession.company_id)
+                .where(
+                    Company.vertical_id == v.id,
+                    ChatSession.true_gap(),
+                    ChatSession.gap_addressed.is_(False),
+                    Company.is_test_account.is_(False),
+                )
             )
             or 0
         )
@@ -1955,6 +1984,7 @@ async def platform_stats(
                 slug=v.slug,
                 messages=v_messages,
                 gap_rate=round(v_gap / v_messages * 100, 1) if v_messages else 0.0,
+                unresolved_gaps=v_unresolved_gaps,
                 active_documents=v_docs,
                 active_companies=v_companies,
                 suspended_companies=v_suspended,

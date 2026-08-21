@@ -1144,6 +1144,12 @@ class AdminStatsResponse(BaseModel):
     # entries have a "revisit when more than N active companies" trigger
     # keyed off this exact number (see app/services/growth_alerts.py).
     real_active_companies: int = 0
+    # true_gap() rows not yet marked ChatSession.gap_addressed - the
+    # persistent "unresolved gaps: N" count backing the dashboard's
+    # promoted gap-rate card (Part D of the same-night batch - see
+    # KNOWN_DECISIONS.md). Same all-time, not_test_company/
+    # not_solo_super_admin scope as gap_rate itself, not a 30-day window.
+    unresolved_gaps: int = 0
 
 
 class VerticalStatsEntry(BaseModel):
@@ -1157,6 +1163,7 @@ class VerticalStatsEntry(BaseModel):
     platform_tokens_30d: int = 0
     platform_cost_eur_30d: float = 0.0
     suspended_companies: int = 0
+    unresolved_gaps: int = 0
 
 
 class AdminStatsByVerticalResponse(BaseModel):

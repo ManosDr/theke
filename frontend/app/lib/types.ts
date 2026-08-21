@@ -719,6 +719,7 @@ export interface AdminStats {
   platform_tokens_30d: number;
   platform_cost_eur_30d: number;
   real_active_companies: number;
+  unresolved_gaps: number;
 }
 
 export interface VerticalStatsEntry {
@@ -732,6 +733,7 @@ export interface VerticalStatsEntry {
   platform_tokens_30d: number;
   platform_cost_eur_30d: number;
   suspended_companies: number;
+  unresolved_gaps: number;
 }
 
 // GET /admin/stats now returns this shape - `total` carries the same fields

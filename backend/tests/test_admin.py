@@ -32,6 +32,37 @@ def test_admin_stats_returns_per_vertical(client, superadmin_headers):
     assert {"construction", "tax_accounting"} <= slugs
 
 
+def test_admin_stats_unresolved_gaps_excludes_addressed(client, db_session, superadmin_headers, construction_vertical_id):
+    """Part D of the same-night batch: the dashboard's promoted gap-rate
+    card needs a real "unresolved gaps: N" count - true gaps not yet marked
+    ChatSession.gap_addressed. Measured as a delta (before/after creating
+    two gap sessions and addressing one) since this is a platform-wide
+    count, not scoped to one company - other real/seed data in the DB must
+    not make this test flaky."""
+    before = client.get("/admin/stats", headers=superadmin_headers).json()
+    before_total = before["total"]["unresolved_gaps"]
+    before_vertical = next(v["unresolved_gaps"] for v in before["by_vertical"] if v["slug"] == "construction")
+
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    unaddressed = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Still unresolved")
+    addressed = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Already handled")
+    addressed.gap_addressed = True
+    addressed.gap_addressed_at = datetime.utcnow()
+    db_session.commit()
+    try:
+        after = client.get("/admin/stats", headers=superadmin_headers).json()
+        # Exactly +1 (the unaddressed one) - the addressed gap must not
+        # count, even though it's still a true_gap() row.
+        assert after["total"]["unresolved_gaps"] == before_total + 1
+        after_vertical = next(v["unresolved_gaps"] for v in after["by_vertical"] if v["slug"] == "construction")
+        assert after_vertical == before_vertical + 1
+    finally:
+        db_session.delete(unaddressed)
+        db_session.delete(addressed)
+        db_session.commit()
+        cleanup_company(db_session, company, user, project)
+
+
 def test_business_health_returns_timeline_shape(client, superadmin_headers):
     resp = client.get("/admin/business-health", headers=superadmin_headers)
     assert resp.status_code == 200

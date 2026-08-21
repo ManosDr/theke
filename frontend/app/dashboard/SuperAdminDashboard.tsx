@@ -10,7 +10,6 @@ import { parseApiDate } from "../lib/datetime";
 import { useLocale } from "../lib/i18n";
 import { useVertical } from "../lib/vertical";
 import {
-  AlertIcon,
   BuildingIcon,
   ClockIcon,
   CoinIcon,
@@ -37,6 +36,7 @@ import type {
 } from "../lib/types";
 import { ActivityChart } from "./ActivityChart";
 import { AttentionCard } from "./AttentionCard";
+import { GapRateHero } from "./GapRateHero";
 import { QueriesByVerticalBars } from "./QueriesByVerticalBars";
 import { SentimentDonut } from "./SentimentDonut";
 import { VerticalStatsCard } from "./VerticalStatsCard";
@@ -333,6 +333,7 @@ export function SuperAdminDashboard() {
   const statsSelectedVertical = verticals.find((v) => v.slug === selectedVertical);
 
   const gapRate = scopedStats?.gap_rate ?? stats?.total.gap_rate ?? 0;
+  const unresolvedGaps = scopedStats?.unresolved_gaps ?? stats?.total.unresolved_gaps ?? 0;
   const gapTone = gapRate >= 50 ? "danger" : gapRate >= 20 ? "warning" : "success";
   const staleTone = scopedStaleDocs.length > 0 ? "warning" : "success";
   const suspendedTone = suspendedCount > 0 ? "danger" : "success";
@@ -376,6 +377,23 @@ export function SuperAdminDashboard() {
         </p>
       </div>
 
+      <GapRateHero
+        tone={gapTone}
+        gapRate={gapRate}
+        unresolvedGaps={unresolvedGaps}
+        label={
+          <>
+            {tUpper("dash.super.gapRate")}
+            <Tooltip text={t("dash.super.gapRateTooltip")}>
+              <InfoIcon size={12} />
+            </Tooltip>
+          </>
+        }
+        unresolvedLabel={t("dash.super.unresolvedGaps")}
+        cta={t("dash.super.reviewGaps")}
+        onCtaClick={() => router.push("/admin/chat-gap-rate")}
+      />
+
       <div className={styles.verticalCardsRow}>
         {visibleVerticals.map((v) => (
           <VerticalStatsCard
@@ -396,21 +414,6 @@ export function SuperAdminDashboard() {
           label={tUpper("dash.super.suspended")}
           cta={t("dash.super.manage")}
           onCtaClick={() => router.push("/admin/suspended-tenants")}
-        />
-        <AttentionCard
-          tone={gapTone}
-          icon={<AlertIcon size={14} />}
-          value={`${gapRate}%`}
-          label={
-            <>
-              {tUpper("dash.super.gapRate")}
-              <Tooltip text={t("dash.super.gapRateTooltip")}>
-                <InfoIcon size={12} />
-              </Tooltip>
-            </>
-          }
-          cta={t("dash.super.reviewGaps")}
-          onCtaClick={() => router.push("/admin/chat-gap-rate")}
         />
         <AttentionCard
           tone={staleTone}

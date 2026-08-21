@@ -1,0 +1,124 @@
+/* Larger, top-placed treatment for the platform's primary beta-era signal -
+   distinct from AttentionCard.module.css's deliberately uniform tiles.
+   A left accent stripe (tone-colored) plus a bigger value give it real
+   visual weight without repainting the whole card in one color, same
+   restraint AttentionCard's own comment describes for its icon badge. */
+.hero {
+  display: flex;
+  align-items: center;
+  gap: var(--space-5);
+  padding: var(--space-5) var(--space-6);
+  margin-bottom: var(--space-4);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+  border-left: 6px solid var(--color-text-muted);
+}
+
+.tone-success {
+  border-left-color: var(--color-success);
+}
+
+.tone-warning {
+  border-left-color: var(--color-warning);
+}
+
+.tone-danger {
+  border-left-color: var(--color-danger);
+}
+
+.iconBadge {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--color-text-on-primary);
+  background: var(--color-text-muted);
+}
+
+.tone-success .iconBadge {
+  background: var(--color-success);
+}
+
+.tone-warning .iconBadge {
+  background: var(--color-warning);
+}
+
+.tone-danger .iconBadge {
+  background: var(--color-danger);
+}
+
+.main {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  color: var(--color-text-muted);
+}
+
+.value {
+  font-size: 3rem;
+  font-weight: 800;
+  line-height: 1;
+  color: var(--color-text);
+}
+
+.tone-danger .value {
+  color: var(--color-danger);
+}
+
+.side {
+  margin-left: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: var(--space-2);
+  flex-shrink: 0;
+}
+
+.unresolvedBadge {
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+  white-space: nowrap;
+}
+
+.unresolvedBadge strong {
+  font-size: 1.1rem;
+  color: var(--color-text);
+  margin-right: 4px;
+}
+
+.cta {
+  background: none;
+  border: none;
+  padding: 0;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--color-info);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.cta:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 640px) {
+  .hero {
+    flex-wrap: wrap;
+  }
+
+  .side {
+    margin-left: 0;
+    align-items: flex-start;
+    width: 100%;
+  }
+}

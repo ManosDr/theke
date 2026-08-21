@@ -2433,6 +2433,7 @@ async def sync_all_status(user: CurrentUser = Depends(get_current_user)) -> Sync
     pending = max(0, state["total"] - state["completed"])
     last_updated = state["finished_at"] or state["started_at"]
     return SyncAllStatusResponse(
+        total=state["total"],
         pending=pending,
         healthy=state["healthy"],
         failed=state["failed"],
@@ -3957,6 +3958,7 @@ async def gap_recheck_all_status(user: CurrentUser = Depends(get_current_user)) 
     pending = max(0, state["total"] - state["completed"])
     last_updated = state["finished_at"] or state["started_at"]
     return GapRecheckStatusResponse(
+        total=state["total"],
         pending=pending,
         recovered=state["recovered"],
         still_gap=state["still_gap"],

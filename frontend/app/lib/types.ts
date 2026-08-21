@@ -970,6 +970,7 @@ export interface SyncAllResponse {
 }
 
 export interface SyncAllStatusResponse {
+  total: number;
   pending: number;
   healthy: number;
   failed: number;
@@ -1062,6 +1063,7 @@ export interface GapRecheckAllResponse {
 }
 
 export interface GapRecheckStatusResponse {
+  total: number;
   pending: number;
   recovered: number;
   still_gap: number;

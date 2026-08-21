@@ -112,6 +112,22 @@ export function ChatGapRatePanel() {
     if (data.queued > 0) setRecheckRunning(true);
   }
 
+  // Same "resume on page load" reasoning as Sync All (DataSourcesPanel) - a
+  // run triggered elsewhere (another tab, a script) is still genuinely in
+  // progress server-side; without this a fresh page load showed nothing
+  // until this browser's own button was clicked.
+  useEffect(() => {
+    if (!token) return;
+    api.get<GapRecheckStatusResponse>("/admin/gap-queries/recheck-all/status", token).then((data) => {
+      if (data.pending > 0) {
+        setRecheckTotal(data.total);
+        setRecheckStatus(data);
+        setRecheckRunning(true);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   useEffect(() => {
     if (!recheckRunning || !token) return;
     const interval = setInterval(async () => {

@@ -1318,6 +1318,10 @@ class SyncAllResponse(BaseModel):
 
 
 class SyncAllStatusResponse(BaseModel):
+    # total lets a fresh page load (no local memory of what was POSTed)
+    # compute "N of M" progress and correctly resume showing a run already
+    # in flight - see DataSourcesPanel's on-mount status check.
+    total: int
     pending: int
     healthy: int
     failed: int
@@ -1451,6 +1455,9 @@ class GapRecheckAllResponse(BaseModel):
 
 
 class GapRecheckStatusResponse(BaseModel):
+    # Same reasoning as SyncAllStatusResponse.total - lets a fresh page load
+    # resume showing an in-flight run's real progress.
+    total: int
     pending: int
     recovered: int
     still_gap: int

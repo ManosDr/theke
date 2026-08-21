@@ -92,6 +92,24 @@ export function DataSourcesPanel() {
     if (data.queued > 0) setSyncAllRunning(true);
   }
 
+  // A run triggered from elsewhere (another admin's tab, a script) is still
+  // genuinely in progress on the server - without this, opening the page
+  // fresh showed nothing until *this* browser also clicked "Sync All",
+  // even while a real sync was actively running. total now comes from the
+  // status response itself (see SyncAllStatusResponse), not just the POST
+  // response, so a fresh page load can compute real "N of M" progress.
+  useEffect(() => {
+    if (!token) return;
+    api.get<SyncAllStatusResponse>("/admin/data-sources/sync-all/status", token).then((data) => {
+      if (data.pending > 0) {
+        setSyncAllTotal(data.total);
+        setSyncAllStatus(data);
+        setSyncAllRunning(true);
+      }
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [token]);
+
   useEffect(() => {
     if (!syncAllRunning || !token) return;
     const interval = setInterval(async () => {

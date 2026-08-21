@@ -1433,9 +1433,20 @@ class GapSourceCandidateRejectRequest(BaseModel):
     review_note: str | None = None
 
 
+class GapSourceNotifyRequest(BaseModel):
+    # True (default) matches the endpoint's original behavior - in-app
+    # notification + email. False is the "in-app only" choice added
+    # alongside skip-notify: the same follow-up ChatSession/notification
+    # still lands, just without an email, for an asker who's already
+    # gotten several of these and doesn't need another inbox ping for
+    # every individually-resolved gap.
+    send_email: bool = True
+
+
 class GapSourceNotifyResult(BaseModel):
     notified_at: datetime
     chat_session_id: int
+    email_sent: bool
 
 
 class InternalChatActivityEntry(BaseModel):

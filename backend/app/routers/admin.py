@@ -94,6 +94,7 @@ from app.schemas import (
     GapSourceCandidateConfirmRequest,
     GapSourceCandidateEntry,
     GapSourceCandidateRejectRequest,
+    GapSourceNotifyRequest,
     GapSourceNotifyResult,
     GapStatusUpdateRequest,
     HelpSectionAdminDetail,
@@ -3907,6 +3908,7 @@ async def reject_gap_source_candidate(
 @router.post("/gap-source-candidates/{candidate_id}/notify-user", response_model=GapSourceNotifyResult)
 async def notify_gap_source_user(
     candidate_id: int,
+    payload: GapSourceNotifyRequest = GapSourceNotifyRequest(),
     db: Session = Depends(get_db),
     user: CurrentUser = Depends(get_current_user),
 ) -> GapSourceNotifyResult:
@@ -3914,10 +3916,13 @@ async def notify_gap_source_user(
     (real Document, real embeddings). Inserts a real ChatSession row into
     the original asker's own history (tool_used='gap_resolution_notice', so
     the frontend renders it as a follow-up notice rather than a fresh
-    empty-question turn - see ChatHistoryItem's own comment), sends a
-    real in-app notification, and a real email. A separate, later step from
-    Confirm on purpose: KB ingestion and telling the user are two different
-    admin-triggered actions, not one."""
+    empty-question turn - see ChatHistoryItem's own comment) and sends a
+    real in-app notification unconditionally - the email is the only part
+    payload.send_email=False skips (the "in-app only" choice, alongside
+    full notify and skip-notify: an asker with several separately-resolved
+    gaps shouldn't get a separate inbox ping for each one). A separate,
+    later step from Confirm on purpose: KB ingestion and telling the user
+    are two different admin-triggered actions, not one."""
     require_super_admin(user)
     candidate = db.get(GapSourceCandidate, candidate_id)
     if not candidate:
@@ -3982,7 +3987,9 @@ async def notify_gap_source_user(
         body=candidate.question,
         link=chat_link,
     )
-    send_gap_source_found_email(db, asker.email, candidate.question, answer_text, chat_link)
+    email_sent = False
+    if payload.send_email:
+        email_sent = send_gap_source_found_email(db, asker.email, candidate.question, answer_text, chat_link)
 
     candidate.notified_at = datetime.utcnow()
     candidate.notified_by = user.user_id
@@ -3994,10 +4001,10 @@ async def notify_gap_source_user(
         action="gap_source_user_notified",
         resource_type="gap_source_candidate",
         resource_id=candidate.id,
-        metadata={"notified_user_id": asker.id},
+        metadata={"notified_user_id": asker.id, "send_email": payload.send_email, "email_sent": email_sent},
     )
     db.commit()
-    return GapSourceNotifyResult(notified_at=candidate.notified_at, chat_session_id=follow_up.id)
+    return GapSourceNotifyResult(notified_at=candidate.notified_at, chat_session_id=follow_up.id, email_sent=email_sent)
 
 
 @router.post("/gap-source-candidates/{candidate_id}/skip-notify", response_model=GapSourceCandidateEntry)

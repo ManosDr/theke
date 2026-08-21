@@ -113,12 +113,12 @@ export function GapResolutionModal({
     }
   }
 
-  async function notifyUser() {
+  async function notifyUser(sendEmail: boolean) {
     if (!token || !candidate) return;
     setBusy(true);
     setError(null);
     try {
-      await api.post(`/admin/gap-source-candidates/${candidate.id}/notify-user`, {}, token);
+      await api.post(`/admin/gap-source-candidates/${candidate.id}/notify-user`, { send_email: sendEmail }, token);
       onResolved();
       onClose();
     } catch {
@@ -216,8 +216,11 @@ export function GapResolutionModal({
             <p className="text-muted">{t("admin.chatGapRate.candidates.postConfirmHint")}</p>
             {error && <p style={{ color: "var(--color-danger)", fontSize: "0.82rem" }}>{error}</p>}
             <div className={styles.choiceButtons}>
-              <button type="button" className="btn btn-primary" disabled={busy} onClick={notifyUser}>
+              <button type="button" className="btn btn-primary" disabled={busy} onClick={() => notifyUser(true)}>
                 {t("admin.chatGapRate.candidates.notifyUser")}
+              </button>
+              <button type="button" className="btn btn-secondary" disabled={busy} onClick={() => notifyUser(false)}>
+                {t("admin.chatGapRate.candidates.notifyUserInAppOnly")}
               </button>
               <button type="button" className="btn btn-secondary" disabled={busy} onClick={skipNotify}>
                 {t("admin.chatGapRate.candidates.skipNotify")}

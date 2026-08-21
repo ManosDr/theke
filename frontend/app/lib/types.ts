@@ -779,6 +779,7 @@ export interface GapDiscoveryResult {
 export interface GapSourceNotifyResult {
   notified_at: string;
   chat_session_id: number;
+  email_sent: boolean;
 }
 
 export interface InternalChatActivityEntry {

@@ -613,6 +613,72 @@ def test_notify_gap_source_user_inserts_followup_and_marks_notified(
         cleanup_company(db_session, company, user, project)
 
 
+def test_notify_gap_source_user_in_app_only_skips_email(
+    client, db_session, superadmin_headers, construction_vertical_id, monkeypatch
+):
+    """The third post-confirm option, added after the notify/skip-notify
+    split: send_email=False still creates the real follow-up ChatSession and
+    in-app notification (the asker isn't left with nothing), but must never
+    call the email service - the whole point is not inbox-spamming someone
+    with several separately-resolved gaps. Spies on send_gap_source_found_email
+    rather than relying on EMAIL_ENABLED=false alone, so a real regression
+    (calling it unconditionally) would be caught even in an environment
+    where email sending is fully enabled."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    session = _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Real gap question")
+    candidate = _make_gap_source_candidate(
+        db_session, chat_session_id=session.id, vertical_id=construction_vertical_id, question=session.message
+    )
+    import app.routers.admin as admin_module
+
+    email_calls = []
+    monkeypatch.setattr(
+        admin_module, "send_gap_source_found_email", lambda *args, **kwargs: email_calls.append(args) or True
+    )
+    try:
+        confirm = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/confirm",
+            json={
+                "title": candidate.candidate_title,
+                "content": candidate.candidate_content,
+                "source_url": candidate.source_url,
+                "authority": candidate.authority,
+            },
+            headers=superadmin_headers,
+        )
+        assert confirm.status_code == 200
+
+        resp = client.post(
+            f"/admin/gap-source-candidates/{candidate.id}/notify-user",
+            json={"send_email": False},
+            headers=superadmin_headers,
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["email_sent"] is False
+        follow_up_id = body["chat_session_id"]
+
+        # The real deliverable (the follow-up message + in-app notice)
+        # still happened - only the email is skipped.
+        follow_up = db_session.get(ChatSession, follow_up_id)
+        assert follow_up is not None
+        assert follow_up.tool_used == "gap_resolution_notice"
+        notif = db_session.scalar(
+            select(Notification).where(Notification.user_id == user.id, Notification.type == "gap_source_found")
+        )
+        assert notif is not None
+
+        assert email_calls == []
+
+        db_session.refresh(candidate)
+        assert candidate.notified_at is not None
+    finally:
+        db_session.execute(text("DELETE FROM notifications WHERE user_id = :id AND type = 'gap_source_found'"), {"id": user.id})
+        db_session.commit()
+        _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
 def test_skip_notify_gap_source_user_marks_resolved_without_messaging(
     client, db_session, superadmin_headers, construction_vertical_id
 ):

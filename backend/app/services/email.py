@@ -463,6 +463,44 @@ def send_gap_source_found_email(db: Session, to_email: str, question: str, answe
     return _send(to_email, subject, html_content, text)
 
 
+def send_openai_quota_exhausted_email(db: Session, to_email: str, cooldown_minutes: int) -> bool:
+    """Fires immediately (not on a threshold) the first time an OpenAI call
+    fails with insufficient_quota - see chat.py's
+    _maybe_alert_openai_quota_exhausted, the only caller (cooldown_minutes
+    is that function's own debounce window, passed in rather than
+    duplicated here as a second constant). This means the entire product
+    is down for every real user right now, so this is the one email in
+    this file that's genuinely urgent rather than informational - hence
+    the CRITICAL subject line and the explicit "why you won't get
+    spammed" cooldown note in the body."""
+    row = get_template(db, "openai_quota_exhausted")
+    if row is None:
+        logger.error("Email template 'openai_quota_exhausted' missing from email_templates - skipping send")
+        return False
+
+    billing_url = "https://platform.openai.com/settings/organization/billing"
+    cooldown_label = f"{cooldown_minutes} λεπτά"
+    cooldown_label_en = f"{cooldown_minutes} minutes"
+    variables = {
+        "billing_button_html": _button_html(billing_url, "Προσθήκη πίστωσης"),
+        "billing_button_html_en": _button_html(billing_url, "Add credits"),
+        "cooldown_label": cooldown_label,
+        "cooldown_label_en": cooldown_label_en,
+    }
+
+    subject_el = render(row.subject_el, variables)
+    subject_en = render(row.subject_en, variables)
+    body_el = render(row.body_el, variables)
+    body_en = render(row.body_en, variables)
+
+    subject = f"{subject_el} · {subject_en}"
+    body_html = f"{body_el}\n<hr style=\"border:none; border-top:1px solid {_COLOR_BORDER}; margin: 24px 0;\">\n{body_en}"
+    preheader = _derive_preheader(body_el)
+    html_content = _base_html(subject, preheader, body_html, "el")
+    text = f"{_html_to_text(body_el)}\n\n---\n\n{_html_to_text(body_en)}"
+    return _send(to_email, subject, html_content, text)
+
+
 def send_password_reset_email(db: Session, to_email: str, reset_url: str) -> bool:
     """Sends a password-reset email via Resend. Returns True on success,
     False if email is disabled or the send fails - never raises, so the
@@ -586,6 +624,14 @@ def _test_send_variables(template_key: str) -> dict[str, str]:
             "answer_html": "Σύμφωνα με τον Ν. 4067/2012, ο συντελεστής δόμησης καθορίζεται ανά περιοχή...",
             "chat_button_html": _button_html(chat_url, "Δείτε την απάντηση"),
             "chat_button_html_en": _button_html(chat_url, "See the answer"),
+        }
+    if template_key == "openai_quota_exhausted":
+        billing_url = "https://platform.openai.com/settings/organization/billing"
+        return {
+            "billing_button_html": _button_html(billing_url, "Προσθήκη πίστωσης"),
+            "billing_button_html_en": _button_html(billing_url, "Add credits"),
+            "cooldown_label": "30 λεπτά",
+            "cooldown_label_en": "30 minutes",
         }
     if template_key == "email_verification":
         expiry_days = settings.email_verification_token_expire_minutes // 1440

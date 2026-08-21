@@ -27,6 +27,7 @@ TEMPLATE_KEYS = (
     "invite_no_company",
     "beta_approved",
     "gap_source_found",
+    "openai_quota_exhausted",
 )
 
 # Union of variable names the send code may substitute into ANY of a
@@ -94,6 +95,12 @@ ALLOWED_VARIABLES: dict[str, set[str]] = {
         "answer_html",
         "chat_button_html",
         "chat_button_html_en",
+    },
+    "openai_quota_exhausted": {
+        "billing_button_html",
+        "billing_button_html_en",
+        "cooldown_label",
+        "cooldown_label_en",
     },
 }
 

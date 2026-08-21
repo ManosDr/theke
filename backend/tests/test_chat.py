@@ -20,7 +20,7 @@ test_critical_path.py, which already proves a throwaway company gets
 identical national-scope citations), so migrating loses no coverage.
 """
 
-from sqlalchemy import select
+from sqlalchemy import func, select, text
 
 from app.models import Document, MessageFeedback, Vertical
 
@@ -218,3 +218,108 @@ def test_feedback_wrong_company_session(client, db_session, member_headers, cons
         assert resp.status_code == 403
     finally:
         cleanup_company(db_session, other_company, other_user, other_project)
+
+
+def test_insufficient_quota_error_fires_immediate_alert(db_session):
+    """A real insufficient_quota condition can't be summoned on demand
+    without literally exhausting the account (exactly what happened live
+    during tonight's build) - a real httpx.Response/openai.RateLimitError
+    is constructed here instead, matching the module docstring's exception
+    up top: unlike every other test in this file, this one deliberately
+    doesn't hit the real API, since the whole point is a condition the real
+    API can't be made to produce in a test.
+
+    Calls _maybe_alert_openai_quota_exhausted directly (one of the two
+    approaches the feature spec calls out - "mock the specific exception")
+    rather than driving it through POST /chat/message, since a genuine
+    quota failure would hit OpenAI at the embedding-retrieval call too
+    (a separate client instantiation from the completion call this
+    exception simulates), and mocking both correctly is far more surface
+    area than the thing actually under test here: does this specific
+    function correctly detect insufficient_quota, notify, email, and
+    debounce - the same function all three real except OpenAIError blocks
+    in chat.py call."""
+    import httpx
+    from openai import RateLimitError
+
+    from app.models import Notification, PlatformSettings, User
+    from app.routers.chat import _maybe_alert_openai_quota_exhausted
+    from app.services.platform_settings import get_or_create_platform_settings
+
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx.Response(status_code=429, request=request)
+    exc = RateLimitError(
+        "You have no credits remaining.",
+        response=response,
+        body={
+            "message": "You have no credits remaining.",
+            "type": "insufficient_quota",
+            "param": None,
+            "code": "credit_balance_exhausted",
+        },
+    )
+
+    settings_row = get_or_create_platform_settings(db_session)
+    settings_row.last_openai_quota_alert_at = None
+    db_session.commit()
+    superadmin_count = db_session.scalar(
+        select(func.count()).select_from(User).where(User.role == "super_admin", User.is_active.is_(True))
+    )
+    try:
+        _maybe_alert_openai_quota_exhausted(db_session, exc)
+
+        notif = db_session.scalar(select(Notification).where(Notification.type == "openai_quota_exhausted"))
+        assert notif is not None
+        assert "πίστωση" in notif.body
+
+        db_session.refresh(settings_row)
+        assert settings_row.last_openai_quota_alert_at is not None
+
+        # One notification per active super admin (notify_super_admins'
+        # existing fan-out), not one platform-wide row.
+        notif_count = db_session.scalar(
+            select(func.count()).select_from(Notification).where(Notification.type == "openai_quota_exhausted")
+        )
+        assert notif_count == superadmin_count
+
+        # A second failure within the cooldown window is debounced - no
+        # duplicate notifications/emails for a burst of concurrent
+        # real request failures, exactly what happens once the account
+        # actually runs out mid-traffic.
+        _maybe_alert_openai_quota_exhausted(db_session, exc)
+        notif_count_after = db_session.scalar(
+            select(func.count()).select_from(Notification).where(Notification.type == "openai_quota_exhausted")
+        )
+        assert notif_count_after == notif_count
+    finally:
+        db_session.execute(text("DELETE FROM notifications WHERE type = 'openai_quota_exhausted'"))
+        db_session.commit()
+        settings_row = db_session.get(PlatformSettings, 1)
+        if settings_row:
+            settings_row.last_openai_quota_alert_at = None
+            db_session.commit()
+
+
+def test_ordinary_rate_limit_error_does_not_fire_quota_alert(db_session):
+    """An ordinary transient rate limit (no 'type' field distinguishing it
+    as insufficient_quota) resolves itself in seconds and doesn't warrant
+    a "the product is down" page - only the specific insufficient_quota
+    condition should alert, not every OpenAIError subtype."""
+    import httpx
+    from openai import RateLimitError
+
+    from app.models import Notification
+    from app.routers.chat import _maybe_alert_openai_quota_exhausted
+
+    request = httpx.Request("POST", "https://api.openai.com/v1/chat/completions")
+    response = httpx.Response(status_code=429, request=request)
+    exc = RateLimitError(
+        "Rate limit reached for requests",
+        response=response,
+        body={"message": "Rate limit reached for requests", "type": "requests", "param": None, "code": None},
+    )
+
+    _maybe_alert_openai_quota_exhausted(db_session, exc)
+
+    notif = db_session.scalar(select(Notification).where(Notification.type == "openai_quota_exhausted"))
+    assert notif is None

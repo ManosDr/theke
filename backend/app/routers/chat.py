@@ -1,6 +1,6 @@
 import logging
 import re
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi.responses import JSONResponse
@@ -19,6 +19,7 @@ from app.models import (
     Project,
     Region,
     SubscriptionUsage,
+    User,
     UtilityProvider,
     Vertical,
 )
@@ -34,6 +35,9 @@ from app.schemas import (
     ChatRequest,
     ChatResponse,
 )
+from app.services.email import send_openai_quota_exhausted_email
+from app.services.notifications import notify_super_admins
+from app.services.platform_settings import get_or_create_platform_settings
 from app.services.rag import (
     _passes_hybrid_threshold,
     build_location_context,
@@ -63,6 +67,66 @@ SERVICE_UNAVAILABLE_MESSAGE_EN = "The service is temporarily unavailable. Please
 
 CHAT_RATE_LIMIT_MESSAGE = "Έχετε φτάσει το όριο μηνυμάτων. Δοκιμάστε ξανά σε λίγο."
 CHAT_RATE_LIMIT_MESSAGE_EN = "You've reached your message limit. Please try again shortly."
+
+# Debounce window for _maybe_alert_openai_quota_exhausted below - fires
+# immediately on the first insufficient_quota failure, then suppresses
+# repeats for this long so a burst of concurrent real request failures
+# (exactly what happens once the account actually runs out mid-traffic)
+# doesn't send one email per failed request.
+_OPENAI_QUOTA_ALERT_COOLDOWN_MINUTES = 30
+
+
+def _is_insufficient_quota_error(exc: OpenAIError) -> bool:
+    """OpenAI's own stable error `type` for this exact condition (confirmed
+    against the real error tonight: 'insufficient_quota' /
+    code='credit_balance_exhausted') - not a bare OpenAIError/RateLimitError
+    check, which would also fire on an ordinary transient rate limit that
+    resolves itself in seconds and doesn't warrant a "the product is down"
+    page."""
+    return getattr(exc, "type", None) == "insufficient_quota" or getattr(exc, "code", None) == "credit_balance_exhausted"
+
+
+def _maybe_alert_openai_quota_exhausted(db: Session, exc: OpenAIError) -> None:
+    """Fires an immediate, platform-wide alert (in-app notification + a
+    real email to every super admin) the first time an OpenAI call fails
+    with insufficient_quota - not a gradual-degradation threshold, since
+    this specific failure means literally no chat/embedding call can
+    succeed for any real user until credits are added (confirmed live: this
+    exact condition took production chat down for everyone during tonight's
+    build). Debounced via PlatformSettings.last_openai_quota_alert_at (a
+    DB-backed timestamp, not in-memory - multiple backend worker processes
+    share no memory) rather than a per-request check, so a burst of real
+    concurrent failures sends one alert, not dozens. Never raises - a
+    failure to alert about a failure shouldn't also break the 503 response
+    the caller is already in the middle of returning."""
+    if not _is_insufficient_quota_error(exc):
+        return
+    try:
+        settings_row = get_or_create_platform_settings(db)
+        now = datetime.utcnow()
+        cooldown = timedelta(minutes=_OPENAI_QUOTA_ALERT_COOLDOWN_MINUTES)
+        if settings_row.last_openai_quota_alert_at and now - settings_row.last_openai_quota_alert_at < cooldown:
+            return
+        settings_row.last_openai_quota_alert_at = now
+        db.commit()
+
+        notify_super_admins(
+            db,
+            type="openai_quota_exhausted",
+            title="ΚΡΙΣΙΜΟ: Δεν υπάρχει διαθέσιμη πίστωση OpenAI",
+            body=(
+                "Καμία συνομιλία ή αναζήτηση δεν λειτουργεί αυτή τη στιγμή για κανέναν "
+                "πραγματικό χρήστη. Προσθέστε πίστωση άμεσα: "
+                "https://platform.openai.com/settings/organization/billing"
+            ),
+        )
+        db.commit()
+
+        admin_emails = list(db.scalars(select(User.email).where(User.role == "super_admin", User.is_active.is_(True))))
+        for email in admin_emails:
+            send_openai_quota_exhausted_email(db, email, _OPENAI_QUOTA_ALERT_COOLDOWN_MINUTES)
+    except Exception:
+        logger.exception("Failed to send OpenAI-quota-exhausted alert")
 
 # Self-serve registrations only (see auth.py's register() and
 # KNOWN_DECISIONS.md) - gates message-sending specifically, not every write
@@ -864,6 +928,7 @@ async def chat(
         )
     except OpenAIError as exc:
         logger.error("OpenAI embedding failed: %s", exc)
+        _maybe_alert_openai_quota_exhausted(db, exc)
         _log_session(
             db, user, payload.project_id, question, SERVICE_UNAVAILABLE_MESSAGE, tool_used="error", error_type="openai_error",
         )
@@ -895,6 +960,7 @@ async def chat(
         completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI completion failed: %s", exc)
+        _maybe_alert_openai_quota_exhausted(db, exc)
         _log_session(
             db, user, payload.project_id, question, SERVICE_UNAVAILABLE_MESSAGE, tool_used="error", error_type="openai_error",
         )
@@ -1199,6 +1265,7 @@ async def chat_message(
         completion_tokens = completion.usage.completion_tokens if completion.usage else None
     except OpenAIError as exc:
         logger.error("OpenAI call failed: %s", exc)
+        _maybe_alert_openai_quota_exhausted(db, exc)
         detail = SERVICE_UNAVAILABLE_MESSAGE_EN if locale == "en" else SERVICE_UNAVAILABLE_MESSAGE
         # usage intentionally omitted - a system-side failure shouldn't cost
         # the company a message against their monthly pool, unlike the gap/

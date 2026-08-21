@@ -786,7 +786,9 @@ CREATE TABLE IF NOT EXISTS notifications (
                               -- 'removal_requested', 'removal_decided', 'invite_accepted_platform',
                               -- 'self_serve_registered' (Phase 5 of the beta/trial rollout),
                               -- 'gap_source_found' (gap-triggered source discovery - a regular
-                              -- user's original gap now has a confirmed answer)
+                              -- user's original gap now has a confirmed answer),
+                              -- 'openai_quota_exhausted' (fires immediately on the first
+                              -- insufficient_quota API failure - see chat.py)
     title VARCHAR NOT NULL,
     body TEXT,
     link VARCHAR,
@@ -2069,7 +2071,7 @@ ON CONFLICT (id) DO NOTHING;
 -- overwritten by a fresh init.sql apply, same discipline as legal_documents.
 CREATE TABLE IF NOT EXISTS email_templates (
   id            serial PRIMARY KEY,
-  template_key  varchar(20) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found')),
+  template_key  varchar(30) NOT NULL UNIQUE CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found', 'openai_quota_exhausted')),
   subject_el    text NOT NULL,
   subject_en    text NOT NULL,
   body_el       text NOT NULL,
@@ -2085,7 +2087,12 @@ CREATE TABLE IF NOT EXISTS email_templates (
 -- database).
 ALTER TABLE email_templates DROP CONSTRAINT IF EXISTS email_templates_template_key_check;
 ALTER TABLE email_templates ADD CONSTRAINT email_templates_template_key_check
-  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found'));
+  CHECK (template_key IN ('invite', 'welcome', 'password_reset', 'email_verification', 'invite_no_company', 'beta_approved', 'gap_source_found', 'openai_quota_exhausted'));
+
+-- 'openai_quota_exhausted' (22 chars) is longer than this column's
+-- original varchar(20) - widen for a container whose volume predates that
+-- (a fresh CREATE TABLE already gets varchar(30) above).
+ALTER TABLE email_templates ALTER COLUMN template_key TYPE varchar(30);
 
 INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body_en) VALUES
 ('invite',
@@ -2201,6 +2208,22 @@ INSERT INTO email_templates (template_key, subject_el, subject_en, body_el, body
 <p><b>The answer:</b><br>{{answer_html}}</p>
 {{chat_button_html_en}}
 <p>Thank you for your patience.<br>theke</p>'
+),
+('openai_quota_exhausted',
+ 'ΚΡΙΣΙΜΟ: Δεν υπάρχει διαθέσιμη πίστωση OpenAI — theke',
+ 'CRITICAL: OpenAI credits exhausted — theke',
+ '<p>Γεια σας,</p>
+<p><b>Καμία συνομιλία ή αναζήτηση δεν λειτουργεί αυτή τη στιγμή για κανέναν πραγματικό χρήστη</b> — ο λογαριασμός OpenAI της πλατφόρμας εξάντλησε την πίστωσή του (insufficient_quota).</p>
+<p>Προσθέστε πίστωση άμεσα για να αποκατασταθεί η υπηρεσία:</p>
+{{billing_button_html}}
+<p>Δεν θα λάβετε ξανά αυτό το email για {{cooldown_label}}, ώστε να μην κατακλυστείτε από επαναλαμβανόμενα μηνύματα όσο το πρόβλημα παραμένει.</p>
+<p>theke</p>',
+ '<p>Hello,</p>
+<p><b>No chat or search is working right now for any real user</b> — the platform''s OpenAI account has run out of credits (insufficient_quota).</p>
+<p>Add credits immediately to restore service:</p>
+{{billing_button_html_en}}
+<p>You won''t receive this email again for {{cooldown_label_en}}, so this doesn''t flood you with repeats while the problem persists.</p>
+<p>theke</p>'
 )
 ON CONFLICT (template_key) DO NOTHING;
 
@@ -2516,3 +2539,14 @@ CREATE TABLE IF NOT EXISTS gap_source_candidates (
 
 CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_session ON gap_source_candidates(chat_session_id);
 CREATE INDEX IF NOT EXISTS idx_gap_source_candidates_status ON gap_source_candidates(status);
+
+-- Debounce timestamp for the "OpenAI credits exhausted" super-admin alert
+-- (see backend/app/routers/chat.py's _maybe_alert_openai_quota_exhausted) -
+-- fires immediately on the first insufficient_quota failure (this means
+-- the whole product is down for every real user right now, not a gradual
+-- degradation worth batching), then suppresses repeats for
+-- _OPENAI_QUOTA_ALERT_COOLDOWN so a burst of concurrent real request
+-- failures - exactly what happens once the account actually runs out
+-- mid-traffic - doesn't send one email per failed request. DB-backed, not
+-- in-memory, since multiple backend worker processes share no memory.
+ALTER TABLE platform_settings ADD COLUMN IF NOT EXISTS last_openai_quota_alert_at timestamp;

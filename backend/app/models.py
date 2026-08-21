@@ -858,6 +858,9 @@ class PlatformSettings(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
     beta_ended: Mapped[bool] = mapped_column(default=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow)
+    # Debounce for the "OpenAI credits exhausted" super-admin alert - see
+    # chat.py's _maybe_alert_openai_quota_exhausted.
+    last_openai_quota_alert_at: Mapped[datetime | None] = mapped_column(DateTime)
 
 
 class HelpSection(Base):

@@ -40,6 +40,32 @@
 # in sync):
 #   - postgres  (db/init.sql)
 #   - nginx     (infra/nginx.conf)
+#
+# --- RELATED STANDING RULE: nginx's cached upstream IP goes stale whenever
+#     backend's container identity changes, for ANY reason - same underlying
+#     category as the bind-mount rule above (something changed under a
+#     running container's feet and nothing told the container that depends
+#     on it), see KNOWN_DECISIONS.md's 2026-08-21 outage entry ---
+#
+# This script is already safe: it restarts nginx unconditionally below, on
+# every run, regardless of whether backend actually got recreated - so a
+# `docker compose up --build -d` above that silently recreates backend (its
+# own image changed, or Compose detects its env_file content drifted) is
+# already covered. The unconditional restart was originally added for a
+# different reason (the bind-mount rule above), but it happens to fix this
+# category too - which is exactly why the 2026-08-21 outage did NOT come
+# from a deploy.sh run. It came from a manual, ad hoc `docker compose
+# --force-recreate` command run directly on the server, outside this script,
+# which recreated backend and had no equivalent nginx-restart step at all.
+#
+# For ANY production docker compose command that isn't a full run of this
+# script - restarting one service, `--force-recreate`, anything - use
+# scripts/docker-compose-prod.sh instead of calling `docker compose` on the
+# server directly. It detects backend's container ID changing (for any
+# reason, not just ones already known about) and restarts nginx
+# automatically, then runs the same real public smoke test this script now
+# also runs below - not relying on anyone remembering the rule in the
+# moment, which has already failed once.
 
 set -euo pipefail
 
@@ -116,8 +142,30 @@ done
 # pinned to whatever `git pull` replaced it with via unlink+rename. Restart
 # unconditionally so a future infra/nginx.conf edit actually takes effect
 # instead of silently continuing to serve the pre-pull config.
-log "Restarting nginx to pick up the current infra/nginx.conf (same bind-mount staleness issue as db/init.sql)..."
+log "Restarting nginx to pick up the current infra/nginx.conf (same bind-mount staleness issue as db/init.sql, and unconditionally covers backend-container-identity staleness too - see the standing rule above)..."
 docker compose -f "$COMPOSE_FILE" restart nginx
 
-log "Health check passed: $response"
+log "Internal health check passed: $response"
+
+# The internal check above talks straight to backend on 127.0.0.1:8000 and
+# would report "healthy" even if nginx's upstream were completely broken -
+# exactly what happened during the 2026-08-21 outage, undetected for over
+# three hours because nothing ever checked the PUBLIC path. This is that
+# check: a real HTTPS request through nginx to the actual domain, plus a
+# real (deliberately wrong) login attempt, confirming a 401 actually comes
+# back from the app - not a 502 meaning nginx can't reach backend at all.
+PUBLIC_URL="https://theke.ai"
+log "Running real public smoke test against $PUBLIC_URL (through nginx, not a shortcut to backend)..."
+login_page_code="$(curl -s -o /dev/null -w '%{http_code}' "$PUBLIC_URL/login" || echo "000")"
+login_post_code="$(curl -s -o /dev/null -w '%{http_code}' -X POST "$PUBLIC_URL/api/auth/login" \
+    -H 'Content-Type: application/json' \
+    -d '{"email":"smoketest@invalid.example","password":"deliberately-wrong"}' || echo "000")"
+
+if [ "$login_page_code" != "200" ] || [ "$login_post_code" != "401" ]; then
+    log "FAILED: public smoke test did not pass - GET /login=$login_page_code (want 200), POST /api/auth/login=$login_post_code (want 401; a 502 means nginx can't reach backend)."
+    log "The internal health check passed, but the public site is not actually reachable. Investigate before considering this deploy done."
+    exit 1
+fi
+log "Public smoke test passed: GET /login=200, POST /api/auth/login=401 (a real auth rejection reached the app end to end through nginx)."
+
 log "Deploy complete."

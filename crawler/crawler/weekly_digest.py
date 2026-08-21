@@ -45,12 +45,20 @@ def _fetch_stats(conn: psycopg.Connection) -> dict:
     # filter only, see backend's _solo_super_admin_user_ids() docstring and
     # GET /admin/internal-activity for where this activity is still visible.
     with conn.cursor() as cur:
+        # tool_used NOT IN (...) excludes system-generated rows (currently
+        # just the gap-resolution follow-up notice) from the real "total
+        # messages" count - see backend/app/models.py's
+        # ChatSession.is_real_user_message()/SYSTEM_GENERATED_TOOL_USED,
+        # the source of truth this literal must be kept in sync with by
+        # hand (this script can't import that module - separate Python
+        # environment, no SQLAlchemy).
         cur.execute(
             "SELECT COUNT(*) FROM chat_sessions cs "
             "LEFT JOIN companies c ON c.id = cs.company_id "
             "LEFT JOIN users u ON u.id = cs.user_id "
             "WHERE cs.created_at >= now() - interval '7 days' AND (c.id IS NULL OR c.is_test_account IS FALSE) "
-            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL)"
+            "AND NOT (u.role = 'super_admin' AND u.company_id IS NULL) "
+            "AND (cs.tool_used IS NULL OR cs.tool_used NOT IN ('gap_resolution_notice'))"
         )
         total_messages = cur.fetchone()[0]
 

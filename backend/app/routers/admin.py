@@ -365,7 +365,11 @@ async def get_company_detail(
         db.scalar(
             select(func.count())
             .select_from(ChatSession)
-            .where(ChatSession.company_id == company.id, ChatSession.created_at >= since_30d)
+            .where(
+                ChatSession.company_id == company.id,
+                ChatSession.created_at >= since_30d,
+                ChatSession.is_real_user_message(),
+            )
         )
         or 0
     )
@@ -1765,7 +1769,7 @@ async def platform_stats(
             select(func.count())
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(not_test_company, not_solo_super_admin)
+            .where(not_test_company, not_solo_super_admin, ChatSession.is_real_user_message())
         )
         or 0
     )
@@ -1860,7 +1864,11 @@ async def platform_stats(
                 select(func.count())
                 .select_from(ChatSession)
                 .join(Company, Company.id == ChatSession.company_id)
-                .where(Company.vertical_id == v.id, Company.is_test_account.is_(False))
+                .where(
+                    Company.vertical_id == v.id,
+                    Company.is_test_account.is_(False),
+                    ChatSession.is_real_user_message(),
+                )
             )
             or 0
         )
@@ -1996,7 +2004,12 @@ async def business_health(
         )
         .select_from(ChatSession)
         .outerjoin(Company, Company.id == ChatSession.company_id)
-        .where(ChatSession.created_at >= since, not_test_company, not_solo_super_admin)
+        .where(
+            ChatSession.created_at >= since,
+            not_test_company,
+            not_solo_super_admin,
+            ChatSession.is_real_user_message(),
+        )
         .group_by(day_col)
     ).all()
     session_by_day = {r.day: r for r in session_rows}
@@ -2076,7 +2089,12 @@ async def business_health(
             select(func.count(func.distinct(ChatSession.user_id)))
             .select_from(ChatSession)
             .outerjoin(Company, Company.id == ChatSession.company_id)
-            .where(ChatSession.created_at >= since, not_test_company, not_solo_super_admin)
+            .where(
+                ChatSession.created_at >= since,
+                not_test_company,
+                not_solo_super_admin,
+                ChatSession.is_real_user_message(),
+            )
         )
         or 0
     )
@@ -3912,6 +3930,16 @@ async def notify_gap_source_user(
         gap=False,
     )
     db.add(follow_up)
+    db.flush()  # need follow_up.id before commit, to build the deep link below
+
+    # Deep-links straight to the new message, scrolled into view and
+    # highlighted (see chat/page.tsx's ?session= handling) - not just "open
+    # the app". Carries ?project_id= too when the original gap had one, so
+    # the chat page loads the right conversation context before it looks
+    # for the message to scroll to.
+    chat_link = f"/chat?session={follow_up.id}"
+    if gap_session.project_id is not None:
+        chat_link += f"&project_id={gap_session.project_id}"
 
     notify(
         db,
@@ -3919,9 +3947,9 @@ async def notify_gap_source_user(
         type="gap_source_found",
         title="Βρήκαμε πηγή για την ερώτησή σας",
         body=candidate.question,
-        link="/chat",
+        link=chat_link,
     )
-    send_gap_source_found_email(db, asker.email, candidate.question, answer_text)
+    send_gap_source_found_email(db, asker.email, candidate.question, answer_text, chat_link)
 
     candidate.notified_at = datetime.utcnow()
     candidate.notified_by = user.user_id

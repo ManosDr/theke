@@ -426,20 +426,23 @@ def send_beta_approved_email(db: Session, to_email: str, company_name: str) -> b
     return _send(to_email, subject, html_content, text)
 
 
-def send_gap_source_found_email(db: Session, to_email: str, question: str, answer_text: str) -> bool:
+def send_gap_source_found_email(db: Session, to_email: str, question: str, answer_text: str, chat_link: str) -> bool:
     """Fires once, from the "Ενημέρωση χρήστη" gap-discovery action (POST
     /admin/gap-source-candidates/{id}/notify-user) - closes the loop with
     the specific user whose question the chat couldn't confidently answer,
     now that a confirmed source covers it. answer_text is the same
     generated-answer text also inserted as a real ChatSession row in their
     history (see admin.py) - this email is the passive-awareness echo of
-    that, not a separate generation."""
+    that, not a separate generation. chat_link is the ?session=<id> (and
+    optionally &project_id=) deep link built by the caller - not a bare
+    "/chat" - so the button lands directly on the new message, scrolled
+    into view and highlighted, not just "open the app"."""
     row = get_template(db, "gap_source_found")
     if row is None:
         logger.error("Email template 'gap_source_found' missing from email_templates - skipping send")
         return False
 
-    chat_url = f"{settings.frontend_url}/chat"
+    chat_url = f"{settings.frontend_url}{chat_link}"
     variables = {
         "question": question,
         "answer_html": answer_text.replace("\n", "<br>"),

@@ -542,6 +542,19 @@
   display: flex;
   flex-direction: column;
   gap: 14px;
+  border-radius: 12px;
+  padding: 8px;
+  margin: -8px;
+  transition: background-color 0.8s ease, box-shadow 0.8s ease;
+}
+
+/* Deep-link target from the gap-resolution notification/email
+   (/chat?session=<id>) - briefly marks the answer the link promised to
+   show, then fades via .messageAssistant's own transition once the class
+   is removed (see chat/page.tsx's highlightActive timer). */
+.messageHighlighted {
+  background: var(--color-info-bg);
+  box-shadow: 0 0 0 1px var(--color-info);
 }
 
 .assistantHeader {

@@ -685,6 +685,40 @@ class ChatSession(Base):
             or_(cls.citations.is_(None), cast(cls.citations, Text).in_(["[]", "null"])),
         )
 
+    @classmethod
+    def is_real_user_message(cls) -> ColumnElement[bool]:
+        """Filter excluding system-generated rows (currently just the gap-
+        resolution follow-up notice - see notify_gap_source_user in
+        admin.py, tool_used='gap_resolution_notice') from any "total
+        messages"/usage-counting query: messages_30d and gap-rate
+        denominators, GET /admin/stats' dashboard tiles, Business Health's
+        daily chart and active-user count, the weekly digest (both
+        backend/app/services/weekly_digest.py and crawler/crawler/
+        weekly_digest.py - keep both in sync with SYSTEM_GENERATED_TOOL_USED
+        below), GET /users/me/usage, the company-admin usage dashboard, and
+        the rate-limit "messages today" display. A system-inserted row isn't
+        real user activity and shouldn't count as a "message" anywhere that
+        claims to measure it - use this instead of a bare .select_from(
+        ChatSession) count for any such query. true_gap()'s numerator
+        already excludes these naturally (gap=False on that row), so only
+        the denominator/total-count side needed this fix.
+
+        NULL-safe: tool_used is nullable (some legacy rows predate this
+        column entirely - see the older /chat endpoint referenced elsewhere
+        in this file), and a bare `.not_in(...)` would silently exclude
+        those too under SQL's three-valued NULL logic. A NULL tool_used row
+        is real historical user activity, not a system-generated one, so it
+        stays included."""
+        return or_(cls.tool_used.is_(None), cls.tool_used.not_in(SYSTEM_GENERATED_TOOL_USED))
+
+
+# See ChatSession.is_real_user_message()'s docstring - the single source of
+# truth for which tool_used values mark a system-generated (not real user-
+# sent) row. crawler/crawler/weekly_digest.py can't import this (separate
+# Python environment, no SQLAlchemy) - its own NOT IN (...) literal must be
+# kept in sync with this tuple by hand.
+SYSTEM_GENERATED_TOOL_USED = ("gap_resolution_notice",)
+
 
 class DocumentValidation(Base):
     """One row per AI revalidation attempt (app/routers/admin.py's

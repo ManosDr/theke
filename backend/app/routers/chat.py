@@ -1391,7 +1391,11 @@ async def rate_limit_status(
         db.scalar(
             select(func.count())
             .select_from(ChatSession)
-            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= today_start)
+            .where(
+                ChatSession.user_id == user.user_id,
+                ChatSession.created_at >= today_start,
+                ChatSession.is_real_user_message(),
+            )
         )
         or 0
     )

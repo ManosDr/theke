@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import type { ReactNode } from "react";
 
@@ -266,6 +267,21 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
   const [loading, setLoading] = useState(false);
   const [historyLoading, setHistoryLoading] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+
+  // Deep-link target from the gap-resolution notification/email
+  // (/chat?session=<id>) - scrolled into view and briefly highlighted once
+  // history restores. useSearchParams() (not a one-time window.location.search
+  // read) so this stays correct if this page instance is reused across a
+  // client-side navigation that only changes the query string, rather than
+  // capturing a stale value from whatever URL this component first mounted at.
+  const searchParams = useSearchParams();
+  const highlightedSessionId = useMemo(() => {
+    const raw = searchParams.get("session");
+    const parsed = raw ? Number(raw) : NaN;
+    return Number.isFinite(parsed) ? parsed : null;
+  }, [searchParams]);
+  const [highlightActive, setHighlightActive] = useState(true);
+  const scrolledToHighlightRef = useRef(false);
 
   const [resendingVerification, setResendingVerification] = useState(false);
   const [verificationResent, setVerificationResent] = useState(false);
@@ -580,12 +596,50 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
     };
   }, [token, selectedProjectId]);
 
+  // Resets the once-only scroll guard whenever the deep-link target itself
+  // changes (a genuinely new ?session=), not on every unrelated re-render.
+  useEffect(() => {
+    scrolledToHighlightRef.current = false;
+    setHighlightActive(true);
+  }, [highlightedSessionId]);
+
   const dividers = useMemo(() => computeDividers(messages, restarts, locale, t), [messages, restarts, locale, t]);
   const dividerByIndex = useMemo(() => new Map(dividers.map((d) => [d.index, d])), [dividers]);
 
+  // One effect, not two competing ones - a real bug caught live while
+  // verifying this: with a separate "always scroll to bottom on messages
+  // change" effect declared after a separate highlight-scroll effect, both
+  // fired off the same `messages` update in the same commit and the
+  // bottom-scroll always won, silently overriding the deep-link scroll
+  // every time. Single decision point instead: while a ?session= deep-link
+  // target hasn't been reached yet, scroll to IT and nothing else: once
+  // scrolledToHighlightRef is set (permanently, until highlightedSessionId
+  // itself changes), every future messages update (a live-sent question,
+  // for example) falls through to the normal "show the newest message"
+  // behavior exactly as before this feature existed.
+  //
+  // behavior:"auto" (instant), not "smooth", for the highlight-scroll
+  // specifically - a second real bug caught live while verifying this:
+  // React 18 StrictMode's dev-only double-invoke of effects interrupts an
+  // in-progress *animated* scroll (cleanup fires mid-animation on the
+  // deliberately-discarded first pass), and since scrolledToHighlightRef is
+  // a ref (persists across that double-invoke, unlike state), the guard
+  // was already set true by the interrupted first pass - permanently
+  // blocking the real second pass from ever retrying. An instant jump has
+  // no animation to interrupt, so this class of bug can't recur regardless
+  // of React's invoke count; the visual "landed here" cue still comes from
+  // the highlight class fading over 4s, not from the scroll motion itself.
   useEffect(() => {
+    if (highlightedSessionId != null && !scrolledToHighlightRef.current) {
+      const el = document.getElementById(`chat-message-${highlightedSessionId}`);
+      if (!el || !messages.some((m) => m.sessionId === highlightedSessionId)) return;
+      scrolledToHighlightRef.current = true;
+      el.scrollIntoView({ behavior: "auto", block: "center" });
+      const fadeTimer = window.setTimeout(() => setHighlightActive(false), 4000);
+      return () => window.clearTimeout(fadeTimer);
+    }
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages]);
+  }, [messages, highlightedSessionId]);
 
   async function sendMessage(overrideText?: string) {
     const question = (overrideText ?? input).trim();
@@ -1297,7 +1351,12 @@ function ChatContent({ sheetOpen, onOpenSheet, onCloseSheet }: { sheetOpen: bool
               ) : m.role === "user" ? (
                 <div className={`${styles.message} ${styles.messageUser}`}>{m.text}</div>
               ) : (
-                <div className={`${styles.message} ${styles.messageAssistant}`}>
+                <div
+                  id={m.sessionId != null ? `chat-message-${m.sessionId}` : undefined}
+                  className={`${styles.message} ${styles.messageAssistant} ${
+                    highlightActive && m.sessionId === highlightedSessionId ? styles.messageHighlighted : ""
+                  }`}
+                >
                   <div className={styles.assistantHeader}>
                     <span className={styles.assistantAvatar}>
                       <SparkleIcon size={15} />

@@ -35,6 +35,7 @@ def _compute_stats(db: Session) -> dict:
             ChatSession.created_at >= text("now() - interval '7 days'"),
             (Company.id.is_(None)) | (Company.is_test_account.is_(False)),
             not_solo_super_admin,
+            ChatSession.is_real_user_message(),
         )
     ) or 0
 

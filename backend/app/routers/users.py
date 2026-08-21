@@ -70,7 +70,11 @@ async def get_my_usage(
         db.scalar(
             select(func.count())
             .select_from(ChatSession)
-            .where(ChatSession.user_id == user.user_id, ChatSession.created_at >= since_30d)
+            .where(
+                ChatSession.user_id == user.user_id,
+                ChatSession.created_at >= since_30d,
+                ChatSession.is_real_user_message(),
+            )
         )
         or 0
     )

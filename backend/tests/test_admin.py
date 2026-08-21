@@ -564,6 +564,9 @@ def test_notify_gap_source_user_inserts_followup_and_marks_notified(
             select(Notification).where(Notification.user_id == user.id, Notification.type == "gap_source_found")
         )
         assert notif is not None
+        # Deep-links to the actual new message, not a bare "/chat" - see
+        # chat/page.tsx's ?session= scroll-and-highlight handling.
+        assert notif.link == f"/chat?session={follow_up_id}"
 
         db_session.refresh(candidate)
         assert candidate.notified_at is not None
@@ -590,6 +593,63 @@ def test_notify_gap_source_user_requires_confirmed(client, db_session, superadmi
         assert resp.status_code == 400
     finally:
         _cleanup_gap_source_candidate(db_session, candidate.id)
+        cleanup_company(db_session, company, user, project)
+
+
+def _make_real_answered_session(db, *, company_id: int, user_id: int, message: str) -> ChatSession:
+    """A real, non-gap Q&A turn - gap=False with real citations, matching
+    what a genuine confident answer logs (true_gap() infers from citations/
+    error_type, not the gap column, so a real answer needs real citations
+    to actually read as non-gap)."""
+    session = ChatSession(
+        company_id=company_id, user_id=user_id, message=message, gap=False, tool_used="rag",
+        citations=[{"document_id": 1, "title": "Some document", "authority": None, "source_url": None}],
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def _make_system_generated_session(db, *, company_id: int, user_id: int) -> ChatSession:
+    """Mirrors notify_gap_source_user's own follow-up insert - message=None,
+    gap=False, real citations, tool_used='gap_resolution_notice'."""
+    session = ChatSession(
+        company_id=company_id, user_id=user_id, message=None, response="A generated follow-up answer.",
+        gap=False, tool_used="gap_resolution_notice",
+        citations=[{"document_id": 1, "title": "Some document", "authority": None, "source_url": None}],
+    )
+    db.add(session)
+    db.commit()
+    db.refresh(session)
+    return session
+
+
+def test_system_generated_messages_excluded_from_gap_rate_and_usage(
+    client, db_session, superadmin_headers, construction_vertical_id
+):
+    """The real incident from tonight's gap-source-discovery rollout: a
+    confirmed candidate's "Ενημέρωση χρήστη" follow-up notice must not
+    inflate messages_30d (and therefore the gap-rate denominator) - 2 true
+    gaps out of 3 REAL messages should read 66.7%, not 50% from a 4th,
+    system-generated row counted as if it were a real message."""
+    company, user, project, token = make_company_and_user(db_session, vertical_id=construction_vertical_id)
+    _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Gap question one")
+    _make_gap_session(db_session, company_id=company.id, user_id=user.id, message="Gap question two")
+    _make_real_answered_session(db_session, company_id=company.id, user_id=user.id, message="A real answered question")
+    _make_system_generated_session(db_session, company_id=company.id, user_id=user.id)
+    try:
+        resp = client.get(f"/admin/companies/{company.id}", headers=superadmin_headers)
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["messages_30d"] == 3
+        assert body["gap_rate"] == 66.7
+
+        usage_headers = {"Authorization": f"Bearer {token}"}
+        usage_resp = client.get("/users/me/usage", headers=usage_headers)
+        assert usage_resp.status_code == 200
+        assert usage_resp.json()["messages_30d"] == 3
+    finally:
         cleanup_company(db_session, company, user, project)
 
 

@@ -551,7 +551,11 @@ async def company_overview(
     active_user_ids = set(
         db.scalars(
             select(ChatSession.user_id)
-            .where(ChatSession.company_id == company_id, ChatSession.created_at >= since_30d)
+            .where(
+                ChatSession.company_id == company_id,
+                ChatSession.created_at >= since_30d,
+                ChatSession.is_real_user_message(),
+            )
             .distinct()
         ).all()
     )
@@ -560,7 +564,11 @@ async def company_overview(
         db.scalar(
             select(func.count())
             .select_from(ChatSession)
-            .where(ChatSession.company_id == company_id, ChatSession.created_at >= since_30d)
+            .where(
+                ChatSession.company_id == company_id,
+                ChatSession.created_at >= since_30d,
+                ChatSession.is_real_user_message(),
+            )
         )
         or 0
     )
